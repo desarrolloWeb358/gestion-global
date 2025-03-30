@@ -67,3 +67,15 @@ node_modules/
 
 # dataconnect generated files
 .dataconnect
+
+# React frontend dependencies
+frontend/node_modules/
+
+# React build output
+frontend/build/
+
+# Firebase Functions dependencies
+functions/node_modules/
+
+# TypeScript build output (opcional, si llegas a compilar manualmente)
+functions/lib/
