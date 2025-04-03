@@ -1,12 +1,8 @@
-// src/common/ui/ButtonPrimary.tsx
-import { Button, ButtonProps } from "@mui/material";
+import React from 'react';
+import { Button, ButtonProps } from '@mui/material';
 
-const ButtonPrimary = (props: ButtonProps) => {
-  return (
-    <Button variant="contained" color="primary" {...props}>
-      {props.children}
-    </Button>
-  );
+const ButtonPrimary: React.FC<ButtonProps> = (props) => {
+  return <Button variant="contained" color="primary" {...props} />;
 };
 
 export default ButtonPrimary;

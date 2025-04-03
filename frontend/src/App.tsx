@@ -5,6 +5,8 @@ import RegisterPage from "./common/auth/pages/RegisterPage";
 import AuthGuard from "./common/auth/components/AuthGuard";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import ConsultaPersonasPage from "./common/pages/ConsultaPersonasPage";
+import MainLayout from "./common/layouts/MainLayout";
+
 
 const theme = createTheme({
   palette: {
@@ -21,10 +23,13 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route
+         
             path="/usuarios"
             element={
               <AuthGuard>
+                 <MainLayout>
                 <UsuarioCrudPage />
+                </MainLayout>
               </AuthGuard>
             }
           />
@@ -32,7 +37,10 @@ function App() {
             path="/consultarPersonas"
             element={
               <AuthGuard>
+                <MainLayout>
                 <ConsultaPersonasPage />
+                </MainLayout>
+                
               </AuthGuard>
             }
           />
