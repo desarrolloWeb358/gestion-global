@@ -34,7 +34,6 @@ export const helloWorld = onRequest((req, res) => {
   });
 
 
-
   export const consultarRut = functions.https.onRequest(async (req, res) => {
     // Habilitar CORS manualmente
     res.set('Access-Control-Allow-Origin', '*');
