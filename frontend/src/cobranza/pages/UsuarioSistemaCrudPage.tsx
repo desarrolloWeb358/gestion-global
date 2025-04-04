@@ -1,13 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from 'react';
+import { UsuarioSistema } from '../models/usuarioSistema.model';
+import CrudLayout from '../../common/layouts/CrudLayout';
+import { MRT_ColumnDef } from 'material-react-table';
 import {
   getUsuariosSistema,
   addUsuarioSistema,
+  updateUsuarioSistema,
   deleteUsuarioSistema,
-} from "../services/usuarioSistemaService";
-import { UsuarioSistema } from "../models/usuarioSistema.model";
-import UsuarioSistemaForm from "../components/UsuarioSistemaForm";
-import { Typography, IconButton, List, ListItem, ListItemText } from "@mui/material";
-import DeleteIcon from "@mui/icons-material/Delete";
+} from '../services/usuarioSistemaService';
+import { buildDateColumn } from '../../common/components/DateColumn';
 
 const UsuarioSistemaCrudPage = () => {
   const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([]);
@@ -17,42 +18,69 @@ const UsuarioSistemaCrudPage = () => {
     setUsuarios(data);
   };
 
-  const manejarCrear = async (nuevo: Omit<UsuarioSistema, "uid">) => {
+  const handleCreate = async (nuevo: Omit<UsuarioSistema, 'uid'>) => {
     await addUsuarioSistema(nuevo);
-    cargarUsuarios();
+    await cargarUsuarios();
   };
 
-  const manejarEliminar = async (uid: string) => {
+  const handleUpdate = async (actualizado: UsuarioSistema) => {
+    if (!actualizado.uid) return;
+    await updateUsuarioSistema(actualizado.uid, actualizado);
+    await cargarUsuarios();
+  };
+
+  const handleDelete = async (uid: string) => {
     await deleteUsuarioSistema(uid);
-    cargarUsuarios();
+    await cargarUsuarios();
   };
 
   useEffect(() => {
     cargarUsuarios();
   }, []);
 
-  return (
-    <div>
-      <Typography variant="h5">Gestión de Usuarios del Sistema</Typography>
-      <UsuarioSistemaForm onSubmit={manejarCrear} />
+  const columns = useMemo<MRT_ColumnDef<UsuarioSistema & { id: string }>[]>(
+    () => [
+      { accessorKey: 'email', header: 'Correo Electrónico' },
+      {
+        accessorKey: 'rol',
+        header: 'Rol',
+        editVariant: 'select',
+        editSelectOptions: ['admin', 'cliente', 'inmueble'],
+        muiEditTextFieldProps: {
+          select: true,
+          required: true,
+        },
+      },
+      { accessorKey: 'asociadoA', header: 'Asociado A' },
+      { accessorKey: 'nombre', header: 'Nombre' },
+      {
+        accessorKey: 'activo',
+        header: 'Activo',
+        editVariant: 'select',
+        editSelectOptions: ['Sí', 'No'],
+        muiEditTextFieldProps: {
+          select: true,
+          required: true,
+        },
+        Cell: ({ cell }) => (cell.getValue() ? 'Sí' : 'No'),
+      },
+    ],
+    []
+  );
 
-      <List>
-        {usuarios.map((u) => (
-          <ListItem key={u.uid}
-            secondaryAction={
-              <IconButton edge="end" onClick={() => manejarEliminar(u.uid)}>
-                <DeleteIcon />
-              </IconButton>
-            }
-          >
-            <ListItemText
-              primary={`${u.nombre || u.email} (${u.rol})`}
-              secondary={`Activo: ${u.activo ? "Sí" : "No"}`}
-            />
-          </ListItem>
-        ))}
-      </List>
-    </div>
+  const usuariosAdaptados = usuarios.map((u) => ({ ...u, id: u.uid }));
+
+  return (
+    <CrudLayout
+      title="Gestión de Usuarios"
+      columns={columns}
+      data={usuariosAdaptados}
+      onCreate={handleCreate}
+      onUpdate={(actualizado) =>
+        handleUpdate({ ...actualizado, uid: actualizado.id || '' })
+      }
+      onDelete={(id) => handleDelete(id)}
+    />
   );
 };
 

@@ -1,13 +1,9 @@
-import { useEffect, useState } from "react";
-import {
-  getClientes,
-  addCliente,
-  deleteCliente,
-} from "../services/clienteService";
+import { useEffect, useMemo, useState } from "react";
 import { Cliente } from "../models/cliente.model";
-import ClienteForm from "../components/ClienteForm";
-import { Typography, IconButton, List, ListItem, ListItemText } from "@mui/material";
-import DeleteIcon from "@mui/icons-material/Delete";
+import { addCliente, deleteCliente, getClientes, updateCliente } from "../services/clienteService";
+import CrudLayout from "../../common/layouts/CrudLayout";
+import { MRT_ColumnDef } from "material-react-table";
+import { buildDateColumn } from "../../common/components/DateColumn";
 
 const ClienteCrudPage = () => {
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -17,42 +13,67 @@ const ClienteCrudPage = () => {
     setClientes(data);
   };
 
-  const manejarCrear = async (nuevo: Omit<Cliente, "id">) => {
+  const handleCreate = async (nuevo: Omit<Cliente, 'id'>) => {
     await addCliente(nuevo);
-    cargarClientes();
+    await cargarClientes();
   };
 
-  const manejarEliminar = async (id: string) => {
+  const handleUpdate = async (actualizado: Cliente) => {
+    if (!actualizado.id) return;
+    await updateCliente(actualizado.id, actualizado);
+    await cargarClientes();
+  };
+
+  const handleDelete = async (id: string) => {
     await deleteCliente(id);
-    cargarClientes();
+    await cargarClientes();
   };
 
   useEffect(() => {
     cargarClientes();
   }, []);
 
-  return (
-    <div>
-      <Typography variant="h5">Gestión de Clientes (Conjuntos Residenciales)</Typography>
-      <ClienteForm onSubmit={manejarCrear} />
+  const columns = useMemo<MRT_ColumnDef<Cliente>[]>(
+    () => [
+      {
+        accessorKey: "nombre",
+        header: "Nombre",
+      },
+      {
+        accessorKey: "correo",
+        header: "Correo",
+      },
+      {
+        accessorKey: "tipo",
+        header: "Tipo",
+        editVariant: 'select',
+        editSelectOptions: ['natural', 'jurídica'],
+        muiEditTextFieldProps: {
+          select: true,
+          required: true,
+        },
+      },
+      {
+        accessorKey: "telefono",
+        header: "Teléfono",
+      },
+      {
+        accessorKey: "direccion",
+        header: "Dirección",
+      },
+    ],
+    []
+  );
 
-      <List>
-        {clientes.map((c) => (
-          <ListItem key={c.id}
-            secondaryAction={
-              <IconButton edge="end" onClick={() => manejarEliminar(c.id!)}>
-                <DeleteIcon />
-              </IconButton>
-            }
-          >
-            <ListItemText
-              primary={c.nombre}
-              secondary={`Tipo: ${c.tipo} • Correo: ${c.correo}`}
-            />
-          </ListItem>
-        ))}
-      </List>
-    </div>
+  return (
+    <CrudLayout
+      title="Gestión de Clientes"
+      columns={columns}
+      data={clientes}
+      onCreate={handleCreate}
+      onUpdate={handleUpdate}
+      onDelete={handleDelete}
+    />
   );
 };
 

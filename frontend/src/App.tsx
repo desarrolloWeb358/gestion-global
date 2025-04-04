@@ -1,11 +1,12 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import UsuarioCrudPage from "./common/pages/UsuarioCrudPage";
 import LoginPage from "./common/auth/pages/LoginPage";
 import RegisterPage from "./common/auth/pages/RegisterPage";
 import AuthGuard from "./common/auth/components/AuthGuard";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import ConsultaPersonasPage from "./common/pages/ConsultaPersonasPage";
 import MainLayout from "./common/layouts/MainLayout";
+import ClienteCrudPage from './cobranza/pages/ClienteCrudPage';
+import UsuarioSistemaCrudPage from "./cobranza/pages/UsuarioSistemaCrudPage";
 
 
 const theme = createTheme({
@@ -22,13 +23,14 @@ function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+   
           <Route
          
             path="/usuarios"
             element={
               <AuthGuard>
                  <MainLayout>
-                <UsuarioCrudPage />
+                <UsuarioSistemaCrudPage />
                 </MainLayout>
               </AuthGuard>
             }
@@ -44,6 +46,16 @@ function App() {
               </AuthGuard>
             }
           />
+                 <Route
+  path="/clientes"
+  element={
+    <AuthGuard>
+      <MainLayout>
+        <ClienteCrudPage />
+      </MainLayout>
+    </AuthGuard>
+  }
+/>
           <Route path="*" element={<LoginPage />} />
         </Routes>
       </BrowserRouter>
