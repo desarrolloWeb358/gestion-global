@@ -5,7 +5,6 @@ import AuthGuard from "./common/auth/components/AuthGuard";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import ConsultaPersonasPage from "./common/pages/ConsultaPersonasPage";
 import MainLayout from "./common/layouts/MainLayout";
-import ClienteCrudPage from './cobranza/pages/ClienteCrudPage';
 import UsuarioSistemaCrudPage from "./cobranza/pages/UsuarioSistemaCrudPage";
 
 
@@ -25,7 +24,7 @@ function App() {
           <Route path="/register" element={<RegisterPage />} />
    
           <Route
-         
+
             path="/usuarios"
             element={
               <AuthGuard>
@@ -40,22 +39,12 @@ function App() {
             element={
               <AuthGuard>
                 <MainLayout>
-                <ConsultaPersonasPage />
+                  <ConsultaPersonasPage />
                 </MainLayout>
                 
               </AuthGuard>
             }
           />
-                 <Route
-  path="/clientes"
-  element={
-    <AuthGuard>
-      <MainLayout>
-        <ClienteCrudPage />
-      </MainLayout>
-    </AuthGuard>
-  }
-/>
           <Route path="*" element={<LoginPage />} />
         </Routes>
       </BrowserRouter>
