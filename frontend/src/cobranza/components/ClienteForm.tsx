@@ -3,6 +3,7 @@ import { TextField, MenuItem } from "@mui/material";
 import ButtonPrimary from "../../common/ui/ButtonPrimary";
 import { Cliente } from "../models/cliente.model";
 
+
 interface Props {
   onSubmit: (data: Omit<Cliente, "id">) => void;
 }
