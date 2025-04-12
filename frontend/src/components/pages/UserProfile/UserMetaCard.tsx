@@ -2,8 +2,8 @@ import React from "react";
 import { useModal } from "../../../hooks/useModal";
 import { Modal } from "../../ui/modal";
 import Button from "../../ui/button/Button";
-import Input from "../../features/form/input/InputField";
-import Label from "../../features/form/Label";
+import Input from "../../../shared/components/form/input/InputField";
+import Label from "../../../shared/components/form/Label";
 
 export default function UserMetaCard() {
   const { isOpen, openModal, closeModal } = useModal();

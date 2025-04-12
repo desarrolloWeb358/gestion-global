@@ -1,7 +1,7 @@
 import React from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom"; // ← Usa 'react-router-dom'
-import SignIn from "./components/auth/AuthPages/SignIn";
-import SignUp from "./components/auth/AuthPages/SignUp";
+import SignIn from "./modules/auth/components/SignIn";
+import SignUp from "./modules/auth/components/SignUp";
 import NotFound from "./components/pages/otherPages/notFound";
 import UserProfiles from "./components/pages/UserProfile/userProfiles";
 import Videos from "./components/ui/videos/Videos";
@@ -10,16 +10,16 @@ import Alerts from "./components/ui/alert/alerts";
 import Badges from "./components/ui/Badges";
 import Avatars from "./components/ui/Avatars";
 import Buttons from "./components/ui/Buttons";
-import LineChart from "./components/charts/Charts/LineChart";
-import BarChart from "./components/charts/bar/BarChartOne";
+import LineChart from "./modules/dashboard/components/LineChart";
+import BarChart from "./modules/dashboard/components/BarChartOne";
 import Calendar from "./components/pages/calendar/calendar";
-import FormElements from "./components/features/form-elements/formElements";
+import FormElements from "./shared/components/form-elements/formElements";
 import Blank from "./components/pages/otherPages/Blank";
-import AppLayout from "./components/layout/AppLayout";
+import AppLayout from "./shared/components/layout/AppLayout";
 import { ScrollToTop } from "./components/ui/ScrollToTop";
 import Home from "./components/pages/home";
-import ClientesCrud from "./components/pages/crud/clientesCrud";
-import UsuariosCrud from "./components/pages/crud/usuarioCrud";
+import ClientesCrud from "./modules/cobranza/components/clientesCrud";
+import UsuariosCrud from "./modules/usuarios/components/usuarioCrud";
 
 export default function App() {
   return (
