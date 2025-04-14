@@ -1,5 +1,4 @@
-import React from "react";
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   MaterialReactTable,
   MRT_ColumnDef,
@@ -14,6 +13,7 @@ import {
   IconButton,
   Tooltip,
   Switch,
+  TextField
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -28,6 +28,7 @@ import {
 export default function UsuariosCrud() {
   const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([]);
   const [loading, setLoading] = useState(true);
+  const [password, setPassword] = useState(""); // solo para creación
 
   const fetchUsuarios = async () => {
     setLoading(true);
@@ -43,7 +44,7 @@ export default function UsuariosCrud() {
   const columns = useMemo<MRT_ColumnDef<UsuarioSistema>[]>(() => [
     { accessorKey: "email", header: "Email" },
     { accessorKey: "nombre", header: "Nombre" },
-    { accessorKey: "rol", header: "Rol", editVariant: "select", editSelectOptions: ["admin", "cliente", "inmueble"] },
+    { accessorKey: "rol", header: "Rol", editVariant: "select", editSelectOptions: ["admin", "ejecutivo", "cliente", "inmueble"] },
     { accessorKey: "asociadoA", header: "Asociado A" },
     {
       accessorKey: "activo",
@@ -66,9 +67,15 @@ export default function UsuariosCrud() {
       createDisplayMode="modal"
       state={{ isLoading: loading }}
       onCreatingRowSave={async ({ values, table }) => {
-        await crearUsuario(values);
-        table.setCreatingRow(null);
-        fetchUsuarios();
+        try {
+          if (!password) throw new Error("La contraseña es obligatoria");
+          await crearUsuario({ ...values, password }); // usa la contraseña
+          setPassword(""); // limpia la contraseña
+          table.setCreatingRow(null);
+          fetchUsuarios();
+        } catch (error: any) {
+          alert(error.message);
+        }
       }}
       onEditingRowSave={async ({ values, table }) => {
         await actualizarUsuario(values);
@@ -102,6 +109,13 @@ export default function UsuariosCrud() {
           <DialogTitle>Crear Usuario</DialogTitle>
           <DialogContent sx={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
             {internalEditComponents}
+            <TextField
+              label="Contraseña"
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
           </DialogContent>
           <DialogActions>
             <MRT_EditActionButtons table={table} row={row} />
