@@ -1,7 +1,7 @@
 import React from "react";
-import GridShape from "./../../ui/GridShape";
+import GridShape from "../ui/GridShape";
 import { Link } from "react-router";
-import PageMeta from "../../ui/PageMeta";
+import PageMeta from "../ui/PageMeta";
 
 
 export default function NotFound() {

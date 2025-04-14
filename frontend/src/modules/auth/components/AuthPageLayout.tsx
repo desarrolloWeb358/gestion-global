@@ -1,6 +1,6 @@
 import React from "react";
-import GridShape from "../../../components/ui/GridShape";
-import ThemeTogglerTwo from "../../../components/ui/ThemeTogglerTwo";
+import GridShape from "../../../shared/components/ui/GridShape";
+import ThemeTogglerTwo from "../../../shared/components/ui/ThemeTogglerTwo";
 
 export default function AuthLayout({
   children,

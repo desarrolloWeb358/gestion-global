@@ -1,5 +1,5 @@
 import { useState } from "react";
-import ComponentCard from "../../../components/ui/ComponentCard";
+import ComponentCard from "../ui/ComponentCard";
 import Checkbox from "../form/input/Checkbox";
 import React from "react";
 

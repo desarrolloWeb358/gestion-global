@@ -1,6 +1,6 @@
 import React from "react";
 import { useState } from "react";
-import ComponentCard from "../../../components/ui/ComponentCard";
+import ComponentCard from "../ui/ComponentCard";
 import TextArea from "../form/input/TextArea";
 import Label from "../form/Label";
 

@@ -5,10 +5,10 @@ import {
   contarUsuarios,
   contarInmuebles,
   contarDeudores,
-} from "../../models/dashboard.model";
-import PageMeta from "../ui/PageMeta";
-import EcommerceMetrics from "../pages/ecommerce/EcommerceMetrics";
-import MonthlySalesChart from "../pages/ecommerce/MonthlySalesChart";
+} from "../../../models/dashboard.model";
+import PageMeta from "../../../shared/components/ui/PageMeta";
+import EcommerceMetrics from "../../../shared/components/ecommerce/EcommerceMetrics";
+import MonthlySalesChart from "../../../shared/components/ecommerce/MonthlySalesChart";
 
 export default function Home() {
   const [totalClientes, setTotalClientes] = useState(0);

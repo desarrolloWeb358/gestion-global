@@ -1,5 +1,5 @@
 import React from "react";
-import ComponentCard from "../../../components/ui/ComponentCard";
+import ComponentCard from "../ui/ComponentCard";
 import FileInput from "../form/input/FileInput";
 import Label from "../form/Label";
 

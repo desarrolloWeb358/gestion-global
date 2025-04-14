@@ -1,7 +1,7 @@
 import React from "react";
 import PageBreadcrumb from "../ui/PageBreadCrumb";
 import ComponentCard from "../ui/ComponentCard";
-import Avatar from "../../components/ui/avatar/Avatar";
+import Avatar from "../ui/avatar/Avatar";
 import PageMeta from "../ui/PageMeta";
 
 export default function Avatars() {

@@ -1,4 +1,4 @@
-import ComponentCard from "../../../components/ui/ComponentCard";
+import ComponentCard from "../ui/ComponentCard";
 import { useDropzone } from "react-dropzone";
 import React from "react";
 // import Dropzone from "react-dropzone";

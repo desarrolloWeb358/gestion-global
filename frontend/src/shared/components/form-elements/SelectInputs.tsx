@@ -1,6 +1,6 @@
 import React from "react";
 import { useState } from "react";
-import ComponentCard from "../../../components/ui/ComponentCard";
+import ComponentCard from "../ui/ComponentCard";
 import Label from "../form/Label";
 import Select from "../form/Select";
 import MultiSelect from "../form/MultiSelect";

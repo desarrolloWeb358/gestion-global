@@ -1,6 +1,6 @@
 import React from "react";
 import PageBreadcrumb from "./PageBreadCrumb";
-import Badge from "../../components/ui/badge/Badge";
+import Badge from "../../shared/components/ui/badge/Badge";
 import { PlusIcon } from "../../assets/icons";
 import PageMeta from "../../components/ui/PageMeta";
 import ComponentCard from "../ui/ComponentCard";

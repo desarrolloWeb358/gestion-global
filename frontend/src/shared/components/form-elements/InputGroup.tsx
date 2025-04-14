@@ -1,5 +1,5 @@
 import React from "react";
-import ComponentCard from "../../../components/ui/ComponentCard";
+import ComponentCard from "../ui/ComponentCard";
 import Label from "../form/Label";
 import Input from "../form/input/InputField";
 import { EnvelopeIcon } from "../../../assets/icons";

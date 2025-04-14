@@ -1,5 +1,5 @@
 import React from "react";
-import PageBreadcrumb from "../../../components/ui/PageBreadCrumb";
+import PageBreadcrumb from "../ui/PageBreadCrumb";
 import DefaultInputs from "../form-elements/DefaultInputs";
 import InputGroup from "../form-elements/InputGroup";
 import DropzoneComponent from "../form-elements/DropZone";
@@ -10,7 +10,7 @@ import FileInputExample from "../form-elements/FileInputExample";
 import SelectInputs from "../form-elements/SelectInputs";
 import TextAreaInput from "../form-elements/TextAreaInput";
 import InputStates from "../form-elements/InputStates";
-import PageMeta from "../../../components/ui/PageMeta";
+import PageMeta from "../ui/PageMeta";
 
 
 export default function FormElements() {

@@ -2,24 +2,24 @@ import React from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom"; // ← Usa 'react-router-dom'
 import SignIn from "./modules/auth/components/SignIn";
 import SignUp from "./modules/auth/components/SignUp";
-import NotFound from "./components/pages/otherPages/notFound";
-import UserProfiles from "./components/pages/UserProfile/userProfiles";
-import Videos from "./components/ui/videos/Videos";
-import Images from "./components/ui/images";
-import Alerts from "./components/ui/alert/alerts";
-import Badges from "./components/ui/Badges";
-import Avatars from "./components/ui/Avatars";
-import Buttons from "./components/ui/Buttons";
+import NotFound from "./shared/components/otherPages/notFound";
+import UserProfiles from "./modules/usuarios/components/UserProfile/userProfiles";
+import Videos from "./shared/components/ui/videos/Videos";
+import Images from "./shared/components/ui/images";
+import Alerts from "./shared/components/ui/alert/alerts";
+import Badges from "./shared/components/ui/Badges";
+import Avatars from "./shared/components/ui/Avatars";
+import Buttons from "./shared/components/ui/Buttons";
 import LineChart from "./modules/dashboard/components/LineChart";
 import BarChart from "./modules/dashboard/components/BarChartOne";
-import Calendar from "./components/pages/calendar/calendar";
+import Calendar from "./shared/components/calendar/calendar";
 import FormElements from "./shared/components/form-elements/formElements";
-import Blank from "./components/pages/otherPages/Blank";
+import Blank from "./shared/components/otherPages/Blank";
 import AppLayout from "./shared/components/layout/AppLayout";
-import { ScrollToTop } from "./components/ui/ScrollToTop";
-import Home from "./components/pages/home";
-import ClientesCrud from "./modules/cobranza/components/clientesCrud";
-import UsuariosCrud from "./modules/usuarios/components/usuarioCrud";
+import { ScrollToTop } from "./shared/components/ui/ScrollToTop";
+import Home from "./modules/usuarios/components/home";
+import ClientesTable from "./modules/cobranza/components/ClientesTable";
+import UsuariosTable from "./modules/usuarios/components/UsuariosTable";
 
 export default function App() {
   return (
@@ -40,8 +40,8 @@ export default function App() {
           <Route path="/calendar" element={<Calendar />} />
           <Route path="/blank" element={<Blank />} />
           <Route path="/form-elements" element={<FormElements />} />
-          <Route path="/clientes-tables" element={<ClientesCrud />} />
-          <Route path="/usuarios-tables" element={<UsuariosCrud />} />
+          <Route path="/clientes-tables" element={<ClientesTable />} />
+          <Route path="/usuarios-tables" element={<UsuariosTable />} />
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/avatars" element={<Avatars />} />
           <Route path="/badge" element={<Badges />} />

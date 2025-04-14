@@ -1,8 +1,8 @@
 import React from "react";
-import PageBreadcrumb from "../../../components/ui/PageBreadCrumb";
-import ComponentCard from "../../../components/ui/ComponentCard";
+import PageBreadcrumb from "../../../shared/components/ui/PageBreadCrumb";
+import ComponentCard from "../../../shared/components/ui/ComponentCard";
 import BarChartOne from "./BarChartOne";
-import PageMeta from "../../../components/ui/PageMeta";
+import PageMeta from "../../../shared/components/ui/PageMeta";
 
 export default function BarChart() {
   return (

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Label from "../../../shared/components/form/Label";
 import Input from "../../../shared/components/form/input/InputField";
-import Button from "../../../components/ui/button/Button";
+import Button from "../../../shared/components/ui/button/Button";
 import { resetPassword } from "../../../services/authService";
 import React from "react";
 

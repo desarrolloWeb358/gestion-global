@@ -1,6 +1,6 @@
 import React from "react";
 import { useState } from "react";
-import ComponentCard from "../../../components/ui/ComponentCard.tsx";
+import ComponentCard from "../ui/ComponentCard.tsx";
 import Label from "../form/Label.tsx";
 import Input from "../form/input/InputField.tsx";
 import Select from "../form/Select.tsx";

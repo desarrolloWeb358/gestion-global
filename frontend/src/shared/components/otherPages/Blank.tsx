@@ -1,6 +1,6 @@
 import React from "react";
-import PageBreadcrumb from "../../ui/PageBreadCrumb";
-import PageMeta from "../../ui/PageMeta";
+import PageBreadcrumb from "../ui/PageBreadCrumb";
+import PageMeta from "../ui/PageMeta";
 
 
 export default function Blank() {

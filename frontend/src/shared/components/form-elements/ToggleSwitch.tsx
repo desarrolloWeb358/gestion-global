@@ -1,4 +1,4 @@
-import ComponentCard from "../../../components/ui/ComponentCard";
+import ComponentCard from "../ui/ComponentCard";
 import Switch from "../form/switch/Switch";
 import React from "react";
 

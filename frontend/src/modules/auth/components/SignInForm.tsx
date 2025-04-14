@@ -5,7 +5,7 @@ import { EyeCloseIcon, EyeIcon } from "../../../assets/icons";
 import Label from "../../../shared/components/form/Label";
 import Input from "../../../shared/components/form/input/InputField";
 import Checkbox from "../../../shared/components/form/input/Checkbox";
-import Button from "../../../components/ui/button/Button";
+import Button from "../../../shared/components/ui/button/Button";
 import { loginConCorreo, loginConGoogle } from "../../../services/authService";
 
 export default function SignInForm() {

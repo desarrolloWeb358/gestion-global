@@ -1,5 +1,5 @@
 import React from "react";
-import PageMeta from "../../../components/ui/PageMeta";
+import PageMeta from "../../../shared/components/ui/PageMeta";
 import AuthLayout from "./AuthPageLayout";
 import SignUpForm from "./SignUpForm";
 
