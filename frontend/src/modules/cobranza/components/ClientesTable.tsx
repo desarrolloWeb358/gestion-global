@@ -16,13 +16,13 @@ import {
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { Cliente } from "../../../models/cliente.model";
+import { Cliente } from "../models/cliente.model";
 import {
   obtenerClientes,
   crearCliente,
   actualizarCliente,
   eliminarCliente,
-} from "../../../services/clienteHooks";
+} from "../hooks/clienteHooks";
 
 export default function ClientesCrud() {
   const [clientes, setClientes] = useState<Cliente[]>([]);

@@ -1,6 +1,6 @@
-// src/services/usuarioHooks.ts
+
 import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc } from "firebase/firestore";
-import { db } from "../firebase";
+import { db } from "../../../firebase";
 import { UsuarioSistema } from "../models/usuarioSistema.model";
 
 const collectionRef = collection(db, "usuarios");

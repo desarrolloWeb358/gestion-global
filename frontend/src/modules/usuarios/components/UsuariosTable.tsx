@@ -1,4 +1,3 @@
-// src/components/pages/crud/UsuariosCrud.tsx
 import React from "react";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -18,13 +17,13 @@ import {
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { UsuarioSistema } from "../../../models/usuarioSistema.model";
+import { UsuarioSistema } from "../models/usuarioSistema.model";
 import {
   obtenerUsuarios,
   crearUsuario,
   actualizarUsuario,
   eliminarUsuario,
-} from "../../../hooks/usuarioHooks";
+} from "../services/usuarioService";
 
 export default function UsuariosCrud() {
   const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([]);

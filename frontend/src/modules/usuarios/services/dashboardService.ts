@@ -1,6 +1,6 @@
 // src/services/dashboardService.ts
 import { collection, getDocs } from "firebase/firestore";
-import { db } from "../../../../firebase";
+import { db } from "../../../firebase";
 
 export const contarClientes = async (): Promise<number> => {
   const snapshot = await getDocs(collection(db, "clientes"));
