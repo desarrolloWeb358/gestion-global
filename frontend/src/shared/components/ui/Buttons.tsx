@@ -2,8 +2,8 @@ import React from "react";
 import ComponentCard from "../ui/ComponentCard";
 import PageBreadcrumb from "./PageBreadCrumb";
 import PageMeta from "./PageMeta";
-import Button from "../../shared/components/ui/button/Button";
-import { BoxIcon } from "../../assets/icons";
+import Button from "./button/Button";
+import { BoxIcon } from "../../../assets/icons";
 
 export default function Buttons() {
   return (
