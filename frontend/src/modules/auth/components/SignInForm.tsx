@@ -18,7 +18,7 @@ export default function SignInForm() {
   const handleLogin = async () => {
     try {
       await loginConCorreo(email, password);
-      navigate("/dashboard"); // o "/usuarios" según tu ruta
+      navigate("/home"); // o "/usuarios" según tu ruta
     } catch (error) {
       alert("Correo o contraseña incorrectos");
     }
@@ -27,7 +27,7 @@ export default function SignInForm() {
   const handleGoogleLogin = async () => {
     try {
       await loginConGoogle();
-      navigate("/dashboard"); // o "/usuarios" según tu ruta
+      navigate("/home"); // o "/usuarios" según tu ruta
     } catch (error) {
       alert("Error al iniciar con Google");
     }

@@ -20,6 +20,11 @@ import { ScrollToTop } from "./shared/components/ui/ScrollToTop";
 import Home from "./modules/usuarios/components/home";
 import ClientesTable from "./modules/cobranza/components/ClientesTable";
 import UsuariosTable from "./modules/usuarios/components/UsuariosTable";
+import RedirectByRol from "./modules/auth/pages/RedirectByRol";
+import DashboardAdmin from "./modules/dashboard/pages/DashboardAdmin";
+import DashboardEjecutivo from "./modules/dashboard/pages/DashboardEjecutivo";
+import DashboardCliente from "./modules/dashboard/pages/DashboardCliente";
+import DashboardInmueble from "./modules/dashboard/pages/DashboardInmueble";
 
 export default function App() {
   return (
@@ -32,10 +37,14 @@ export default function App() {
         {/* Auth Routes */}
         <Route path="/signin" element={<SignIn />} />
         <Route path="/signup" element={<SignUp />} />
+        <Route path="/home" element={<RedirectByRol />} />
 
         {/* Layout protegido */}
         <Route element={<AppLayout />}>
-          <Route path="/dashboard" element={<Home />} />
+          <Route path="/admin/dashboard" element={<DashboardAdmin />} />
+          <Route path="/ejecutivo/dashboard" element={<DashboardEjecutivo />} />
+          <Route path="/cliente/dashboard" element={<DashboardCliente />} />
+          <Route path="/inmueble/dashboard" element={<DashboardInmueble />} />
           <Route path="/profile" element={<UserProfiles />} />
           <Route path="/calendar" element={<Calendar />} />
           <Route path="/blank" element={<Blank />} />
