@@ -15,12 +15,14 @@ export default function SignInForm() {
   const [isChecked, setIsChecked] = useState(false);
   const navigate = useNavigate();
 
-  const handleLogin = async () => {
+  const handleLogin = async (e: React.FormEvent) => {
+     e.preventDefault();
     try {
-      await loginConCorreo(email, password);
+      await loginConCorreo(email.trim(), password);
       navigate("/home"); // o "/usuarios" según tu ruta
-    } catch (error) {
-      alert("Correo o contraseña incorrectos");
+    } catch (error:any) {
+      alert("Correo o contraseña incorrectos" + error);
+      console.log(error);
     }
   };
 
@@ -142,7 +144,7 @@ export default function SignInForm() {
                 </a>
               </div>
               <div>
-                <Button className="w-full" size="sm" onClick={handleLogin}>
+                <Button type="button" className="w-full" size="sm" onClick={handleLogin}>
                   Inciar sesión
                 </Button>
               </div>

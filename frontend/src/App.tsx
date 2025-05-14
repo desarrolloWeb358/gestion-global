@@ -25,6 +25,7 @@ import DashboardAdmin from "./modules/dashboard/pages/DashboardAdmin";
 import DashboardEjecutivo from "./modules/dashboard/pages/DashboardEjecutivo";
 import DashboardCliente from "./modules/dashboard/pages/DashboardCliente";
 import DashboardInmueble from "./modules/dashboard/pages/DashboardInmueble";
+import ResetPasswordForm from "./modules/auth/components/ResetPasswordForm";
 
 export default function App() {
   return (
@@ -37,6 +38,7 @@ export default function App() {
         {/* Auth Routes */}
         <Route path="/signin" element={<SignIn />} />
         <Route path="/signup" element={<SignUp />} />
+        <Route path="/reset-password" element={<ResetPasswordForm />} />
         <Route path="/home" element={<RedirectByRol />} />
 
         {/* Layout protegido */}
