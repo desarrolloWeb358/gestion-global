@@ -10,6 +10,7 @@ import {
 } from "firebase/firestore";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { UsuarioSistema } from "../models/usuarioSistema.model";
+import { Cliente } from "../../cobranza/models/cliente.model"; // Asegúrate de importar esto
 
 export const obtenerUsuarios = async (): Promise<UsuarioSistema[]> => {
   const snapshot = await getDocs(collection(db, "usuarios"));
@@ -27,6 +28,8 @@ export const crearUsuario = async (usuario: UsuarioSistema & { password: string 
   const uid = cred.user.uid;
 
   const ref = doc(db, "usuarios", uid);
+
+
   const usuarioFirestore: UsuarioSistema = {
     uid,
     email: usuario.email,
@@ -36,6 +39,20 @@ export const crearUsuario = async (usuario: UsuarioSistema & { password: string 
     activo: true,
   };
   await setDoc(ref, usuarioFirestore);
+
+  // Si el usuario es cliente, también creamos el documento en "clientes"
+  if (usuario.rol === "cliente") {
+    const clienteRef = doc(db, "clientes", uid);
+    const clienteData: Cliente = {
+      id: uid,
+      nombre: usuario.nombre ?? "",
+      correo: usuario.email,
+      direccion: "",
+      telefono: "",
+      tipo: "",
+    };
+    await setDoc(clienteRef, clienteData);
+  }
 };
 
 export const actualizarUsuario = async (usuario: UsuarioSistema): Promise<void> => {

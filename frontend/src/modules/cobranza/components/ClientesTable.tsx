@@ -22,7 +22,7 @@ import {
   crearCliente,
   actualizarCliente,
   eliminarCliente,
-} from "../hooks/clienteHooks";
+} from "../services/clienteService";
 
 export default function ClientesCrud() {
   const [clientes, setClientes] = useState<Cliente[]>([]);

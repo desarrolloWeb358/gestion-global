@@ -9,27 +9,33 @@ import {
 } from "firebase/firestore";
 import { Cliente } from "../models/cliente.model";
 
+// Referencia a la colección en Firestore
 const clientesRef = collection(db, "clientes");
 
+// Obtener todos los clientes
 export const obtenerClientes = async (): Promise<Cliente[]> => {
   const snapshot = await getDocs(clientesRef);
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Cliente));
+  return snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data(),
+  } as Cliente));
 };
 
-export const crearCliente = async (cliente: Omit<Cliente, "id">) => {
-  await addDoc(clientesRef, {
-    ...cliente,
-  });
+// Crear un nuevo cliente
+export const crearCliente = async (cliente: Omit<Cliente, "id">): Promise<void> => {
+  await addDoc(clientesRef, cliente);
 };
 
-export const actualizarCliente = async (cliente: Cliente) => {
+// Actualizar cliente existente
+export const actualizarCliente = async (cliente: Cliente): Promise<void> => {
   const { id, ...data } = cliente;
   if (!id) return;
   const ref = doc(db, "clientes", id);
   await updateDoc(ref, data);
 };
 
-export const eliminarCliente = async (id: string) => {
+// Eliminar cliente por ID
+export const eliminarCliente = async (id: string): Promise<void> => {
   const ref = doc(db, "clientes", id);
   await deleteDoc(ref);
 };
