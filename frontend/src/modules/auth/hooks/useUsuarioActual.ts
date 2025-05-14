@@ -10,16 +10,26 @@ export const useUsuarioActual = () => {
 
   useEffect(() => {
     const cargarUsuario = async () => {
-      const auth = getAuth();
-      const user = auth.currentUser;
-      if (user) {
-        const ref = doc(db, "usuarios", user.uid);
-        const snapshot = await getDoc(ref);
-        if (snapshot.exists()) {
-          setUsuario({ uid: snapshot.id, ...snapshot.data() } as UsuarioSistema);
+      try {
+        const auth = getAuth();
+        const user = auth.currentUser;
+        if (user) {
+          const ref = doc(db, "usuarios", user.uid);
+          const snapshot = await getDoc(ref);
+          if (snapshot.exists()) {
+            setUsuario({ uid: snapshot.id, ...snapshot.data() } as UsuarioSistema);
+          } else {
+            console.warn("⚠️ No se encontró el documento del usuario:", user.uid);
+          }
+        } else {
+          console.warn("⚠️ No hay usuario autenticado.");
         }
+
+      } catch (error) {
+        console.error("❌ Error cargando usuario desde Firestore:", error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     cargarUsuario();
