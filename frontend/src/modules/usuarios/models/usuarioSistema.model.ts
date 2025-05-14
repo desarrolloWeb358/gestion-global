@@ -1,9 +1,10 @@
+import { Timestamp, FieldValue } from "firebase/firestore";
+
 export interface UsuarioSistema {
     uid: string;
     email: string;
     rol: 'admin' | 'ejecutivo' | 'cliente' | 'inmueble';
-    asociadoA?: string;
     nombre?: string;
-    fecha_registro?: string;
+    fecha_registro?: Timestamp | { seconds: number; nanoseconds: number } | FieldValue;
     activo?: boolean;
   }

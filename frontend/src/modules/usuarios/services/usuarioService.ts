@@ -6,6 +6,7 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { UsuarioSistema } from "../models/usuarioSistema.model";
@@ -31,8 +32,7 @@ export const crearUsuario = async (usuario: UsuarioSistema & { password: string 
     email: usuario.email,
     rol: usuario.rol,
     nombre: usuario.nombre ?? "",
-    asociadoA: usuario.asociadoA,
-    fecha_registro: new Date().toISOString(),
+    fecha_registro: serverTimestamp(), // <-- agrega automáticamente el timestamp
     activo: true,
   };
   await setDoc(ref, usuarioFirestore);
@@ -45,7 +45,6 @@ export const actualizarUsuario = async (usuario: UsuarioSistema): Promise<void> 
     nombre: usuario.nombre,
     email: usuario.email,
     rol: usuario.rol,
-    asociadoA: usuario.asociadoA ?? null,
     activo: usuario.activo ?? true,
   });
 };

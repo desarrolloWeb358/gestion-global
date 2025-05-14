@@ -19,7 +19,6 @@ export const obtenerClientes = async (): Promise<Cliente[]> => {
 export const crearCliente = async (cliente: Omit<Cliente, "id">) => {
   await addDoc(clientesRef, {
     ...cliente,
-    fecha_creacion: new Date().toISOString(),
   });
 };
 

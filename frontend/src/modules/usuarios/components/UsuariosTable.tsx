@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { formatTimestamp } from "../../../shared/dateUtils";
 import {
   MaterialReactTable,
   MRT_ColumnDef,
@@ -24,6 +25,7 @@ import {
   actualizarUsuario,
   eliminarUsuario,
 } from "../services/usuarioService";
+import { Timestamp } from "firebase/firestore";
 
 export default function UsuariosCrud() {
   const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([]);
@@ -45,7 +47,7 @@ export default function UsuariosCrud() {
     { accessorKey: "email", header: "Email" },
     { accessorKey: "nombre", header: "Nombre" },
     { accessorKey: "rol", header: "Rol", editVariant: "select", editSelectOptions: ["admin", "ejecutivo", "cliente", "inmueble"] },
-    { accessorKey: "asociadoA", header: "Asociado A" },
+    
     {
       accessorKey: "activo",
       header: "Activo",
@@ -54,7 +56,16 @@ export default function UsuariosCrud() {
       ),
       muiEditTextFieldProps: { type: "checkbox" },
     },
-    { accessorKey: "fecha_registro", header: "Fecha de Registro", enableEditing: false },
+    {
+      accessorKey: "fecha_registro",
+      header: "Fecha de Registro",
+      enableEditing: false,
+      Cell: ({ cell }) => {
+        const value = cell.getValue() as Timestamp | { seconds: number; nanoseconds: number } | null;
+        return formatTimestamp(value);
+      },
+    }
+
   ], []);
 
   return (

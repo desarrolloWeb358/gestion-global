@@ -45,7 +45,7 @@ export default function ClientesCrud() {
     { accessorKey: "tipo", header: "Tipo", editVariant: "select", editSelectOptions: ["natural", "jurídica"] },
     { accessorKey: "telefono", header: "Teléfono" },
     { accessorKey: "direccion", header: "Dirección" },
-    { accessorKey: "fecha_creacion", header: "Fecha creación", enableEditing: false },
+
   ], []);
 
   return (

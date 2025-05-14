@@ -5,6 +5,5 @@ export interface Cliente {
     tipo: 'natural' | 'jurídica';
     telefono: string;
     direccion: string;
-    fecha_creacion: string;
   }
   
