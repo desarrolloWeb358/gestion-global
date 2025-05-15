@@ -5,5 +5,6 @@ export interface Cliente {
     tipo: "natural" | "jurídica" | ""; // permite cadena vacía
     telefono: string;
     direccion: string;
+    ejecutivoEmail:string;
   }
   
