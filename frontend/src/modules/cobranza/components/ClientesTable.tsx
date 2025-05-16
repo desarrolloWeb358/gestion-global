@@ -134,22 +134,7 @@ export default function ClientesCrud() {
           </Tooltip>
         </Box>
       )}
-      renderTopToolbarCustomActions={({ table }) => (
-        <Button onClick={() => table.setCreatingRow(true)} variant="contained">
-          Crear Cliente
-        </Button>
-      )}
-      renderCreateRowDialogContent={({ internalEditComponents, table, row }) => (
-        <>
-          <DialogTitle>Crear Cliente</DialogTitle>
-          <DialogContent sx={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            {internalEditComponents}
-          </DialogContent>
-          <DialogActions>
-            <MRT_EditActionButtons table={table} row={row} />
-          </DialogActions>
-        </>
-      )}
+  
       renderEditRowDialogContent={({ internalEditComponents, table, row }) => (
         <>
           <DialogTitle>Editar Cliente</DialogTitle>
