@@ -134,7 +134,6 @@ export default function ClientesCrud() {
           </Tooltip>
         </Box>
       )}
-  
       renderEditRowDialogContent={({ internalEditComponents, table, row }) => (
         <>
           <DialogTitle>Editar Cliente</DialogTitle>

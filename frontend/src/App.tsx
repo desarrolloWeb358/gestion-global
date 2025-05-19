@@ -26,6 +26,7 @@ import DashboardEjecutivo from "./modules/dashboard/pages/DashboardEjecutivo";
 import DashboardCliente from "./modules/dashboard/pages/DashboardCliente";
 import DashboardInmueble from "./modules/dashboard/pages/DashboardInmueble";
 import ResetPasswordForm from "./modules/auth/components/ResetPasswordForm";
+import InmueblesPage from "./modules/cobranza/components/inmueblesTable";
 
 export default function App() {
   return (
@@ -53,6 +54,7 @@ export default function App() {
           <Route path="/form-elements" element={<FormElements />} />
           <Route path="/clientes-tables" element={<ClientesTable />} />
           <Route path="/usuarios-tables" element={<UsuariosTable />} />
+          <Route path="/inmuebles/:clienteId" element={<InmueblesPage />} />
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/avatars" element={<Avatars />} />
           <Route path="/badge" element={<Badges />} />
