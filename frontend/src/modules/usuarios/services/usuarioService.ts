@@ -48,6 +48,7 @@ export const crearUsuario = async (usuario: UsuarioSistema & { password: string 
       nombre: usuario.nombre ?? "",
       correo: usuario.email,
       direccion: "",
+      ejecutivoEmail: "",
       telefono: "",
       tipo: "",
     };
