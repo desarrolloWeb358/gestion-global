@@ -81,7 +81,7 @@ export default function InmueblesPage() {
             <IconButton
               color="error"
               onClick={async () => {
-                await eliminarInmueble(row.original.id!);
+                await eliminarInmueble(clienteId!, row.original.id!);
                 fetchInmuebles();
               }}
             >
@@ -94,13 +94,16 @@ export default function InmueblesPage() {
         <Button onClick={() => table.setCreatingRow(true)}>Crear Inmueble</Button>
       )}
       onCreatingRowSave={async ({ values, table }) => {
-        await crearInmueble({ clienteId: clienteId!, ...values } as any);
+        await crearInmueble(clienteId!, values as Inmueble);
         table.setCreatingRow(null);
         fetchInmuebles();
       }}
       onEditingRowSave={async ({ values, row, table }) => {
         const updated: Inmueble = { ...values, id: row.original.id! } as Inmueble;
-        await actualizarInmueble(updated);
+        await actualizarInmueble(clienteId!, {
+          ...values,
+          id: row.original.id!,
+        } as Inmueble);
         table.setEditingRow(null);
         fetchInmuebles();
       }}

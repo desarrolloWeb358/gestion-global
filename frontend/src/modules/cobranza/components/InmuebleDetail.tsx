@@ -16,7 +16,8 @@ export default function InmuebleDetail() {
     if (!inmuebleId) return;
     setLoading(true);
     try {
-      const snap = await getDoc(doc(db, 'inmuebles', inmuebleId));
+      const snap = await getDoc(doc(db, `clientes/${clienteId}/inmuebles/${inmuebleId}`));
+
       if (snap.exists()) {
         setInmueble({ id: snap.id, ...(snap.data() as Omit<Inmueble, 'id'>) });
       } else {

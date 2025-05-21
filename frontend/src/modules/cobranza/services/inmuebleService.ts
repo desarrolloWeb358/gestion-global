@@ -53,52 +53,45 @@ function mapDocToInmueble(id: string, data: DocumentData): Inmueble {
 /**
  * Obtiene todos los inmuebles asociados a un cliente
  */
-export async function obtenerInmueblesPorCliente(
-  clienteId: string
-): Promise<Inmueble[]> {
-  const q = query(inmueblesCol, where("clienteId", "==", clienteId));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => mapDocToInmueble(d.id, d.data()));
+export async function obtenerInmueblesPorCliente(clienteId: string): Promise<Inmueble[]> {
+  const ref = collection(db, `clientes/${clienteId}/inmuebles`);
+  const snap = await getDocs(ref);
+  return snap.docs.map(doc => mapDocToInmueble(doc.id, doc.data()));
 }
 
 /**
  * Crea un nuevo inmueble en Firestore
  */
-export async function crearInmueble(
-  inmueble: Inmueble & { clienteId: string }
-): Promise<void> {
-  await addDoc(inmueblesCol, inmueble);
+export async function crearInmueble(clienteId: string, inmueble: Inmueble): Promise<void> {
+  const ref = collection(db, `clientes/${clienteId}/inmuebles`);
+  await addDoc(ref, inmueble);
 }
 
-/**
- * Actualiza un inmueble existente
- */
-export async function actualizarInmueble(
-  inmueble: Inmueble
-): Promise<void> {
+export async function actualizarInmueble(clienteId: string, inmueble: Inmueble): Promise<void> {
+  const ref = doc(db, `clientes/${clienteId}/inmuebles/${inmueble.id}`);
   const { id, ...rest } = inmueble;
-  await updateDoc(doc(inmueblesCol, id!), rest as any);
+  await updateDoc(ref, rest as any);
 }
 
-/**
- * Elimina un inmueble por su ID
- */
-export async function eliminarInmueble(id: string): Promise<void> {
-  await deleteDoc(doc(inmueblesCol, id));
+export async function eliminarInmueble(clienteId: string, inmuebleId: string): Promise<void> {
+  const ref = doc(db, `clientes/${clienteId}/inmuebles/${inmuebleId}`);
+  await deleteDoc(ref);
 }
 
 export async function guardarAcuerdoPago(
+  clienteId: string,
   inmuebleId: string,
   acuerdoPago: Inmueble["acuerdo_pago"]
 ): Promise<void> {
-  const ref = doc(db, "inmuebles", inmuebleId);
+  const ref = doc(db, `clientes/${clienteId}/inmuebles/${inmuebleId}`);
   await updateDoc(ref, { acuerdo_pago: acuerdoPago });
 }
 export async function actualizarHonorarios(
+  clienteId: string,
   inmuebleId: string,
   porcentajeHonorarios: number
 ): Promise<void> {
-  const ref = doc(db, 'inmuebles', inmuebleId);
+  const ref = doc(db, `clientes/${clienteId}/inmuebles/${inmuebleId}`);
   await updateDoc(ref, {
     'acuerdo_pago.porcentajeHonorarios': porcentajeHonorarios,
   });
