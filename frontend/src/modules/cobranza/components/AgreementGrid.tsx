@@ -29,21 +29,63 @@ export default function AgreementGrid({ inmueble, onDataChange }: AgreementGridP
   const [rowData, setRowData] = useState<Cuota[]>(inmueble.acuerdo_pago?.cuotas || []);
   const [pinnedBottomData, setPinnedBottomData] = useState<any[]>([]);
 
+  // Porcentaje de honorarios (ajusta este valor si es necesario)
+  const PORCENTAJE_HONORARIOS = 0.1; // 10%
+
+  // Type guard for cuota rows
+  function isCuotaRow(row: any): row is { numero_cuota: number; fecha_limite: string; deuda_capital: number; cuota_capital: number; deuda_honorarios: number; cuota_honorarios: number; cuota_acuerdo: number; pagado: boolean } {
+    return typeof row.numero_cuota === 'number';
+  }
+
+  // Calcula las filas con deuda y honorarios acumulados
+  const computedRows = useMemo(() => {
+    const rows = rowData.filter(isCuotaRow);
+    if (rows.length === 0) return [];
+    let lastDeudaCapital = rows[0].deuda_capital || 0;
+    let lastDeudaHonorarios = lastDeudaCapital * PORCENTAJE_HONORARIOS;
+    return rows.map((row, idx) => {
+      // Deuda Capital
+      const deuda_capital = idx === 0 ? lastDeudaCapital : lastDeudaCapital - ((rows[idx - 1].cuota_acuerdo || 0) - (rows[idx - 1].cuota_honorarios || 0));
+      // Deuda Honorarios
+      const deuda_honorarios = idx === 0 ? lastDeudaHonorarios : lastDeudaHonorarios - (rows[idx - 1].cuota_honorarios || 0);
+      // Cuota Capital
+      const cuota_capital = (row.cuota_acuerdo || 0) - (row.cuota_honorarios || 0);
+      // Update for next iteration
+      lastDeudaCapital = deuda_capital;
+      lastDeudaHonorarios = deuda_honorarios;
+      return {
+        ...row,
+        deuda_capital,
+        deuda_honorarios,
+        cuota_capital,
+      };
+    });
+  }, [rowData]);
+
   // Refresca datos y suma totales
   useEffect(() => {
     const cuotas = Array.isArray(inmueble.acuerdo_pago?.cuotas) ? inmueble.acuerdo_pago.cuotas : [];
     setRowData(cuotas);
     // Calcular totales
     const totalCapital = cuotas.reduce((sum, c) => sum + (typeof (c as any).cuota_capital === 'number' ? (c as any).cuota_capital : 0), 0);
-    // Si tienes propiedades diferentes para honorarios y acuerdo, cámbialas aquí también
     const totalHonorarios = cuotas.reduce((sum, c) => sum + (typeof (c as any).cuota_honorarios === 'number' ? (c as any).cuota_honorarios : 0), 0);
     const totalAcuerdo = cuotas.reduce((sum, c) => sum + (typeof (c as any).cuota_acuerdo === 'number' ? (c as any).cuota_acuerdo : 0), 0);
     setPinnedBottomData([
       {
         numero_cuota: 'Totales',
-        cuota_capital: totalCapital,
+        deuda_capital: cuotas.reduce((sum, c) => sum + (typeof (c as any).deuda_capital === 'number' ? (c as any).deuda_capital : 0), 0),
+        cuota_capital: cuotas.reduce((sum, c, i) => sum + (i === 0
+          ? (typeof (c as any).deuda_capital === 'number' ? (c as any).deuda_capital : 0)
+          : ((typeof (c as any).deuda_capital === 'number' ? (c as any).deuda_capital : 0) - (typeof (c as any).cuota_honorarios === 'number' ? (c as any).cuota_honorarios : 0))
+        ), 0),
         cuota_honorarios: totalHonorarios,
-        cuota_acuerdo: totalAcuerdo,
+        cuota_acuerdo: (
+          cuotas.reduce((sum, c, i) => sum + (i === 0
+            ? (typeof (c as any).deuda_capital === 'number' ? (c as any).deuda_capital : 0)
+            : ((typeof (c as any).deuda_capital === 'number' ? (c as any).deuda_capital : 0) - (typeof (c as any).cuota_honorarios === 'number' ? (c as any).cuota_honorarios : 0))
+          ), 0)
+          + totalHonorarios
+        ),
       },
     ]);
   }, [inmueble]);
@@ -68,16 +110,12 @@ export default function AgreementGrid({ inmueble, onDataChange }: AgreementGridP
           }
         }
       },
-      { headerName: 'Deuda Capital', field: 'deuda_capital', editable: false },
-
+      { headerName: 'Deuda Capital', field: 'deuda_capital', editable: false,
+        valueGetter: params => params.data?.deuda_capital },
+      { headerName: 'Deuda Honorarios', field: 'deuda_honorarios', editable: false,
+        valueGetter: params => params.data?.deuda_honorarios },
       { headerName: 'Cuota Capital', field: 'cuota_capital', editable: false,
-        valueGetter: params => {
-          const deuda = Number(params.data?.deuda_capital) || 0;
-          const honorarios = Number(params.data?.cuota_honorarios) || 0;
-          return deuda - honorarios;
-        }
-      },
-
+        valueGetter: params => params.data?.cuota_capital },
       { headerName: 'Cuota Honorarios', field: 'cuota_honorarios', editable: true,
         onCellValueChanged: (params: NewValueParams<any>) => {
           const idx = rowData.findIndex(row => row === params.data);
@@ -91,7 +129,6 @@ export default function AgreementGrid({ inmueble, onDataChange }: AgreementGridP
           }
         }
       },
-
       { headerName: 'Cuota Acuerdo', field: 'cuota_acuerdo', editable: true,
         onCellValueChanged: (params: NewValueParams<any>) => {
           const idx = rowData.findIndex(row => row === params.data);
@@ -105,7 +142,6 @@ export default function AgreementGrid({ inmueble, onDataChange }: AgreementGridP
           }
         }
       },
-      // Pagada column removed
     ], [inmueble, rowData]
   );
 
@@ -135,7 +171,7 @@ export default function AgreementGrid({ inmueble, onDataChange }: AgreementGridP
       <div className="ag-theme-alpine" style={{ width: '100%', height: 450 }}>
         <AgGridReact
           ref={gridApi}
-          rowData={rowData}
+          rowData={computedRows}
           columnDefs={columnDefs}
           defaultColDef={{ resizable: true, sortable: true, editable: true }}
           rowSelection="single"
