@@ -1,6 +1,7 @@
 @import url("https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap")
 layer(base);
-
+@import 'ag-grid-community/styles/ag-grid.css';
+@import 'ag-grid-community/styles/ag-theme-alpine.css';
 @import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));

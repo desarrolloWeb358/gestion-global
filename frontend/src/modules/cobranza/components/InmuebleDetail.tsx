@@ -1,31 +1,29 @@
-// src/pages/InmuebleDetail.tsx
+// src/modules/cobranza/components/InmuebleDetail.tsx
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { Inmueble } from '../models/inmueble.model';
 import AgreementForm from '../../usuarios/components/AgreementForm';
-import AgreementTable from '../../usuarios/components/AgreementTable';
+import AgreementGrid from './AgreementGrid';
 
 export default function InmuebleDetail() {
   const { clienteId, inmuebleId } = useParams<{ clienteId: string; inmuebleId: string }>();
   const [inmueble, setInmueble] = useState<Inmueble | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState(false);
 
   const loadInmueble = async () => {
     if (!inmuebleId) return;
     setLoading(true);
     try {
-      const ref = doc(db, 'inmuebles', inmuebleId);
-      const snap = await getDoc(ref);
+      const snap = await getDoc(doc(db, 'inmuebles', inmuebleId));
       if (snap.exists()) {
-       setInmueble({ ...(snap.data() as Inmueble), id: snap.id });
-
+        setInmueble({ id: snap.id, ...(snap.data() as Omit<Inmueble, 'id'>) });
       } else {
         setInmueble(null);
       }
-    } catch (error) {
-      console.error('Error cargando inmueble:', error);
+    } catch (err) {
+      console.error(err);
       setInmueble(null);
     } finally {
       setLoading(false);
@@ -36,19 +34,15 @@ export default function InmuebleDetail() {
     loadInmueble();
   }, [inmuebleId]);
 
-  if (loading) return <p>Cargando inmueble...</p>;
+  if (loading) return <p>Cargando...</p>;
   if (!inmueble) return <p>Inmueble no encontrado.</p>;
 
   return (
     <div className="p-6 space-y-6">
       <h1 className="text-2xl font-semibold">Acuerdo de Pago - {inmueble.responsable}</h1>
-
-      {/* Formulario para generar o actualizar el acuerdo */}
       <AgreementForm inmuebleId={inmueble.id!} onSuccess={loadInmueble} />
-
-      {/* Tabla de cronograma */}
       {inmueble.acuerdo_pago && (
-        <AgreementTable inmueble={inmueble} onDataChange={loadInmueble} />
+        <AgreementGrid inmueble={inmueble} onDataChange={loadInmueble} />
       )}
     </div>
   );

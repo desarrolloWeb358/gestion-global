@@ -28,6 +28,9 @@ import DashboardInmueble from "./modules/dashboard/pages/DashboardInmueble";
 import ResetPasswordForm from "./modules/auth/components/ResetPasswordForm";
 import InmueblesPage from "./modules/cobranza/components/inmueblesTable";
 import InmuebleDetail from "./modules/cobranza/components/InmuebleDetail";
+import "ag-grid-community/styles/ag-grid.css";
+import "ag-grid-community/styles/ag-theme-alpine.css";
+
 
 export default function App() {
   return (
@@ -46,7 +49,7 @@ export default function App() {
         {/* Layout protegido */}
         <Route element={<AppLayout />}>
           <Route path="/admin/dashboard" element={<DashboardAdmin />} />
-          <Route path="/inmuebles/:clienteId/:inmuebleId/acuerdo" element={<InmuebleDetail clienteId={""} />} />
+          <Route path="/inmuebles/:clienteId/:inmuebleId/acuerdo" element={<InmuebleDetail />} />
           <Route path="/inmuebles/:clienteId" element={<InmueblesPage />} />
           <Route path="/ejecutivo/dashboard" element={<DashboardEjecutivo />} />
           <Route path="/cliente/dashboard" element={<DashboardCliente />} />

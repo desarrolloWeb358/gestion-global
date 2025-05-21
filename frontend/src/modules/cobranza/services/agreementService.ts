@@ -84,6 +84,7 @@ export async function generarYGuardarAcuerdo(
   await updateDoc(ref, { acuerdo_pago: acuerdoPago });
 }
 
+
 /**
  * Marca cuota como pagada
  */
@@ -136,7 +137,7 @@ export async function actualizarFechaCuota(
 export async function actualizarCuotaField(
   inmuebleId: string,
   indexCuota: number,
-  field: 'cuota_capital' | 'cuota_honorarios',
+  field: 'cuota_capital' | 'cuota_honorarios' | 'cuota_acuerdo',
   value: number
 ): Promise<void> {
   const ref = doc(db, 'inmuebles', inmuebleId);
