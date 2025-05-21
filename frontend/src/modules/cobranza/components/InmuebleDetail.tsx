@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { Inmueble } from '../models/inmueble.model';
-import AgreementForm from '../../usuarios/components/AgreementForm';
+import AgreementForm from './AgreementForm';
 import AgreementGrid from './AgreementGrid';
 
 export default function InmuebleDetail() {
@@ -41,9 +41,9 @@ export default function InmuebleDetail() {
   return (
     <div className="p-6 space-y-6">
       <h1 className="text-2xl font-semibold">Acuerdo de Pago - {inmueble.responsable}</h1>
-      <AgreementForm inmuebleId={inmueble.id!} onSuccess={loadInmueble} />
+      <AgreementForm clienteId={clienteId!} inmuebleId={inmueble.id!} onSuccess={loadInmueble} />
       {inmueble.acuerdo_pago && (
-        <AgreementGrid inmueble={inmueble} onDataChange={loadInmueble} />
+        <AgreementGrid clienteId={clienteId!} inmueble={inmueble} onDataChange={loadInmueble} />
       )}
     </div>
   );

@@ -2,21 +2,22 @@
   import React from 'react';
   import { MaterialReactTable, type MRT_ColumnDef } from 'material-react-table';
   import Checkbox from '@mui/material/Checkbox';
-  import { Inmueble } from '../../cobranza/models/inmueble.model';
+  import { Inmueble } from '../models/inmueble.model';
   import {
     actualizarFechaCuota,
     actualizarCuotaField,
     marcarCuotaPagada,
-  } from '../../cobranza/services/agreementService';
+  } from '../services/agreementService';
   
-  interface AgreementTableProps {
-    inmueble: Inmueble;
-    onDataChange: () => void;
-  }
+ interface AgreementTableProps {
+  clienteId: string;
+  inmueble: Inmueble;
+  onDataChange: () => void;
+}
   
-  export default function AgreementTable({ inmueble, onDataChange }: AgreementTableProps) {
+  export default function AgreementTable({ clienteId, inmueble, onDataChange }: AgreementTableProps) {
     if (!inmueble.acuerdo_pago) return null;
-    const cuotas = inmueble.acuerdo_pago.cuotas;
+    const cuotas = inmueble.acuerdo_pago?.cuotas || [];
   
     const columns: MRT_ColumnDef<typeof cuotas[0]>[] = [
       {
@@ -33,7 +34,7 @@
             type="date"
             value={cell.getValue<string>() || ''}
             onChange={async e => {
-              await actualizarFechaCuota(inmueble.id!, row.index, e.target.value);
+              await actualizarFechaCuota(clienteId, inmueble.id!, row.index, e.target.value);
               onDataChange();
             }}
             style={{ width: '100%', padding: '4px', boxSizing: 'border-box' }}
@@ -58,7 +59,7 @@
             value={cell.getValue<number>()}
             onChange={async e => {
               const newVal = Number(e.target.value);
-              await actualizarCuotaField(inmueble.id!, row.index, 'cuota_capital', newVal);
+              await actualizarCuotaField(clienteId, inmueble.id!, row.index, 'cuota_capital', newVal);
               onDataChange();
             }}
             style={{ width: '100%', padding: '4px', boxSizing: 'border-box' }}
@@ -83,7 +84,7 @@
             value={cell.getValue<number>()}
             onChange={async e => {
               const newVal = Number(e.target.value);
-              await actualizarCuotaField(inmueble.id!, row.index, 'cuota_honorarios', newVal);
+              await actualizarCuotaField(clienteId, inmueble.id!, row.index, 'cuota_honorarios', newVal);
               onDataChange();
             }}
             style={{ width: '100%', padding: '4px', boxSizing: 'border-box' }}
@@ -106,7 +107,7 @@
           <Checkbox
             checked={cell.getValue<boolean>() || false}
             onChange={async () => {
-              await marcarCuotaPagada(inmueble.id!, row.index);
+              await marcarCuotaPagada(clienteId, inmueble.id!, row.index);
               onDataChange();
             }}
           />

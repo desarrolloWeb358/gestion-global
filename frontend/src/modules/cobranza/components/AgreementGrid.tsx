@@ -16,11 +16,15 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../../firebase'; // Ajusta la ruta según la ubicación de tu archivo firebase.ts
 
 interface AgreementGridProps {
+  clienteId: string;
   inmueble: Inmueble;
   onDataChange: () => void;
 }
 
-export default function AgreementGrid({ inmueble, onDataChange }: AgreementGridProps) {
+export default function AgreementGrid({ clienteId, inmueble, onDataChange }: AgreementGridProps) {
+
+  const docRef = (path: string) => doc(db, `clientes/${clienteId}/inmuebles/${inmueble.id}`, path);
+
   const gridApi = useRef<any>(null);
   type Cuota =
     | { pagado: boolean; mes: string; valor_esperado: number; fecha_limite?: string; observacion?: string }
@@ -100,7 +104,7 @@ export default function AgreementGrid({ inmueble, onDataChange }: AgreementGridP
         onCellValueChanged: (params: NewValueParams<any>) => {
           const idx = rowData.findIndex(row => row === params.data);
           if (idx !== -1) {
-            actualizarFechaCuota(inmueble.id!, idx, params.newValue as string)
+            actualizarFechaCuota(clienteId, inmueble.id!, idx, params.newValue as string)
               .then(() => {
                 // Opcional: actualizar solo el rowData localmente
                 const updated = [...rowData];
@@ -120,7 +124,7 @@ export default function AgreementGrid({ inmueble, onDataChange }: AgreementGridP
         onCellValueChanged: (params: NewValueParams<any>) => {
           const idx = rowData.findIndex(row => row === params.data);
           if (idx !== -1) {
-            actualizarCuotaField(inmueble.id!, idx, 'cuota_honorarios', Number(params.newValue))
+            actualizarCuotaField(clienteId, inmueble.id!, idx, 'cuota_honorarios', Number(params.newValue))
               .then(() => {
                 const updated = [...rowData];
                 updated[idx] = { ...updated[idx], cuota_honorarios: Number(params.newValue) };
@@ -133,7 +137,7 @@ export default function AgreementGrid({ inmueble, onDataChange }: AgreementGridP
         onCellValueChanged: (params: NewValueParams<any>) => {
           const idx = rowData.findIndex(row => row === params.data);
           if (idx !== -1) {
-            actualizarCuotaField(inmueble.id!, idx, 'cuota_acuerdo', Number(params.newValue))
+            actualizarCuotaField(clienteId, inmueble.id!, idx, 'cuota_acuerdo', Number(params.newValue))
               .then(() => {
                 const updated = [...rowData];
                 updated[idx] = { ...updated[idx], cuota_acuerdo: Number(params.newValue) };
@@ -162,7 +166,8 @@ export default function AgreementGrid({ inmueble, onDataChange }: AgreementGridP
     // Guardar la lista completa
     doc(db, 'inmuebles', inmueble.id!);
     // Persistir nueva lista en Firestore
-    updateDoc(doc(db, 'inmuebles', inmueble.id!), { 'acuerdo_pago.cuotas': updated }).then(onDataChange);
+    updateDoc(docRef(''), { 'acuerdo_pago.cuotas': updated }).then(onDataChange);
+    //updateDoc(doc(db, 'inmuebles', inmueble.id!), { 'acuerdo_pago.cuotas': updated }).then(onDataChange);
   };
 
   return (
@@ -183,9 +188,12 @@ export default function AgreementGrid({ inmueble, onDataChange }: AgreementGridP
             const idx = params.rowIndex;
             const updatedRow = params.data;
             // Actualizar todos los campos de cuota
-            updateDoc(doc(db, 'inmuebles', inmueble.id!), {
+
+            updateDoc(docRef(''), {
               [`acuerdo_pago.cuotas.${idx}`]: updatedRow,
-            }); // No llamamos onDataChange para evitar recarga
+            });
+
+            // No llamamos onDataChange para evitar recarga
             // Actualizar localmente
             const updated = [...rowData];
             updated[idx] = updatedRow;

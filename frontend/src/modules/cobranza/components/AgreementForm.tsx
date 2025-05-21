@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { generarYGuardarAcuerdo } from '../../cobranza/services/agreementService';
+import { generarYGuardarAcuerdo } from '../services/agreementService';
 
 interface AgreementFormProps {
+  clienteId: string;
   inmuebleId: string;
   onSuccess: () => void;
 }
 
-export default function AgreementForm({ inmuebleId, onSuccess }: AgreementFormProps) {
+export default function AgreementForm({ clienteId, inmuebleId, onSuccess }: AgreementFormProps) {
   const [numero, setNumero] = useState('');
   const [fechaAcuerdo, setFechaAcuerdo] = useState(new Date().toISOString().slice(0, 10));
   const [caracteristicas, setCaracteristicas] = useState('');
@@ -24,22 +25,22 @@ export default function AgreementForm({ inmuebleId, onSuccess }: AgreementFormPr
   }, [valorTotal, porcentajeHonorarios]);
 
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!numero) return alert('Debe ingresar el número de acuerdo');
-  const debtCapital = Number(valorTotal);
-  const honorarioPct = Number(porcentajeHonorarios);
-  const nCuotas    = Number(cuotasCount);
-  // Envía DEUDA CAPITAL como deudaCapitalInicial, no valorTotalAcordado
-  await generarYGuardarAcuerdo(inmuebleId, {
-    numero,
-    fechaAcuerdo,
-    caracteristicas,
-    tipo: 'fijo',
-    porcentajeHonorarios: honorarioPct,
-    deudaCapitalInicial: debtCapital,
-    cuotasCount: nCuotas,
-    fechaInicio,
-  });
+    e.preventDefault();
+    if (!numero) return alert('Debe ingresar el número de acuerdo');
+    const debtCapital = Number(valorTotal);
+    const honorarioPct = Number(porcentajeHonorarios);
+    const nCuotas = Number(cuotasCount);
+
+    await generarYGuardarAcuerdo(clienteId, inmuebleId, {
+      numero,
+      fechaAcuerdo,
+      caracteristicas,
+      tipo: 'fijo',
+      porcentajeHonorarios: honorarioPct,
+      deudaCapitalInicial: debtCapital,
+      cuotasCount: nCuotas,
+      fechaInicio,
+    });
   onSuccess();
 };
 
