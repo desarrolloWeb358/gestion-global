@@ -19,7 +19,8 @@ export default function InmuebleDetail() {
       const ref = doc(db, 'inmuebles', inmuebleId);
       const snap = await getDoc(ref);
       if (snap.exists()) {
-        setInmueble(snap.data() as Inmueble);
+       setInmueble({ ...(snap.data() as Inmueble), id: snap.id });
+
       } else {
         setInmueble(null);
       }
