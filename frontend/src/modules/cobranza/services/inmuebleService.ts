@@ -86,3 +86,20 @@ export async function actualizarInmueble(
 export async function eliminarInmueble(id: string): Promise<void> {
   await deleteDoc(doc(inmueblesCol, id));
 }
+
+export async function guardarAcuerdoPago(
+  inmuebleId: string,
+  acuerdoPago: Inmueble["acuerdo_pago"]
+): Promise<void> {
+  const ref = doc(db, "inmuebles", inmuebleId);
+  await updateDoc(ref, { acuerdo_pago: acuerdoPago });
+}
+export async function actualizarHonorarios(
+  inmuebleId: string,
+  porcentajeHonorarios: number
+): Promise<void> {
+  const ref = doc(db, 'inmuebles', inmuebleId);
+  await updateDoc(ref, {
+    'acuerdo_pago.porcentajeHonorarios': porcentajeHonorarios,
+  });
+}
