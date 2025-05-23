@@ -9,11 +9,13 @@ export interface Inmueble {
   deuda_total: number;
   correos: string[];
   telefonos: string[];
+  porcentaje_honorarios?: number;
   acuerdo_pago?: {
     numero: string;
     fecha_acuerdo: string;
     caracteristicas: string;
     tipo: 'fijo' | 'variable';
+    
     porcentajeHonorarios?: number;      // <-- Agregado
     valor_total_acordado: number;
     cuotas: {

@@ -3,7 +3,7 @@ layer(base);
 @import 'ag-grid-community/styles/ag-grid.css';
 @import 'ag-grid-community/styles/ag-theme-alpine.css';
 @import "tailwindcss";
-
+@import 'jspreadsheet-ce/dist/jspreadsheet.css';
 @custom-variant dark (&:is(.dark *));
 
 @theme {

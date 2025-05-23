@@ -1,0 +1,5 @@
+numero_cuota,fecha_limite,deuda_capital,cuota_capital,deuda_honorarios,cuota_honorarios,cuota_acuerdo,porcentaje_honorarios
+1,2025-06-01,1000000,=G2-F2,=C2*H$2,=G2*H$2,300000,0.10
+2,2025-07-01,=C2-D2,=G3-F3,=E2-F2,=G3*H$2,300000,
+3,2025-08-01,=C3-D3,=G4-F4,=E3-F3,=G4*H$2,300000,
+Totales,,,,=SUM(F2:F4),=SUM(G2:G4),=SUM(H2:H4),
