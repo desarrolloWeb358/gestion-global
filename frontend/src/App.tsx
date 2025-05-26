@@ -28,6 +28,7 @@ import DashboardInmueble from "./modules/dashboard/pages/DashboardInmueble";
 import ResetPasswordForm from "./modules/auth/components/ResetPasswordForm";
 import InmueblesPage from "./modules/cobranza/components/inmueblesTable";
 import InmuebleDetail from "./modules/cobranza/components/InmuebleDetail";
+import SeguimientoTable from './modules/cobranza/components/SeguimientoTable';
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
 
@@ -50,6 +51,7 @@ export default function App() {
         <Route element={<AppLayout />}>
           <Route path="/admin/dashboard" element={<DashboardAdmin />} />
           <Route path="/inmuebles/:clienteId/:inmuebleId/acuerdo" element={<InmuebleDetail />} />
+          <Route path="/inmuebles/:clienteId/:inmuebleId/seguimiento" element={<SeguimientoTable />} />
           <Route path="/inmuebles/:clienteId" element={<InmueblesPage />} />
           <Route path="/ejecutivo/dashboard" element={<DashboardEjecutivo />} />
           <Route path="/cliente/dashboard" element={<DashboardCliente />} />

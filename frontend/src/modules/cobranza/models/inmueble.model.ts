@@ -5,7 +5,7 @@ export interface Inmueble {
   apartamento?: string;
   casa?: string;
   responsable: string;
-  tipificacion: string; // 'ACUERDO', 'GESTIONANDO', etc.
+  estado: string; // 'ACUERDO', 'GESTIONANDO', etc.
   deuda_total: number;
   correos: string[];
   telefonos: string[];

@@ -1,4 +1,3 @@
-// src/pages/InmueblesPage.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { MaterialReactTable, type MRT_ColumnDef } from 'material-react-table';
@@ -6,6 +5,7 @@ import { Box, Button, IconButton, Tooltip } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import HistoryIcon from '@mui/icons-material/History';
 import { Inmueble } from '../models/inmueble.model';
 import {
   obtenerInmueblesPorCliente,
@@ -36,7 +36,7 @@ export default function InmueblesPage() {
       { accessorKey: 'apartamento', header: 'Apartamento' },
       { accessorKey: 'casa', header: 'Casa' },
       { accessorKey: 'responsable', header: 'Responsable' },
-      { accessorKey: 'tipificacion', header: 'Tipificación' },
+      { accessorKey: 'estado', header: 'estado' },
       {
         accessorKey: 'deuda_total',
         header: 'Deuda Total',
@@ -72,6 +72,11 @@ export default function InmueblesPage() {
               <VisibilityIcon />
             </IconButton>
           </Tooltip>
+          <Tooltip title="Seguimiento">
+            <IconButton onClick={() => navigate(`/inmuebles/${clienteId}/${row.original.id}/seguimiento`)}>
+              <HistoryIcon /> {/* puedes cambiar el ícono por uno más representativo como <HistoryIcon /> */}
+            </IconButton>
+          </Tooltip>
           <Tooltip title="Editar">
             <IconButton onClick={() => table.setEditingRow(row)}>
               <EditIcon />
@@ -83,8 +88,7 @@ export default function InmueblesPage() {
               onClick={async () => {
                 await eliminarInmueble(clienteId!, row.original.id!);
                 fetchInmuebles();
-              }}
-            >
+              }}>
               <DeleteIcon />
             </IconButton>
           </Tooltip>
