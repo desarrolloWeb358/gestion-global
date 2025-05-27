@@ -2,16 +2,20 @@ import React from "react";
 import PageBreadcrumb from "../../../../shared/components/ui/PageBreadCrumb";
 import UserMetaCard from "./UserMetaCard";
 import UserInfoCard from "../UserProfile/UserInfoCard";
-import UserAddressCard from "../UserProfile/UserAddressCard";
 import PageMeta from "../../../../shared/components/ui/PageMeta";
-
+import { useUsuarioActual } from "../../../auth/hooks/useUsuarioActual";
+import { getAuth } from "firebase/auth";
 
 export default function UserProfiles() {
+  const { usuario, loading } = useUsuarioActual();
+  const auth = getAuth();
+  const photoURL = auth.currentUser?.photoURL || "/images/user/owner.jpg";
+  // Puedes agregar un loader si loading
   return (
     <>
       <PageMeta
-        title="React.js Profile Dashboard | TailAdmin - Next.js Admin Dashboard Template"
-        description="This is React.js Profile Dashboard page for TailAdmin - React.js Tailwind CSS Admin Dashboard Template"
+        title=""
+        description=""
       />
       <PageBreadcrumb pageTitle="Profile" />
       <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] lg:p-6">
@@ -19,9 +23,21 @@ export default function UserProfiles() {
           Profile
         </h3>
         <div className="space-y-6">
-          <UserMetaCard />
+          {usuario && (
+            <UserMetaCard
+              firstName={usuario.nombre?.split(" ")[0] || ""}
+              lastName={usuario.nombre?.split(" ").slice(1).join(" ") || ""}
+              email={usuario.email}
+              phone={""}
+              bio={usuario.rol}
+              avatarUrl={photoURL}
+              location={""}
+              role={usuario.rol}
+              social={{}}
+            />
+          )}
           <UserInfoCard />
-          <UserAddressCard />
+         
         </div>
       </div>
     </>
