@@ -1,4 +1,4 @@
-export interface AgreementMetadata {
+export interface agreementMetadata {
   tipo: 'fijo' | 'variable';       // Tipo de cuotas
   porcentajeHonorarios: number;    // % de honorarios a aplicar
   valor_total_acordado: number;    // Monto total acordado (capital + honorarios)

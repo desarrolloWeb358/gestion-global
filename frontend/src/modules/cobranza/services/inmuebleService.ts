@@ -25,7 +25,7 @@ function mapDocToInmueble(id: string, data: DocumentData): Inmueble {
     apartamento: data.apartamento,
     casa: data.casa,
     responsable: data.responsable,
-    tipificacion: data.tipificacion,
+    estado: data.estado,
     deuda_total: Number(data.deuda_total),
     correos: Array.isArray(data.correos) ? data.correos : [],
     telefonos: Array.isArray(data.telefonos) ? data.telefonos : [],

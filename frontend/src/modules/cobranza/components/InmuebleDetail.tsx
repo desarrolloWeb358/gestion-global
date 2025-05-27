@@ -43,7 +43,7 @@ export default function InmuebleProcess() {
         setInmueble({
           id: snap.id,
           ...data,
-          tipificacion: data.tipificacion || 'gestionando',
+          estado: data.estado || 'gestionando',
         });
       } else {
         setInmueble(null);
@@ -68,7 +68,7 @@ export default function InmuebleProcess() {
     await updateDoc(ref, {
       responsable: inmueble.responsable,
       deuda_total: inmueble.deuda_total,
-      tipificacion: inmueble.tipificacion,
+      estado: inmueble.estado,
       porcentaje_honorarios: inmueble.porcentaje_honorarios,
     });
     setEditando(false);
@@ -150,7 +150,7 @@ export default function InmuebleProcess() {
     const snap = await getDoc(ref);
     if (snap.exists()) {
       const data = snap.data() as Omit<Inmueble, 'id'>;
-      setInmueble({ id: snap.id, ...data, tipificacion: data.tipificacion || 'gestionando' });
+      setInmueble({ id: snap.id, ...data, estado: data.estado || 'gestionando' });
     }
     alert('Cuotas cargadas correctamente desde archivo.');
   };
@@ -200,8 +200,8 @@ export default function InmuebleProcess() {
                 max={100}
               />
               <select
-                value={inmueble.tipificacion}
-                onChange={e => setInmueble({ ...inmueble, tipificacion: e.target.value })}
+                value={inmueble.estado}
+                onChange={e => setInmueble({ ...inmueble, estado: e.target.value })}
                 style={{ padding: 8, borderRadius: 4, border: '1px solid #ccc' }}
               >
                 <option value="gestionando">Gestionando</option>
@@ -220,7 +220,7 @@ export default function InmuebleProcess() {
             <>
               <Typography><strong>Responsable:</strong> {inmueble.responsable}</Typography>
               <Typography><strong>Deuda Total:</strong> ${inmueble.deuda_total.toLocaleString()}</Typography>
-              <Typography><strong>Tipificación:</strong> {inmueble.tipificacion}</Typography>
+              <Typography><strong>Estado:</strong> {inmueble.estado}</Typography>
               <Typography><strong>Honorarios:</strong> {inmueble.porcentaje_honorarios}%</Typography>
               <Button variant="outlined" size="small" sx={{ mt: 2 }} onClick={() => setEditando(true)}>
                 Editar
@@ -337,7 +337,7 @@ export default function InmuebleProcess() {
                           new TextRun("\n"),
                           new TextRun(`Deuda Total: $${inmueble?.deuda_total?.toLocaleString() ?? ''}`),
                           new TextRun("\n"),
-                          new TextRun(`Tipificación: ${inmueble?.tipificacion ?? ''}`),
+                          new TextRun(`Estado: ${inmueble?.estado ?? ''}`),
                           new TextRun("\n"),
                           new TextRun(`Honorarios: ${inmueble?.porcentaje_honorarios ?? ''}%`),
                         ]
