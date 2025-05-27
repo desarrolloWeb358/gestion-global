@@ -30,11 +30,19 @@ export const addSeguimiento = async (
   }
 
   const refSeg = collection(db, `clientes/${clienteId}/inmuebles/${inmuebleId}/seguimiento`);
-  return await addDoc(refSeg, {
+
+  const seguimientoData: any = {
     ...data,
-    archivoUrl: archivoUrl || undefined,
     fecha: Timestamp.now(),
-  });
+  };
+
+  if (archivoUrl) {
+    seguimientoData.archivoUrl = archivoUrl;
+  }
+
+  return await addDoc(refSeg, seguimientoData);
+
+  
 };
 
 export const updateSeguimiento = async (
