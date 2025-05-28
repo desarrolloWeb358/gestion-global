@@ -4,7 +4,7 @@ export interface Inmueble {
   torre?: string;
   apartamento?: string;
   casa?: string;
-  responsable: string;
+  nombreResponsable: string;
   estado: string; // 'ACUERDO', 'GESTIONANDO', etc.
   deuda_total: number;
   correos: string[];
@@ -33,4 +33,7 @@ export interface Inmueble {
       observacion?: string;
     };
   };
+  cedulaResponsable: string;
+  correoResponsable: string;
+  telefonoResponsable: string;
 }

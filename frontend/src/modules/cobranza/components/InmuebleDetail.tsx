@@ -1,7 +1,7 @@
 // src/modules/cobranza/components/InmuebleProcess.tsx
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, doc as fsDoc, getDoc, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { Inmueble } from '../models/inmueble.model';
 import * as XLSX from 'xlsx';
@@ -14,6 +14,7 @@ import {
   Button,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import numeroALetras from '../../../shared/numeroALetras';
 
 const REQUIRED_COLUMNS = [
   'numero_cuota',
@@ -32,12 +33,27 @@ export default function InmuebleProcess() {
   const [loading, setLoading] = useState(true);
   const [editando, setEditando] = useState(false);
   const [excelPreview, setExcelPreview] = useState<any[]>([]);
+  const [clienteData, setClienteData] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchClienteData = async () => {
+      if (clienteId) {
+        const clienteSnap = await getDoc(fsDoc(db, 'clientes', clienteId));
+        if (clienteSnap.exists()) {
+          setClienteData(clienteSnap.data());
+        } else {
+          setClienteData(null);
+        }
+      }
+    };
+    fetchClienteData();
+  }, [clienteId]);
 
   useEffect(() => {
     const load = async () => {
       if (!clienteId || !inmuebleId) return;
       setLoading(true);
-      const snap = await getDoc(doc(db, 'clientes', clienteId, 'inmuebles', inmuebleId));
+      const snap = await getDoc(fsDoc(db, 'clientes', clienteId, 'inmuebles', inmuebleId));
       if (snap.exists()) {
         const data = snap.data() as Omit<Inmueble, 'id'>;
         setInmueble({
@@ -64,9 +80,9 @@ export default function InmuebleProcess() {
 
   const handleGuardar = async () => {
     if (!clienteId || !inmuebleId || !inmueble) return;
-    const ref = doc(db, 'clientes', clienteId, 'inmuebles', inmuebleId);
+    const ref = fsDoc(db, 'clientes', clienteId, 'inmuebles', inmuebleId);
     await updateDoc(ref, {
-      responsable: inmueble.responsable,
+      responsable: inmueble.nombreResponsable,
       deuda_total: inmueble.deuda_total,
       estado: inmueble.estado,
       porcentaje_honorarios: inmueble.porcentaje_honorarios,
@@ -105,10 +121,10 @@ export default function InmuebleProcess() {
       return String(row.numero_cuota).toLowerCase() !== 'totales';
     }).map((row: any, idx: number) => {
       // Validar que los campos numéricos sean válidos
-      const numFields = ['deuda_capital','cuota_capital','deuda_honorarios','cuota_honorarios','cuota_acuerdo'];
+      const numFields = ['deuda_capital', 'cuota_capital', 'deuda_honorarios', 'cuota_honorarios', 'cuota_acuerdo'];
       for (const f of numFields) {
         if (isNaN(Number(row[f]))) {
-          alert(`El valor de la columna ${f} en la fila ${idx+2} no es un número válido.`);
+          alert(`El valor de la columna ${f} en la fila ${idx + 2} no es un número válido.`);
           throw new Error('Dato inválido');
         }
       }
@@ -133,7 +149,7 @@ export default function InmuebleProcess() {
     });
     setExcelPreview(cuotas);
     // Guardar en Firestore
-    const ref = doc(db, 'clientes', clienteId!, 'inmuebles', inmuebleId!);
+    const ref = fsDoc(db, 'clientes', clienteId!, 'inmuebles', inmuebleId!);
     await updateDoc(ref, {
       'acuerdo_pago.cuotas': cuotas,
     });
@@ -178,8 +194,8 @@ export default function InmuebleProcess() {
             <Box component="form" sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <input
                 type="text"
-                value={inmueble.responsable}
-                onChange={e => setInmueble({ ...inmueble, responsable: e.target.value })}
+                value={inmueble.nombreResponsable}
+                onChange={e => setInmueble({ ...inmueble, nombreResponsable: e.target.value })}
                 placeholder="Responsable"
                 style={{ padding: 8, borderRadius: 4, border: '1px solid #ccc' }}
               />
@@ -218,7 +234,7 @@ export default function InmuebleProcess() {
             </Box>
           ) : (
             <>
-              <Typography><strong>Responsable:</strong> {inmueble.responsable}</Typography>
+              <Typography><strong>Responsable:</strong> {inmueble.nombreResponsable}</Typography>
               <Typography><strong>Deuda Total:</strong> ${inmueble.deuda_total.toLocaleString()}</Typography>
               <Typography><strong>Estado:</strong> {inmueble.estado}</Typography>
               <Typography><strong>Honorarios:</strong> {inmueble.porcentaje_honorarios}%</Typography>
@@ -318,6 +334,16 @@ export default function InmuebleProcess() {
             color="primary"
             sx={{ mb: 2 }}
             onClick={async () => {
+              // Obtener nombre del cliente
+              let clienteNombre = "";
+              let clienteData: any = null;
+              if (clienteId) {
+                const clienteSnap = await getDoc(fsDoc(db, 'clientes', clienteId));
+                if (clienteSnap.exists()) {
+                  clienteData = clienteSnap.data();
+                  clienteNombre = (clienteData as { nombre?: string }).nombre || "";
+                }
+              }
               const { Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun, HeadingLevel } = await import("docx");
               // Texto introductorio y datos del inmueble
               const doc = new Document({
@@ -325,24 +351,236 @@ export default function InmuebleProcess() {
                   {
                     properties: {},
                     children: [
-                      new Paragraph({
-                        text: "ACUERDO DE PAGO",
-                        heading: HeadingLevel.HEADING_1,
-                        alignment: "center"
-                      }),
-                      new Paragraph({ text: "\n" }),
+                      // Título
                       new Paragraph({
                         children: [
-                          new TextRun(`Responsable: ${inmueble?.responsable ?? ''}`),
-                          new TextRun("\n"),
-                          new TextRun(`Deuda Total: $${inmueble?.deuda_total?.toLocaleString() ?? ''}`),
-                          new TextRun("\n"),
-                          new TextRun(`Estado: ${inmueble?.estado ?? ''}`),
-                          new TextRun("\n"),
-                          new TextRun(`Honorarios: ${inmueble?.porcentaje_honorarios ?? ''}%`),
+                          new TextRun({
+                            text: `ACUERDO DE PAGO CELEBRADO\nENTRE GESTION GLOBAL ACG S.A.S\nY ${inmueble?.nombreResponsable ?? ''}`,
+                            bold: true,
+                            font: "Arial",
+                            size: 28,
+                            color: "000000"
+                          })
+                        ],
+                        alignment: "center",
+                        heading: HeadingLevel.HEADING_1,
+                      }),
+                      new Paragraph({ text: "\n" }),
+                      // Párrafo introductorio
+                      new Paragraph({
+                        children: [
+                          new TextRun({ text: "Entre los suscritos a saber por una parte ", font: "Arial", size: 24 }),
+                          new TextRun({ text: "GESTION GLOBAL ACG S.A.S", bold: true, font: "Arial", size: 24 }),
+                          new TextRun({ text: " actuando como apoderado(a) judicial del ", font: "Arial", size: 24 }),
+                          new TextRun({ text: clienteNombre, bold: true, font: "Arial", size: 24 }),
+                          new TextRun({ text: ", y por otra parte ", font: "Arial", size: 24 }),
+                          new TextRun({ text: inmueble?.nombreResponsable ?? '', bold: true, font: "Arial", size: 24 }),
+                          new TextRun({ text: ", persona mayor de edad identificado con la Cédula de Ciudadanía ", font: "Arial", size: 24 }),
+                          new TextRun({ text: inmueble?.cedulaResponsable ?? '', bold: true, font: "Arial", size: 24 }),
+                          new TextRun({ text: " de Bogotá D.C., quien en adelante se denominará el ", font: "Arial", size: 24 }),
+                          new TextRun({ text: "DEUDOR", bold: true, font: "Arial", size: 24 }),
+                          new TextRun({ text: ", hemos convenido celebrar el presente ", font: "Arial", size: 24 }),
+                          new TextRun({ text: "ACUERDO DE PAGO", bold: true, font: "Arial", size: 24 }),
+                          new TextRun({ text: ", que en adelante se regirá por las cláusulas que a continuación se enuncian, previas las siguientes", font: "Arial", size: 24 })
                         ]
                       }),
                       new Paragraph({ text: "\n" }),
+                      // Considerandos
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: "CONSIDERACIONES",
+                            bold: true,
+                            font: "Arial",
+                            size: 24,
+                            color: "000000"
+                          })
+                        ],
+                        alignment: "center",
+                        heading: HeadingLevel.HEADING_2
+                      }),
+                      // Párrafo legal adicional (debajo de consideraciones)
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: `Que el señor `,
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: inmueble?.nombreResponsable ?? '',
+                            bold: true,
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: " adeuda acreencias a favor de ",
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: clienteNombre,
+                            bold: true,
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: ", por valor de $",
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: inmueble?.deuda_total?.toLocaleString() ?? '',
+                            bold: true,
+                            font: "Arial",
+                            size: 24
+                          }),
+                          ...(inmueble?.deuda_total && !isNaN(Number(inmueble.deuda_total))
+                            ? [
+                              new TextRun({
+                                text: ` (${numeroALetras(Math.round(Number(inmueble.deuda_total))).toUpperCase()} DE PESOS M/CTE)`,
+                                bold: true,
+                                font: "Arial",
+                                size: 24
+                              })
+                            ]
+                            : []),
+                          new TextRun({
+                            text: `. Conforme al estado de deuda bajado directamente del sistema a la fecha ${new Date().toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })}, el cual forma parte de este documento.`,
+                            font: "Arial",
+                            size: 24
+                          })
+                        ],
+                        alignment: "both",
+                      }),
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: "Que la anterior suma de dinero corresponde a las cuotas vencidas de las expensas de administración, intereses de mora y honorarios causados, de la ",
+                            font: "Arial",
+                            size: 24
+                          }),
+                          ...(inmueble?.casa ? [
+                            new TextRun({
+                              text: `Casa ${inmueble.casa}`,
+                              bold: true,
+                              font: "Arial",
+                              size: 24
+                            })
+                          ] : [
+                            new TextRun({
+                              text: `Torre ${inmueble?.torre ?? ''} Apto ${inmueble?.apartamento ?? ''}`,
+                              bold: true,
+                              font: "Arial",
+                              size: 24
+                            })
+                          ]),
+                          new TextRun({
+                            text: ", ",
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: clienteData?.direccion ?? '',
+                            bold: true,
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: ".",
+                            font: "Arial",
+                            size: 24
+                          })
+                        ]
+                      }),
+
+                          
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: "CLÁUSULA PRIMERA. - OBJETO: ",
+                            bold: true,
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: "El presente acuerdo tiene como objeto principal, facilitar a ",
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: "EL DEUDOR",
+                            bold: true,
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: " el pago de las obligaciones a favor de la entidad ",
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: "ACREEDOR/A",
+                            bold: true,
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: " por valor de $",
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: inmueble?.deuda_total?.toLocaleString() ?? '',
+                            bold: true,
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: " (",
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: inmueble?.deuda_total ? numeroALetras(Math.round(inmueble.deuda_total)).toUpperCase() : '',
+                            bold: true,
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: "). Frente a lo cual asume desde ya los compromisos y obligaciones contenidos en este Acuerdo.",
+                            font: "Arial",
+                            size: 24
+                          })
+                        ],
+                        spacing: { after: 200 }
+                      }),
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: "CLÁUSULA SEGUNDA. - FACILIDAD DE PAGO DE LAS OBLIGACIONES: ",
+                            bold: true,
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: "Las condiciones de pago objeto del presente acuerdo, son las siguientes:",
+                            font: "Arial",
+                            size: 24
+                          })
+                        ],
+                        spacing: { after: 200 }
+                      }),
+                      new Paragraph({
+                        children: [
+                          new TextRun("Primera. Objeto: El presente acuerdo tiene por objeto establecer las condiciones de pago de la deuda reconocida por el deudor.\n"),
+                          new TextRun("Segunda. Valor de la deuda: El valor total de la deuda asciende a $" + (inmueble?.deuda_total?.toLocaleString() ?? '') + ".\n"),
+                          new TextRun("Tercera. Forma de pago: El deudor se compromete a pagar la deuda en las cuotas y fechas establecidas en el cronograma anexo.\n"),
+                          new TextRun("Cuarta. Incumplimiento: El incumplimiento de cualquiera de las cuotas faculta al acreedor para exigir el pago total de la obligación y dar por terminado el acuerdo.\n")
+                        ]
+                      }),
+                      new Paragraph({ text: "\n" }),
+                      // Cronograma de cuotas (ya implementado)
                       new Paragraph({
                         text: "Cronograma de cuotas:",
                         heading: HeadingLevel.HEADING_2
@@ -385,9 +623,354 @@ export default function InmuebleProcess() {
                         ]
                       }),
                       new Paragraph({ text: "\n" }),
+                      // PARÁGRAFO 1: LAS CUOTAS PACTADAS EN EL PRESENTE ACUERDO DEBERA SER CONSIGNADA ASI:
                       new Paragraph({
-                        text: "Este acuerdo de pago se genera automáticamente y debe ser revisado y firmado por las partes correspondientes.",
-                      })
+                        children: [
+                          new TextRun({
+                            text: "PARÁGRAFO 1: LAS CUOTAS PACTADAS EN EL PRESENTE ACUERDO DEBERÁ SER CONSIGNADA ASÍ:",
+                            bold: true,
+                            font: "Arial",
+                            size: 24
+                          })
+                        ],
+                        spacing: { after: 200 }
+                      }),
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: "a. En la cuenta de ahorros No. 123456789 a nombre de GESTION GLOBAL ACG S.A.S en el banco BBVA.",
+                            font: "Arial",
+                            size: 24
+                          })
+                        ]
+                      }),
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: "b. Las referencias de pago son:",
+                            font: "Arial",
+                            size: 24
+                          })
+                        ],
+                        spacing: { after: 200 }
+                      }),
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: "i. 123456 - Cuota Capital",
+                            font: "Arial",
+                            size: 24
+                          })
+                        ]
+                      }),
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: "ii. 654321 - Honorarios",
+                            font: "Arial",
+                            size: 24
+                          })
+                        ]
+                      }),
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: "iii. 789012 - Cuota Acuerdo",
+                            font: "Arial",
+                            size: 24
+                          })
+                        ]
+                      }),
+                      new Paragraph({ text: "\n" }),
+                      // Firmas
+                      new Paragraph({
+                        children: [
+                          new TextRun({ text: "FIRMAS", bold: true })
+                        ],
+                        heading: HeadingLevel.HEADING_2
+                      }),
+                      new Paragraph({ text: "\n" }),
+                      new Paragraph({ text: "______________________________" }),
+                      new Paragraph({ text: "Acreedor: GESTION GLOBAL ACG S.A.S." }),
+                      new Paragraph({ text: "\n" }),
+                      new Paragraph({ text: "______________________________" }),
+                      new Paragraph({ text: `Deudor: ${inmueble?.nombreResponsable ?? ''}` }),
+                      // Nueva cláusula octava
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: "CLAUSULA OCTAVA. NOTIFICACIONES: ",
+                            bold: true,
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: "Para efectos de las comunicaciones a que haya lugar en virtud del presente Acuerdo, las direcciones son las siguientes: la entidad acreedora las recibirá a en la ",
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: `${clienteData?.direccion || '[DIRECCIÓN]'}`,
+                            bold: true,
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: " Oficina de Administración en xxxx y el señor ",
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: `${inmueble?.nombreResponsable || '[RESPONSABLE]'}`,
+                            bold: true,
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: " de la ",
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: "TORRE",
+                            bold: true,
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: ` ${inmueble?.torre || '[TORRE]'}`,
+                            bold: true,
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: " APTO ",
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: `${inmueble?.apartamento || '[APARTAMENTO]'}`,
+                            bold: true,
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: " CELULAR ",
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: `${inmueble?.telefonoResponsable || '[CELULAR]'}`,
+                            bold: true,
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: " CORREO ELECTRÓNICO ",
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: `${inmueble?.correoResponsable || '[CORREO]'}`,
+                            bold: true,
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: ".",
+                            font: "Arial",
+                            size: 24
+                          })
+                        ],
+                        spacing: { after: 200 }
+                      }),
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: "CLAUSULA NOVENA. PAZ Y SALVO: ",
+                            bold: true,
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: "Una vez cumplida la totalidad del presente acuerdo, las partes firmantes se declararán a paz y salvo y se abstendrán mutuamente de iniciar cualquier acción judicial o administrativa, respecto a las obligaciones aquí pactadas.",
+                            font: "Arial",
+                            size: 24
+                          })
+                        ],
+                        spacing: { after: 200 }
+                      }),
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: "CLAUSULA DECIMA. DOMICILIO CONTRACTUAL: ",
+                            bold: true,
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: "Para todos los efectos el domicilio del presente contrato en Soacha Cundinamarca.",
+                            font: "Arial",
+                            size: 24
+                          })
+                        ],
+                        spacing: { after: 200 }
+                      }),
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: "En constancia se suscribe el presente acuerdo en Soacha Cundinamarca, para el inmueble ",
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: (inmueble?.torre || "[TORRE]") + "-" + (inmueble?.apartamento || "[APARTAMENTO]"),
+                            bold: true,
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: " a los ",
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: new Date().toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' }),
+                            bold: true,
+                            font: "Arial",
+                            size: 24
+                          }),
+                          new TextRun({
+                            text: ".",
+                            font: "Arial",
+                            size: 24
+                          })
+                        ],
+                        spacing: { after: 200 }
+                      }),
+                      // FIRMAS Y HUELLA
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: "EL DEUDOR,",
+                            bold: true,
+                            font: "Arial",
+                            size: 24
+                          })
+                        ],
+                        spacing: { after: 200 }
+                      }),
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: inmueble?.nombreResponsable?.toUpperCase() || '[NOMBRE DEUDOR]',
+                            bold: true,
+                            font: "Arial",
+                            size: 24
+                          })
+                        ]
+                      }),
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: `C.C. No. ${inmueble?.cedulaResponsable || '[CEDULA]'} de Bogotá D.C.`,
+                            font: "Arial",
+                            size: 24
+                          })
+                        ],
+                        spacing: { after: 200 }
+                      }),
+                      // HUELLA (espacio)
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: "HUELLA",
+                            bold: true,
+                            font: "Arial",
+                            size: 24
+                          })
+                        ],
+                        alignment: "right"
+                      }),
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: "\u25A1", // cuadrado para huella
+                            font: "Arial",
+                            size: 80
+                          })
+                        ],
+                        alignment: "right"
+                      }),
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: "INDICE DERECHO",
+                            font: "Arial",
+                            size: 16
+                          })
+                        ],
+                        alignment: "right"
+                      }),
+                      // Acreedor
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: "EL ACREEDOR,",
+                            bold: true,
+                            font: "Arial",
+                            size: 24
+                          })
+                        ],
+                        spacing: { after: 100 }
+                      }),
+                      // Firma imagen (opcional, si tienes la imagen puedes usar docx.ImageRun)
+                      // new Paragraph({
+                      //   children: [
+                      //     new ImageRun({
+                      //       data: firmaAcreedorImg, // Uint8Array de la imagen
+                      //       transformation: { width: 120, height: 60 }
+                      //     })
+                      //   ]
+                      // }),
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: "GESTION GLOBAL ACG S.A.S",
+                            bold: true,
+                            font: "Arial",
+                            size: 24
+                          })
+                        ]
+                      }),
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: "Nit. 901.662.783-7.",
+                            font: "Arial",
+                            size: 24
+                          })
+                        ]
+                      }),
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: "JAVIER MAURICIO GARCIA",
+                            bold: true,
+                            font: "Arial",
+                            size: 24
+                          })
+                        ]
+                      }),
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: "Representante Legal",
+                            font: "Arial",
+                            size: 24
+                          })
+                        ]
+                      }),
                     ]
                   }
                 ]
@@ -396,7 +979,7 @@ export default function InmuebleProcess() {
               const url = window.URL.createObjectURL(blob);
               const a = document.createElement('a');
               a.href = url;
-              a.download = `acuerdo_pago_${inmueble?.responsable ?? 'inmueble'}.docx`;
+              a.download = `acuerdo_pago_${inmueble?.nombreResponsable ?? 'inmueble'}.docx`;
               document.body.appendChild(a);
               a.click();
               document.body.removeChild(a);
