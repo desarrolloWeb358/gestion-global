@@ -16,11 +16,11 @@ export default function SignInForm() {
   const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
-     e.preventDefault();
+    e.preventDefault();
     try {
       await loginConCorreo(email.trim(), password);
       navigate("/home"); // o "/usuarios" según tu ruta
-    } catch (error:any) {
+    } catch (error: any) {
       alert("Correo o contraseña incorrectos" + error);
       console.log(error);
     }
@@ -94,7 +94,8 @@ export default function SignInForm() {
             </div>
           </div>
 
-          <form>
+          <form onSubmit={handleLogin}>
+
             <div className="space-y-6">
               <div>
                 <Label>
@@ -144,8 +145,8 @@ export default function SignInForm() {
                 </a>
               </div>
               <div>
-                <Button type="button" className="w-full" size="sm" onClick={handleLogin}>
-                  Inciar sesión
+                <Button type="submit" className="w-full" size="sm">
+                  Iniciar sesión
                 </Button>
               </div>
             </div>

@@ -4,7 +4,6 @@ import Label from "../../../shared/components/form/Label";
 import Input from "../../../shared/components/form/input/InputField";
 import Button from "../../../shared/components/ui/button/Button";
 import { resetPassword } from "../../../services/authService";
-import React from "react";
 
 export default function ResetPasswordForm() {
   const [email, setEmail] = useState<string>("");

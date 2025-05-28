@@ -1,4 +1,4 @@
-import React from "react";
+
 import PageBreadcrumb from "../../../../shared/components/ui/PageBreadCrumb";
 import UserMetaCard from "./UserMetaCard";
 import UserInfoCard from "../UserProfile/UserInfoCard";

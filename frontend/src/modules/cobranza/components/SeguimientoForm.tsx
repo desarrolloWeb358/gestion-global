@@ -1,5 +1,5 @@
 // src/components/SeguimientoForm.tsx
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
     Box, Button, Dialog, DialogActions, DialogContent,
     DialogTitle, MenuItem, TextField, Typography
@@ -8,7 +8,6 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { Timestamp } from 'firebase/firestore';
-import { deleteObject, ref } from 'firebase/storage';
 import { Seguimiento } from '../models/seguimiento.model';
 
 

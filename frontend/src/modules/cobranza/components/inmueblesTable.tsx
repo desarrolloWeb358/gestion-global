@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { MaterialReactTable, type MRT_ColumnDef } from 'material-react-table';
 import { Box, Button, IconButton, Tooltip } from '@mui/material';
@@ -103,7 +103,7 @@ export default function InmueblesPage() {
         fetchInmuebles();
       }}
       onEditingRowSave={async ({ values, row, table }) => {
-        const updated: Inmueble = { ...values, id: row.original.id! } as Inmueble;
+        //const updated: Inmueble = { ...values, id: row.original.id! } as Inmueble;
         await actualizarInmueble(clienteId!, {
           ...values,
           id: row.original.id!,
