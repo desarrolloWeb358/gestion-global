@@ -1,6 +1,6 @@
 import ComponentCard from "../ui/ComponentCard";
 import Switch from "../form/switch/Switch";
-import React from "react";
+
 
 export default function ToggleSwitch() {
   const handleSwitchChange = (checked: boolean) => {

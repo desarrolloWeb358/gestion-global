@@ -1,5 +1,5 @@
 // src/pages/SeguimientoTable.tsx
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Box, IconButton, Tooltip, Button } from '@mui/material';
 import { MaterialReactTable, type MRT_ColumnDef } from 'material-react-table';

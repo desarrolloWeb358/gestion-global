@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useModal } from "../../../../hooks/useModal";
 import { Modal } from "../../../../shared/components/ui/modal";
 import Button from "../../../../shared/components/ui/button/Button";

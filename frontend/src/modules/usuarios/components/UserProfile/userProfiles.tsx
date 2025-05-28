@@ -1,4 +1,4 @@
-import React from "react";
+
 import PageBreadcrumb from "../../../../shared/components/ui/PageBreadCrumb";
 import UserMetaCard from "./UserMetaCard";
 import UserInfoCard from "../UserProfile/UserInfoCard";
@@ -7,7 +7,7 @@ import { useUsuarioActual } from "../../../auth/hooks/useUsuarioActual";
 import { getAuth } from "firebase/auth";
 
 export default function UserProfiles() {
-  const { usuario, loading } = useUsuarioActual();
+  const { usuario } = useUsuarioActual();
   const auth = getAuth();
   const photoURL = auth.currentUser?.photoURL || "/images/user/owner.jpg";
   // Puedes agregar un loader si loading

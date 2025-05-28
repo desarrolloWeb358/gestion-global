@@ -1,19 +1,17 @@
 // src/modules/cobranza/components/AgreementTableGrid.tsx
-import { GridColDef } from '@mui/x-data-grid';
-import { GridRenderCellParams } from '@mui/x-data-grid';
+import { GridColDef, GridRenderCellParams, DataGrid } from '@mui/x-data-grid';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { DataGrid } from '@mui/x-data-grid';
 import AddIcon from '@mui/icons-material/Add';
 import { Button } from '@mui/material';
 import React from 'react';
 import { guardarAcuerdoPago } from '../services/inmuebleService';
 
 interface AgreementRow {
-    id: number | string; // <-- Agrega id aquí
+    id: number | string;
     numero_cuota: number;
-    fecha_limite: Date | string;
+    fecha_limite: Date | string | null;
     deuda_capital: number;
     cuota_capital: number;
     deuda_honorarios: number;
@@ -25,11 +23,13 @@ interface AgreementRow {
 interface AgreementTableGridProps {
     inmueble: any;
     onSave: () => void;
+    clienteId: string;
+    inmuebleId: string;
 }
 
-const AgreementTableGrid = ({ inmueble, onSave, clienteId, inmuebleId }: AgreementTableGridProps & { clienteId: string, inmuebleId: string }) => {
-    const [rows, setRows] = React.useState(() =>
-        (inmueble.acuerdo_pago?.cuotas || []).map((c: any, idx: number) => ({
+const AgreementTableGrid = ({ inmueble, onSave, clienteId, inmuebleId }: AgreementTableGridProps) => {
+    const [rows, setRows] = React.useState<AgreementRow[]>(() =>
+        (inmueble.acuerdo_pago?.cuotas || []).map((c: any, idx: number): AgreementRow => ({
             id: c.id ?? idx + 1,
             numero_cuota: c.numero_cuota ?? idx + 1,
             fecha_limite: c.fecha_limite ? new Date(c.fecha_limite) : null,
@@ -42,16 +42,14 @@ const AgreementTableGrid = ({ inmueble, onSave, clienteId, inmuebleId }: Agreeme
         }))
     );
 
-    // Eliminar fila
     const handleDeleteRow = (id: number | string) => {
-        setRows(rows.filter(r => r.id !== id));
+        setRows(rows.filter((r: AgreementRow) => r.id !== id));
     };
 
-    // Agregar fila
     const handleAddRow = () => {
-        setRows(prevRows => {
-            const dataRows = prevRows.filter(r => !r._isTotals);
-            const nextId = dataRows.length ? Math.max(...dataRows.map(r => Number(r.id) || 0)) + 1 : 1;
+        setRows((prevRows: AgreementRow[]) => {
+            const dataRows = prevRows.filter((r: AgreementRow) => !r._isTotals);
+            const nextId = dataRows.length ? Math.max(...dataRows.map((r: AgreementRow) => Number(r.id) || 0)) + 1 : 1;
             return [
                 ...dataRows,
                 {
@@ -69,8 +67,7 @@ const AgreementTableGrid = ({ inmueble, onSave, clienteId, inmuebleId }: Agreeme
         });
     };
 
-    // Corrige el número de cuota al renderizar y asegura que la primera fila tenga deuda_capital igual a inmueble.deuda_total
-    const displayRows = rows.map((row, idx) => {
+    const displayRows: AgreementRow[] = rows.map((row: AgreementRow, idx: number): AgreementRow => {
         if (row._isTotals) return row;
         return {
             ...row,
@@ -79,36 +76,37 @@ const AgreementTableGrid = ({ inmueble, onSave, clienteId, inmuebleId }: Agreeme
         };
     });
 
-    // Calcular totales
-    const totals = {
+    const totals: AgreementRow = {
         id: 'totals',
-        numero_cuota: 'Totales',
+        numero_cuota: 'Totales' as unknown as number,
         fecha_limite: '',
-        deuda_capital: displayRows.reduce((sum, r) => sum + (Number(r.deuda_capital) || 0), 0),
-        cuota_capital: displayRows.reduce((sum, r) => sum + (Number(r.cuota_capital) || 0), 0),
-        deuda_honorarios: displayRows.reduce((sum, r) => sum + (Number(r.deuda_honorarios) || 0), 0),
-        cuota_honorarios: displayRows.reduce((sum, r) => sum + (Number(r.cuota_honorarios) || 0), 0),
-        cuota_acuerdo: displayRows.reduce((sum, r) => sum + (Number(r.cuota_acuerdo) || 0), 0),
+        deuda_capital: displayRows.reduce((sum: number, r: AgreementRow) => sum + (Number(r.deuda_capital) || 0), 0),
+        cuota_capital: displayRows.reduce((sum: number, r: AgreementRow) => sum + (Number(r.cuota_capital) || 0), 0),
+        deuda_honorarios: displayRows.reduce((sum: number, r: AgreementRow) => sum + (Number(r.deuda_honorarios) || 0), 0),
+        cuota_honorarios: displayRows.reduce((sum: number, r: AgreementRow) => sum + (Number(r.cuota_honorarios) || 0), 0),
+        cuota_acuerdo: displayRows.reduce((sum: number, r: AgreementRow) => sum + (Number(r.cuota_acuerdo) || 0), 0),
         _isTotals: true,
     };
 
-    // Guardar cambios en Firestore
     const handleSaveToFirestore = async () => {
-        // Solo las filas de datos, sin la de totales
-        const cuotas = rows.filter(r => !r._isTotals).map(row => ({
-            ...row,
-            // Asegura formato correcto para Firestore
-            fecha_limite: row.fecha_limite instanceof Date ? row.fecha_limite.toISOString().slice(0,10) : row.fecha_limite,
-        }));
+        const cuotas = rows
+            .filter((r: AgreementRow) => !r._isTotals)
+            .map((row: AgreementRow) => ({
+                ...row,
+                fecha_limite: row.fecha_limite instanceof Date
+                    ? row.fecha_limite.toISOString().slice(0, 10)
+                    : row.fecha_limite,
+            }));
+
         const acuerdo_pago = {
             ...inmueble.acuerdo_pago,
             cuotas,
         };
+
         await guardarAcuerdoPago(clienteId, inmuebleId, acuerdo_pago);
         if (onSave) onSave();
     };
 
-    // Definir columnas dentro del componente para acceder a handleDeleteRow
     const columns: GridColDef<AgreementRow>[] = [
         {
             field: 'numero_cuota',

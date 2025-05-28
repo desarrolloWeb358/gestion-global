@@ -1,4 +1,3 @@
-import React from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom"; // ← Usa 'react-router-dom'
 import SignIn from "./modules/auth/components/SignIn";
 import SignUp from "./modules/auth/components/SignUp";
@@ -17,7 +16,6 @@ import FormElements from "./shared/components/form-elements/formElements";
 import Blank from "./shared/components/otherPages/Blank";
 import AppLayout from "./shared/components/layout/AppLayout";
 import { ScrollToTop } from "./shared/components/ui/ScrollToTop";
-import Home from "./modules/usuarios/components/home";
 import ClientesTable from "./modules/cobranza/components/ClientesTable";
 import UsuariosTable from "./modules/usuarios/components/UsuariosTable";
 import RedirectByRol from "./modules/auth/pages/RedirectByRol";
@@ -26,7 +24,7 @@ import DashboardEjecutivo from "./modules/dashboard/pages/DashboardEjecutivo";
 import DashboardCliente from "./modules/dashboard/pages/DashboardCliente";
 import DashboardInmueble from "./modules/dashboard/pages/DashboardInmueble";
 import ResetPasswordForm from "./modules/auth/components/ResetPasswordForm";
-import InmueblesPage from "./modules/cobranza/components/inmueblesTable";
+import InmueblesPage from "./modules/cobranza/components/InmueblesTable";
 import InmuebleDetail from "./modules/cobranza/components/InmuebleDetail";
 import SeguimientoTable from './modules/cobranza/components/SeguimientoTable';
 import "ag-grid-community/styles/ag-grid.css";

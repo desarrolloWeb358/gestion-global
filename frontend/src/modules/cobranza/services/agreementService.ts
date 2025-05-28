@@ -1,12 +1,12 @@
 // src/modules/cobranza/services/agreementService.ts
-import { doc, collection, writeBatch, getDocs, setDoc } from 'firebase/firestore';
+import { doc, collection, writeBatch, getDocs } from 'firebase/firestore';
 import { db } from '../../../firebase';
-import { AgreementMetadata, Cuota } from '../models/Agreement.model';
+import { agreementMetadata, Cuota } from '../models/agreement.model';
 
 export async function guardarAcuerdoCompleto(
   clienteId: string,
   inmuebleId: string,
-  metadata: AgreementMetadata,
+  metadata: agreementMetadata,
   cuotas: Cuota[]
 ) {
   const metaRef = doc(

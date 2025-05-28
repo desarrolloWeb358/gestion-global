@@ -1,7 +1,5 @@
 import {
   collection,
-  query,
-  where,
   getDocs,
   addDoc,
   updateDoc,
@@ -13,7 +11,7 @@ import { db } from  "../../../firebase";
 import { Inmueble } from "../models/inmueble.model";
 
 // Referencia a la colección de inmuebles
-const inmueblesCol = collection(db, "inmuebles");
+//const inmueblesCol = collection(db, "inmuebles");
 
 /**
  * Mapea los datos crudos de Firestore a la interfaz Inmueble

@@ -1,4 +1,4 @@
-import React from "react";
+
 export default function SixteenIsToNine() {
   return (
     <div className="aspect-4/3 overflow-hidden rounded-lg">
