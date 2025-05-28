@@ -51,6 +51,9 @@ export const crearUsuario = async (usuario: UsuarioSistema & { password: string 
       ejecutivoEmail: "",
       telefono: "",
       tipo: "",
+      banco: '',
+      numeroCuenta: '',
+      tipoCuenta: '',
     };
     await setDoc(clienteRef, clienteData);
   }

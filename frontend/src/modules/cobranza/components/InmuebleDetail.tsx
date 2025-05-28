@@ -1,7 +1,7 @@
 // src/modules/cobranza/components/InmuebleProcess.tsx
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { collection, doc, doc as fsDoc, getDoc, getDocs, updateDoc } from 'firebase/firestore';
+import { doc, doc as fsDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { Inmueble } from '../models/inmueble.model';
 import * as XLSX from 'xlsx';
@@ -33,7 +33,7 @@ export default function InmuebleProcess() {
   const [loading, setLoading] = useState(true);
   const [editando, setEditando] = useState(false);
   const [excelPreview, setExcelPreview] = useState<any[]>([]);
-  const [clienteData, setClienteData] = useState<any>(null);
+  const [setClienteData] = useState<any>(null);
 
   useEffect(() => {
     const fetchClienteData = async () => {

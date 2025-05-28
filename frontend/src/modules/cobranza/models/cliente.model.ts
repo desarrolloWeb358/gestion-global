@@ -8,6 +8,6 @@ export interface Cliente {
     ejecutivoEmail:string;
     banco: string;
     numeroCuenta: string;
-    tipoCuenta: "ahorros" | "corriente" | "convenio";
+    tipoCuenta: "ahorros" | "corriente" | "convenio" | ""; 
   }
   
