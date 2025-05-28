@@ -18,34 +18,37 @@ import { Inmueble } from "../models/inmueble.model";
  */
 function mapDocToInmueble(id: string, data: DocumentData): Inmueble {
   return {
-    id,
-    torre: data.torre,
-    apartamento: data.apartamento,
-    casa: data.casa,
-    responsable: data.responsable,
-    estado: data.estado,
-    deuda_total: Number(data.deuda_total),
-    correos: Array.isArray(data.correos) ? data.correos : [],
-    telefonos: Array.isArray(data.telefonos) ? data.telefonos : [],
-    acuerdo_pago: data.acuerdo_pago
-      ? {
-          numero: data.acuerdo_pago.numero,
-          fecha_acuerdo: data.acuerdo_pago.fecha_acuerdo,
-          caracteristicas: data.acuerdo_pago.caracteristicas,
-          tipo: data.acuerdo_pago.tipo,
-          valor_total_acordado: Number(data.acuerdo_pago.valor_total_acordado),
-          cuotas: Array.isArray(data.acuerdo_pago.cuotas)
-            ? data.acuerdo_pago.cuotas.map((c: any) => ({
-                mes: c.mes,
-                valor_esperado: Number(c.valor_esperado),
-                fecha_limite: c.fecha_limite,
-                observacion: c.observacion,
-              }))
-            : [],
-        }
-      : undefined,
-    recaudos: data.recaudos || {},
-  };
+  id,
+  torre: data.torre,
+  apartamento: data.apartamento,
+  casa: data.casa,
+  nombreResponsable: data.nombreResponsable || data.responsable || "",
+  estado: data.estado,
+  deuda_total: Number(data.deuda_total),
+  correos: Array.isArray(data.correos) ? data.correos : [],
+  telefonos: Array.isArray(data.telefonos) ? data.telefonos : [],
+  acuerdo_pago: data.acuerdo_pago
+    ? {
+      numero: data.acuerdo_pago.numero,
+      fecha_acuerdo: data.acuerdo_pago.fecha_acuerdo,
+      caracteristicas: data.acuerdo_pago.caracteristicas,
+      tipo: data.acuerdo_pago.tipo,
+      valor_total_acordado: Number(data.acuerdo_pago.valor_total_acordado),
+      cuotas: Array.isArray(data.acuerdo_pago.cuotas)
+        ? data.acuerdo_pago.cuotas.map((c: any) => ({
+          mes: c.mes,
+          valor_esperado: Number(c.valor_esperado),
+          fecha_limite: c.fecha_limite,
+          observacion: c.observacion,
+        }))
+        : [],
+    }
+    : undefined,
+  recaudos: data.recaudos || {},
+  cedulaResponsable: data.cedulaResponsable || 0,
+  correoResponsable: data.correoResponsable || "",
+  telefonoResponsable: data.telefonoResponsable || ""
+};
 }
 
 /**

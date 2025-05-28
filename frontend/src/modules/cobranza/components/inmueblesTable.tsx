@@ -52,6 +52,22 @@ export default function InmueblesPage() {
         header: 'Teléfonos',
         Cell: ({ cell }) => (cell.getValue<string[]>() || []).join(', '),
       },
+      {
+        accessorKey: 'nombreResponsable',
+        header: 'Nombre Responsable',
+      },
+      {
+        accessorKey: 'cedulaResponsable',
+        header: 'Cédula Responsable',
+      },
+      {
+        accessorKey: 'correoResponsable',
+        header: 'Correo Responsable',
+      },
+      {
+        accessorKey: 'telefonoResponsable',
+        header: 'Teléfono Responsable',
+      },
     ],
     []
   );

@@ -73,6 +73,14 @@ export default function ClientesCrud() {
         editSelectOptions: ejecutivos.map((e) => e.email),
         Cell: ({ cell }) => <span>{cell.getValue<string>()}</span>,
       },
+      { accessorKey: "banco", header: "Banco" },
+      { accessorKey: "numeroCuenta", header: "Número de Cuenta" },
+      {
+        accessorKey: "tipoCuenta",
+        header: "Tipo de Cuenta",
+        editVariant: "select",
+        editSelectOptions: ["ahorros", "corriente", "convenio"],
+      },
     ],
     [ejecutivos]
   );

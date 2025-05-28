@@ -6,5 +6,8 @@ export interface Cliente {
     telefono: string;
     direccion: string;
     ejecutivoEmail:string;
+    banco: string;
+    numeroCuenta: string;
+    tipoCuenta: "ahorros" | "corriente" | "convenio";
   }
   
