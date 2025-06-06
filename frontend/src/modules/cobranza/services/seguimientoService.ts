@@ -33,7 +33,7 @@ export const addSeguimiento = async (
 
   const seguimientoData: any = {
     ...data,
-    fecha: Timestamp.now(),
+    fecha: data.fecha ?? Timestamp.now(),
   };
 
   if (archivoUrl) {

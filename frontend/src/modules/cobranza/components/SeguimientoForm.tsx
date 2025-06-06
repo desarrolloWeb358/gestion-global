@@ -27,7 +27,15 @@ export default function SeguimientoForm({ open, onClose, onSave, seguimiento }: 
 
     useEffect(() => {
         if (seguimiento) {
-            setFecha((seguimiento.fecha as Timestamp).toDate());
+            // Corrige el error de instanceof: Timestamp puede venir como objeto plano
+            const rawFecha = seguimiento.fecha;
+            if (rawFecha && typeof rawFecha === 'object' && 'toDate' in rawFecha && typeof rawFecha.toDate === 'function') {
+                setFecha(rawFecha.toDate());
+            } else if (rawFecha instanceof Date) {
+                setFecha(rawFecha);
+            } else {
+                setFecha(new Date());
+            }
             setTipo(seguimiento.tipo);
             setDescripcion(seguimiento.descripcion);
         } else {
@@ -40,7 +48,7 @@ export default function SeguimientoForm({ open, onClose, onSave, seguimiento }: 
     }, [seguimiento]);
 
     const handleSubmit = () => {
-        if (!fecha || !descripcion) return;
+        if (!fecha || !(fecha instanceof Date) || isNaN(fecha.getTime()) || !descripcion) return;
         onSave({
             fecha: Timestamp.fromDate(fecha),
             tipo,
@@ -84,6 +92,8 @@ export default function SeguimientoForm({ open, onClose, onSave, seguimiento }: 
                     onChange={(e) => setDescripcion(e.target.value)}
                     fullWidth
                     margin="normal"
+                    multiline
+                    rows={5}
                 />
 
                 {seguimiento?.archivoUrl && (

@@ -20,6 +20,8 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import SeguimientoForm from '../components/SeguimientoForm';
 import { storage } from '../../../firebase';
 import { uploadBytes, getDownloadURL } from 'firebase/storage';
+import { useLoading } from "../../../context/LoadingContext";
+
 
 // 👇 Tipo personalizado para meta
 type TableMetaCustom = {
@@ -29,7 +31,8 @@ type TableMetaCustom = {
 export default function SeguimientoTable() {
   const { clienteId, inmuebleId } = useParams<{ clienteId: string; inmuebleId: string }>();
   const [tableData, setTableData] = useState<Seguimiento[]>([]);
-  const [loading, setLoading] = useState(false);
+  //const [loading, setLoading] = useState(false);
+  const { setLoading } = useLoading();
   const [openForm, setOpenForm] = useState(false);
   const [seguimientoActual, setSeguimientoActual] = useState<Seguimiento | null>(null);
 
@@ -99,40 +102,32 @@ export default function SeguimientoTable() {
     if (seguimientoActual) {
       // EDITAR
       let nuevaUrl = seguimientoActual.archivoUrl;
-
       if (archivo && reemplazarArchivo && seguimientoActual.archivoUrl) {
         try {
           await deleteObject(ref(storage, seguimientoActual.archivoUrl));
         } catch (e) {
           console.warn('No se pudo eliminar archivo anterior:', e);
         }
-
         const storageRef = ref(storage, `seguimientos/${clienteId}/${inmuebleId}/${Date.now()}_${archivo.name}`);
-
-
         const uploadResult = await uploadBytes(storageRef, archivo);
         nuevaUrl = await getDownloadURL(uploadResult.ref);
-
-
       } else if (archivo && reemplazarArchivo) {
         const storageRef = ref(storage, `seguimientos/${clienteId}/${inmuebleId}/${Date.now()}_${archivo.name}`);
-
         const uploadResult = await uploadBytes(storageRef, archivo);
         nuevaUrl = await getDownloadURL(uploadResult.ref);
-
       }
-
       await updateSeguimiento(clienteId, inmuebleId, seguimientoActual.id!, {
         ...data,
+        fecha: data.fecha, // Asegura que la fecha seleccionada se actualiza
         archivoUrl: nuevaUrl,
       });
     } else {
       await addSeguimiento(clienteId, inmuebleId, data, archivo);
     }
 
+    await fetchData(); // Espera a que los datos se recarguen antes de cerrar el modal
     setSeguimientoActual(null);
     setOpenForm(false);
-    fetchData();
   };
 
   return (
@@ -151,8 +146,7 @@ export default function SeguimientoTable() {
         columns={columns}
         data={tableData}
         meta={{ updateData } as TableMetaCustom}
-        getRowId={(row) => row.id!}
-        state={{ isLoading: loading }}
+        getRowId={(row) => row.id!}        
         enableEditing
         enableColumnActions={false}
         enableColumnFilters={false}

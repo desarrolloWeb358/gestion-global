@@ -7,13 +7,19 @@ import "flatpickr/dist/flatpickr.css";
 import App from "./App.tsx";
 import { AppWrapper } from "./shared/components/ui/PageMeta.tsx";
 import { ThemeProvider } from "./context/ThemeContext.tsx";
+import { LoadingProvider } from "./context/LoadingContext";
+import LoadingOverlay from "./shared/components/ui/LoadingOverlay";
+
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ThemeProvider>
-      <AppWrapper>
-        <App />
-      </AppWrapper>
+      <LoadingProvider>
+        <AppWrapper>
+          <App />
+          <LoadingOverlay />
+        </AppWrapper>
+      </LoadingProvider>
     </ThemeProvider>
   </StrictMode>,
 );

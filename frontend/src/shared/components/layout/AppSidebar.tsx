@@ -4,16 +4,16 @@ import React from "react";
 
 // Assume these icons are imported from an icon library
 import {
-  BoxCubeIcon,
-  CalenderIcon,
+  //BoxCubeIcon,
+  //CalenderIcon,
   ChevronDownIcon,
-  GridIcon,
+  //GridIcon,
   HorizontaLDots,
-  ListIcon,
+  //ListIcon,
   PageIcon,
-  PieChartIcon,
+  //PieChartIcon,
   PlugInIcon,
-  TableIcon,
+  //TableIcon,
   UserCircleIcon,
 } from "../../../assets/icons";
 import { useSidebar } from "../../../context/SidebarContext";
@@ -27,6 +27,7 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
+  /*
   {
     icon: <GridIcon />,
     name: "Dashboard",
@@ -34,29 +35,38 @@ const navItems: NavItem[] = [
       { name: "Usuarios", path: "/", pro: false }
     ],
   },
-  
+  */
+  /*
   {
     icon: <CalenderIcon />,
     name: "Calendario",
     path: "/calendar",
   },
+  */
   {
     icon: <UserCircleIcon />,
-    name: "User Profile",
+    name: "Perfil del usuario",
     path: "/profile",
   },
+  /*
   {
     name: "Forms",
     icon: <ListIcon />,
     subItems: [{ name: "Form Elements", path: "/form-elements", pro: false }],
   },
+  */
   {
-    name: "Tablas",
-    icon: <TableIcon />,
-    subItems: [
-      { name: "Clientes", path: "/clientes-tables", pro: false },
-      { name: "Usuarios", path: "/Usuarios-tables", pro: false }],
+    name: "Clientes",
+    icon: <PageIcon />,
+    path: "/clientes-tables",
   },
+  {
+    name: "Usuarios",
+    icon: <PageIcon />,
+    path: "/Usuarios-tables",
+  },
+
+  /*
   {
     name: "Pages",
     icon: <PageIcon />,
@@ -65,9 +75,11 @@ const navItems: NavItem[] = [
       { name: "404 Error", path: "/error-404", pro: false },
     ],
   },
+  */
 ];
 
 const othersItems: NavItem[] = [
+  /*
   {
     icon: <PieChartIcon />,
     name: "Charts",
@@ -88,6 +100,7 @@ const othersItems: NavItem[] = [
       { name: "Videos", path: "/videos", pro: false },
     ],
   },
+  */
   {
     icon: <PlugInIcon />,
     name: "Authentication",
