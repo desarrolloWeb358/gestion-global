@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper
 import { useLoading } from '../../../context/LoadingContext';
 
 
-const ConsultaRutPage: React.FC = () => {
+const ConsultarPersonasPage: React.FC = () => {
   const [formData, setFormData] = useState({
     identificacion: '',
     nombre1: '',
@@ -134,4 +134,4 @@ const ConsultaRutPage: React.FC = () => {
   );
 };
 
-export default ConsultaRutPage;
+export default ConsultarPersonasPage;

@@ -24,10 +24,10 @@ import DashboardEjecutivo from "./modules/dashboard/pages/DashboardEjecutivo";
 import DashboardCliente from "./modules/dashboard/pages/DashboardCliente";
 import DashboardInmueble from "./modules/dashboard/pages/DashboardInmueble";
 import ResetPasswordForm from "./modules/auth/components/ResetPasswordForm";
-import InmueblesPage from "./modules/cobranza/components/InmueblesTable";
+import InmueblesTable from "./modules/cobranza/components/InmueblesTable";
 import InmuebleDetail from "./modules/cobranza/components/InmuebleDetail";
 import SeguimientoTable from './modules/cobranza/components/SeguimientoTable';
-import ConsultaRutPage from './modules/cobranza/components/ConsultaRutPage';
+import ConsultaRutPage from './modules/cobranza/components/ConsultarPersonasPage';
 
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
@@ -52,7 +52,7 @@ export default function App() {
           <Route path="/admin/dashboard" element={<DashboardAdmin />} />
           <Route path="/inmuebles/:clienteId/:inmuebleId/acuerdo" element={<InmuebleDetail />} />
           <Route path="/inmuebles/:clienteId/:inmuebleId/seguimiento" element={<SeguimientoTable />} />
-          <Route path="/inmuebles/:clienteId" element={<InmueblesPage />} />
+          <Route path="/inmuebles/:clienteId" element={<InmueblesTable />} />
           <Route path="/ejecutivo/dashboard" element={<DashboardEjecutivo />} />
           <Route path="/cliente/dashboard" element={<DashboardCliente />} />
           <Route path="/inmueble/dashboard" element={<DashboardInmueble />} />
@@ -62,7 +62,7 @@ export default function App() {
           <Route path="/form-elements" element={<FormElements />} />
           <Route path="/clientes-tables" element={<ClientesTable />} />
           <Route path="/usuarios-tables" element={<UsuariosTable />} />
-          <Route path="/inmuebles/:clienteId" element={<InmueblesPage />} />
+          <Route path="/inmuebles/:clienteId" element={<InmueblesTable />} />
           <Route path="/consulta-rut" element={<ConsultaRutPage />} />
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/avatars" element={<Avatars />} />

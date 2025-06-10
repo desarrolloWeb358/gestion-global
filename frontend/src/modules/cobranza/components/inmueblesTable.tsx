@@ -14,7 +14,7 @@ import {
   eliminarInmueble,
 } from '../services/inmuebleService';
 
-export default function InmueblesPage() {
+export default function InmueblesTable() {
   const { clienteId } = useParams<{ clienteId: string }>();
   const navigate = useNavigate();
   const [inmuebles, setInmuebles] = useState<Inmueble[]>([]);
