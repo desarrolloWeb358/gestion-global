@@ -27,6 +27,8 @@ import ResetPasswordForm from "./modules/auth/components/ResetPasswordForm";
 import InmueblesPage from "./modules/cobranza/components/InmueblesTable";
 import InmuebleDetail from "./modules/cobranza/components/InmuebleDetail";
 import SeguimientoTable from './modules/cobranza/components/SeguimientoTable';
+import ConsultaRutPage from './modules/cobranza/components/ConsultaRutPage';
+
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
 
@@ -61,6 +63,7 @@ export default function App() {
           <Route path="/clientes-tables" element={<ClientesTable />} />
           <Route path="/usuarios-tables" element={<UsuariosTable />} />
           <Route path="/inmuebles/:clienteId" element={<InmueblesPage />} />
+          <Route path="/consulta-rut" element={<ConsultaRutPage />} />
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/avatars" element={<Avatars />} />
           <Route path="/badge" element={<Badges />} />
@@ -69,6 +72,7 @@ export default function App() {
           <Route path="/videos" element={<Videos />} />
           <Route path="/line-chart" element={<LineChart />} />
           <Route path="/bar-chart" element={<BarChart />} />
+          
         </Route>
 
         {/* 404 */}
