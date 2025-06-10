@@ -10,6 +10,8 @@ import {
 import { db } from  "../../../firebase";
 import { Inmueble } from "../models/inmueble.model";
 
+
+
 // Referencia a la colección de inmuebles
 //const inmueblesCol = collection(db, "inmuebles");
 
@@ -71,7 +73,19 @@ export async function crearInmueble(clienteId: string, inmueble: Inmueble): Prom
 export async function actualizarInmueble(clienteId: string, inmueble: Inmueble): Promise<void> {
   const ref = doc(db, `clientes/${clienteId}/inmuebles/${inmueble.id}`);
   const { id, ...rest } = inmueble;
-  await updateDoc(ref, rest as any);
+  // Sanitize: remove undefined/null fields and ensure 'responsable' is always a string
+  const sanitized: any = { ...rest };
+  // Prefer 'nombreResponsable' for Firestore 'responsable' field
+  if (sanitized.nombreResponsable !== undefined && sanitized.nombreResponsable !== null) {
+    sanitized.responsable = sanitized.nombreResponsable;
+  }
+  // Remove fields with undefined/null values
+  Object.keys(sanitized).forEach(key => {
+    if (sanitized[key] === undefined || sanitized[key] === null) {
+      delete sanitized[key];
+    }
+  });
+  await updateDoc(ref, sanitized);
 }
 
 export async function eliminarInmueble(clienteId: string, inmuebleId: string): Promise<void> {

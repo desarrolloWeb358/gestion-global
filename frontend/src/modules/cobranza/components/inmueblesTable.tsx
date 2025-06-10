@@ -114,14 +114,23 @@ export default function InmueblesPage() {
         <Button onClick={() => table.setCreatingRow(true)}>Crear Inmueble</Button>
       )}
       onCreatingRowSave={async ({ values, table }) => {
-        await crearInmueble(clienteId!, values as Inmueble);
+        // Ensure nombreResponsable is always a string
+        const safeValues = {
+          ...values,
+          nombreResponsable: values.nombreResponsable ?? '',
+        };
+        await crearInmueble(clienteId!, safeValues as Inmueble);
         table.setCreatingRow(null);
         fetchInmuebles();
       }}
       onEditingRowSave={async ({ values, row, table }) => {
-        //const updated: Inmueble = { ...values, id: row.original.id! } as Inmueble;
-        await actualizarInmueble(clienteId!, {
+        // Ensure nombreResponsable is always a string
+        const safeValues = {
           ...values,
+          nombreResponsable: values.nombreResponsable ?? '',
+        };
+        await actualizarInmueble(clienteId!, {
+          ...safeValues,
           id: row.original.id!,
         } as Inmueble);
         table.setEditingRow(null);

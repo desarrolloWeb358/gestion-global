@@ -9,6 +9,8 @@ import {
 } from "firebase/firestore";
 import { Cliente } from "../models/cliente.model";
 
+
+
 // Referencia a la colección en Firestore
 const clientesRef = collection(db, "clientes");
 
