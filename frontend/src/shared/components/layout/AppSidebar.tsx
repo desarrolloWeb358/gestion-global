@@ -65,6 +65,11 @@ const navItems: NavItem[] = [
     icon: <PageIcon />,
     path: "/Usuarios-tables",
   },
+  {
+  name: "Consultar personas",
+  icon: <PageIcon />,
+  path: "/consulta-rut",
+},
 
   /*
   {
