@@ -71,7 +71,7 @@ const navItems: NavItem[] = [
     path: "/consulta-rut",
   },
   {
-    name: "Saliir",
+    name: "Salir",
     icon: <LogoutIcon />,
     path: "/signin",
   }

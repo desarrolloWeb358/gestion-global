@@ -1,7 +1,7 @@
 // src/modules/common/pages/ConsultaRutPage.tsx
 import React, { useState } from 'react';
 import { Button, TextField, Box, Typography } from '@mui/material';
-import { construirConsulta, extraerDatos } from '../services/consultaPersona';
+import { extraerDatos } from '../services/consultaPersona';
 import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from '@mui/material';
 
 import { useLoading } from '../../../context/LoadingContext';
@@ -23,33 +23,30 @@ const ConsultarPersonasPage: React.FC = () => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
-
-
   const { setLoading } = useLoading();
-
-
   const handleSubmit = async () => {
+
+    const { identificacion, nombre1, nombre2, apellido1, apellido2 } = formData;
+    // Si no hay identificación, validar que al menos 3 de los otros campos estén diligenciados
+    if (!identificacion) {
+      const camposNombre = [nombre1, nombre2, apellido1, apellido2];
+      const camposDiligenciados = camposNombre.filter(c => c.trim() !== '').length;
+      if (camposDiligenciados < 3) {
+        setError('Debe diligenciar al menos 3 de los 4 campos del nombre si no ingresa una identificación.');
+        return;
+      }
+    }
+
     setLoading(true);
     try {
-      const consulta = construirConsulta(formData);
-
-      /*
-      const response = await fetch('https://muisca.dian.gov.co/WebArancel/DefConsultaNomenclaturaPorCriterio.faces', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: consulta,
-      });
-      */
-
-      console.log(consulta);
-      const response = await fetch("https://consultarrut-prldsxsgzq-uc.a.run.app", {
+      setError('');
+      //console.log("Datos del formulario:", formData);
+      const response = await fetch("https://consultarpersonas-prldsxsgzq-uc.a.run.app", {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ consulta })
+        body: JSON.stringify(formData)
       });
 
       const text = await response.text();
@@ -57,6 +54,7 @@ const ConsultarPersonasPage: React.FC = () => {
 
       if (tabla.length === 0) {
         setError('No se encontraron resultados.');
+        setResultado(null);
       } else {
         setResultado(tabla);
         setError('');
@@ -64,9 +62,9 @@ const ConsultarPersonasPage: React.FC = () => {
     } catch (err) {
       setError('Error en la consulta.');
       console.error(err);
-    }finally {
-    setLoading(false); // 👈 Desactiva overlay
-  }
+    } finally {
+      setLoading(false); // 👈 Desactiva overlay
+    }
   };
 
   return (

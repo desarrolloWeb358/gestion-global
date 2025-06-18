@@ -79,4 +79,6 @@ functions/node_modules/
 
 # TypeScript build output (opcional, si llegas a compilar manualmente)
 functions/lib/
-n
+
+# Ignorar por completo las funciones 
+functions/

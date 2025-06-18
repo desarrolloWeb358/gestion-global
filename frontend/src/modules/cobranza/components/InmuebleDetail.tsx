@@ -53,7 +53,7 @@ export default function InmuebleProcess() {
   }, [clienteId]);
 
   // Llama useEjecutivo solo cuando clienteData está disponible
-  const { ejecutivoData, loading: loadingEjecutivo, error: errorEjecutivo } = useEjecutivo(clienteData?.ejecutivoId);
+  const { ejecutivoData } = useEjecutivo(clienteData?.ejecutivoId);
   useEffect(() => {
     const load = async () => {
       if (!clienteId || !inmuebleId) return;
