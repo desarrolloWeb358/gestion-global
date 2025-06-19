@@ -5,6 +5,8 @@ import { extraerDatos } from '../services/consultaPersona';
 import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from '@mui/material';
 
 import { useLoading } from '../../../context/LoadingContext';
+import { getAuth } from "firebase/auth";
+
 
 
 const ConsultarPersonasPage: React.FC = () => {
@@ -37,6 +39,20 @@ const ConsultarPersonasPage: React.FC = () => {
       }
     }
 
+    const user = getAuth().currentUser;
+    const uid = user?.uid;
+    console.log("UID del usuario:", uid);
+
+    if (!uid) {
+      setError('No se pudo identificar el usuario.');
+      return;
+    }
+
+    const payload = {
+      ...formData,
+      uid, 
+    };
+
     setLoading(true);
     try {
       setError('');
@@ -46,10 +62,19 @@ const ConsultarPersonasPage: React.FC = () => {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
 
       const text = await response.text();
+
+      if (text === "SIN_AUTORIZACION") {
+        setError("No esta autorizado para realizar esta consulta, revise con el administrador del sistema.");
+        setResultado(null);
+        setLoading(false); // 👈 Desactiva overlay
+        return;
+      }
+
+
       const tabla = extraerDatos(text);
 
       if (tabla.length === 0) {
