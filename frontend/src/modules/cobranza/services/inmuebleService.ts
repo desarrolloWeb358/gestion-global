@@ -6,11 +6,42 @@ import {
   deleteDoc,
   doc,
   DocumentData,
+  getDoc,
 } from "firebase/firestore";
 import { db } from  "../../../firebase";
-import { Inmueble } from "../models/inmueble.model";
+import { CuotaAcuerdo, Inmueble } from "../models/inmueble.model";
 
+export async function guardarCuotasEnFirestore(
+  inmuebleId: string,
+  cuotas: CuotaAcuerdo[]
+) {
+  const batchErrors = [];
 
+  for (const cuota of cuotas) {
+    try {
+      await addDoc(collection(db, "inmuebles", inmuebleId, "cuotas_acuerdo"), cuota);
+    } catch (error) {
+      console.error("Error guardando cuota:", cuota, error);
+      batchErrors.push({ cuota, error });
+    }
+  }
+
+  if (batchErrors.length > 0) {
+    throw new Error("Algunas cuotas no se pudieron guardar");
+  }
+}
+
+export const getInmuebleById = async (
+  clienteId: string,
+  inmuebleId: string
+): Promise<Inmueble | null> => {
+  const refDoc = doc(db, `clientes/${clienteId}/inmuebles/${inmuebleId}`);
+  const snap = await getDoc(refDoc);
+  if (snap.exists()) {
+    return { id: snap.id, ...snap.data() } as Inmueble;
+  }
+  return null;
+};
 
 // Referencia a la colección de inmuebles
 //const inmueblesCol = collection(db, "inmuebles");
@@ -49,7 +80,10 @@ function mapDocToInmueble(id: string, data: DocumentData): Inmueble {
   recaudos: data.recaudos || {},
   cedulaResponsable: data.cedulaResponsable || 0,
   correoResponsable: data.correoResponsable || "",
-  telefonoResponsable: data.telefonoResponsable || ""
+  telefonoResponsable: data.telefonoResponsable || "",
+  tipificacion: data.tipificacion || "",
+  clienteId: data.clienteId || "",
+  ejecutivoEmail: data.ejecutivoEmail || ""
 };
 }
 

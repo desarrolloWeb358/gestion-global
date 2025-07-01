@@ -1,9 +1,10 @@
 import { Timestamp } from "firebase/firestore";
 
+export type TipoSeguimiento = 'llamada' | 'correo' | 'whatsapp' | 'sms' | 'visita' | 'otro';
 export interface Seguimiento {
   id?: string;
   fecha?: Timestamp;
-  tipo: 'llamada' | 'correo' | 'whatsapp' | 'sms' | 'visita' | 'otro';
+  tipo: TipoSeguimiento;
   descripcion: string;
   archivoUrl?: string; // si se carga archivo (PDF, audio, etc.)
 }

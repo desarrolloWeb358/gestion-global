@@ -3,7 +3,7 @@ import { db, storage } from "../../../firebase";
 import {
   collection, addDoc, getDocs, updateDoc, deleteDoc, doc, Timestamp
 } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { Seguimiento } from "../models/seguimiento.model";
 
 export const getSeguimientos = async (
@@ -49,10 +49,38 @@ export const updateSeguimiento = async (
   clienteId: string,
   inmuebleId: string,
   seguimientoId: string,
-  data: Partial<Seguimiento>
+  data: Omit<Seguimiento, 'id'>,
+  archivo?: File,
+  reemplazar?: boolean
 ) => {
   const refDoc = doc(db, `clientes/${clienteId}/inmuebles/${inmuebleId}/seguimiento/${seguimientoId}`);
-  return await updateDoc(refDoc, data);
+
+  let archivoUrl = data.archivoUrl ?? "";
+
+  // Si se quiere reemplazar el archivo y hay uno nuevo
+  if (archivo && reemplazar) {
+    // Eliminar archivo anterior si existe
+    if (data.archivoUrl) {
+      try {
+        const anteriorRef = ref(storage, data.archivoUrl);
+        await deleteObject(anteriorRef);
+      } catch (error) {
+        console.warn("Error al eliminar archivo anterior:", error);
+      }
+    }
+
+    // Subir nuevo archivo
+    const storageRef = ref(storage, `seguimientos/${clienteId}/${inmuebleId}/${Date.now()}_${archivo.name}`);
+    const snap = await uploadBytes(storageRef, archivo);
+    archivoUrl = await getDownloadURL(snap.ref);
+  }
+
+  const updatedData: Partial<Seguimiento> = {
+    ...data,
+    archivoUrl,
+  };
+
+  return await updateDoc(refDoc, updatedData);
 };
 
 export const deleteSeguimiento = async (

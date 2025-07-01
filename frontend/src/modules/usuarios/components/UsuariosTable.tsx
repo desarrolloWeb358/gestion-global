@@ -1,23 +1,32 @@
-import { useEffect, useMemo, useState } from "react";
-import { formatTimestamp } from "../../../shared/dateUtils";
+import { useEffect, useState } from "react";
+import { Pencil, Trash2 } from "lucide-react";
+import { Timestamp } from "firebase/firestore";
+
 import {
-  MaterialReactTable,
-  MRT_ColumnDef,
-  MRT_EditActionButtons,
-} from "material-react-table";
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
+} from "../../../components/ui/table";
+import { Button } from "../../../components/ui/button";
 import {
-  Box,
-  Button,
-  DialogActions,
+  Dialog,
   DialogContent,
+  DialogHeader,
   DialogTitle,
-  IconButton,
-  Tooltip,
-  Switch,
-  TextField
-} from "@mui/material";
-import EditIcon from "@mui/icons-material/Edit";
-import DeleteIcon from "@mui/icons-material/Delete";
+  DialogFooter,
+} from "../../../components/ui/dialog";
+import { Input } from "../../../components/ui/input";
+import { Label } from "../../../components/ui/label";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../../../components/ui/select";
+import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "../../../components/ui/tooltip";
+import { Switch } from "../../../components/ui/switch";
+import { CalendarIcon } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "../../../components/ui/popover";
+import { Calendar } from "../../../components/ui/calendar";
+
 import { UsuarioSistema } from "../models/usuarioSistema.model";
 import {
   obtenerUsuarios,
@@ -25,12 +34,14 @@ import {
   actualizarUsuario,
   eliminarUsuario,
 } from "../services/usuarioService";
-import { Timestamp } from "firebase/firestore";
 
 export default function UsuariosCrud() {
   const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([]);
   const [loading, setLoading] = useState(true);
-  const [password, setPassword] = useState(""); // solo para creación
+  const [usuarioEditando, setUsuarioEditando] = useState<UsuarioSistema | null>(null);
+  const [mostrarDialogo, setMostrarDialogo] = useState(false);
+  const [password, setPassword] = useState("");
+  const [fecha, setFecha] = useState<Date | undefined>();
 
   const fetchUsuarios = async () => {
     setLoading(true);
@@ -43,107 +54,235 @@ export default function UsuariosCrud() {
     fetchUsuarios();
   }, []);
 
-  const columns = useMemo<MRT_ColumnDef<UsuarioSistema>[]>(() => [
-    { accessorKey: "email", header: "Email" },
-    { accessorKey: "nombre", header: "Nombre" },
-    { accessorKey: "rol", header: "Rol", editVariant: "select", editSelectOptions: ["admin", "ejecutivo", "cliente", "inmueble"] },
-    
-    {
-      accessorKey: "activo",
-      header: "Activo",
-      Cell: ({ cell }) => (
-        <Switch checked={cell.getValue() as boolean} disabled />
-      ),
-      muiEditTextFieldProps: { type: "checkbox" },
-    },
-    {
-      accessorKey: "fecha_registro",
-      header: "Fecha de Registro",
-      enableEditing: false,
-      Cell: ({ cell }) => {
-        const value = cell.getValue() as Timestamp | { seconds: number; nanoseconds: number } | null;
-        return formatTimestamp(value);
-      },
+  const abrirCrear = () => {
+    setUsuarioEditando(null);
+    setPassword("");
+    setFecha(undefined);
+    setMostrarDialogo(true);
+  };
+
+  const abrirEditar = (usuario: UsuarioSistema) => {
+    setUsuarioEditando(usuario);
+    setPassword("");
+
+    const firestoreFecha = usuario.fecha_registro;
+
+    if (firestoreFecha instanceof Timestamp) {
+      setFecha(firestoreFecha.toDate()); // ✅ Esto convierte el Timestamp a Date
+    } else {
+      setFecha(undefined);
     }
 
-  ], []);
+    setMostrarDialogo(true);
+  };
+
+  const cerrarDialogo = () => {
+    setUsuarioEditando(null);
+    setPassword("");
+    setMostrarDialogo(false);
+  };
+
+  const handleEliminar = async (uid: string) => {
+    await eliminarUsuario(uid);
+    fetchUsuarios();
+  };
 
   return (
-    <MaterialReactTable
-      columns={columns}
-      data={usuarios}
-      getRowId={(row) => row.uid}
-      enableEditing
-      editDisplayMode="modal"
-      createDisplayMode="modal"
-      state={{ isLoading: loading }}
-      onCreatingRowSave={async ({ values, table }) => {
-        try {
-          if (!password) throw new Error("La contraseña es obligatoria");
-          await crearUsuario({ ...values, password }); // usa la contraseña
-          setPassword(""); // limpia la contraseña
-          table.setCreatingRow(null);
-          fetchUsuarios();
-        } catch (error: any) {
-          alert(error.message);
-        }
-      }}
-      onEditingRowSave={async ({ values, table }) => {
-        await actualizarUsuario(values);
-        table.setEditingRow(null);
-        fetchUsuarios();
-      }}
-      renderRowActions={({ row, table }) => (
-        <Box sx={{ display: "flex", gap: "1rem" }}>
-          <Tooltip title="Editar">
-            <IconButton onClick={() => table.setEditingRow(row)}>
-              <EditIcon />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Eliminar">
-            <IconButton color="error" onClick={async () => {
-              await eliminarUsuario(row.original.uid);
-              fetchUsuarios();
-            }}>
-              <DeleteIcon />
-            </IconButton>
-          </Tooltip>
-        </Box>
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-semibold">Usuarios</h2>
+        <Button onClick={abrirCrear}>Crear Usuario</Button>
+      </div>
+
+      {loading ? (
+        <p className="text-center py-6 text-muted-foreground">Cargando usuarios...</p>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Email</TableHead>
+              <TableHead>Nombre</TableHead>
+              <TableHead>Rol</TableHead>
+              <TableHead>Activo</TableHead>
+              <TableHead>Fecha de registro</TableHead>
+              <TableHead className="text-center">Acciones</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {usuarios.map((usuario) => (
+              <TableRow key={usuario.uid}>
+                <TableCell>{usuario.email}</TableCell>
+                <TableCell>{usuario.nombre}</TableCell>
+                <TableCell>{usuario.rol}</TableCell>
+                <TableCell>
+                  <Switch checked={usuario.activo}
+                    onCheckedChange={async (checked) => {
+                      const actualizado = { ...usuario, activo: checked };
+                      await actualizarUsuario(actualizado);
+                      setUsuarios((prev) =>
+                        prev.map((u) => (u.uid === actualizado.uid ? actualizado : u))
+                      );
+                    }} />
+                </TableCell>
+                <TableCell>
+                  {usuario.fecha_registro instanceof Timestamp
+                    ? (() => {
+                      const d = usuario.fecha_registro.toDate();
+                      const dia = String(d.getDate()).padStart(2, "0");
+                      const mes = String(d.getMonth() + 1).padStart(2, "0");
+                      const anio = d.getFullYear();
+                      return `${dia}/${mes}/${anio}`;
+                    })()
+                    : ""}
+                </TableCell>
+                <TableCell>
+                  <div className="flex justify-center gap-2">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button size="icon" variant="ghost" onClick={() => abrirEditar(usuario)}>
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Editar</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="text-red-600"
+                            onClick={() => handleEliminar(usuario.uid)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Eliminar</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
-      renderTopToolbarCustomActions={({ table }) => (
-        <Button onClick={() => table.setCreatingRow(true)} variant="contained">
-          Crear Usuario
-        </Button>
-      )}
-      renderCreateRowDialogContent={({ internalEditComponents, table, row }) => (
-        <>
-          <DialogTitle>Crear Usuario</DialogTitle>
-          <DialogContent sx={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            {internalEditComponents}
-            <TextField
-              label="Contraseña"
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </DialogContent>
-          <DialogActions>
-            <MRT_EditActionButtons table={table} row={row} />
-          </DialogActions>
-        </>
-      )}
-      renderEditRowDialogContent={({ internalEditComponents, table, row }) => (
-        <>
-          <DialogTitle>Editar Usuario</DialogTitle>
-          <DialogContent sx={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            {internalEditComponents}
-          </DialogContent>
-          <DialogActions>
-            <MRT_EditActionButtons table={table} row={row} />
-          </DialogActions>
-        </>
-      )}
-    />
+
+      <Dialog open={mostrarDialogo} onOpenChange={setMostrarDialogo}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>{usuarioEditando ? "Editar Usuario" : "Crear Usuario"}</DialogTitle>
+          </DialogHeader>
+
+          <form
+            className="grid gap-4 py-4"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const form = e.target as HTMLFormElement;
+              const formData = new FormData(form);
+              const fecha_registro = fecha ? Timestamp.fromDate(fecha) : Timestamp.now();
+
+              const activo = (form.elements.namedItem("activo") as HTMLInputElement)?.checked;
+
+              const nuevo: UsuarioSistema = {
+                uid: usuarioEditando?.uid || "",
+                email: formData.get("email") as string,
+                nombre: formData.get("nombre") as string,
+                rol: formData.get("rol") as "admin" | "ejecutivo" | "cliente" | "inmueble",
+                activo, // ✅ valor booleano del switch
+                fecha_registro,
+              };
+
+              if (usuarioEditando) {
+                await actualizarUsuario(nuevo);
+                setUsuarios((prev) =>
+                  prev.map((u) => (u.uid === nuevo.uid ? nuevo : u))
+                );
+              } else {
+                if (!password) {
+                  alert("La contraseña es obligatoria");
+                  return;
+                }
+                await crearUsuario({ ...nuevo, password });
+                setUsuarios((prev) => [...prev, { ...nuevo, uid: nuevo.uid || crypto.randomUUID() }]);
+              }
+
+              cerrarDialogo();
+            }}
+          >
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Email</Label>
+                <Input name="email" defaultValue={usuarioEditando?.email} required />
+              </div>
+              <div>
+                <Label>Nombre</Label>
+                <Input name="nombre" defaultValue={usuarioEditando?.nombre} />
+              </div>
+              <div>
+                <Label>Rol</Label>
+                <Select name="rol" defaultValue={usuarioEditando?.rol}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="ejecutivo">Ejecutivo</SelectItem>
+                    <SelectItem value="cliente">Cliente</SelectItem>
+                    <SelectItem value="inmueble">Inmueble</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  name="activo"
+                  id="activo"
+                  defaultChecked={usuarioEditando?.activo ?? true}
+                />
+                <Label htmlFor="activo">Activo</Label>
+              </div>
+              <div className="col-span-2">
+                <Label>Fecha de Registro</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      className="w-full justify-start text-left font-normal"
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {fecha ? fecha.toLocaleDateString("es-CO") : "Selecciona una fecha"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={fecha}
+                      onSelect={setFecha}
+                      autoFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              {!usuarioEditando && (
+                <div className="col-span-2">
+                  <Label>Contraseña</Label>
+                  <Input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="mt-6">
+              <Button type="submit">Guardar</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

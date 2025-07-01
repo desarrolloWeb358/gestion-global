@@ -48,7 +48,7 @@ export const crearUsuario = async (usuario: UsuarioSistema & { password: string 
       nombre: usuario.nombre ?? "",
       correo: usuario.email,
       direccion: "",
-      ejecutivoEmail: "",
+      ejecutivoId: "",
       telefono: "",
       tipo: "",
       banco: '',
@@ -62,12 +62,14 @@ export const crearUsuario = async (usuario: UsuarioSistema & { password: string 
 export const actualizarUsuario = async (usuario: UsuarioSistema): Promise<void> => {
   if (!usuario.uid) throw new Error("El UID del usuario es obligatorio");
   const ref = doc(db, "usuarios", usuario.uid);
-  await updateDoc(ref, {
-    nombre: usuario.nombre,
-    email: usuario.email,
-    rol: usuario.rol,
-    activo: usuario.activo ?? true,
-  });
+ await updateDoc(ref, {
+  nombre: usuario.nombre,
+  email: usuario.email,
+  rol: usuario.rol,
+  activo: usuario.activo ?? true,
+  fecha_registro: usuario.fecha_registro, 
+});
+
 };
 
 export const eliminarUsuario = async (uid: string): Promise<void> => {

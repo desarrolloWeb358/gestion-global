@@ -1,199 +1,148 @@
 // src/pages/SeguimientoTable.tsx
-import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { Box, IconButton, Tooltip, Button } from '@mui/material';
-import { MaterialReactTable, type MRT_ColumnDef } from 'material-react-table';
-import { Delete as DeleteIcon, Edit as EditIcon, Add as AddIcon } from '@mui/icons-material';
-import { Timestamp } from 'firebase/firestore';
-import { deleteObject, ref } from 'firebase/storage';
+import { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Button } from "../../../components/ui/button";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "../../../components/ui/table";
+import { Edit, Trash2, Plus } from "lucide-react";
+import SeguimientoForm from '../../../components/SeguimientoForm';
 import { Seguimiento } from '../models/seguimiento.model';
-import {
-  getSeguimientos,
-  addSeguimiento,
-  updateSeguimiento,
-  deleteSeguimiento,
-} from '../services/seguimientoService';
-
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import SeguimientoForm from '../components/SeguimientoForm';
-import { storage } from '../../../firebase';
-import { uploadBytes, getDownloadURL } from 'firebase/storage';
+import { getSeguimientos, deleteSeguimiento, addSeguimiento, updateSeguimiento } from '../services/seguimientoService';
 import { useLoading } from "../../../context/LoadingContext";
+import { ref, deleteObject } from 'firebase/storage';
+import { storage } from '../../../firebase';
+import { ArrowLeft } from "lucide-react";
 
 
-// 👇 Tipo personalizado para meta
-type TableMetaCustom = {
-  updateData: (rowIndex: number, columnId: string, value: any) => void;
-};
+
 
 export default function SeguimientoTable() {
+  const navigate = useNavigate();
   const { clienteId, inmuebleId } = useParams<{ clienteId: string; inmuebleId: string }>();
-  const [tableData, setTableData] = useState<Seguimiento[]>([]);
-  //const [loading, setLoading] = useState(false);
-  const { setLoading } = useLoading();
+  const [seguimientos, setSeguimientos] = useState<Seguimiento[]>([]);
   const [openForm, setOpenForm] = useState(false);
   const [seguimientoActual, setSeguimientoActual] = useState<Seguimiento | null>(null);
+  const { setLoading } = useLoading();
 
   const fetchData = async () => {
     if (!clienteId || !inmuebleId) return;
     setLoading(true);
     const data = await getSeguimientos(clienteId, inmuebleId);
-    setTableData(data);
+    setSeguimientos(data);
     setLoading(false);
   };
 
-  const updateData = (rowIndex: number, columnId: string, value: any) => {
-    setTableData((prev) =>
-      prev.map((row, index) => (index === rowIndex ? { ...row, [columnId]: value } : row))
-    );
-  };
+  useEffect(() => {
+    fetchData();
+  }, [clienteId, inmuebleId]);
 
-  useEffect(() => { fetchData(); }, [clienteId, inmuebleId]);
 
-  const columns = useMemo<MRT_ColumnDef<Seguimiento>[]>(() => [
-    {
-      accessorKey: 'fecha',
-      header: 'Fecha',
-      Cell: ({ cell }) => {
-        const f = cell.getValue<Timestamp>();
-        return f?.toDate().toLocaleDateString();
-      },
-      Edit: ({ row, table }) => (
-        <LocalizationProvider dateAdapter={AdapterDateFns}>
-          <DatePicker
-            value={
-              row.original.fecha instanceof Timestamp
-                ? row.original.fecha.toDate()
-                : new Date()
-            }
-            onChange={(date) => {
-              (table.options.meta as TableMetaCustom)?.updateData(row.index, 'fecha', Timestamp.fromDate(date!));
-            }}
-          />
-        </LocalizationProvider>
-      )
-    },
-    {
-      accessorKey: 'tipo',
-      header: 'Tipo',
-      editVariant: 'select',
-      editSelectOptions: ['llamada', 'correo', 'whatsapp', 'sms', 'visita', 'otro']
-    },
-    {
-      accessorKey: 'descripcion',
-      header: 'Descripción'
-    },
-    {
-      accessorKey: 'archivoUrl',
-      header: 'Archivo',
-      Cell: ({ cell }) => {
-        const url = cell.getValue<string>();
-        return url ? <a href={url} target="_blank" rel="noreferrer">Ver archivo</a> : '-';
-      },
-      Edit: () => 'Carga de archivo solo al crear.'
-    },
-  ], []);
-
-  const handleGuardar = async (data: Omit<Seguimiento, 'id'>, archivo?: File, reemplazarArchivo?: boolean) => {
-    if (!clienteId || !inmuebleId) return;
-
-    if (seguimientoActual) {
-      // EDITAR
-      let nuevaUrl = seguimientoActual.archivoUrl;
-      if (archivo && reemplazarArchivo && seguimientoActual.archivoUrl) {
-        try {
-          await deleteObject(ref(storage, seguimientoActual.archivoUrl));
-        } catch (e) {
-          console.warn('No se pudo eliminar archivo anterior:', e);
-        }
-        const storageRef = ref(storage, `seguimientos/${clienteId}/${inmuebleId}/${Date.now()}_${archivo.name}`);
-        const uploadResult = await uploadBytes(storageRef, archivo);
-        nuevaUrl = await getDownloadURL(uploadResult.ref);
-      } else if (archivo && reemplazarArchivo) {
-        const storageRef = ref(storage, `seguimientos/${clienteId}/${inmuebleId}/${Date.now()}_${archivo.name}`);
-        const uploadResult = await uploadBytes(storageRef, archivo);
-        nuevaUrl = await getDownloadURL(uploadResult.ref);
+  const handleEliminar = async (seg: Seguimiento) => {
+    if (seg.archivoUrl) {
+      try {
+        await deleteObject(ref(storage, seg.archivoUrl));
+      } catch (e) {
+        console.warn("Error al eliminar archivo:", e);
       }
-      await updateSeguimiento(clienteId, inmuebleId, seguimientoActual.id!, {
-        ...data,
-        fecha: data.fecha, // Asegura que la fecha seleccionada se actualiza
-        archivoUrl: nuevaUrl,
-      });
-    } else {
-      await addSeguimiento(clienteId, inmuebleId, data, archivo);
     }
-
-    await fetchData(); // Espera a que los datos se recarguen antes de cerrar el modal
-    setSeguimientoActual(null);
-    setOpenForm(false);
+    await deleteSeguimiento(clienteId!, inmuebleId!, seg.id!);
+    fetchData();
   };
+
+
+
 
   return (
-    <>
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-4">
+          <Button
+      variant="ghost"
+      onClick={() => navigate(-1)}
+      className="flex items-center gap-2"
+    >
+      <ArrowLeft className="w-4 h-4" />
+      Volver
+    </Button>
+          <h2 className="absolute left-1/2 transform -translate-x-1/2 text-2xl font-bold text-center">Seguimientos</h2>
+        </div>
+        <Button onClick={() => {
+          setSeguimientoActual(null);
+          setOpenForm(true);
+        }}>
+          <Plus className="w-4 h-4 mr-2" /> Crear Seguimiento
+        </Button>
+      </div>
+
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Fecha</TableHead>
+            <TableHead>Tipo</TableHead>
+            <TableHead>Descripción</TableHead>
+            <TableHead>Archivo</TableHead>
+            <TableHead>Acciones</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {seguimientos.map((seg) => (
+            <TableRow key={seg.id}>
+              <TableCell>{seg.fecha?.toDate().toLocaleDateString()}</TableCell>
+              <TableCell>{seg.tipo}</TableCell>
+              <TableCell>{seg.descripcion}</TableCell>
+              <TableCell>
+                {seg.archivoUrl ? (
+                  <a href={seg.archivoUrl} target="_blank" rel="noopener noreferrer" className="underline text-blue-500">Ver</a>
+                ) : "-"}
+              </TableCell>
+              <TableCell>
+                <div className="flex gap-2">
+                  <Button size="icon" variant="ghost" onClick={() => {
+                    setSeguimientoActual(seg);
+                    setOpenForm(true);
+                  }}>
+                    <Edit className="w-4 h-4" />
+                  </Button>
+                  <Button size="icon" variant="ghost" onClick={() => handleEliminar(seg)}>
+                    <Trash2 className="w-4 h-4 text-red-600" />
+                  </Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+
       <SeguimientoForm
         open={openForm}
         onClose={() => {
           setOpenForm(false);
           setSeguimientoActual(null);
         }}
-        onSave={handleGuardar}
         seguimiento={seguimientoActual || undefined}
-      />
+        onSave={async (data, archivo, reemplazar) => {
+          if (!clienteId || !inmuebleId) return;
 
-      <MaterialReactTable<Seguimiento>
-        columns={columns}
-        data={tableData}
-        meta={{ updateData } as TableMetaCustom}
-        getRowId={(row) => row.id!}        
-        enableEditing
-        enableColumnActions={false}
-        enableColumnFilters={false}
-        renderRowActions={({ row }) => (
-          <Box sx={{ display: 'flex', gap: '0.5rem' }}>
-            <Tooltip title="Editar">
-              <IconButton onClick={() => {
-                setSeguimientoActual(row.original);
-                setOpenForm(true);
-              }}>
-                <EditIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Eliminar">
-              <IconButton
-                color="error"
-                onClick={async () => {
-                  if (row.original.archivoUrl) {
-                    try {
-                      await deleteObject(ref(storage, row.original.archivoUrl));
-                    } catch (e) {
-                      console.warn('No se pudo eliminar el archivo del storage:', e);
-                    }
-                  }
+          if (seguimientoActual && seguimientoActual.id) {
+            // Editar seguimiento existente
+            await updateSeguimiento(
+              clienteId,
+              inmuebleId,
+              seguimientoActual.id,
+              data,
+              archivo,
+              reemplazar
+            );
+          } else {
+            // Crear nuevo seguimiento
+            await addSeguimiento(clienteId, inmuebleId, data, archivo);
+          }
 
-                  await deleteSeguimiento(clienteId!, inmuebleId!, row.original.id!);
-                  fetchData();
-                }}>
-                <DeleteIcon />
-              </IconButton>
-            </Tooltip>
-          </Box>
-        )}
-        renderTopToolbarCustomActions={() => (
-          <Button
-            color="primary"
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => {
-              setSeguimientoActual(null);
-              setOpenForm(true);
-            }}
-          >
-            Crear Seguimiento
-          </Button>
-        )}
+          await fetchData();
+          setOpenForm(false);
+          setSeguimientoActual(null);
+        }}
+
       />
-    </>
+    </div>
   );
 }

@@ -1,123 +1,101 @@
-// src/modules/common/pages/ConsultaRutPage.tsx
-import React, { useState } from 'react';
-import { Button, TextField, Box, Typography } from '@mui/material';
-import { construirConsulta, extraerDatos } from '../services/consultaPersona';
-import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from '@mui/material';
+"use client";
 
-import { useLoading } from '../../../context/LoadingContext';
+import React, { useState } from "react";
+import { Input } from "../../../components/ui/input";
+import { Button } from "../../../components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../../../components/ui/table";
+import { useLoading } from "../../../context/LoadingContext";
+import { construirConsulta, extraerDatos } from "../services/consultaPersona";
 
-
-const ConsultarPersonasPage: React.FC = () => {
+export default function ConsultarPersonasPage() {
   const [formData, setFormData] = useState({
-    identificacion: '',
-    nombre1: '',
-    nombre2: '',
-    apellido1: '',
-    apellido2: '',
+    identificacion: "",
+    nombre1: "",
+    nombre2: "",
+    apellido1: "",
+    apellido2: "",
   });
 
   const [resultado, setResultado] = useState<string[][] | null>(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
+  const { setLoading } = useLoading();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
-
-
-  const { setLoading } = useLoading();
-
 
   const handleSubmit = async () => {
     setLoading(true);
     try {
       const consulta = construirConsulta(formData);
 
-      /*
-      const response = await fetch('https://muisca.dian.gov.co/WebArancel/DefConsultaNomenclaturaPorCriterio.faces', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: consulta,
-      });
-      */
-
-      console.log(consulta);
       const response = await fetch("https://consultarrut-prldsxsgzq-uc.a.run.app", {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json'
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ consulta })
+        body: JSON.stringify({ consulta }),
       });
 
       const text = await response.text();
       const tabla = extraerDatos(text);
 
       if (tabla.length === 0) {
-        setError('No se encontraron resultados.');
+        setError("No se encontraron resultados.");
+        setResultado(null);
       } else {
         setResultado(tabla);
-        setError('');
+        setError("");
       }
     } catch (err) {
-      setError('Error en la consulta.');
       console.error(err);
-    }finally {
-    setLoading(false); // 👈 Desactiva overlay
-  }
+      setError("Error en la consulta.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <Box p={4}>
-      <Typography variant="h5">Consulta de personas</Typography>
-      <Box display="flex" flexDirection="column" gap={2} mt={2}>
-        <TextField label="Identificación" name="identificacion" onChange={handleChange} />
-        <TextField label="Primer Nombre" name="nombre1" onChange={handleChange} />
-        <TextField label="Segundo Nombre" name="nombre2" onChange={handleChange} />
-        <TextField label="Primer Apellido" name="apellido1" onChange={handleChange} />
-        <TextField label="Segundo Apellido" name="apellido2" onChange={handleChange} />
-        <Button variant="contained" onClick={handleSubmit}>Consultar</Button>
-      </Box>
+    <div className="max-w-4xl mx-auto p-4 space-y-6">
+      <h2 className="text-2xl font-bold">Consulta de personas</h2>
 
-      {error && <Typography color="error">{error}</Typography>}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Input placeholder="Identificación" name="identificacion" onChange={handleChange} />
+        <Input placeholder="Primer Nombre" name="nombre1" onChange={handleChange} />
+        <Input placeholder="Segundo Nombre" name="nombre2" onChange={handleChange} />
+        <Input placeholder="Primer Apellido" name="apellido1" onChange={handleChange} />
+        <Input placeholder="Segundo Apellido" name="apellido2" onChange={handleChange} />
+      </div>
 
-      {/*}
-      {resultado && (
-        <Box mt={4}>
-          <Typography variant="h6">Resultados</Typography>
-          <table border={1} width="100%">
-            <tbody>
-              {resultado.map((fila, i) => (
-                <tr key={i}>
-                  {fila.map((col, j) => (
-                    <td key={j}>{col}</td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Box>
-      )}
+      <Button onClick={handleSubmit} className="bg-primary text-white hover:bg-primary/90">
+        Consultar
+      </Button>
 
-      */}
+      {error && <p className="text-red-500 font-medium">{error}</p>}
 
       {resultado && (
-        <TableContainer component={Paper} sx={{ mt: 4 }}>
+        <div className="overflow-x-auto border rounded-md">
           <Table>
-            <TableHead>
+            <TableHeader>
               <TableRow>
                 {resultado[0].map((col, index) => (
-                  <TableCell key={index}><strong>{col}</strong></TableCell>
+                  <TableHead key={index}>{col}</TableHead>
                 ))}
               </TableRow>
-            </TableHead>
+            </TableHeader>
             <TableBody>
               {resultado.slice(1).map((fila, i) => (
                 <TableRow key={i}>
                   {fila.map((col, j) => (
-                    <TableCell key={j} sx={{ whiteSpace: 'pre-line' }}>
+                    <TableCell key={j} className="whitespace-pre-line">
                       {col}
                     </TableCell>
                   ))}
@@ -125,13 +103,8 @@ const ConsultarPersonasPage: React.FC = () => {
               ))}
             </TableBody>
           </Table>
-        </TableContainer>
+        </div>
       )}
-
-
-
-    </Box>
+    </div>
   );
-};
-
-export default ConsultarPersonasPage;
+}
