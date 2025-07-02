@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import "swiper/swiper-bundle.css";
 import "flatpickr/dist/flatpickr.css";
-import App from "./App.tsx";
+import App from "./App";
 import { LoadingProvider } from "./context/LoadingContext";
 import { BrowserRouter } from "react-router-dom";
 
