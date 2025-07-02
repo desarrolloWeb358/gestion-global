@@ -3,14 +3,13 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from "../../../components/ui/button";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "../../../components/ui/table";
-import { Edit, Trash2, Plus } from "lucide-react";
+import { Edit, Trash2, Plus, ArrowLeft } from "lucide-react";
 import SeguimientoForm from '../../../components/SeguimientoForm';
 import { Seguimiento } from '../models/seguimiento.model';
 import { getSeguimientos, deleteSeguimiento, addSeguimiento, updateSeguimiento } from '../services/seguimientoService';
 import { useLoading } from "../../../context/LoadingContext";
 import { ref, deleteObject } from 'firebase/storage';
 import { storage } from '../../../firebase';
-import { ArrowLeft } from "lucide-react";
 
 
 
