@@ -82,3 +82,6 @@ functions/lib/
 
 # Ignorar por completo las funciones 
 functions/
+
+# Ignorar por completo la 
+migracion/serviceAccountKey.json
