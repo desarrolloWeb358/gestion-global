@@ -27,7 +27,7 @@ const main = async () => {
 
     // Leer 10 registros
     const [rows] = await connection.execute(
-      'SELECT usr_nombre, usr_identificacion FROM scc_usuarios LIMIT 10'
+      'SELECT usr_nombre, usr_identificacion FROM scc_usuarios LIMIT 2'
     );
 
     console.log(`📦 Obtenidos ${rows.length} registros`);
