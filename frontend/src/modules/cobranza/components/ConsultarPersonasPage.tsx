@@ -14,7 +14,7 @@ import {
 import { useLoading } from "../../../context/LoadingContext";
 import { extraerDatos } from "../services/consultaPersona";
 import { getAuth } from "firebase/auth";
-import { Spinner } from "../../../components/ui/Spinner";
+import { Spinner } from "../../../components/ui/spinner";
 
 export default function ConsultarPersonasPage() {
   const [formData, setFormData] = useState({

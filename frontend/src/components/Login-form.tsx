@@ -2,7 +2,7 @@ import { cn } from "../lib/utils"
 import { Button } from "./ui/button"
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
-import { Spinner } from "./ui/Spinner"
+import { Spinner } from "./ui/spinner"
 import { useState } from "react"
 import { useNavigate, Link } from "react-router-dom"
 import { loginConCorreo, loginConGoogle } from "../services/authService";
