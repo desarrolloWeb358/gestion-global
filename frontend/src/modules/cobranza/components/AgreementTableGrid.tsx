@@ -21,15 +21,18 @@ interface Cuota {
 }
 
 interface Props {
+  clienteId: string;
   inmuebleId: string;
+  trigger?: boolean;
 }
 
-export default function AgreementTable({ inmuebleId }: Props) {
+export default function AgreementTable({ clienteId, inmuebleId, trigger }: Props) {
   const [cuotas, setCuotas] = useState<Cuota[]>([]);
 
   useEffect(() => {
     const cargarCuotas = async () => {
-      const snapshot = await getDocs(collection(db, "inmuebles", inmuebleId, "cuotas_acuerdo"));
+      const ref = collection(db, `clientes/${clienteId}/inmuebles/${inmuebleId}/cuotas_acuerdo`);
+      const snapshot = await getDocs(ref);
       const data: Cuota[] = snapshot.docs.map(doc => ({
         id: doc.id,
         pagado: doc.data().pagado ?? false,
@@ -44,7 +47,7 @@ export default function AgreementTable({ inmuebleId }: Props) {
     if (inmuebleId) {
       cargarCuotas();
     }
-  }, [inmuebleId]);
+  }, [clienteId, inmuebleId, trigger]);
 
   const actualizarPagado = async (cuotaId: string, nuevoEstado: boolean) => {
     try {
@@ -66,11 +69,13 @@ export default function AgreementTable({ inmuebleId }: Props) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Pagado</TableHead>
-            <TableHead>Mes</TableHead>
-            <TableHead>Valor Esperado</TableHead>
-            <TableHead>Fecha Límite</TableHead>
-            <TableHead>Observación</TableHead>
+            <TableHead>Cuota</TableHead>
+            <TableHead>Fecha límite</TableHead>
+            <TableHead>Deuda capital</TableHead>
+            <TableHead>Cuota capital</TableHead>
+            <TableHead>Deuda honorarios</TableHead>
+            <TableHead>Cuota honorarios</TableHead>
+            <TableHead>Total cuota</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
