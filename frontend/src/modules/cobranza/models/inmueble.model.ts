@@ -1,27 +1,20 @@
 // src/modules/cobranza/models/inmueble.model.ts
+import { ReactNode } from "react";
 
 // Primero definimos el tipo reutilizable de Cuota
 export interface Cuota {
-  numero: string; // ← requerido
-  pagado: boolean;
-  mes: string;
-  valor_esperado: number;
-  fecha_limite?: string;
-  observacion?: string;
-}
-
-// src/modules/cobranza/models/cuota-acuerdo.model.ts
-export interface CuotaAcuerdo {
+  mes: ReactNode;
+  valor_esperado: any;
+  observacion: ReactNode;
   numero: string;
-  pagado: false,
   fecha_limite: string;
   deuda_capital: number;
   cuota_capital: number;
   deuda_honorarios: number;
   honorarios: number;
   cuota_acuerdo: number;
+  pagado: boolean;
 }
-
 
 // Ahora podemos usarlo en acuerdo_pago e historial_acuerdos
 export interface Inmueble {

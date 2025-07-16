@@ -9,11 +9,22 @@ import {
   getDoc,
 } from "firebase/firestore";
 import { db } from  "../../../firebase";
-import { CuotaAcuerdo, Inmueble } from "../models/inmueble.model";
+import { Cuota, Inmueble } from "../models/inmueble.model";
+
+export async function eliminarCuotas(clienteId: string, inmuebleId: string) {
+  const ref = collection(db, `clientes/${clienteId}/inmuebles/${inmuebleId}/cuotas_acuerdo`);
+  const snapshot = await getDocs(ref);
+
+  const deletePromises = snapshot.docs.map((docSnap) =>
+    deleteDoc(doc(db, ref.path, docSnap.id))
+  );
+
+  await Promise.all(deletePromises);
+}
 
 export async function guardarCuotasEnFirestore(
   inmuebleId: string,
-  cuotas: CuotaAcuerdo[]
+  cuotas: Cuota[]
 ) {
   const batchErrors = [];
 
@@ -83,7 +94,7 @@ function mapDocToInmueble(id: string, data: DocumentData): Inmueble {
   telefonoResponsable: data.telefonoResponsable || "",
   tipificacion: data.tipificacion || "",
   clienteId: data.clienteId || "",
-  ejecutivoEmail: data.ejecutivoEmail || ""
+  ejecutivoEmail: data.ejecutivoEmail || "",
 };
 }
 
