@@ -9,7 +9,8 @@ import ResetPasswordForm from "./components/forgot-password";
 import InmueblesTable from "./modules/cobranza/components/InmueblesTable";
 import InmuebleDetail from "./modules/cobranza/components/InmuebleDetail";
 import SeguimientoTable from './modules/cobranza/components/SeguimientoTable';
-import ConsultaRutPage from './modules/cobranza/components/ConsultarPersonasPage';
+import ConsultaPersonasPage from './modules/cobranza/components/ConsultarPersonasPage';
+import ProbarNotificacionesPage from './modules/cobranza/components/ProbarNotificacionesPage';
 import AppLayout from "./components/layout/AppLayout";
 import ScrollToTop from "./components/layout/ScrollToTop";
 
@@ -40,7 +41,8 @@ export default function App() {
           <Route path="/clientes-tables" element={<ClientesTable />} />
           <Route path="/usuarios-tables" element={<UsuariosTable />} />
           <Route path="/inmuebles/:clienteId" element={<InmueblesTable />} />
-          <Route path="/consulta-rut" element={<ConsultaRutPage />} />
+          <Route path="/consulta-personas" element={<ConsultaPersonasPage />} />
+          <Route path="/probar-notificaciones" element={<ProbarNotificacionesPage />} />
         </Route>
         {/* 404 */}
        

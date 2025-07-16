@@ -41,7 +41,12 @@ const data = {
     },
     {
       title: "Consultar personas",
-      path: "/consulta-rut",
+      path: "/consulta-personas",
+      icon: IconSearch,
+    },
+    {
+      title: "Enviar notificaciones",
+      path: "/probar-notificaciones",
       icon: IconSearch,
     },
     {
