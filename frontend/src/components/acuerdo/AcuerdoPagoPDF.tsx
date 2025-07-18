@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { useReactToPrint } from "react-to-print";
 import { useAcuerdoData } from "../../shared/useAcuerdoData";
-import { Spinner } from "../ui/Spinner";
+import { Spinner } from "../ui/spinner";
 import numeroALetras from "../../shared/numeroALetras";
 import type { Cuota } from "../../modules/cobranza/models/inmueble.model";
 

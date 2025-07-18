@@ -8,7 +8,7 @@ import AgreementTable from '../components/AgreementTableGrid';
 import SubirPlantillaExcel from '../../../components/SubirPlantillaExcel';
 import { db } from '../../../firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { Spinner } from '../../../components/ui/Spinner';
+import { Spinner } from '../../../components/ui/spinner';
 import { eliminarCuotas } from '../services/inmuebleService';
 import {
   AlertDialog,
