@@ -45,7 +45,7 @@ export default function ClientesCrud() {
 
   const fetchEjecutivos = async () => {
     const todos = await obtenerUsuarios();
-    setEjecutivos(todos.filter((u) => u.rol === "ejecutivo"));
+    setEjecutivos(todos.filter((u) => u.roles.includes("ejecutivo")));
   };
 
   useEffect(() => {
@@ -91,7 +91,6 @@ export default function ClientesCrud() {
           <TableRow>
             <TableHead>Nombre</TableHead>
             <TableHead>Correo</TableHead>
-            <TableHead>Tipo</TableHead>
             <TableHead>Teléfono</TableHead>
             <TableHead>Dirección</TableHead>
             <TableHead>Banco</TableHead>
@@ -105,7 +104,6 @@ export default function ClientesCrud() {
             <TableRow key={cliente.id}>
               <TableCell>{cliente.nombre}</TableCell>
               <TableCell>{cliente.correo}</TableCell>
-              <TableCell>{cliente.tipo}</TableCell>
               <TableCell>{cliente.telefono}</TableCell>
               <TableCell>{cliente.direccion}</TableCell>
               <TableCell>{cliente.ejecutivoId}</TableCell>
@@ -179,7 +177,6 @@ export default function ClientesCrud() {
                 id: clienteEditando?.id,
                 nombre: formData.get("nombre") as string,
                 correo: formData.get("correo") as string,
-                tipo, // ✅ ya es del tipo correcto
                 telefono: formData.get("telefono") as string,
                 direccion: formData.get("direccion") as string,
                 ejecutivoId: formData.get(" ejecutivoId") as string,
@@ -206,18 +203,6 @@ export default function ClientesCrud() {
               <div>
                 <Label>Correo</Label>
                 <Input name="correo" defaultValue={clienteEditando?.correo} required />
-              </div>
-              <div>
-                <Label>Tipo</Label>
-                <Select name="tipo" defaultValue={clienteEditando?.tipo}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="natural">Natural</SelectItem>
-                    <SelectItem value="jurídica">Jurídica</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
               <div>
                 <Label>Teléfono</Label>

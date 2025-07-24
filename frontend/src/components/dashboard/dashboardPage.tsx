@@ -4,7 +4,7 @@ import { DataTable } from "../dashboard/tableCliente/data-table"
 import { collection, getDocs } from "firebase/firestore"
 import { db } from "../../firebase"
 import { UsuarioSistema } from "../../modules/usuarios/models/usuarioSistema.model"
-import { Inmueble } from "../../modules/cobranza/models/inmueble.model"
+import { deudor } from "../../modules/cobranza/models/deudores.model"
 
 import {
   Select,
@@ -17,9 +17,9 @@ import { useClienteResumen } from "../../hooks/useClienteResumen"
 import { useEjecutivoChartData } from "../../hooks/useEjecutivoChartData"
 
 export default function DashboardAdmin() {
-  const [inmuebles, setInmuebles] = useState<Inmueble[]>([])
+  const [inmuebles, setInmuebles] = useState<deudor[]>([])
   const [usuarioSeleccionado, setUsuarioSeleccionado] = useState<string | null>(null)
-  const [inmueblesCliente, setInmueblesCliente] = useState<Inmueble[]>([]);
+  const [inmueblesCliente, setInmueblesCliente] = useState<deudor[]>([]);
   const resumen = useClienteResumen(usuarioSeleccionado ?? "", inmuebles)
   const [rolSeleccionado, setRolSeleccionado] = useState<string>("todos")
 
@@ -81,7 +81,7 @@ export default function DashboardAdmin() {
   }, [dataFiltrada, rolSeleccionado])
 
 
-  function calcularTotalRecuperado(inmueble: Inmueble): number {
+  function calcularTotalRecuperado(inmueble: deudor): number {
     return Object.values(inmueble.recaudos ?? {}).reduce(
       (acc, curr) => acc + (curr.monto ?? 0),
       0
@@ -91,7 +91,7 @@ export default function DashboardAdmin() {
   useEffect(() => {
     const obtenerInmuebles = async () => {
       const snapshot = await getDocs(collection(db, "inmuebles"))
-      const inmueblesAll = snapshot.docs.map(doc => doc.data() as Inmueble)
+      const inmueblesAll = snapshot.docs.map(doc => doc.data() as deudor)
       setInmuebles(inmueblesAll) // <- define un setInmuebles
     }
     obtenerInmuebles()
@@ -101,7 +101,7 @@ export default function DashboardAdmin() {
       if (!usuarioSeleccionado) return
       const snapshot = await getDocs(collection(db, "inmuebles"))
       const inmuebles = snapshot.docs
-        .map(doc => doc.data() as Inmueble)
+        .map(doc => doc.data() as deudor)
         .filter(i => i.clienteId === usuarioSeleccionado)
 
       setInmueblesCliente(inmuebles)

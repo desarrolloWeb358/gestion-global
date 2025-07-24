@@ -2,10 +2,10 @@
 import { useEffect, useState } from "react"
 import { collection, query, where, getDocs } from "firebase/firestore"
 import { db } from "../firebase"
-import { Inmueble } from "../modules/cobranza/models/inmueble.model"
+import { deudor } from "../modules/cobranza/models/deudores.model"
 
 export const useInmueblesDelCliente = (clienteId: string | null) => {
-  const [inmuebles, setInmuebles] = useState<Inmueble[]>([])
+  const [inmuebles, setInmuebles] = useState<deudor[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -19,7 +19,7 @@ export const useInmueblesDelCliente = (clienteId: string | null) => {
         const docs = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),
-        })) as Inmueble[]
+        })) as deudor[]
         setInmuebles(docs)
       } catch (error) {
         console.error("Error obteniendo inmuebles del cliente:", error)

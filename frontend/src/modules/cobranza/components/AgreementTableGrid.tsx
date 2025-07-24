@@ -22,16 +22,16 @@ interface Cuota {
 
 interface Props {
   clienteId: string;
-  inmuebleId: string;
+  deudorId: string;
   trigger?: boolean;
 }
 
-export default function AgreementTable({ clienteId, inmuebleId, trigger }: Props) {
+export default function AgreementTable({ clienteId, deudorId, trigger }: Props) {
   const [cuotas, setCuotas] = useState<Cuota[]>([]);
 
   useEffect(() => {
     const cargarCuotas = async () => {
-      const ref = collection(db, `clientes/${clienteId}/inmuebles/${inmuebleId}/cuotas_acuerdo`);
+      const ref = collection(db, `clientes/${clienteId}/inmuebles/${deudorId}/cuotas_acuerdo`);
       const snapshot = await getDocs(ref);
       const data: Cuota[] = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -44,14 +44,14 @@ export default function AgreementTable({ clienteId, inmuebleId, trigger }: Props
       setCuotas(data);
     };
 
-    if (inmuebleId) {
+    if (deudorId) {
       cargarCuotas();
     }
-  }, [clienteId, inmuebleId, trigger]);
+  }, [clienteId, deudorId, trigger]);
 
   const actualizarPagado = async (cuotaId: string, nuevoEstado: boolean) => {
     try {
-      const ref = doc(db, "inmuebles", inmuebleId, "cuotas_acuerdo", cuotaId);
+      const ref = doc(db, "inmuebles", deudorId, "cuotas_acuerdo", cuotaId);
       await updateDoc(ref, { pagado: nuevoEstado });
 
       setCuotas(prev =>

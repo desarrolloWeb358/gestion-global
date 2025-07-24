@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Pencil, Trash2 } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 
 import {
@@ -34,6 +34,7 @@ import {
   actualizarUsuario,
   eliminarUsuario,
 } from "../services/usuarioService";
+import { cn } from "@/lib/utils";
 
 export default function UsuariosCrud() {
   const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([]);
@@ -42,6 +43,53 @@ export default function UsuariosCrud() {
   const [mostrarDialogo, setMostrarDialogo] = useState(false);
   const [password, setPassword] = useState("");
   const [fecha, setFecha] = useState<Date | undefined>();
+  const [rolesSeleccionados, setRolesSeleccionados] = useState<string[]>([]);
+  const rolesDisponibles = ["admin", "ejecutivo", "abogado", "cliente", "deudor"] as UsuarioSistema["roles"];
+
+  function MultiSelectRoles({
+                selectedRoles,
+                setSelectedRoles,
+              }: {
+                selectedRoles: string[];
+                setSelectedRoles: (roles: string[]) => void;
+              }) {
+                const toggleRole = (rol: string) => {
+                  if (selectedRoles.includes(rol)) {
+                    setSelectedRoles(selectedRoles.filter((r) => r !== rol));
+                  } else {
+                    setSelectedRoles([...selectedRoles, rol]);
+                  }
+                };
+                return (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-between">
+                        {selectedRoles.length > 0
+                          ? selectedRoles.join(", ")
+                          : "Selecciona roles"}
+                        <ChevronDown className="ml-2 h-4 w-4" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-60 p-2 space-y-1">
+                      {rolesDisponibles.map((rol) => (
+                        <button
+                          key={rol}
+                          type="button"
+                          onClick={() => toggleRole(rol)}
+                          className={cn(
+                            "w-full flex items-center justify-between px-2 py-1.5 text-sm rounded hover:bg-muted",
+                            selectedRoles.includes(rol) && "bg-muted"
+                          )}
+                        >
+                          <span className="capitalize">{rol}</span>
+                          {selectedRoles.includes(rol) && <Check className="w-4 h-4" />}
+                        </button>
+                      ))}
+                    </PopoverContent>
+                  </Popover>
+                );
+              }
+
 
   const fetchUsuarios = async () => {
     setLoading(true);
@@ -58,24 +106,17 @@ export default function UsuariosCrud() {
     setUsuarioEditando(null);
     setPassword("");
     setFecha(undefined);
+    setRolesSeleccionados([]);
     setMostrarDialogo(true);
   };
 
   const abrirEditar = (usuario: UsuarioSistema) => {
     setUsuarioEditando(usuario);
     setPassword("");
-
-    const firestoreFecha = usuario.fecha_registro;
-
-    if (firestoreFecha instanceof Timestamp) {
-      setFecha(firestoreFecha.toDate()); // ✅ Esto convierte el Timestamp a Date
-    } else {
-      setFecha(undefined);
-    }
-
+    setFecha(usuario.fecha_registro instanceof Timestamp ? usuario.fecha_registro.toDate() : undefined);
+    setRolesSeleccionados(usuario.roles || []);
     setMostrarDialogo(true);
   };
-
   const cerrarDialogo = () => {
     setUsuarioEditando(null);
     setPassword("");
@@ -113,7 +154,7 @@ export default function UsuariosCrud() {
               <TableRow key={usuario.uid}>
                 <TableCell>{usuario.email}</TableCell>
                 <TableCell>{usuario.nombre}</TableCell>
-                <TableCell>{usuario.rol}</TableCell>
+                <TableCell>{usuario.roles}</TableCell>
                 <TableCell>
                   <Switch checked={usuario.activo}
                     onCheckedChange={async (checked) => {
@@ -183,12 +224,14 @@ export default function UsuariosCrud() {
               const fecha_registro = fecha ? Timestamp.fromDate(fecha) : Timestamp.now();
 
               const activo = (form.elements.namedItem("activo") as HTMLInputElement)?.checked;
+              const rolesDisponibles = ["admin", "ejecutivo", "abogado", "cliente", "deudor"] as UsuarioSistema["roles"];
+              
 
               const nuevo: UsuarioSistema = {
                 uid: usuarioEditando?.uid || "",
                 email: formData.get("email") as string,
                 nombre: formData.get("nombre") as string,
-                rol: formData.get("rol") as "admin" | "ejecutivo" | "cliente" | "inmueble",
+                roles: rolesSeleccionados as UsuarioSistema["roles"],
                 activo, // ✅ valor booleano del switch
                 fecha_registro,
               };
@@ -208,7 +251,8 @@ export default function UsuariosCrud() {
               }
 
               cerrarDialogo();
-            }}
+            }
+            }
           >
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -219,19 +263,12 @@ export default function UsuariosCrud() {
                 <Label>Nombre</Label>
                 <Input name="nombre" defaultValue={usuarioEditando?.nombre} />
               </div>
-              <div>
-                <Label>Rol</Label>
-                <Select name="rol" defaultValue={usuarioEditando?.rol}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="ejecutivo">Ejecutivo</SelectItem>
-                    <SelectItem value="cliente">Cliente</SelectItem>
-                    <SelectItem value="inmueble">Inmueble</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="col-span-2">
+                <Label>Roles</Label>
+                <MultiSelectRoles
+                  selectedRoles={rolesSeleccionados}
+                  setSelectedRoles={setRolesSeleccionados}
+                />
               </div>
               <div className="flex items-center space-x-2">
                 <Switch

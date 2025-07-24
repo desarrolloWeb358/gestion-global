@@ -1,8 +1,8 @@
-// src/modules/cobranza/models/inmueble.model.ts
 import { ReactNode } from "react";
 
 // Primero definimos el tipo reutilizable de Cuota
 export interface Cuota {
+  acuerdo_pago: any;
   mes: ReactNode;
   valor_esperado: any;
   observacion: ReactNode;
@@ -17,9 +17,24 @@ export interface Cuota {
 }
 
 // Ahora podemos usarlo en acuerdo_pago e historial_acuerdos
-export interface Inmueble {
+export interface deudor {
   id?: string;
+   // Ubicación
+  ubicacion?: string;
+  tipificacion: string;
 
+  // Identificación del responsable
+  nombre: string;
+  cedula: string;
+    // Contacto adicional
+  correos: string[];
+  telefonos: string[];
+  // Relación con cliente y ejecutivo
+  clienteId: string;
+  ejecutivoId: string;
+  // Estado general
+  estado: string;
+  deuda_total: number;
   historial_acuerdos?: {
     numero: string;
     fecha_acuerdo: string;
@@ -31,29 +46,8 @@ export interface Inmueble {
     archivoUrl?: string;
   }[];
 
-  // Ubicación
-  torre?: string;
-  apartamento?: string;
-  casa?: string;
-  tipificacion: string;
+ 
 
-  // Identificación del responsable
-  nombreResponsable: string;
-  cedulaResponsable: string;
-  correoResponsable: string;
-  telefonoResponsable: string;
-
-  // Relación con cliente y ejecutivo
-  clienteId: string;
-  ejecutivoEmail: string;
-
-  // Estado general
-  estado: string;
-  deuda_total: number;
-
-  // Contacto adicional
-  correos: string[];
-  telefonos: string[];
 
   // Porcentaje general de honorarios
   porcentaje_honorarios?: number;

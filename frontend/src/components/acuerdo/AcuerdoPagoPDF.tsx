@@ -1,18 +1,18 @@
 import { useRef } from "react";
 import { useReactToPrint } from "react-to-print";
 import { useAcuerdoData } from "../../shared/useAcuerdoData";
-import { Spinner } from "../ui/Spinner";
+import { Spinner } from "../ui/spinner";
 import numeroALetras from "../../shared/numeroALetras";
-import type { Cuota } from "../../modules/cobranza/models/inmueble.model";
+import type { Cuota } from "../../modules/cobranza/models/deudores.model";
 
 
 interface Props {
   clienteId: string;
-  inmuebleId: string;
+  deudorId: string;
 }
 
-export function AcuerdoPDFView({ clienteId, inmuebleId }: Props) {
-  const { data, loading } = useAcuerdoData(clienteId, inmuebleId);
+export function AcuerdoPDFView({ clienteId, deudorId }: Props) {
+  const { data, loading } = useAcuerdoData(clienteId, deudorId);
   const printRef = useRef(null);
   const handlePrint = useReactToPrint({ contentRef: printRef });
   const fechaActual = new Date().toLocaleDateString("es-CO", {
@@ -145,6 +145,11 @@ export function AcuerdoPDFView({ clienteId, inmuebleId }: Props) {
           {(inmueble?.ejecutivoEmail)} O AL WHATSAPP 3123152594 COPIA
           DE CADA UNA DE LAS CONSIGNACIONES QUE SE REALICEN DENTRO DE ESTE
           ACUERDO.</p>
+
+        <p><strong>PARÁGRAFO 2:</strong> ALTERNAMENTE Y AL CUMPLIMIENTO DE ESTE ACUERDO SE DEBE
+          SEGUIR DANDO CANCELACIÓN A LAS CUOTAS DE ADMINISTRACIÓN MENSUAL Y
+          CONFORME A LOS INCREMENTOS ANUALES QUE ESTABLEZCAN LAS LEYES
+          NACIONALES.</p>
 
 
         <p className="text-xs text-gray-500 mt-6">Este acuerdo fue generado automáticamente por el sistema de gestión de cobranzas.</p>

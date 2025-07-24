@@ -1,6 +1,6 @@
-import { Inmueble } from "../modules/cobranza/models/inmueble.model";
+import { deudor } from "../modules/cobranza/models/deudores.model";
 
-export function useClienteResumen(clienteId: string, inmuebles: Inmueble[]) {
+export function useClienteResumen(clienteId: string, inmuebles: deudor[]) {
   const inmueblesCliente = inmuebles.filter(i => i.clienteId === clienteId);
 
   const deudaTotal = inmueblesCliente.reduce((sum, i) => sum + i.deuda_total, 0);

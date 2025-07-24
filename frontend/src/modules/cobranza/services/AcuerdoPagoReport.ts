@@ -26,13 +26,13 @@ interface Cuota {
 }
 
 interface AcuerdoPagoProps {
-  inmueble: any;
+  deudor: any;
   clienteData: any;
   excelPreview: Cuota[];
   ejecutivoData?: any;
 }
 
-export const generarAcuerdoPagoDoc = async ({ inmueble, clienteData, excelPreview, ejecutivoData }: AcuerdoPagoProps) => {
+export const generarAcuerdoPagoDoc = async ({ deudor, clienteData, excelPreview, ejecutivoData }: AcuerdoPagoProps) => {
   const clienteNombre = clienteData?.nombre ?? "";
   const direccionCliente = clienteData?.direccion ?? "";
   const fechaHoy = new Date().toLocaleDateString("es-CO", {
@@ -40,7 +40,7 @@ export const generarAcuerdoPagoDoc = async ({ inmueble, clienteData, excelPrevie
     month: "long",
     year: "numeric",
   });
-  const deudaTotal = inmueble?.deuda_total ?? 0;
+  const deudaTotal = deudor?.deuda_total ?? 0;
   const deudaTexto = numeroALetras(Math.round(deudaTotal)).toUpperCase();
 
   const doc = new Document({
@@ -73,7 +73,7 @@ export const generarAcuerdoPagoDoc = async ({ inmueble, clienteData, excelPrevie
           new Paragraph({
             children: [
               new TextRun({
-                text: `Y ${inmueble?.nombreResponsable?.toUpperCase() ?? ""}`,
+                text: `Y ${deudor?.nombre?.toUpperCase() ?? ""}`,
                 bold: true,
                 font: "Arial",
                 size: 26,
@@ -82,8 +82,8 @@ export const generarAcuerdoPagoDoc = async ({ inmueble, clienteData, excelPrevie
             alignment: AlignmentType.CENTER,
           }),
           new Paragraph({
-            text: inmueble?.apartamento
-              ? `${inmueble.torre}-${inmueble.apartamento}`
+            text: deudor?.apartamento
+              ? `${deudor.torre}-${deudor.apartamento}`
               : "",
             alignment: AlignmentType.RIGHT,
           }),
@@ -120,7 +120,7 @@ export const generarAcuerdoPagoDoc = async ({ inmueble, clienteData, excelPrevie
                 size: 22,
               }),
               new TextRun({
-                text: inmueble?.nombreResponsable ?? "",
+                text: deudor?.nombre ?? "",
                 bold: true,
                 font: "Arial",
                 size: 22,
@@ -131,7 +131,7 @@ export const generarAcuerdoPagoDoc = async ({ inmueble, clienteData, excelPrevie
                 size: 22,
               }),
               new TextRun({
-                text: inmueble?.cedulaResponsable ?? "",
+                text: deudor?.cedulaResponsable ?? "",
                 bold: true,
                 font: "Arial",
                 size: 22,
@@ -157,7 +157,7 @@ export const generarAcuerdoPagoDoc = async ({ inmueble, clienteData, excelPrevie
             children: [
               new TextRun({ text: "Que el señor ", font: "Arial", size: 22 }),
               new TextRun({
-                text: inmueble?.nombreResponsable ?? "",
+                text: deudor?.nombre ?? "",
                 bold: true,
                 font: "Arial",
                 size: 22,
@@ -190,8 +190,8 @@ export const generarAcuerdoPagoDoc = async ({ inmueble, clienteData, excelPrevie
                 size: 22,
               }),
               new TextRun({
-                text: `Torre ${inmueble?.torre ?? ""} Apto ${
-                  inmueble?.apartamento ?? ""
+                text: `Torre ${deudor?.torre ?? ""} Apto ${
+                  deudor?.apartamento ?? ""
                 } ${direccionCliente}`,
                 bold: true,
                 font: "Arial",
@@ -221,7 +221,7 @@ export const generarAcuerdoPagoDoc = async ({ inmueble, clienteData, excelPrevie
                 size: 22,
               }),
               new TextRun({
-                text: inmueble?.nombreResponsable ?? "",
+                text: deudor?.nombre ?? "",
                 bold: true,
                 font: "Arial",
                 size: 22,
@@ -308,8 +308,8 @@ export const generarAcuerdoPagoDoc = async ({ inmueble, clienteData, excelPrevie
           new Paragraph({
             children: [
               new TextRun({
-                text: `EXTRAPROCESO ${inmueble?.torre ?? ""}-${
-                  inmueble?.apartamento ?? ""
+                text: `EXTRAPROCESO ${deudor?.torre ?? ""}-${
+                  deudor?.apartamento ?? ""
                 }`,
                 bold: true,
                 font: "Arial",
@@ -596,21 +596,19 @@ export const generarAcuerdoPagoDoc = async ({ inmueble, clienteData, excelPrevie
                     size: 22,
                   }),
                   new TextRun({
-                    text: inmueble?.nombreResponsable + " ",
+                    text: deudor?.nombre + " ",
                     bold: true,
                     font: "Arial",
                     size: 22,
                   }),
                   new TextRun({
                     text:
-                      "de la TORRE " +
-                      inmueble?.torre +
-                      " APTO " +
-                      inmueble?.apartamento +
+                      "la ubicación " +
+                      deudor?.ubicacion +
                       ", CELULAR " +
-                      inmueble?.telefonoResponsable +
+                      deudor?.telefonos +
                       ", CORREO ELECTRÓNICO " +
-                      inmueble?.correoResponsable +
+                      deudor?.correos +
                       ".",
                     font: "Arial",
                     size: 22,
@@ -652,10 +650,10 @@ export const generarAcuerdoPagoDoc = async ({ inmueble, clienteData, excelPrevie
                   new Paragraph({
                     children: [
                       new TextRun({
-                        text: `En constancia se suscribe el presente acuerdo en Soacha Cundinamarca, para el inmueble ${
-                          inmueble?.torre ?? "[TORRE]"
+                        text: `En constancia se suscribe el presente acuerdo en Soacha Cundinamarca, para el deudor ${
+                          deudor?.torre ?? "[TORRE]"
                         }-${
-                          inmueble?.apartamento ?? "[APTO]"
+                          deudor?.apartamento ?? "[APTO]"
                         } a los ${fechaHoy}.`,
                         font: "Arial",
                         size: 22,
@@ -680,7 +678,7 @@ export const generarAcuerdoPagoDoc = async ({ inmueble, clienteData, excelPrevie
                     children: [
                       new TextRun({
                         text:
-                          inmueble?.nombreResponsable?.toUpperCase() ??
+                          deudor?.nombre?.toUpperCase() ??
                           "[NOMBRE DEUDOR]",
                         bold: true,
                         font: "Arial",
@@ -693,7 +691,7 @@ export const generarAcuerdoPagoDoc = async ({ inmueble, clienteData, excelPrevie
                     children: [
                       new TextRun({
                         text: `C.C. No. ${
-                          inmueble?.cedulaResponsable ?? "[CEDULA]"
+                          deudor?.cedulaResponsable ?? "[CEDULA]"
                         } de Bogotá D.C.`,
                         font: "Arial",
                         size: 22,
@@ -767,6 +765,6 @@ export const generarAcuerdoPagoDoc = async ({ inmueble, clienteData, excelPrevie
   const blob = await Packer.toBlob(doc);
   saveAs(
     blob,
-    `acuerdo_pago_${inmueble?.nombreResponsable ?? "inmueble"}.docx`
+    `acuerdo_pago_${deudor?.nombre ?? "deudor"}.docx`
   );
 };

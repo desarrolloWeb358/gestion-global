@@ -7,11 +7,11 @@ import { procesarExcel } from '../shared/procesarExcel';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Input } from '../components/ui/input';
 import { toast } from 'sonner';
-import type { Cuota } from '../modules/cobranza/models/inmueble.model';
+import type { Cuota } from '../modules/cobranza/models/deudores.model';
 
 interface Props {
   porcentajeHonorarios: number;
-  inmuebleId: string;
+  deudorId: string;
   clienteId: string;
   onCuotasProcesadas?: (cuotas: Cuota[]) => void;
   onCuotasGuardadas?: () => void;
@@ -19,7 +19,7 @@ interface Props {
 
 export default function SubirPlantillaExcel({
   porcentajeHonorarios,
-  inmuebleId,
+  deudorId,
   clienteId,
   onCuotasProcesadas,
   onCuotasGuardadas,
@@ -41,7 +41,7 @@ export default function SubirPlantillaExcel({
         return {
           ...cuota,
           fecha_limite: fecha_valida ? fecha.toISOString().split('T')[0] : 'Fecha inválida',
-          cuota_acuerdo: cuota.cuota_capital + cuota.honorarios,
+          acuerdo_pago: cuota.cuota_capital + cuota.honorarios,
         };
       });
 
@@ -60,7 +60,7 @@ export default function SubirPlantillaExcel({
     for (const cuota of cuotas) {
       try {
         await addDoc(
-          collection(db, `clientes/${clienteId}/inmuebles/${inmuebleId}/cuotas_acuerdo`),
+          collection(db, `clientes/${clienteId}/deudores/${deudorId}/cuotas_acuerdo`),
           cuota
         );
       } catch (error) {
@@ -69,10 +69,10 @@ export default function SubirPlantillaExcel({
       }
     }
 
-    // 👇 ACTUALIZA el documento del inmueble con las cuotas
+    // 👇 ACTUALIZA el documento del deudor con las cuotas
     try {
-      const inmuebleRef = doc(db, "clientes", clienteId, "inmuebles", inmuebleId);
-      await updateDoc(inmuebleRef, {
+      const deudorRef = doc(db, "clientes", clienteId, "deudores", deudorId);
+      await updateDoc(deudorRef, {
         "acuerdo_pago.cuotas": cuotas,
       });
     } catch (err) {
@@ -135,7 +135,7 @@ export default function SubirPlantillaExcel({
                     {cuota.honorarios.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}
                   </TableCell>
                   <TableCell>
-                    {cuota.cuota_acuerdo.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}
+                    {cuota.acuerdo_pago.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}
                   </TableCell>
                 </TableRow>
               ))}
