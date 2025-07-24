@@ -1,31 +1,31 @@
-// src/shared/useAcuerdoData.ts
 import { useEffect, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 
-export function useAcuerdoData(clienteId: string, inmuebleId: string) {
+export function useAcuerdoData(clienteId: string, deudorId: string) {
   const [data, setData] = useState<{
+    deudor: any;
     cliente: any;
-    inmueble: any;
   } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
+      if (!clienteId || !deudorId) {
+        setLoading(false);
+        return;
+      }
+
       try {
         const clienteSnap = await getDoc(doc(db, "clientes", clienteId));
-        console.log("clienteId:", clienteId);
-        console.log("inmuebleId:", inmuebleId);
-        const inmuebleSnap = await getDoc(
-          doc(db, "clientes", clienteId, "inmuebles", inmuebleId)
-        );
+        const deudorSnap = await getDoc(doc(db, "clientes", clienteId, "deudores", deudorId));
 
-        if (!clienteSnap.exists() || !inmuebleSnap.exists()) {
+        if (!clienteSnap.exists() || !deudorSnap.exists()) {
           setData(null);
         } else {
           setData({
             cliente: { id: clienteSnap.id, ...clienteSnap.data() },
-            inmueble: { id: inmuebleSnap.id, ...inmuebleSnap.data() },
+            deudor: { id: deudorSnap.id, ...deudorSnap.data() },
           });
         }
       } catch (err) {
@@ -37,7 +37,8 @@ export function useAcuerdoData(clienteId: string, inmuebleId: string) {
     }
 
     loadData();
-  }, [clienteId, inmuebleId]);
+  }, [clienteId, deudorId]);
 
+  // 👇 ESTA LÍNEA ES CRUCIAL
   return { data, loading };
 }

@@ -7,7 +7,7 @@ import { collection, getDocs } from "firebase/firestore"
 import { db } from "../../../firebase"
 import { DataTable } from "./data-table"
 import { columns, ClienteConDeuda } from "./columns"
-import { Inmueble } from "../../../modules/cobranza/models/inmueble.model"
+import { deudor } from "../../../modules/cobranza/models/deudores.model"
 import { Cliente } from "../../../modules/cobranza/models/cliente.model"
 
 export default function PageTableCliente() {
@@ -18,7 +18,7 @@ export default function PageTableCliente() {
       const snapshotClientes = await getDocs(collection(db, "clientes"))
       const snapshotInmuebles = await getDocs(collection(db, "inmuebles"))
 
-      const inmuebles: Inmueble[] = snapshotInmuebles.docs.map(doc => doc.data() as Inmueble)
+      const inmuebles: deudor[] = snapshotInmuebles.docs.map(doc => doc.data() as deudor)
 
       const clientes: ClienteConDeuda[] = snapshotClientes.docs.map(doc => {
         const cliente = doc.data() as Cliente

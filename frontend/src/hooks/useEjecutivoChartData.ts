@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../firebase";
-import { Inmueble } from "../modules/cobranza/models/inmueble.model";
+import { deudor } from "../modules/cobranza/models/deudores.model";
 import { ChartBarData } from "../components/ui/chart-bar-interactive";
 
 export function useEjecutivoChartData(ejecutivoEmail: string | null) {
@@ -22,7 +22,7 @@ export function useEjecutivoChartData(ejecutivoEmail: string | null) {
         const datos: Record<string, { recaudo: number; honorarios: number }> = {};
 
         snapshot.forEach((doc) => {
-          const inmueble = doc.data() as Inmueble;
+          const inmueble = doc.data() as deudor;
           const recaudos = inmueble.recaudos ?? {};
 
           const porcentaje =

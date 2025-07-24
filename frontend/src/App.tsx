@@ -6,8 +6,8 @@ import UsuariosTable from "./modules/usuarios/components/UsuariosTable";
 import RedirectByRol from "./modules/auth/pages/RedirectByRol";
 import DashboardAdmin from "../src/components/dashboard/dashboardPage"; // Ya esta con shadcn
 import ResetPasswordForm from "./components/forgot-password";
-import InmueblesTable from "./modules/cobranza/components/InmueblesTable";
-import InmuebleDetailTabsWrapper from "./modules/cobranza/components/InmuebleDetail";
+import InmueblesTable from "./modules/cobranza/components/DeudoresTable";
+import InmuebleDetailTabsWrapper from "./modules/cobranza/components/DeudoresDetail";
 import SeguimientoTable from './modules/cobranza/components/SeguimientoTable';
 import ConsultaPersonasPage from './modules/cobranza/components/ConsultarPersonasPage';
 import ProbarNotificacionesPage from './modules/cobranza/components/ProbarNotificacionesPage';
@@ -36,11 +36,11 @@ export default function App() {
         {/* Layout protegido */}
         <Route element={<AppLayout />}>
           <Route path="/admin/dashboard" element={<DashboardAdmin />} />
-          <Route path="/inmuebles/:clienteId/:inmuebleId/acuerdo" element={<InmuebleDetailTabsWrapper  />} />
-          <Route path="/inmuebles/:clienteId/:inmuebleId/seguimiento" element={<SeguimientoTable />} />
+          <Route path="/deudores/:clienteId/:deudorId/acuerdo" element={<InmuebleDetailTabsWrapper  />} />
+          <Route path="/deudores/:clienteId/:deudorId/seguimiento" element={<SeguimientoTable />} />
           <Route path="/clientes-tables" element={<ClientesTable />} />
           <Route path="/usuarios-tables" element={<UsuariosTable />} />
-          <Route path="/inmuebles/:clienteId" element={<InmueblesTable />} />
+          <Route path="/deudores/:clienteId" element={<InmueblesTable />} />
           <Route path="/consulta-personas" element={<ConsultaPersonasPage />} />
           <Route path="/probar-notificaciones" element={<ProbarNotificacionesPage />} />
         </Route>

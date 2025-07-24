@@ -8,28 +8,28 @@ import { Seguimiento } from "../models/seguimiento.model";
 
 export const getSeguimientos = async (
   clienteId: string,
-  inmuebleId: string
+  deudorId: string
 ): Promise<Seguimiento[]> => {
-  const refSeg = collection(db, `clientes/${clienteId}/inmuebles/${inmuebleId}/seguimiento`);
+  const refSeg = collection(db, `clientes/${clienteId}/inmuebles/${deudorId}/seguimiento`);
   const snapshot = await getDocs(refSeg);
   return snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as Seguimiento));
 };
 
 export const addSeguimiento = async (
   clienteId: string,
-  inmuebleId: string,
+  deudorId: string,
   data: Omit<Seguimiento, 'id'>,
   archivo?: File
 ) => {
   let archivoUrl = "";
 
   if (archivo) {
-    const storageRef = ref(storage, `seguimientos/${clienteId}/${inmuebleId}/${Date.now()}_${archivo.name}`);
+    const storageRef = ref(storage, `seguimientos/${clienteId}/${deudorId}/${Date.now()}_${archivo.name}`);
     const snap = await uploadBytes(storageRef, archivo);
     archivoUrl = await getDownloadURL(snap.ref);
   }
 
-  const refSeg = collection(db, `clientes/${clienteId}/inmuebles/${inmuebleId}/seguimiento`);
+  const refSeg = collection(db, `clientes/${clienteId}/inmuebles/${deudorId}/seguimiento`);
 
   const seguimientoData: any = {
     ...data,
@@ -47,13 +47,13 @@ export const addSeguimiento = async (
 
 export const updateSeguimiento = async (
   clienteId: string,
-  inmuebleId: string,
+  deudorId: string,
   seguimientoId: string,
   data: Omit<Seguimiento, 'id'>,
   archivo?: File,
   reemplazar?: boolean
 ) => {
-  const refDoc = doc(db, `clientes/${clienteId}/inmuebles/${inmuebleId}/seguimiento/${seguimientoId}`);
+  const refDoc = doc(db, `clientes/${clienteId}/inmuebles/${deudorId}/seguimiento/${seguimientoId}`);
 
   let archivoUrl = data.archivoUrl ?? "";
 
@@ -70,7 +70,7 @@ export const updateSeguimiento = async (
     }
 
     // Subir nuevo archivo
-    const storageRef = ref(storage, `seguimientos/${clienteId}/${inmuebleId}/${Date.now()}_${archivo.name}`);
+    const storageRef = ref(storage, `seguimientos/${clienteId}/${deudorId}/${Date.now()}_${archivo.name}`);
     const snap = await uploadBytes(storageRef, archivo);
     archivoUrl = await getDownloadURL(snap.ref);
   }
@@ -85,9 +85,9 @@ export const updateSeguimiento = async (
 
 export const deleteSeguimiento = async (
   clienteId: string,
-  inmuebleId: string,
+  deudorId: string,
   seguimientoId: string
 ) => {
-  const refDoc = doc(db, `clientes/${clienteId}/inmuebles/${inmuebleId}/seguimiento/${seguimientoId}`);
+  const refDoc = doc(db, `clientes/${clienteId}/inmuebles/${deudorId}/seguimiento/${seguimientoId}`);
   return await deleteDoc(refDoc);
 };

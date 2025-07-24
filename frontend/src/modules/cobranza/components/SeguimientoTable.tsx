@@ -16,23 +16,23 @@ import { storage } from '../../../firebase';
 
 export default function SeguimientoTable() {
   const navigate = useNavigate();
-  const { clienteId, inmuebleId } = useParams<{ clienteId: string; inmuebleId: string }>();
+  const { clienteId, deudorId } = useParams<{ clienteId: string; deudorId: string }>();
   const [seguimientos, setSeguimientos] = useState<Seguimiento[]>([]);
   const [openForm, setOpenForm] = useState(false);
   const [seguimientoActual, setSeguimientoActual] = useState<Seguimiento | null>(null);
   const { setLoading } = useLoading();
 
   const fetchData = async () => {
-    if (!clienteId || !inmuebleId) return;
+    if (!clienteId || !deudorId) return;
     setLoading(true);
-    const data = await getSeguimientos(clienteId, inmuebleId);
+    const data = await getSeguimientos(clienteId, deudorId);
     setSeguimientos(data);
     setLoading(false);
   };
 
   useEffect(() => {
     fetchData();
-  }, [clienteId, inmuebleId]);
+  }, [clienteId, deudorId]);
 
 
   const handleEliminar = async (seg: Seguimiento) => {
@@ -43,7 +43,7 @@ export default function SeguimientoTable() {
         console.warn("Error al eliminar archivo:", e);
       }
     }
-    await deleteSeguimiento(clienteId!, inmuebleId!, seg.id!);
+    await deleteSeguimiento(clienteId!, deudorId!, seg.id!);
     fetchData();
   };
 
@@ -119,13 +119,13 @@ export default function SeguimientoTable() {
         }}
         seguimiento={seguimientoActual || undefined}
         onSave={async (data, archivo, reemplazar) => {
-          if (!clienteId || !inmuebleId) return;
+          if (!clienteId || !deudorId) return;
 
           if (seguimientoActual && seguimientoActual.id) {
             // Editar seguimiento existente
             await updateSeguimiento(
               clienteId,
-              inmuebleId,
+              deudorId,
               seguimientoActual.id,
               data,
               archivo,
@@ -133,7 +133,7 @@ export default function SeguimientoTable() {
             );
           } else {
             // Crear nuevo seguimiento
-            await addSeguimiento(clienteId, inmuebleId, data, archivo);
+            await addSeguimiento(clienteId, deudorId, data, archivo);
           }
 
           await fetchData();

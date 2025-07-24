@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx";
-import type { Cuota } from "../modules/cobranza/models/inmueble.model";
+import type { Cuota } from "../modules/cobranza/models/deudores.model";
 
 const REQUIRED_COLUMNS = [
   "numero_cuota",

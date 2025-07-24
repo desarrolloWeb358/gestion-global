@@ -5,10 +5,10 @@ const jexcel = (jexcelNS as any).default || jexcelNS;
 (window as any).JSS = jexcel;
 import 'jspreadsheet-ce/dist/jspreadsheet.css';
 import { useRef, useEffect } from 'react';
-import { Inmueble } from '../models/inmueble.model';
+import { deudor } from '../models/deudores.model';
 
 interface SpreadsheetEditorProps {
-  inmueble: Inmueble;
+  inmueble: deudor;
   onSave: () => void;
 }
 

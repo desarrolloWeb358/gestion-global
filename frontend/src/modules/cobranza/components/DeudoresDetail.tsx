@@ -3,13 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../../components/ui/tabs';
-import { Inmueble } from '../../../modules/cobranza/models/inmueble.model';
+import { Cuota, deudor } from '../models/deudores.model';
 import AgreementTable from '../components/AgreementTableGrid';
 import SubirPlantillaExcel from '../../../components/SubirPlantillaExcel';
 import { db } from '../../../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { Spinner } from '../../../components/ui/spinner';
-import { eliminarCuotas } from '../services/inmuebleService';
+import { eliminarCuotas } from '../services/deudorService';
 import {
   AlertDialog,
   AlertDialogTrigger,
@@ -25,29 +25,32 @@ import { toast } from 'sonner';
 import { AcuerdoPDFView } from '../../../components/acuerdo/AcuerdoPagoPDF';
 
 interface Props {
-  inmueble: Inmueble;
+  deudor: deudor;
   clienteId: string;
-  inmuebleId: string;
+  deudorId: string;
+  porcentajeHonorarios: number;
+  onCuotasProcesadas: (cuotas: Cuota[]) => void;
+  onCuotasGuardadas: () => void;
 }
 
-function InmuebleDetailTabsWrapper() {
-  const { clienteId, inmuebleId } = useParams<{ clienteId: string; inmuebleId: string }>();
-  const [inmueble, setInmueble] = useState<Inmueble | null>(null);
+function DeudorDetailTabsWrapper() {
+  const { clienteId, deudorId } = useParams<{ clienteId: string; deudorId: string }>();
+  const [deudor, setDeudor] = useState<deudor | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const cargarInmueble = async () => {
-      if (!clienteId || !inmuebleId) return;
-      const ref = doc(db, `clientes/${clienteId}/inmuebles/${inmuebleId}`);
+    const cargarDeudor = async () => {
+      if (!clienteId || !deudorId) return;
+      const ref = doc(db, `clientes/${clienteId}/deudores/${deudorId}`);
       const snap = await getDoc(ref);
       if (snap.exists()) {
-        setInmueble(snap.data() as Inmueble);
+        setDeudor(snap.data() as deudor);
       }
       setLoading(false);
     };
 
-    cargarInmueble();
-  }, [clienteId, inmuebleId]);
+    cargarDeudor();
+  }, [clienteId, deudorId]);
 
   if (loading) {
     return (
@@ -57,28 +60,35 @@ function InmuebleDetailTabsWrapper() {
     );
   }
 
-  if (!inmueble || !clienteId || !inmuebleId) {
+  if (!deudor || !clienteId || !deudorId) {
     return (
       <div className="flex justify-center items-center h-40">
-        <p className="text-red-500 font-semibold">Inmueble no encontrado.</p>
+        <p className="text-red-500 font-semibold">deudor no encontrado.</p>
       </div>
     );
   }
 
   return (
-    <InmuebleDetailTabs
-      inmueble={inmueble}
+    <DeudorDetailTabs
+      deudor={deudor}
       clienteId={clienteId}
-      inmuebleId={inmuebleId}
-    />
+      porcentajeHonorarios={deudor.porcentaje_honorarios ?? 0}
+      onCuotasProcesadas={(cuotas) => {
+        // lógica aquí, por ejemplo:
+        console.log("Cuotas procesadas", cuotas);
+      }}
+      onCuotasGuardadas={() => {
+        // lógica aquí, por ejemplo:
+        console.log("Cuotas guardadas");
+      }} deudorId={''} />
   );
 }
 
 
-function InmuebleDetailTabs({ inmueble, clienteId, inmuebleId }: Props) {
+function DeudorDetailTabs({ deudor, clienteId, deudorId, porcentajeHonorarios, onCuotasProcesadas, onCuotasGuardadas }: Props) {
   const [cuotas, setCuotas] = useState<any[]>([]);
   const [recargarCuotas, setRecargarCuotas] = useState(false);
-  const historial = inmueble.historial_acuerdos ?? [];
+  const historial = deudor.historial_acuerdos ?? [];
 
   const handleDescargarExcel = () => {
     const header = [
@@ -113,13 +123,15 @@ function InmuebleDetailTabs({ inmueble, clienteId, inmuebleId }: Props) {
 
       <TabsContent value="cronograma">
         <div className="mb-4">
-          <SubirPlantillaExcel
-            clienteId={clienteId}
-            inmuebleId={inmuebleId}
-            porcentajeHonorarios={0.1}
-            onCuotasProcesadas={(cuotas) => setCuotas(cuotas)}
-            onCuotasGuardadas={() => setRecargarCuotas((prev) => !prev)}
-          />
+          {deudor?.id && (
+            <SubirPlantillaExcel
+              clienteId={clienteId}
+              deudorId={deudor.id}
+              porcentajeHonorarios={0.1}
+              onCuotasProcesadas={(cuotas) => setCuotas(cuotas)}
+              onCuotasGuardadas={() => setRecargarCuotas((prev) => !prev)}
+            />
+          )}
         </div>
 
         {cuotas.length > 0 && (
@@ -136,7 +148,7 @@ function InmuebleDetailTabs({ inmueble, clienteId, inmuebleId }: Props) {
 
         <AgreementTable
           clienteId={clienteId}
-          inmuebleId={inmuebleId}
+          deudorId={deudor.id ?? ""}
           trigger={recargarCuotas}
         />
 
@@ -159,7 +171,7 @@ function InmuebleDetailTabs({ inmueble, clienteId, inmuebleId }: Props) {
                 <AlertDialogAction
                   onClick={async () => {
                     try {
-                      await eliminarCuotas(clienteId, inmuebleId);
+                      await eliminarCuotas(clienteId, deudorId);
                       toast.success("Todas las cuotas fueron eliminadas");
                       setRecargarCuotas(prev => !prev);
                     } catch (error) {
@@ -177,7 +189,7 @@ function InmuebleDetailTabs({ inmueble, clienteId, inmuebleId }: Props) {
       </TabsContent>
 
       <TabsContent value="descargar">
-        <AcuerdoPDFView clienteId={clienteId} inmuebleId={inmuebleId} />
+        <AcuerdoPDFView clienteId={clienteId} deudorId={deudorId} />
       </TabsContent>
 
 
@@ -212,4 +224,4 @@ function InmuebleDetailTabs({ inmueble, clienteId, inmuebleId }: Props) {
   );
 }
 
-export default InmuebleDetailTabsWrapper;
+export default DeudorDetailTabsWrapper;

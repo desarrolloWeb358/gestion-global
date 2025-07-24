@@ -9,10 +9,10 @@ import {
   getDoc,
 } from "firebase/firestore";
 import { db } from  "../../../firebase";
-import { Cuota, Inmueble } from "../models/inmueble.model";
+import { Cuota, deudor } from "../models/deudores.model";
 
-export async function eliminarCuotas(clienteId: string, inmuebleId: string) {
-  const ref = collection(db, `clientes/${clienteId}/inmuebles/${inmuebleId}/cuotas_acuerdo`);
+export async function eliminarCuotas(clienteId: string, deudorId: string) {
+  const ref = collection(db, `clientes/${clienteId}/deudores/${deudorId}/cuotas_acuerdo`);
   const snapshot = await getDocs(ref);
 
   const deletePromises = snapshot.docs.map((docSnap) =>
@@ -23,14 +23,14 @@ export async function eliminarCuotas(clienteId: string, inmuebleId: string) {
 }
 
 export async function guardarCuotasEnFirestore(
-  inmuebleId: string,
+  deudorId: string,
   cuotas: Cuota[]
 ) {
   const batchErrors = [];
 
   for (const cuota of cuotas) {
     try {
-      await addDoc(collection(db, "inmuebles", inmuebleId, "cuotas_acuerdo"), cuota);
+     await addDoc(collection(db, "deudores", deudorId, "cuotas_acuerdo"), cuota);
     } catch (error) {
       console.error("Error guardando cuota:", cuota, error);
       batchErrors.push({ cuota, error });
@@ -42,31 +42,26 @@ export async function guardarCuotasEnFirestore(
   }
 }
 
-export const getInmuebleById = async (
+export const getDeudorById = async (
   clienteId: string,
-  inmuebleId: string
-): Promise<Inmueble | null> => {
-  const refDoc = doc(db, `clientes/${clienteId}/inmuebles/${inmuebleId}`);
+  deudorId: string
+): Promise<deudor | null> => {
+  const refDoc = doc(db, `clientes/${clienteId}/deudores/${deudorId}`);
   const snap = await getDoc(refDoc);
   if (snap.exists()) {
-    return { id: snap.id, ...snap.data() } as Inmueble;
+    return { id: snap.id, ...snap.data() } as deudor;
   }
   return null;
 };
 
-// Referencia a la colección de inmuebles
-//const inmueblesCol = collection(db, "inmuebles");
-
 /**
- * Mapea los datos crudos de Firestore a la interfaz Inmueble
+ * Mapea los datos crudos de Firestore a la interfaz deudores
  */
-function mapDocToInmueble(id: string, data: DocumentData): Inmueble {
+function mapDocToDeudores(id: string, data: DocumentData): deudor {
   return {
+    ubicacion: data.ubicacion || "",
   id,
-  torre: data.torre,
-  apartamento: data.apartamento,
-  casa: data.casa,
-  nombreResponsable: data.nombreResponsable || data.responsable || "",
+  nombre: data.nombre || data || "",
   estado: data.estado,
   deuda_total: Number(data.deuda_total),
   correos: Array.isArray(data.correos) ? data.correos : [],
@@ -89,35 +84,34 @@ function mapDocToInmueble(id: string, data: DocumentData): Inmueble {
     }
     : undefined,
   recaudos: data.recaudos || {},
-  cedulaResponsable: data.cedulaResponsable || 0,
-  correoResponsable: data.correoResponsable || "",
-  telefonoResponsable: data.telefonoResponsable || "",
+  cedula: data.cedula || 0,
   tipificacion: data.tipificacion || "",
   clienteId: data.clienteId || "",
-  ejecutivoEmail: data.ejecutivoEmail || "",
+  ejecutivoId: data.ejecutivoId || "",
+  
 };
 }
 
 /**
- * Obtiene todos los inmuebles asociados a un cliente
+ * Obtiene todos los deudores asociados a un cliente
  */
-export async function obtenerInmueblesPorCliente(clienteId: string): Promise<Inmueble[]> {
-  const ref = collection(db, `clientes/${clienteId}/inmuebles`);
+export async function obtenerDeudorPorCliente(clienteId: string): Promise<deudor[]> {
+  const ref = collection(db, `clientes/${clienteId}/deudores`);
   const snap = await getDocs(ref);
-  return snap.docs.map(doc => mapDocToInmueble(doc.id, doc.data()));
+  return snap.docs.map(doc => mapDocToDeudores(doc.id, doc.data()));
 }
 
 /**
- * Crea un nuevo inmueble en Firestore
+ * Crea un nuevo deudor en Firestore
  */
-export async function crearInmueble(clienteId: string, inmueble: Inmueble): Promise<void> {
-  const ref = collection(db, `clientes/${clienteId}/inmuebles`);
-  await addDoc(ref, inmueble);
+export async function crearDeudor(clienteId: string, deudor: deudor): Promise<void> {
+  const ref = collection(db, `clientes/${clienteId}/deudores`);
+  await addDoc(ref, deudor);
 }
 
-export async function actualizarInmueble(clienteId: string, inmueble: Inmueble): Promise<void> {
-  const ref = doc(db, `clientes/${clienteId}/inmuebles/${inmueble.id}`);
-  const { id, ...rest } = inmueble;
+export async function actualizarDeudor(clienteId: string, deudor: deudor): Promise<void> {
+  const ref = doc(db, `clientes/${clienteId}/deudores/${deudor.id}`);
+  const { id, ...rest } = deudor;
   // Sanitize: remove undefined/null fields and ensure 'responsable' is always a string
   const sanitized: any = { ...rest };
   // Prefer 'nombreResponsable' for Firestore 'responsable' field
@@ -133,25 +127,25 @@ export async function actualizarInmueble(clienteId: string, inmueble: Inmueble):
   await updateDoc(ref, sanitized);
 }
 
-export async function eliminarInmueble(clienteId: string, inmuebleId: string): Promise<void> {
-  const ref = doc(db, `clientes/${clienteId}/inmuebles/${inmuebleId}`);
+export async function eliminarDeudor(clienteId: string, deudorId: string): Promise<void> {
+  const ref = doc(db, `clientes/${clienteId}/deudores/${deudorId}`);
   await deleteDoc(ref);
 }
 
 export async function guardarAcuerdoPago(
   clienteId: string,
-  inmuebleId: string,
-  acuerdoPago: Inmueble["acuerdo_pago"]
+  deudorId: string,
+  acuerdoPago: deudor["acuerdo_pago"]
 ): Promise<void> {
-  const ref = doc(db, `clientes/${clienteId}/inmuebles/${inmuebleId}`);
+  const ref = doc(db, `clientes/${clienteId}/deudores/${deudorId}`);
   await updateDoc(ref, { acuerdo_pago: acuerdoPago });
 }
 export async function actualizarHonorarios(
   clienteId: string,
-  inmuebleId: string,
+  deudorId: string,
   porcentajeHonorarios: number
 ): Promise<void> {
-  const ref = doc(db, `clientes/${clienteId}/inmuebles/${inmuebleId}`);
+  const ref = doc(db, `clientes/${clienteId}/deudores/${deudorId}`);
   await updateDoc(ref, {
     'acuerdo_pago.porcentajeHonorarios': porcentajeHonorarios,
   });

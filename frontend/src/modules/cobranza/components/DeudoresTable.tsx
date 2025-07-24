@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Inmueble } from "../models/inmueble.model";
-import { obtenerInmueblesPorCliente, crearInmueble, actualizarInmueble, eliminarInmueble } from "../services/inmuebleService";
+import { deudor } from "../models/deudores.model";
+import { obtenerDeudorPorCliente, crearDeudor, actualizarDeudor, eliminarDeudor} from "../services/deudorService";
 import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
@@ -14,10 +14,6 @@ import {
   TooltipTrigger,
 } from "../../../components/ui/tooltip";
 
-import { enviarNotificacionCobroMasivo } from "../services/notificacionCobroService";
-import { toast } from "sonner";
-
-
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
 import {
   Dialog,
@@ -29,76 +25,76 @@ import {
 } from "../../../components/ui/dialog";
 
 
-export default function InmueblesTable() {
+export default function DeudoresTable() {
   const navigate = useNavigate();
   const { clienteId } = useParams<{ clienteId: string }>();
-  const [inmuebles, setInmuebles] = useState<Inmueble[]>([]);
+  const [deudores, setDeudores] = useState<deudor[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
-  const [inmuebleEditando, setInmuebleEditando] = useState<Inmueble | null>(null);
-  const [formData, setFormData] = useState<Partial<Inmueble>>({});
+  const [deudorEditando, setDeudorEditando] = useState<deudor | null>(null);
+  const [formData, setFormData] = useState<Partial<deudor>>({});
   const [dialogoEliminar, setDialogoEliminar] = useState(false);
-  const [inmuebleSeleccionado, setInmuebleSeleccionado] = useState<Inmueble | null>(null);
+  const [deudorSeleccionado, setDeudorSeleccionado] = useState<deudor | null>(null);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
-  const fetchInmuebles = async () => {
+  const fetchDeudores = async () => {
     if (!clienteId) return;
     setLoading(true);
-    const data = await obtenerInmueblesPorCliente(clienteId);
-    setInmuebles(data);
+    const data = await obtenerDeudorPorCliente(clienteId);
+    setDeudores(data);
     setLoading(false);
   };
 
   useEffect(() => {
-    fetchInmuebles();
+    fetchDeudores();
   }, [clienteId]);
 
-  const filteredInmuebles = inmuebles.filter((inmueble) =>
-    `${inmueble.torre ?? ""} ${inmueble.apartamento ?? ""} ${inmueble.casa ?? ""} ${inmueble.nombreResponsable ?? ""}`
+  const filteredDeudores = deudores.filter((deudor) =>
+    `${deudor.ubicacion ?? ""}}`
       .toLowerCase()
       .includes(search.toLowerCase())
   );
 
-  const totalPages = Math.ceil(filteredInmuebles.length / itemsPerPage);
-  const paginatedInmuebles = filteredInmuebles.slice(
+  const totalPages = Math.ceil(filteredDeudores.length / itemsPerPage);
+  const paginatedDeudores = filteredDeudores.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
 
   const iniciarCrear = () => {
-    setInmuebleEditando(null);
+    setDeudorEditando(null);
     setFormData({});
     setOpen(true);
   };
 
-  const iniciarEditar = (inmueble: Inmueble) => {
-    setInmuebleEditando(inmueble);
-    setFormData({ ...inmueble });
+  const iniciarEditar = (deudor: deudor) => {
+    setDeudorEditando(deudor);
+    setFormData({ ...deudor });
     setOpen(true);
   };
 
-  const guardarInmueble = async () => {
+  const guardarDeudor = async () => {
     if (!clienteId) return;
 
-    if (inmuebleEditando) {
-      await actualizarInmueble(clienteId, {
-        ...inmuebleEditando,
+    if (deudorEditando) {
+      await actualizarDeudor(clienteId, {
+        ...deudorEditando,
         ...formData,
-      } as Inmueble);
+      } as deudor);
     } else {
-      await crearInmueble(clienteId, {
+      await crearDeudor(clienteId, {
         ...formData,
-        nombreResponsable: formData.nombreResponsable ?? "",
+        nombre: formData.nombre ?? "",
         correos: formData.correos ?? [],
         telefonos: formData.telefonos ?? [],
         deuda_total: formData.deuda_total ?? 0,
         tipificacion: formData.tipificacion ?? "gestionando",
-      } as Inmueble);
+      } as deudor);
     }
 
     setOpen(false);
-    fetchInmuebles();
+    fetchDeudores();
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -106,28 +102,14 @@ export default function InmueblesTable() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleEnviarNotificaciones = async () => {
-    try {
-      setLoading(true);
-      const resultado = await enviarNotificacionCobroMasivo(filteredInmuebles);
-      console.log("Resultados:", resultado);
-      toast.success("✅ Notificaciones de cobro enviadas correctamente.");
-    } catch (err) {
-      console.error("Error al enviar notificaciones:", err);
-      toast.error("❌ Error al enviar notificaciones.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold">Inmuebles</h2>
+        <h2 className="text-xl font-semibold">Deudores</h2>
         <Input
           type="text"
-          placeholder="Buscar por torre, apartamento, casa o responsable..."
+          placeholder="Buscar"
           value={search}
           onChange={(e) => {
             setSearch(e.target.value);
@@ -137,31 +119,23 @@ export default function InmueblesTable() {
         />
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button onClick={iniciarCrear}>Crear Inmueble</Button>
+            <Button onClick={iniciarCrear}>Crear deudor</Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Crear / Editar Inmueble</DialogTitle>
+              <DialogTitle>Crear / Editar deudor</DialogTitle>
             </DialogHeader>
             <form
               className="space-y-4"
               onSubmit={(e) => {
                 e.preventDefault();
-                guardarInmueble();
+                guardarDeudor();
               }}
             >
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="torre">Torre</Label>
-                  <Input name="torre" value={formData.torre ?? ""} onChange={handleChange} />
-                </div>
-                <div>
-                  <Label htmlFor="apartamento">Apartamento</Label>
-                  <Input name="apartamento" value={formData.apartamento ?? ""} onChange={handleChange} />
-                </div>
-                <div>
-                  <Label htmlFor="casa">Casa</Label>
-                  <Input name="casa" value={formData.casa ?? ""} onChange={handleChange} />
+                  <Label htmlFor="ubicacion">Ubicación</Label>
+                  <Input name="ubicacion" value={formData.ubicacion ?? ""} onChange={handleChange} />
                 </div>
                 <div>
                   <Label htmlFor="deuda_total">Deuda Total</Label>
@@ -224,58 +198,23 @@ export default function InmueblesTable() {
               </div>
               <div className="grid grid-cols-2 gap-4 pt-4 border-t mt-4">
                 <div>
-                  <Label htmlFor="nombreResponsable">Nombre del Responsable</Label>
+                  <Label htmlFor="nombre">Nombre</Label>
                   <Input
-                    name="nombreResponsable"
-                    value={formData.nombreResponsable ?? ""}
+                    name="nombre"
+                    value={formData.nombre ?? ""}
                     onChange={handleChange}
                   />
                 </div>
                 <div>
-                  <Label htmlFor="cedulaResponsable">Cédula del Responsable</Label>
+                  <Label htmlFor="cedula">Cédula</Label>
                   <Input
-                    name="cedulaResponsable"
-                    value={formData.cedulaResponsable ?? ""}
-                    onChange={handleChange}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="correoResponsable">Correo del Responsable</Label>
-                  <Input
-                    name="correoResponsable"
-                    value={formData.correoResponsable ?? ""}
-                    onChange={handleChange}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="telefonoResponsable">Teléfono del Responsable</Label>
-                  <Input
-                    name="telefonoResponsable"
-                    value={formData.telefonoResponsable ?? ""}
+                    name="cedula"
+                    value={formData.cedula ?? ""}
                     onChange={handleChange}
                   />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4 pt-4 border-t mt-4">
-                <div>
-                  <Label htmlFor="estado">Estado</Label>
-                  <Select
-                    value={formData.estado ?? "gestionando"}
-                    onValueChange={(val) => setFormData((prev) => ({ ...prev, estado: val }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecciona un estado" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="gestionando">Gestionando</SelectItem>
-                      <SelectItem value="acuerdo de pago">Acuerdo de Pago</SelectItem>
-                      <SelectItem value="acuerdo demanda">Acuerdo + Demanda</SelectItem>
-                      <SelectItem value="demandado">Demandado</SelectItem>
-                      <SelectItem value="inactivo">Inactivo</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
                 <div>
                   <Label htmlFor="porcentaje_honorarios">% Honorarios</Label>
                   <Input
@@ -304,28 +243,25 @@ export default function InmueblesTable() {
       </div>
 
       {loading ? (
-        <p className="text-muted-foreground text-center py-6">Cargando inmuebles...</p>
+        <p className="text-muted-foreground text-center py-6">Cargando deudores...</p>
       ) : (
         <Table>
           <TableHeader>
             <TableRow>
-
-              <TableHead>Torre</TableHead>
-              <TableHead>Apartamento</TableHead>
-              <TableHead>Casa</TableHead>
+              <TableHead>Ubicación</TableHead>
+              <TableHead>Tipificación</TableHead>
+              <TableHead>Deuda Total</TableHead>
               <TableHead>Estado</TableHead>
-              <TableHead>Deuda</TableHead>
               <TableHead>Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {paginatedInmuebles.map((inmueble) => (
-              <TableRow key={inmueble.id}>
-                <TableCell>{inmueble.torre}</TableCell>
-                <TableCell>{inmueble.apartamento}</TableCell>
-                <TableCell>{inmueble.casa}</TableCell>
-                <TableCell>{inmueble.tipificacion}</TableCell>
-                <TableCell>${inmueble.deuda_total.toLocaleString()}</TableCell>
+            {paginatedDeudores.map((deudor) => (
+              <TableRow key={deudor.id}>
+                <TableCell>{deudor.ubicacion}</TableCell>
+                <TableCell>{deudor.tipificacion}</TableCell>
+                <TableCell>${deudor.deuda_total.toLocaleString()}</TableCell>
+                <TableCell>{deudor.estado}</TableCell> {/* Aquí va el estado real */}
                 <TableCell className="text-center">
                   <TooltipProvider>
                     <div className="flex justify-center gap-2">
@@ -335,7 +271,7 @@ export default function InmueblesTable() {
                           <Button
                             variant="outline"
                             size="icon"
-                            onClick={() => navigate(`/inmuebles/${clienteId}/${inmueble.id}/acuerdo`)}
+                            onClick={() => navigate(`/deudores/${clienteId}/${deudor.id}/acuerdo`)}
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
@@ -343,13 +279,13 @@ export default function InmueblesTable() {
                         <TooltipContent>Ver Acuerdo</TooltipContent>
                       </Tooltip>
 
-                      {/* Ver Historial */}
+                      {/* Historial */}
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
                             variant="outline"
                             size="icon"
-                            onClick={() => navigate(`/inmuebles/${clienteId}/${inmueble.id}/seguimiento`)}
+                            onClick={() => navigate(`/deudores/${clienteId}/${deudor.id}/seguimiento`)}
                           >
                             <History className="h-4 w-4" />
                           </Button>
@@ -360,7 +296,7 @@ export default function InmueblesTable() {
                       {/* Editar */}
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Button variant="outline" size="icon" onClick={() => iniciarEditar(inmueble)}>
+                          <Button variant="outline" size="icon" onClick={() => iniciarEditar(deudor)}>
                             <Pencil className="h-4 w-4" />
                           </Button>
                         </TooltipTrigger>
@@ -374,7 +310,7 @@ export default function InmueblesTable() {
                             variant="destructive"
                             size="icon"
                             onClick={() => {
-                              setInmuebleSeleccionado(inmueble);
+                              setDeudorSeleccionado(deudor);
                               setDialogoEliminar(true);
                             }}
                           >
@@ -388,17 +324,17 @@ export default function InmueblesTable() {
                 </TableCell>
               </TableRow>
             ))}
-          </TableBody>
+        </TableBody>
         </Table>
-
-      )}
+  )
+}
       <Dialog open={dialogoEliminar} onOpenChange={setDialogoEliminar}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>¿Eliminar inmueble?</DialogTitle>
+            <DialogTitle>¿Eliminar deudor?</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            ¿Estás seguro de que deseas eliminar este inmueble? Esta acción no se puede deshacer.
+            ¿Estás seguro de que deseas eliminar este deudor? Esta acción no se puede deshacer.
           </p>
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setDialogoEliminar(false)}>
@@ -407,10 +343,10 @@ export default function InmueblesTable() {
             <Button
               variant="destructive"
               onClick={async () => {
-                if (inmuebleSeleccionado && clienteId) {
-                  await eliminarInmueble(clienteId, inmuebleSeleccionado.id!);
+                if (deudorSeleccionado && clienteId) {
+                  await eliminarDeudor(clienteId, deudorSeleccionado.id!);
                   setDialogoEliminar(false);
-                  fetchInmuebles();
+                  fetchDeudores();
                 }
               }}
             >
@@ -419,15 +355,6 @@ export default function InmueblesTable() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {!loading && filteredInmuebles.length > 0 && (
-        <div className="pt-4">
-          <Button className="bg-primary text-white" onClick={handleEnviarNotificaciones}>
-            Enviar notificación de cobro a todos los listados
-          </Button>
-        </div>
-      )}
-
       <div className="flex justify-between items-center pt-4">
         <p className="text-sm text-muted-foreground">
           Página {currentPage} de {totalPages}
@@ -441,7 +368,7 @@ export default function InmueblesTable() {
           </Button>
         </div>
       </div>
-    </div>
+    </div >
 
   );
 
