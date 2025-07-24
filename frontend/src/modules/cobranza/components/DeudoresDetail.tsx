@@ -9,7 +9,7 @@ import SubirPlantillaExcel from '../../../components/SubirPlantillaExcel';
 import { db } from '../../../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { Spinner } from '../../../components/ui/spinner';
-import { eliminarCuotas } from '../services/deudorService';
+import { eliminarCuotas, getDeudorById } from '../services/deudorService';
 import {
   AlertDialog,
   AlertDialogTrigger,
@@ -34,6 +34,7 @@ interface Props {
 }
 
 function DeudorDetailTabsWrapper() {
+
   const { clienteId, deudorId } = useParams<{ clienteId: string; deudorId: string }>();
   const [deudor, setDeudor] = useState<deudor | null>(null);
   const [loading, setLoading] = useState(true);
@@ -41,11 +42,8 @@ function DeudorDetailTabsWrapper() {
   useEffect(() => {
     const cargarDeudor = async () => {
       if (!clienteId || !deudorId) return;
-      const ref = doc(db, `clientes/${clienteId}/deudores/${deudorId}`);
-      const snap = await getDoc(ref);
-      if (snap.exists()) {
-        setDeudor(snap.data() as deudor);
-      }
+      const deudorCargado = await getDeudorById(clienteId, deudorId);
+      setDeudor(deudorCargado);
       setLoading(false);
     };
 
@@ -72,15 +70,15 @@ function DeudorDetailTabsWrapper() {
     <DeudorDetailTabs
       deudor={deudor}
       clienteId={clienteId}
+      deudorId={deudor.id ?? deudorId} // ✅ Usar el ID real del deudor
       porcentajeHonorarios={deudor.porcentaje_honorarios ?? 0}
       onCuotasProcesadas={(cuotas) => {
-        // lógica aquí, por ejemplo:
         console.log("Cuotas procesadas", cuotas);
       }}
       onCuotasGuardadas={() => {
-        // lógica aquí, por ejemplo:
         console.log("Cuotas guardadas");
-      }} deudorId={''} />
+      }}
+    />
   );
 }
 
@@ -132,6 +130,7 @@ function DeudorDetailTabs({ deudor, clienteId, deudorId, porcentajeHonorarios, o
               onCuotasGuardadas={() => setRecargarCuotas((prev) => !prev)}
             />
           )}
+
         </div>
 
         {cuotas.length > 0 && (
@@ -146,11 +145,13 @@ function DeudorDetailTabs({ deudor, clienteId, deudorId, porcentajeHonorarios, o
           </div>
         )}
 
-        <AgreementTable
-          clienteId={clienteId}
-          deudorId={deudor.id ?? ""}
-          trigger={recargarCuotas}
-        />
+        {deudor?.id && (
+          <AgreementTable
+            clienteId={clienteId}
+            deudorId={deudor.id}
+            trigger={recargarCuotas}
+          />
+        )}
 
         <div className="text-right mt-4">
           <AlertDialog>

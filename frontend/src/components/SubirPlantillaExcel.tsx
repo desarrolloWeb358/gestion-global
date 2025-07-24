@@ -28,6 +28,7 @@ export default function SubirPlantillaExcel({
   const [loading, setLoading] = useState(false);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  console.log("handleFileChange ejecutado");
     const file = e.target.files?.[0];
     if (!file) return;
 
