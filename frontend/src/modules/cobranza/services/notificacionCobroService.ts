@@ -1,19 +1,19 @@
-import { Inmueble } from "../models/inmueble.model";
+import { deudor } from "../models/deudores.model";
 import { sendNotification } from "@/shared/services/sendNotification";
 import { TipoNotificacion } from "@/shared/constants/notificacionTipos";
 
-export const enviarNotificacionCobro = async (inmueble: Inmueble) => {
-  console.log(`Enviando notificación de cobro para el inmueble ${inmueble.id}...`);
+export const enviarNotificacionCobro = async (deudor: deudor) => {
+  console.log(`Enviando notificación de cobro para el inmueble ${deudor.id}...`);
   const resultados: string[] = [];
 
-  const nombre = inmueble.nombreResponsable || "Usuario";
-  const telefono = inmueble.telefonoResponsable || inmueble.telefonos?.[0];
-  const correo = inmueble.correoResponsable || inmueble.correos?.[0];
+  const nombre = deudor.nombre || "Usuario";
+  const telefono = deudor.telefonos?.[0];
+  const correo = deudor.correos?.[0];
 
   // SMS
   if (telefono) {
     console.log(`Enviando SMS a ${telefono}...`);
-    const mensaje = `Hola ${nombre}, le recordamos que tiene una deuda pendiente de $${inmueble.deuda_total}.`;
+    const mensaje = `Hola ${nombre}, le recordamos que tiene una deuda pendiente de $${deudor.deuda_total}.`;
     const res = await sendNotification({
       tipo: TipoNotificacion.SMS,
       destino: telefono,
@@ -26,7 +26,7 @@ export const enviarNotificacionCobro = async (inmueble: Inmueble) => {
   if (telefono) {
     console.log(`Enviando WhatsApp a ${telefono}...`);
     const nombreStr = nombre.toString();
-    const deudaStr = inmueble.deuda_total.toLocaleString();
+    const deudaStr = deudor.deuda_total.toLocaleString();
 
     console.log("🚀 Enviando WhatsApp con:", nombreStr, deudaStr);
 
@@ -51,7 +51,7 @@ export const enviarNotificacionCobro = async (inmueble: Inmueble) => {
       templateId: "d-2ca889256a79400b811dcb7de031c67b", // ← cambia por tu Template ID real
       templateData: {
         nombre,
-        deuda: inmueble.deuda_total,
+        deuda: deudor.deuda_total,
       },
     });
     resultados.push(`Correo: ${res}`);
@@ -61,18 +61,18 @@ export const enviarNotificacionCobro = async (inmueble: Inmueble) => {
 };
 
 // ✅ Esta es la función MASIVA
-export const enviarNotificacionCobroMasivo = async (inmuebles: Inmueble[]) => {
+export const enviarNotificacionCobroMasivo = async (deudores: deudor[]) => {
   console.log("Iniciando notificación masiva de cobro...");
   const resultadosGlobal: { id?: string; resultado: string[] }[] = [];
 
-  for (const inmueble of inmuebles) {
+  for (const deudor of deudores) {
     try {
-      const resultado = await enviarNotificacionCobro(inmueble);
-      resultadosGlobal.push({ id: inmueble.id, resultado });
+      const resultado = await enviarNotificacionCobro(deudor);
+      resultadosGlobal.push({ id: deudor.id, resultado });
     } catch (error) {
-      console.error(`Error al notificar al inmueble ${inmueble.id}:`, error);
+      console.error(`Error al notificar al deudor ${deudor.id}:`, error);
       resultadosGlobal.push({
-        id: inmueble.id,
+        id: deudor.id,
         resultado: [`❌ Error al notificar: ${error}`],
       });
     }
