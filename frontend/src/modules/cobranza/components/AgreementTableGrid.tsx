@@ -31,7 +31,7 @@ export default function AgreementTable({ clienteId, deudorId, trigger }: Props) 
 
   useEffect(() => {
     const cargarCuotas = async () => {
-      const ref = collection(db, `clientes/${clienteId}/inmuebles/${deudorId}/cuotas_acuerdo`);
+      const ref = collection(db, `clientes/${clienteId}/deudores/${deudorId}/cuotas_acuerdo`);
       const snapshot = await getDocs(ref);
       const data: Cuota[] = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -51,7 +51,7 @@ export default function AgreementTable({ clienteId, deudorId, trigger }: Props) 
 
   const actualizarPagado = async (cuotaId: string, nuevoEstado: boolean) => {
     try {
-      const ref = doc(db, "inmuebles", deudorId, "cuotas_acuerdo", cuotaId);
+      const ref = doc(db, "deudores", deudorId, "cuotas_acuerdo", cuotaId);
       await updateDoc(ref, { pagado: nuevoEstado });
 
       setCuotas(prev =>

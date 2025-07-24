@@ -115,7 +115,7 @@ export default function ClientesCrud() {
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button size="icon" variant="ghost" onClick={() => navigate(`/inmuebles/${cliente.id}`)}>
+                        <Button size="icon" variant="ghost" onClick={() => navigate(`/deudores/${cliente.id}`)}>
                           <Eye className="w-4 h-4" />
                         </Button>
                       </TooltipTrigger>

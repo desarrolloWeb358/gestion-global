@@ -3,10 +3,10 @@ import { useEffect, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 
-export function useAcuerdoData(clienteId: string, inmuebleId: string) {
+export function useAcuerdoData(clienteId: string, deudorId: string) {
   const [data, setData] = useState<{
+    deudor: any;
     cliente: any;
-    inmueble: any;
   } | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -15,9 +15,9 @@ export function useAcuerdoData(clienteId: string, inmuebleId: string) {
       try {
         const clienteSnap = await getDoc(doc(db, "clientes", clienteId));
         console.log("clienteId:", clienteId);
-        console.log("inmuebleId:", inmuebleId);
+        console.log("deudorId:", deudorId);
         const inmuebleSnap = await getDoc(
-          doc(db, "clientes", clienteId, "inmuebles", inmuebleId)
+          doc(db, "clientes", clienteId, "inmuebles", deudorId)
         );
 
         if (!clienteSnap.exists() || !inmuebleSnap.exists()) {
@@ -25,7 +25,7 @@ export function useAcuerdoData(clienteId: string, inmuebleId: string) {
         } else {
           setData({
             cliente: { id: clienteSnap.id, ...clienteSnap.data() },
-            inmueble: { id: inmuebleSnap.id, ...inmuebleSnap.data() },
+            deudor: { id: inmuebleSnap.id, ...inmuebleSnap.data() },
           });
         }
       } catch (err) {
@@ -37,7 +37,7 @@ export function useAcuerdoData(clienteId: string, inmuebleId: string) {
     }
 
     loadData();
-  }, [clienteId, inmuebleId]);
+  }, [clienteId, deudorId]);
 
   return { data, loading };
 }

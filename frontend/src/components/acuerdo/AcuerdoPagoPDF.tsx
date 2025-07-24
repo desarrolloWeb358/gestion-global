@@ -24,9 +24,9 @@ export function AcuerdoPDFView({ clienteId, deudorId }: Props) {
   if (loading) return <Spinner className="h-5 w-5 animate-spin text-primary" />;
   if (!data) return <p className="text-sm text-muted-foreground">No hay datos de acuerdo.</p>;
 
-  const inmueble = data.inmueble;
+  const deudor = data.deudor;
   const cliente = data.cliente;
-  const cuotas = inmueble.acuerdo_pago?.cuotas || [];
+  const cuotas = deudor.acuerdo_pago?.cuotas || [];
 
   return (
     <div className="space-y-4">
@@ -42,29 +42,29 @@ export function AcuerdoPDFView({ clienteId, deudorId }: Props) {
       <div ref={printRef} className="bg-white p-6 text-black rounded shadow">
         <h1 className="text-xl font-bold text-center mb-4 text-blue-800">ACUERDO DE PAGO CELEBRADO
           ENTRE GESTION GLOBAL ACG S.A.S
-          Y {inmueble?.nombreResponsable?.toUpperCase()}
+          Y {deudor?.nombreResponsable?.toUpperCase()}
         </h1>
         <p className="text-justify leading-snug mb-2">Entre los suscritos a saber por una parte <strong>GESTION GLOBAL ACG S.A.S.</strong> actuando como
           apoderado(a) judicial de la <strong> {(cliente?.nombre ?? "Sin nombre").toUpperCase()}</strong>,
-          y por otra parte <strong> {(inmueble?.nombreResponsable).toUpperCase()} </strong> persona mayor
-          de edad identificada con la Cédula de Ciudadanía No <strong> {inmueble?.cedulaResponsable}</strong>  de Bogotá quien en adelante
+          y por otra parte <strong> {(deudor?.nombreResponsable).toUpperCase()} </strong> persona mayor
+          de edad identificada con la Cédula de Ciudadanía No <strong> {deudor?.cedulaResponsable}</strong>  de Bogotá quien en adelante
           se denominará el <strong>DEUDOR</strong>, hemos convenido celebrar el presente <strong>ACUERDO DE PAGO </strong>, que
           en adelante se regirá por las cláusulas que a continuación se enuncian, previas las siguientes
         </p>
 
         <h2 className="text-lg text-center font-semibold mt-4 mb-2 text-blue-800">CONSIDERACIONES</h2>
 
-        <p className="text-justify leading-snug mb-2">Que el señor <strong> {(inmueble?.nombreResponsable)} </strong> adeuda acreencias a favor del <strong>{(cliente?.nombre ?? "Sin nombre")} </strong>,
-          por valor de <strong> ${inmueble?.deuda_total?.toLocaleString("es-CO")} (
-            {numeroALetras(inmueble?.deuda_total || 0)} M/CTE) </strong> Conforme al estado de deuda bajado directamente
+        <p className="text-justify leading-snug mb-2">Que el señor <strong> {(deudor?.nombreResponsable)} </strong> adeuda acreencias a favor del <strong>{(cliente?.nombre ?? "Sin nombre")} </strong>,
+          por valor de <strong> ${deudor?.deuda_total?.toLocaleString("es-CO")} (
+            {numeroALetras(deudor?.deuda_total || 0)} M/CTE) </strong> Conforme al estado de deuda bajado directamente
           del sistema a la fecha {fechaActual}, el cual forma parte de este documento.
         </p>
         <p >
           Que la anterior suma de dinero corresponde a las cuotas vencidas de las expensas de
-          administración, intereses de mora y honorarios causados, de la TORRE No {inmueble?.torre} APARTAMENTO
-          No {inmueble?.apartamento} {cliente?.direccion ?? ""} de propiedad del <strong>{(cliente?.nombre ?? "Sin nombre")}</strong>,
+          administración, intereses de mora y honorarios causados, de la TORRE No {deudor?.torre} APARTAMENTO
+          No {deudor?.apartamento} {cliente?.direccion ?? ""} de propiedad del <strong>{(cliente?.nombre ?? "Sin nombre")}</strong>,
           Que en virtud de lo anterior y con el fin de resolver el inconveniente presentado de manera
-          amigable <strong>GESTION GLOBAL ACG S.A.S </strong> de una parte y de la otra <strong> {(inmueble?.responsable)} </strong>
+          amigable <strong>GESTION GLOBAL ACG S.A.S </strong> de una parte y de la otra <strong> {(deudor?.responsable)} </strong>
           hemos acordado celebrar el presente acuerdo que se regirá en
           especial por las siguientes:
         </p>
@@ -74,8 +74,8 @@ export function AcuerdoPDFView({ clienteId, deudorId }: Props) {
         <p>
           <strong>CLÁUSULA PRIMERA. - OBJETO: </strong> El presente acuerdo tiene como objeto principal, facilitar a
           EL DEUDOR el pago de las obligaciones a favor de la entidad <strong>ACREEDORA</strong> por valor de
-          $<strong> ${inmueble?.deuda_total?.toLocaleString("es-CO")} (
-            {numeroALetras(inmueble?.deuda_total || 0)} M/CTE) </strong>. Frente a lo cual asume desde ya los compromisos y obligaciones contenidos en
+          $<strong> ${deudor?.deuda_total?.toLocaleString("es-CO")} (
+            {numeroALetras(deudor?.deuda_total || 0)} M/CTE) </strong>. Frente a lo cual asume desde ya los compromisos y obligaciones contenidos en
           este Acuerdo.
         </p>
 
@@ -84,8 +84,8 @@ export function AcuerdoPDFView({ clienteId, deudorId }: Props) {
           pago objeto del presente acuerdo, son las siguientes:
         </p>
 
-        <p>LA SUMA DE $<strong> ${inmueble?.deuda_total?.toLocaleString("es-CO")} (
-          {numeroALetras(inmueble?.deuda_total || 0)} M/CTE) </strong>.
+        <p>LA SUMA DE $<strong> ${deudor?.deuda_total?.toLocaleString("es-CO")} (
+          {numeroALetras(deudor?.deuda_total || 0)} M/CTE) </strong>.
           Serán cancelados por el <strong>DEUDOR </strong> a la
           <strong> {(cliente?.nombre ?? "Sin nombre")}</strong>, según
           tabla de amortización.</p>
@@ -142,7 +142,7 @@ export function AcuerdoPDFView({ clienteId, deudorId }: Props) {
 
         <p>CUOTA ACUERDO DE PAGO EN EL BANCO <strong> {(cliente?.banco).toUpperCase()} </strong> CUENTA DE <strong>{(cliente?.tipoCuenta).toUpperCase()} </strong> No <strong>{(cliente?.numeroCuenta)} </strong> EN REFERENCIA No DE TORRE Y APARTAMENTO (<strong> {(cliente?.nombre ?? "Sin nombre").toUpperCase()}</strong>) SEGUIDO DE LA TORRE
           Y APARTAMENTO Y HACER LLEGAR AL EMAIL
-          {(inmueble?.ejecutivoEmail)} O AL WHATSAPP 3123152594 COPIA
+          {(deudor?.ejecutivoEmail)} O AL WHATSAPP 3123152594 COPIA
           DE CADA UNA DE LAS CONSIGNACIONES QUE SE REALICEN DENTRO DE ESTE
           ACUERDO.</p>
 
