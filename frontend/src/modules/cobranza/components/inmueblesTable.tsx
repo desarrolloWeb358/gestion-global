@@ -14,6 +14,10 @@ import {
   TooltipTrigger,
 } from "../../../components/ui/tooltip";
 
+import { enviarNotificacionCobroMasivo } from "../services/notificacionCobroService";
+import { toast } from "sonner";
+
+
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
 import {
   Dialog,
@@ -100,6 +104,20 @@ export default function InmueblesTable() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleEnviarNotificaciones = async () => {
+    try {
+      setLoading(true);
+      const resultado = await enviarNotificacionCobroMasivo(filteredInmuebles);
+      console.log("Resultados:", resultado);
+      toast.success("✅ Notificaciones de cobro enviadas correctamente.");
+    } catch (err) {
+      console.error("Error al enviar notificaciones:", err);
+      toast.error("❌ Error al enviar notificaciones.");
+    } finally {
+      setLoading(false);
+    }
   };
 
 
@@ -372,6 +390,7 @@ export default function InmueblesTable() {
             ))}
           </TableBody>
         </Table>
+
       )}
       <Dialog open={dialogoEliminar} onOpenChange={setDialogoEliminar}>
         <DialogContent className="max-w-md">
@@ -400,6 +419,15 @@ export default function InmueblesTable() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {!loading && filteredInmuebles.length > 0 && (
+        <div className="pt-4">
+          <Button className="bg-primary text-white" onClick={handleEnviarNotificaciones}>
+            Enviar notificación de cobro a todos los listados
+          </Button>
+        </div>
+      )}
+
       <div className="flex justify-between items-center pt-4">
         <p className="text-sm text-muted-foreground">
           Página {currentPage} de {totalPages}
