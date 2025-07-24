@@ -5,34 +5,61 @@ import { Input } from "../../../components/ui/input";
 import { Button } from "../../../components/ui/button";
 import { useLoading } from "../../../context/LoadingContext";
 import { Spinner } from "../../../components/ui/spinner";
-import { Select } from "../../../components/ui/select";
 import { Label } from "../../../components/ui/label";
 
+import { TipoNotificacion } from "@/shared/constants/notificacionTipos";
+import { sendNotification } from "@/shared/services/sendNotification";
+
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+
 export default function ProbarNotificacionesPage() {
-  const [tipo, setTipo] = useState("sms");
+  const [tipo, setTipo] = useState<TipoNotificacion>(TipoNotificacion.SMS);
   const [destino, setDestino] = useState("");
   const [mensaje, setMensaje] = useState("");
-  const [asunto, setAsunto] = useState("");
+  const [templateId, setTemplateId] = useState("");
+  const [nombre, setNombre] = useState("");
   const [archivoUrl, setArchivoUrl] = useState("");
   const [resultado, setResultado] = useState<string | null>(null);
   const [error, setError] = useState("");
   const { isLoading, setLoading } = useLoading();
 
   const handleSubmit = async () => {
-    if (!destino || !mensaje || !tipo) {
+    if (!destino || !tipo) {
       setError("Debes completar todos los campos obligatorios.");
       return;
     }
 
-    const payload: Record<string, string> = {
+    const payload: any = {
       tipo,
       destino,
-      mensaje,
     };
 
-    if (tipo === "correo") {
-      if (asunto) payload["asunto"] = asunto;
-      if (archivoUrl) payload["archivoUrl"] = archivoUrl;
+    if (tipo === TipoNotificacion.CORREO) {
+      if (!templateId) {
+        setError("El campo Template ID es obligatorio para correos.");
+        return;
+      }
+      payload.templateId = templateId;
+      payload.templateData = { nombre };
+      if (archivoUrl) payload.archivoUrl = archivoUrl;
+    } else if (tipo === TipoNotificacion.WHATSAPP) {
+      if (!templateId) {
+        setError("El ID de template es obligatorio para WhatsApp.");
+        return;
+      }
+      payload.templateId = templateId;
+    } else if (tipo === TipoNotificacion.LLAMADA) {
+      if (!archivoUrl) {
+        setError("Debes proporcionar la URL del archivo de audio para la llamada.");
+        return;
+      }
+      payload.archivoUrl = archivoUrl;
+    } else {
+      if (!mensaje) {
+        setError("El mensaje es obligatorio para SMS.");
+        return;
+      }
+      payload.mensaje = mensaje;
     }
 
     setLoading(true);
@@ -40,19 +67,8 @@ export default function ProbarNotificacionesPage() {
     setResultado(null);
 
     try {
-      const response = await fetch("https://enviarnotificacion-prldsxsgzq-uc.a.run.app", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const res = await response.json();
-
-      if (!response.ok) throw new Error(res || "Error al enviar");
-
-      setResultado(`✅ Enviado correctamente. SID/ID: ${res.resultado}`);
+      const resultado = await sendNotification(payload);
+      setResultado(`✅ Enviado correctamente. SID/ID: ${resultado}`);
     } catch (err) {
       console.error(err);
       setError("❌ Error al enviar notificación.");
@@ -60,6 +76,25 @@ export default function ProbarNotificacionesPage() {
       setLoading(false);
     }
   };
+
+  const handleAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  const storage = getStorage();
+  const fileName = `audios/audio_${Date.now()}.${file.name.split('.').pop()}`;
+  const storageRef = ref(storage, fileName);
+
+  try {
+    await uploadBytes(storageRef, file);
+    const url = await getDownloadURL(storageRef);
+    setArchivoUrl(url);
+    setError("");
+  } catch (err) {
+    console.error("Error al subir el archivo:", err);
+    setError("❌ Error al subir el archivo de audio");
+  }
+};
 
   if (isLoading) return <Spinner className="h-32" />;
 
@@ -72,12 +107,13 @@ export default function ProbarNotificacionesPage() {
           <Label>Tipo de notificación</Label>
           <select
             value={tipo}
-            onChange={(e) => setTipo(e.target.value)}
+            onChange={(e) => setTipo(e.target.value as TipoNotificacion)}
             className="w-full border rounded px-2 py-1"
           >
-            <option value="sms">SMS</option>
-            <option value="whatsapp">WhatsApp</option>
-            <option value="correo">Correo</option>
+            <option value={TipoNotificacion.SMS}>SMS</option>
+            <option value={TipoNotificacion.WHATSAPP}>WhatsApp</option>
+            <option value={TipoNotificacion.CORREO}>Correo</option>
+            <option value={TipoNotificacion.LLAMADA}>Llamada</option>
           </select>
         </div>
 
@@ -91,23 +127,58 @@ export default function ProbarNotificacionesPage() {
         </div>
       </div>
 
-      <div>
-        <Label>Mensaje</Label>
-        <Input
-          placeholder="Escribe el mensaje a enviar"
-          value={mensaje}
-          onChange={(e) => setMensaje(e.target.value)}
-        />
-      </div>
+      {tipo !== "correo" && tipo !== "whatsapp" && (
+        <div>
+          <Label>Mensaje</Label>
+          <Input
+            placeholder="Escribe el mensaje a enviar"
+            value={mensaje}
+            onChange={(e) => setMensaje(e.target.value)}
+          />
+        </div>
+      )}
+
+      {tipo === "whatsapp" && (
+        <div>
+          <Label>ID de template de WhatsApp</Label>
+          <Input
+            placeholder="SID del template de Twilio WhatsApp"
+            value={templateId}
+            onChange={(e) => setTemplateId(e.target.value)}
+          />
+        </div>
+      )}
+
+      {tipo === "llamada" && (
+        <div>
+          <Label>Archivo de audio</Label>
+          <Input
+            type="file"
+            accept="audio/*"
+            onChange={handleAudioUpload}
+          />
+          {archivoUrl && (
+            <p className="text-sm text-green-600">✅ Audio subido con éxito.</p>
+          )}
+        </div>
+      )}
 
       {tipo === "correo" && (
         <>
           <div>
-            <Label>Asunto (opcional)</Label>
+            <Label>Template ID</Label>
             <Input
-              placeholder="Asunto del correo"
-              value={asunto}
-              onChange={(e) => setAsunto(e.target.value)}
+              placeholder="ID de plantilla de SendGrid"
+              value={templateId}
+              onChange={(e) => setTemplateId(e.target.value)}
+            />
+          </div>
+          <div>
+            <Label>Nombre (para template)</Label>
+            <Input
+              placeholder="Ej: Juan Pablo"
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
             />
           </div>
           <div>
