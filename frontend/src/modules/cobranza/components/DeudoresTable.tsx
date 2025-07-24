@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { deudor } from "../models/deudores.model";
-import { obtenerDeudorPorCliente, crearDeudor, actualizarDeudor, eliminarDeudor} from "../services/deudorService";
+import { obtenerDeudorPorCliente, crearDeudor, actualizarDeudor, eliminarDeudor } from "../services/deudorService";
 import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
@@ -13,6 +13,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "../../../components/ui/tooltip";
+
+import { enviarNotificacionCobroMasivo } from "../services/notificacionCobroService";
+import { toast } from "sonner";
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
 import {
@@ -100,6 +103,20 @@ export default function DeudoresTable() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleEnviarNotificaciones = async () => {
+    try {
+      setLoading(true);
+      const resultado = await enviarNotificacionCobroMasivo(filteredDeudores);
+      console.log("Resultados:", resultado);
+      toast.success("✅ Notificaciones de cobro enviadas correctamente.");
+    } catch (err) {
+      console.error("Error al enviar notificaciones:", err);
+      toast.error("❌ Error al enviar notificaciones.");
+    } finally {
+      setLoading(false);
+    }
   };
 
 
@@ -324,10 +341,10 @@ export default function DeudoresTable() {
                 </TableCell>
               </TableRow>
             ))}
-        </TableBody>
+          </TableBody>
         </Table>
-  )
-}
+      )
+      }
       <Dialog open={dialogoEliminar} onOpenChange={setDialogoEliminar}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -355,6 +372,16 @@ export default function DeudoresTable() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+
+      {!loading && filteredDeudores.length > 0 && (
+        <div className="pt-4">
+          <Button className="bg-primary text-white" onClick={handleEnviarNotificaciones}>
+            Enviar notificación de cobro a todos los listados
+          </Button>
+        </div>
+      )}
+
       <div className="flex justify-between items-center pt-4">
         <p className="text-sm text-muted-foreground">
           Página {currentPage} de {totalPages}
