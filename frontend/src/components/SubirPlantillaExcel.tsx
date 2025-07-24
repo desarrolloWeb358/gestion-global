@@ -54,9 +54,14 @@ export default function SubirPlantillaExcel({
   };
 
   const guardarCuotasEnFirestore = async () => {
+
     setLoading(true);
     const batchErrors = [];
-
+    if (!clienteId || !deudorId) {
+      toast.error("Error: clienteId o deudorId están vacíos");
+      console.error("Ruta inválida:", { clienteId, deudorId });
+      return;
+    }
     for (const cuota of cuotas) {
       try {
         await addDoc(
@@ -69,7 +74,7 @@ export default function SubirPlantillaExcel({
       }
     }
 
-    // 👇 ACTUALIZA el documento del deudor con las cuotas
+    // 👇 ACTUALIZA el documento del inmueble con las cuotas
     try {
       const deudorRef = doc(db, "clientes", clienteId, "deudores", deudorId);
       await updateDoc(deudorRef, {

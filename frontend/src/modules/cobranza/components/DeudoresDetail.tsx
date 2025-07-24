@@ -68,20 +68,20 @@ function DeudorDetailTabsWrapper() {
     );
   }
 
-return (
-  <DeudorDetailTabs
-    deudor={deudor}
-    clienteId={clienteId}
-    porcentajeHonorarios={deudor.porcentaje_honorarios ?? 0}
-    onCuotasProcesadas={(cuotas) => {
-      // lógica aquí, por ejemplo:
-      console.log("Cuotas procesadas", cuotas);
-    } }
-    onCuotasGuardadas={() => {
-      // lógica aquí, por ejemplo:
-      console.log("Cuotas guardadas");
-    } } deudorId={''}  />
-);
+  return (
+    <DeudorDetailTabs
+      deudor={deudor}
+      clienteId={clienteId}
+      porcentajeHonorarios={deudor.porcentaje_honorarios ?? 0}
+      onCuotasProcesadas={(cuotas) => {
+        // lógica aquí, por ejemplo:
+        console.log("Cuotas procesadas", cuotas);
+      }}
+      onCuotasGuardadas={() => {
+        // lógica aquí, por ejemplo:
+        console.log("Cuotas guardadas");
+      }} deudorId={''} />
+  );
 }
 
 
@@ -123,13 +123,15 @@ function DeudorDetailTabs({ deudor, clienteId, deudorId, porcentajeHonorarios, o
 
       <TabsContent value="cronograma">
         <div className="mb-4">
-          <SubirPlantillaExcel
-            clienteId={clienteId}
-            deudorId={deudor.id ?? ""}
-            porcentajeHonorarios={0.1}
-            onCuotasProcesadas={(cuotas) => setCuotas(cuotas)}
-            onCuotasGuardadas={() => setRecargarCuotas((prev) => !prev)}
-          />
+          {deudor?.id && (
+            <SubirPlantillaExcel
+              clienteId={clienteId}
+              deudorId={deudor.id}
+              porcentajeHonorarios={0.1}
+              onCuotasProcesadas={(cuotas) => setCuotas(cuotas)}
+              onCuotasGuardadas={() => setRecargarCuotas((prev) => !prev)}
+            />
+          )}
         </div>
 
         {cuotas.length > 0 && (

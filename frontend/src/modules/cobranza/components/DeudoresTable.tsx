@@ -109,7 +109,7 @@ export default function DeudoresTable() {
         <h2 className="text-xl font-semibold">Deudores</h2>
         <Input
           type="text"
-          placeholder="Buscar por torre, apartamento, casa o responsable..."
+          placeholder="Buscar"
           value={search}
           onChange={(e) => {
             setSearch(e.target.value);
@@ -134,8 +134,8 @@ export default function DeudoresTable() {
             >
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="torre">Ubicación</Label>
-                  <Input name="torre" value={formData.ubicacion ?? ""} onChange={handleChange} />
+                  <Label htmlFor="ubicacion">Ubicación</Label>
+                  <Input name="ubicacion" value={formData.ubicacion ?? ""} onChange={handleChange} />
                 </div>
                 <div>
                   <Label htmlFor="deuda_total">Deuda Total</Label>
@@ -285,7 +285,7 @@ export default function DeudoresTable() {
                           <Button
                             variant="outline"
                             size="icon"
-                            onClick={() => navigate(`/deudors/${clienteId}/${deudor.id}/seguimiento`)}
+                            onClick={() => navigate(`/deudores/${clienteId}/${deudor.id}/seguimiento`)}
                           >
                             <History className="h-4 w-4" />
                           </Button>
