@@ -14,6 +14,9 @@ import {
   TooltipTrigger,
 } from "../../../components/ui/tooltip";
 
+import { enviarNotificacionCobroMasivo } from "../services/notificacionCobroService";
+import { toast } from "sonner";
+
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
 import {
   Dialog,
@@ -100,6 +103,20 @@ export default function DeudoresTable() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleEnviarNotificaciones = async () => {
+    try {
+      setLoading(true);
+      const resultado = await enviarNotificacionCobroMasivo(filteredDeudores);
+      console.log("Resultados:", resultado);
+      toast.success("✅ Notificaciones de cobro enviadas correctamente.");
+    } catch (err) {
+      console.error("Error al enviar notificaciones:", err);
+      toast.error("❌ Error al enviar notificaciones.");
+    } finally {
+      setLoading(false);
+    }
   };
 
 
@@ -335,7 +352,10 @@ export default function DeudoresTable() {
               </TableRow>
             ))}
           </TableBody>
+          </TableBody>
         </Table>
+      )
+      }
       )
       }
       <Dialog open={dialogoEliminar} onOpenChange={setDialogoEliminar}>
@@ -365,6 +385,16 @@ export default function DeudoresTable() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+
+      {!loading && filteredDeudores.length > 0 && (
+        <div className="pt-4">
+          <Button className="bg-primary text-white" onClick={handleEnviarNotificaciones}>
+            Enviar notificación de cobro a todos los listados
+          </Button>
+        </div>
+      )}
+
       <div className="flex justify-between items-center pt-4">
         <p className="text-sm text-muted-foreground">
           Página {currentPage} de {totalPages}
