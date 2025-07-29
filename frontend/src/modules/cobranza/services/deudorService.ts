@@ -50,7 +50,7 @@ export async function agregarAbonoAlDeudor(
 ) {
   const ref = doc(db, `clientes/${clienteId}/deudores/${deudorId}`);
   return await updateDoc(ref, {
-    abonos: arrayUnion({
+    abono: arrayUnion({
       ...abono,
       fecha: abono.fecha || new Date().toISOString(),
     }),
@@ -71,7 +71,7 @@ function mapDocToDeudores(id: string, data: DocumentData): Deudor {
   return {
   ubicacion: data.ubicacion || "",
   id,
-  nombre: data.nombre || data || "",
+  nombre: data.nombre || "",
   estado: data.estado,
   deuda_total: Number(data.deuda_total),
   correos: Array.isArray(data.correos) ? data.correos : [],
@@ -89,15 +89,24 @@ function mapDocToDeudores(id: string, data: DocumentData): Deudor {
           valor_esperado: Number(c.valor_esperado),
           fecha_limite: c.fecha_limite,
           observacion: c.observacion,
+          numero: c.numero,
+          deuda_capital: c.deuda_capital,
+          cuota_capital: c.cuota_capital,
+          deuda_honorarios: c.deuda_honorarios,
+          honorarios: c.honorarios,
+          cuota_acuerdo: c.cuota_acuerdo,
+          pagado: c.pagado,
         }))
         : [],
     }
-    : undefined,
-  cedula: data.cedula || 0,
-  tipificacion: data.tipificacion || "",
-  clienteId: data.clienteId || "",
-  ejecutivoId: data.ejecutivoId || "",
-  abonos: false
+    : undefined, // también debes manejar el else (cuando no hay acuerdo_pago)
+
+  abonos: {},
+  tipificacion: "",
+  cedula: "",
+  clienteId: "",
+  ejecutivoId: "",
+
 };
 }
 
@@ -121,11 +130,11 @@ export async function crearDeudor(clienteId: string, deudor: Deudor): Promise<vo
 export async function actualizarDeudor(clienteId: string, deudor: Deudor): Promise<void> {
   const ref = doc(db, `clientes/${clienteId}/deudores/${deudor.id}`);
   const { id, ...rest } = deudor;
-  // Sanitize: remove undefined/null fields and ensure 'responsable' is always a string
+  // Sanitize: remove undefined/null fields and ensure 'nombre' is always a string
   const sanitized: any = { ...rest };
-  // Prefer 'nombreResponsable' for Firestore 'responsable' field
-  if (sanitized.nombreResponsable !== undefined && sanitized.nombreResponsable !== null) {
-    sanitized.responsable = sanitized.nombreResponsable;
+  // Prefer 'nombre' for Firestore 'nombre' field
+  if (sanitized.nombre !== undefined && sanitized.nombre !== null) {
+    sanitized.nombre = sanitized.nombre;
   }
   // Remove fields with undefined/null values
   Object.keys(sanitized).forEach(key => {

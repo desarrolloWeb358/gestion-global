@@ -2,8 +2,8 @@
 
 import { useState } from "react"
 import {
-  AreaChart,
-  Area,
+  BarChart,
+  Bar,
   CartesianGrid,
   XAxis,
 } from "recharts"
@@ -40,12 +40,13 @@ export default function EstadisticaAbonos({ deudor }: { deudor: Deudor }) {
     },
   }
 
-  const rawData = Object.entries(deudor.abonos || {})
-    .map(([mes, info]) => ({
-      date: info.fecha, // usar la fecha del recaudo
-      recaudo: info.monto,
-    }))
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+  const rawData = Object.entries(deudor.abonos || {}).map(([mes, info]) => {
+    const abonoInfo = info as { fecha: string; monto: number }
+    return {
+      date: abonoInfo.fecha,
+      monto: abonoInfo.monto,
+    }
+  }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
   const filteredData = rawData.filter((item) => {
     const date = new Date(item.date)
@@ -57,6 +58,14 @@ export default function EstadisticaAbonos({ deudor }: { deudor: Deudor }) {
     startDate.setDate(startDate.getDate() - daysToSubtract)
     return date >= startDate
   })
+
+  const formattedData = filteredData.map((item) => ({
+    date: new Date(item.date).toLocaleDateString("es-CO", {
+      day: "2-digit",
+      month: "short"
+    }),
+    monto: item.monto,
+  }))
 
   return (
     <Card>
@@ -81,50 +90,31 @@ export default function EstadisticaAbonos({ deudor }: { deudor: Deudor }) {
           config={chartConfig}
           className="aspect-auto h-[250px] w-full"
         >
-          <AreaChart data={filteredData}>
-            <defs>
-              <linearGradient id="fillRecaudo" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="var(--color-recaudo)" stopOpacity={0.8} />
-                <stop offset="95%" stopColor="var(--color-recaudo)" stopOpacity={0.1} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid vertical={false} />
+          <BarChart data={formattedData}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} />
             <XAxis
               dataKey="date"
               tickLine={false}
               axisLine={false}
-              tickMargin={8}
-              minTickGap={32}
-              tickFormatter={(value) =>
-                new Date(value).toLocaleDateString("es-CO", {
-                  month: "short",
-                  day: "numeric",
-                })
-              }
+              tickMargin={10}
             />
             <ChartTooltip
               cursor={false}
               content={
                 <ChartTooltipContent
-                  labelFormatter={(value) =>
-                    new Date(value).toLocaleDateString("es-CO", {
-                      month: "short",
-                      day: "numeric",
-                    })
-                  }
-                  indicator="dot"
+                  indicator="dashed"
+                  labelFormatter={(value) => `Fecha: ${value}`}
                 />
               }
             />
-            <Area
-              dataKey="recaudo"
-              type="natural"
-              fill="url(#fillRecaudo)"
-              stroke="var(--color-recaudo)"
-              name="Monto recaudo"
+            <Bar
+              dataKey="monto"
+              name="Monto"
+              fill="var(--color-recaudo)"
+              radius={[4, 4, 0, 0]}
             />
             <ChartLegend content={<ChartLegendContent />} />
-          </AreaChart>
+          </BarChart>
         </ChartContainer>
       </CardContent>
     </Card>

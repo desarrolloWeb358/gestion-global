@@ -20,7 +20,7 @@ export interface Cuota {
 
 // Ahora podemos usarlo en acuerdo_pago e historial_acuerdos
 export interface Deudor {
-  abonos: boolean;
+  abonos?: { [id: string]: Abono };
   id?: string;
    // Ubicación
   ubicacion?: string;
@@ -68,7 +68,7 @@ export interface Deudor {
 
 export interface Abono {
   monto: number;
-  fecha: string; // ISO string
+  fecha: string;
   recibo: string;
   tipo: 'ordinario' | 'extraordinario' | 'anticipo';
 }

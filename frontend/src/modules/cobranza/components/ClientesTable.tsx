@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye, Pencil, Trash2 } from "lucide-react";
-
+import { createUserWithEmailAndPassword, getAuth } from "firebase/auth";
+import { serverTimestamp } from "firebase/firestore";
 import {
   Dialog,
   DialogContent,
@@ -44,9 +45,12 @@ export default function ClientesCrud() {
   };
 
   const fetchEjecutivos = async () => {
-    const todos = await obtenerUsuarios();
-    todos.filter((u) => Array.isArray(u.roles) && u.roles.includes("ejecutivo"))
-  };
+  const todos = await obtenerUsuarios();
+  const ejecutivosFiltrados = todos.filter(
+    (u) => Array.isArray(u.roles) && u.roles.includes("ejecutivo")
+  );
+  setEjecutivos(ejecutivosFiltrados);
+};
 
   useEffect(() => {
     fetchClientes();
@@ -103,8 +107,8 @@ export default function ClientesCrud() {
             {clientes.map((cliente) => (
               <TableRow key={cliente.id}>
                 <TableCell>{cliente.nombre}</TableCell>
-                <TableCell>{cliente.correo}</TableCell>
-                <TableCell>{cliente.telefono}</TableCell>
+                <TableCell>{cliente.email}</TableCell>
+                <TableCell>{cliente.telefonoUsuario}</TableCell>
                 <TableCell>{cliente.direccion}</TableCell>
                 <TableCell>{cliente.ejecutivoId}</TableCell>
                 <TableCell>{cliente.banco}</TableCell>
@@ -159,9 +163,14 @@ export default function ClientesCrud() {
             className="grid gap-4 py-4"
             onSubmit={async (e) => {
               e.preventDefault();
+
               const form = e.target as HTMLFormElement;
               const formData = new FormData(form);
               const tipoCuentaRaw = formData.get("tipoCuenta");
+              const tipoDocumento = formData.get("tipoDocumento") as "CC" | "CE" | "TI" | "NIT";
+              const numeroDocumento = formData.get("numeroDocumento") as string;
+              const activo = formData.get("activo") === "on";
+
               if (tipoCuentaRaw !== "ahorros" && tipoCuentaRaw !== "corriente" && tipoCuentaRaw !== "convenio") {
                 alert("Tipo de cuenta inválido");
                 return;
@@ -174,8 +183,8 @@ export default function ClientesCrud() {
                 nuevo = {
                   ...clienteEditando,
                   nombre: formData.get("nombre") as string,
-                  correo: formData.get("correo") as string,
-                  telefono: formData.get("telefono") as string,
+                  email: formData.get("correo") as string,
+                  telefonoUsuario: formData.get("telefono") as string,
                   direccion: formData.get("direccion") as string,
                   ejecutivoId: formData.get("ejecutivoId") as string,
                   banco: formData.get("banco") as string,
@@ -183,15 +192,36 @@ export default function ClientesCrud() {
                   tipoCuenta,
                 };
               } else {
+                const email = formData.get("correo") as string;
+                const password = "123456"; // ⚠️ Puedes pedirla en el form o generar una temporal
+
+                const auth = getAuth();
+
+                let userCredential;
+                try {
+                  userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                } catch (error: any) {
+                  alert("Error creando usuario en Auth: " + error.message);
+                  return;
+                }
+
+                const uid = userCredential.user.uid;
+
                 nuevo = {
+                  uid,
+                  email,
                   nombre: formData.get("nombre") as string,
-                  correo: formData.get("correo") as string,
-                  telefono: formData.get("telefono") as string,
+                  telefonoUsuario: formData.get("telefono") as string,
                   direccion: formData.get("direccion") as string,
                   ejecutivoId: formData.get("ejecutivoId") as string,
                   banco: formData.get("banco") as string,
                   numeroCuenta: formData.get("numeroCuenta") as string,
                   tipoCuenta,
+                  tipoDocumento,
+                  numeroDocumento,
+                  activo,
+                  roles: ["cliente"],
+                  fecha_registro: serverTimestamp(),
                 };
               }
 
@@ -212,11 +242,29 @@ export default function ClientesCrud() {
               </div>
               <div>
                 <Label>Correo</Label>
-                <Input name="correo" defaultValue={clienteEditando?.correo} required />
+                <Input name="correo" defaultValue={clienteEditando?.email} required />
               </div>
               <div>
                 <Label>Teléfono</Label>
-                <Input name="telefono" defaultValue={clienteEditando?.telefono} />
+                <Input name="telefono" defaultValue={clienteEditando?.telefonoUsuario} />
+              </div>
+              <div>
+                <Label>Tipo de documento</Label>
+                <Select name="tipoDocumento" defaultValue={clienteEditando?.tipoDocumento}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CC">Cédula de ciudadanía</SelectItem>
+                    <SelectItem value="CE">Cédula de extranjería</SelectItem>
+                    <SelectItem value="TI">Tarjeta de identidad</SelectItem>
+                    <SelectItem value="NIT">NIT</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Número de documento</Label>
+                <Input name="numeroDocumento" defaultValue={clienteEditando?.numeroDocumento} />
               </div>
               <div>
                 <Label>Dirección</Label>
@@ -230,8 +278,8 @@ export default function ClientesCrud() {
                   </SelectTrigger>
                   <SelectContent>
                     {ejecutivos.map((e) => (
-                      <SelectItem key={e.email} value={e.email}>
-                        {e.email}
+                      <SelectItem key={e.uid} value={e.uid}>
+                        {e.nombre ?? e.email}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -258,7 +306,20 @@ export default function ClientesCrud() {
                   </SelectContent>
                 </Select>
               </div>
+              <div>
+                <Label>Activo</Label>
+                <div className="flex items-center space-x-2 mt-2">
+                  <input
+                    type="checkbox"
+                    name="activo"
+                    defaultChecked={clienteEditando?.activo ?? true}
+                    className="w-4 h-4"
+                  />
+                  <span>¿Activo?</span>
+                </div>
+              </div>
             </div>
+
 
             <DialogFooter className="mt-6">
               <Button type="submit">Guardar</Button>

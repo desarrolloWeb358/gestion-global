@@ -40,6 +40,9 @@ export default function DeudoresTable() {
   const [deudorSeleccionado, setDeudorSeleccionado] = useState<Deudor | null>(null);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [deudaTotal, setDeudaTotal] = useState(0);
+  const [porcentajeHonorarios, setPorcentajeHonorarios] = useState(10);
+  const [honorariosCalculados, setHonorariosCalculados] = useState(0);
   const itemsPerPage = 5;
   const fetchDeudores = async () => {
     if (!clienteId) return;
@@ -48,6 +51,11 @@ export default function DeudoresTable() {
     setDeudores(data);
     setLoading(false);
   };
+
+  useEffect(() => {
+    const honorarios = (deudaTotal * porcentajeHonorarios) / 100;
+    setHonorariosCalculados(isNaN(honorarios) ? 0 : honorarios);
+  }, [deudaTotal, porcentajeHonorarios]);
 
   useEffect(() => {
     fetchDeudores();
@@ -157,15 +165,10 @@ export default function DeudoresTable() {
                 <div>
                   <Label htmlFor="deuda_total">Deuda Total</Label>
                   <Input
-                    name="deuda_total"
                     type="number"
-                    value={formData.deuda_total !== undefined ? formData.deuda_total : ""}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        deuda_total: Number(e.target.value),
-                      }))
-                    }
+                    name="deuda_total"
+                    value={deudaTotal}
+                    onChange={(e) => setDeudaTotal(parseFloat(e.target.value))}
                   />
                 </div>
                 <div>
@@ -232,20 +235,21 @@ export default function DeudoresTable() {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4 pt-4 border-t mt-4">
-                <div>
-                  <Label htmlFor="porcentaje_honorarios">% Honorarios</Label>
-                  <Input
-                    name="porcentaje_honorarios"
-                    type="number"
-                    value={formData.porcentaje_honorarios ?? ""}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        porcentaje_honorarios: Number(e.target.value),
-                      }))
-                    }
-                  />
-                </div>
+
+                <Label>Porcentaje de honorarios (%)</Label>
+                <Input
+                  type="number"
+                  name="porcentaje_honorarios"
+                  value={porcentajeHonorarios}
+                  onChange={(e) => setPorcentajeHonorarios(parseFloat(e.target.value))}
+                />
+              </div>
+
+              <div>
+                <Label>Honorarios calculados</Label>
+                <p className="text-green-600 font-bold text-lg">
+                  ${honorariosCalculados.toLocaleString()}
+                </p>
               </div>
 
               <div className="pt-6">
@@ -290,7 +294,7 @@ export default function DeudoresTable() {
                             size="icon"
                             onClick={() => navigate(`/deudores/${clienteId}/${deudor.id}/acuerdo`)}
                           >
-                            
+
                             <Eye className="h-4 w-4" />
                           </Button>
                         </TooltipTrigger>
@@ -312,13 +316,13 @@ export default function DeudoresTable() {
                       </Tooltip>
 
                       <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => navigate(`/clientes/${clienteId}/deudores/${deudor.id}`)}
-                            >
-                              <Eye className="w-4 h-4 mr-1" />
-                              Ver
-                            </Button>
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate(`/clientes/${clienteId}/deudores/${deudor.id}`)}
+                      >
+                        <Eye className="w-4 h-4 mr-1" />
+                        Ver
+                      </Button>
 
                       {/* Editar */}
                       <Tooltip>
