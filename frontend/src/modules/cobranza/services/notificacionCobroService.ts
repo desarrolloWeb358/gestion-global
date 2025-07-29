@@ -1,8 +1,8 @@
-import { deudor } from "../models/deudores.model";
+import { Deudor } from "../models/deudores.model";
 import { sendNotification } from "@/shared/services/sendNotification";
 import { TipoNotificacion } from "@/shared/constants/notificacionTipos";
 
-export const enviarNotificacionCobro = async (deudor: deudor) => {
+export const enviarNotificacionCobro = async (deudor: Deudor) => {
   console.log(`Enviando notificación de cobro para el inmueble ${deudor.id}...`);
   const resultados: string[] = [];
 
@@ -61,7 +61,7 @@ export const enviarNotificacionCobro = async (deudor: deudor) => {
 };
 
 // ✅ Esta es la función MASIVA
-export const enviarNotificacionCobroMasivo = async (deudores: deudor[]) => {
+export const enviarNotificacionCobroMasivo = async (deudores: Deudor[]) => {
   console.log("Iniciando notificación masiva de cobro...");
   const resultadosGlobal: { id?: string; resultado: string[] }[] = [];
 
