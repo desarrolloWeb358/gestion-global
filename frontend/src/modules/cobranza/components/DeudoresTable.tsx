@@ -352,12 +352,8 @@ export default function DeudoresTable() {
               </TableRow>
             ))}
           </TableBody>
-          </TableBody>
         </Table>
-      )
-      }
-      )
-      }
+      )}
       <Dialog open={dialogoEliminar} onOpenChange={setDialogoEliminar}>
         <DialogContent className="max-w-md">
           <DialogHeader>

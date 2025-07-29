@@ -39,7 +39,6 @@ export default function DeudorDetailPage() {
     <div className="px-4 py-6 space-y-6">
 <>
   <DeudorInfoCard deudor={deudor} />
-  <EstadisticaRecaudo deudor={deudor} />
 
   {/* ABONOS */}
   <Card className="mt-6">
@@ -47,7 +46,7 @@ export default function DeudorDetailPage() {
       <CardTitle>Abonos realizados</CardTitle>
     </CardHeader>
     <CardContent className="space-y-4">
-      <FormAgregarAbono onAgregado={() => recargarDeudor()} />
+      <FormAgregarAbono deudor={deudor} />
 
       {Array.isArray(deudor.abonos) && deudor.abonos.length > 0 && (
         <table className="w-full text-sm">
