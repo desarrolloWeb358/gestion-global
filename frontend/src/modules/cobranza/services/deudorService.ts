@@ -7,9 +7,10 @@ import {
   doc,
   DocumentData,
   getDoc,
+  arrayUnion,
 } from "firebase/firestore";
 import { db } from  "../../../firebase";
-import { Cuota, deudor } from "../models/deudores.model";
+import { Abono, Cuota, Deudor } from "../models/deudores.model";
 
 export async function eliminarCuotas(clienteId: string, deudorId: string) {
   const ref = collection(db, `clientes/${clienteId}/deudores/${deudorId}/cuotas_acuerdo`);
@@ -42,24 +43,33 @@ export async function guardarCuotasEnFirestore(
   }
 }
 
-export const getDeudorById = async (
+export async function agregarAbonoAlDeudor(
   clienteId: string,
-  deudorId: string
-): Promise<deudor | null> => {
-  const refDoc = doc(db, `clientes/${clienteId}/deudores/${deudorId}`);
-  const snap = await getDoc(refDoc);
-  if (snap.exists()) {
-    return { id: snap.id, ...snap.data() } as deudor;
-  }
-  return null;
-};
+  deudorId: string,
+  abono: Abono
+) {
+  const ref = doc(db, `clientes/${clienteId}/deudores/${deudorId}`);
+  return await updateDoc(ref, {
+    abonos: arrayUnion({
+      ...abono,
+      fecha: abono.fecha || new Date().toISOString(),
+    }),
+  });
+}
+
+
+export async function getDeudorById(clienteId: string, deudorId: string): Promise<Deudor | null> {
+  const ref = doc(db, `clientes/${clienteId}/deudores/${deudorId}`);
+  const snap = await getDoc(ref);
+  return snap.exists() ? { id: snap.id, ...snap.data() } as Deudor : null;
+}
 
 /**
  * Mapea los datos crudos de Firestore a la interfaz deudores
  */
-function mapDocToDeudores(id: string, data: DocumentData): deudor {
+function mapDocToDeudores(id: string, data: DocumentData): Deudor {
   return {
-    ubicacion: data.ubicacion || "",
+  ubicacion: data.ubicacion || "",
   id,
   nombre: data.nombre || data || "",
   estado: data.estado,
@@ -83,19 +93,18 @@ function mapDocToDeudores(id: string, data: DocumentData): deudor {
         : [],
     }
     : undefined,
-  recaudos: data.recaudos || {},
   cedula: data.cedula || 0,
   tipificacion: data.tipificacion || "",
   clienteId: data.clienteId || "",
   ejecutivoId: data.ejecutivoId || "",
-  
+  abonos: false
 };
 }
 
 /**
  * Obtiene todos los deudores asociados a un cliente
  */
-export async function obtenerDeudorPorCliente(clienteId: string): Promise<deudor[]> {
+export async function obtenerDeudorPorCliente(clienteId: string): Promise<Deudor[]> {
   const ref = collection(db, `clientes/${clienteId}/deudores`);
   const snap = await getDocs(ref);
   return snap.docs.map(doc => mapDocToDeudores(doc.id, doc.data()));
@@ -104,12 +113,12 @@ export async function obtenerDeudorPorCliente(clienteId: string): Promise<deudor
 /**
  * Crea un nuevo deudor en Firestore
  */
-export async function crearDeudor(clienteId: string, deudor: deudor): Promise<void> {
+export async function crearDeudor(clienteId: string, deudor: Deudor): Promise<void> {
   const ref = collection(db, `clientes/${clienteId}/deudores`);
   await addDoc(ref, deudor);
 }
 
-export async function actualizarDeudor(clienteId: string, deudor: deudor): Promise<void> {
+export async function actualizarDeudor(clienteId: string, deudor: Deudor): Promise<void> {
   const ref = doc(db, `clientes/${clienteId}/deudores/${deudor.id}`);
   const { id, ...rest } = deudor;
   // Sanitize: remove undefined/null fields and ensure 'responsable' is always a string
@@ -135,7 +144,7 @@ export async function eliminarDeudor(clienteId: string, deudorId: string): Promi
 export async function guardarAcuerdoPago(
   clienteId: string,
   deudorId: string,
-  acuerdoPago: deudor["acuerdo_pago"]
+  acuerdoPago: Deudor["acuerdo_pago"]
 ): Promise<void> {
   const ref = doc(db, `clientes/${clienteId}/deudores/${deudorId}`);
   await updateDoc(ref, { acuerdo_pago: acuerdoPago });
@@ -150,3 +159,4 @@ export async function actualizarHonorarios(
     'acuerdo_pago.porcentajeHonorarios': porcentajeHonorarios,
   });
 }
+

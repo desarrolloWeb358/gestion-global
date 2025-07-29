@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../../components/ui/tabs';
-import { Cuota, deudor } from '../models/deudores.model';
+import { Cuota, Deudor } from '../models/deudores.model';
 import AgreementTable from '../components/AgreementTableGrid';
 import SubirPlantillaExcel from '../../../components/SubirPlantillaExcel';
 import { db } from '../../../firebase';
@@ -25,7 +25,7 @@ import { toast } from 'sonner';
 import { AcuerdoPDFView } from '../../../components/acuerdo/AcuerdoPagoPDF';
 
 interface Props {
-  deudor: deudor;
+  deudor: Deudor;
   clienteId: string;
   deudorId: string;
   porcentajeHonorarios: number;
@@ -36,7 +36,7 @@ interface Props {
 function DeudorDetailTabsWrapper() {
 
   const { clienteId, deudorId } = useParams<{ clienteId: string; deudorId: string }>();
-  const [deudor, setDeudor] = useState<deudor | null>(null);
+  const [deudor, setDeudor] = useState<Deudor | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { deudor } from "../models/deudores.model";
-import { obtenerDeudorPorCliente, crearDeudor, actualizarDeudor, eliminarDeudor} from "../services/deudorService";
+import { Deudor } from "../models/deudores.model";
+import { obtenerDeudorPorCliente, crearDeudor, actualizarDeudor, eliminarDeudor } from "../services/deudorService";
 import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
@@ -28,13 +28,13 @@ import {
 export default function DeudoresTable() {
   const navigate = useNavigate();
   const { clienteId } = useParams<{ clienteId: string }>();
-  const [deudores, setDeudores] = useState<deudor[]>([]);
+  const [deudores, setDeudores] = useState<Deudor[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
-  const [deudorEditando, setDeudorEditando] = useState<deudor | null>(null);
-  const [formData, setFormData] = useState<Partial<deudor>>({});
+  const [deudorEditando, setDeudorEditando] = useState<Deudor | null>(null);
+  const [formData, setFormData] = useState<Partial<Deudor>>({});
   const [dialogoEliminar, setDialogoEliminar] = useState(false);
-  const [deudorSeleccionado, setDeudorSeleccionado] = useState<deudor | null>(null);
+  const [deudorSeleccionado, setDeudorSeleccionado] = useState<Deudor | null>(null);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
@@ -68,7 +68,7 @@ export default function DeudoresTable() {
     setOpen(true);
   };
 
-  const iniciarEditar = (deudor: deudor) => {
+  const iniciarEditar = (deudor: Deudor) => {
     setDeudorEditando(deudor);
     setFormData({ ...deudor });
     setOpen(true);
@@ -81,7 +81,7 @@ export default function DeudoresTable() {
       await actualizarDeudor(clienteId, {
         ...deudorEditando,
         ...formData,
-      } as deudor);
+      } as Deudor);
     } else {
       await crearDeudor(clienteId, {
         ...formData,
@@ -90,7 +90,7 @@ export default function DeudoresTable() {
         telefonos: formData.telefonos ?? [],
         deuda_total: formData.deuda_total ?? 0,
         tipificacion: formData.tipificacion ?? "gestionando",
-      } as deudor);
+      } as Deudor);
     }
 
     setOpen(false);
@@ -273,6 +273,7 @@ export default function DeudoresTable() {
                             size="icon"
                             onClick={() => navigate(`/deudores/${clienteId}/${deudor.id}/acuerdo`)}
                           >
+                            
                             <Eye className="h-4 w-4" />
                           </Button>
                         </TooltipTrigger>
@@ -292,6 +293,15 @@ export default function DeudoresTable() {
                         </TooltipTrigger>
                         <TooltipContent>Historial</TooltipContent>
                       </Tooltip>
+
+                      <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => navigate(`/clientes/${clienteId}/deudores/${deudor.id}`)}
+                            >
+                              <Eye className="w-4 h-4 mr-1" />
+                              Ver
+                            </Button>
 
                       {/* Editar */}
                       <Tooltip>
@@ -324,10 +334,10 @@ export default function DeudoresTable() {
                 </TableCell>
               </TableRow>
             ))}
-        </TableBody>
+          </TableBody>
         </Table>
-  )
-}
+      )
+      }
       <Dialog open={dialogoEliminar} onOpenChange={setDialogoEliminar}>
         <DialogContent className="max-w-md">
           <DialogHeader>

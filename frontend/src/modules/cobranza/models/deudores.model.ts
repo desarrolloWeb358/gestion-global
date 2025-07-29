@@ -16,8 +16,11 @@ export interface Cuota {
   pagado: boolean;
 }
 
+
+
 // Ahora podemos usarlo en acuerdo_pago e historial_acuerdos
-export interface deudor {
+export interface Deudor {
+  abonos: boolean;
   id?: string;
    // Ubicación
   ubicacion?: string;
@@ -61,12 +64,13 @@ export interface deudor {
     valor_total_acordado: number;
     cuotas: Cuota[];
   };
-
-  recaudos: {
-    [mes: string]: {
-      monto: number;
-      fecha: string;
-      observacion?: string;
-    };
-  };
 }
+
+export interface Abono {
+  monto: number;
+  fecha: string; // ISO string
+  recibo: string;
+  tipo: 'ordinario' | 'extraordinario' | 'anticipo';
+}
+
+ 

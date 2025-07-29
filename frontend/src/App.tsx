@@ -13,6 +13,7 @@ import ConsultaPersonasPage from './modules/cobranza/components/ConsultarPersona
 import ProbarNotificacionesPage from './modules/cobranza/components/ProbarNotificacionesPage';
 import AppLayout from "./components/layout/AppLayout";
 import ScrollToTop from "./components/layout/ScrollToTop";
+import DeudorDetailPage from "./modules/cobranza/components/DeudorDetailPage";
 
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
@@ -38,6 +39,7 @@ export default function App() {
           <Route path="/admin/dashboard" element={<DashboardAdmin />} />
           <Route path="/deudores/:clienteId/:deudorId/acuerdo" element={<InmuebleDetailTabsWrapper  />} />
           <Route path="/deudores/:clienteId/:deudorId/seguimiento" element={<SeguimientoTable />} />
+           <Route path="/clientes/:clienteId/deudores/:deudorId" element={<DeudorDetailPage />} />
           <Route path="/clientes-tables" element={<ClientesTable />} />
           <Route path="/usuarios-tables" element={<UsuariosTable />} />
           <Route path="/deudores/:clienteId" element={<InmueblesTable />} />
