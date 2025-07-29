@@ -45,7 +45,7 @@ export default function ClientesCrud() {
 
   const fetchEjecutivos = async () => {
     const todos = await obtenerUsuarios();
-    setEjecutivos(todos.filter((u) => u.roles.includes("ejecutivo")));
+    todos.filter((u) => Array.isArray(u.roles) && u.roles.includes("ejecutivo"))
   };
 
   useEffect(() => {
@@ -76,78 +76,78 @@ export default function ClientesCrud() {
 
 
   return (
-     <div className="space-y-4">
-    <div className="flex justify-between items-center">
-      <h2 className="text-xl font-semibold">Clientes</h2>
-      <Button onClick={abrirCrear}>Crear cliente</Button>
-    </div>
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-semibold">Clientes</h2>
+        <Button onClick={abrirCrear}>Crear cliente</Button>
+      </div>
 
-    {loading ? (
-      <div className="py-12 text-center text-muted-foreground">Cargando clientes...</div>
-    ) : (
+      {loading ? (
+        <div className="py-12 text-center text-muted-foreground">Cargando clientes...</div>
+      ) : (
 
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Nombre</TableHead>
-            <TableHead>Correo</TableHead>
-            <TableHead>Teléfono</TableHead>
-            <TableHead>Dirección</TableHead>
-            <TableHead>Banco</TableHead>
-            <TableHead>N° Cuenta</TableHead>
-            <TableHead>Tipo Cuenta</TableHead>
-            <TableHead className="text-center">Acciones</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {clientes.map((cliente) => (
-            <TableRow key={cliente.id}>
-              <TableCell>{cliente.nombre}</TableCell>
-              <TableCell>{cliente.correo}</TableCell>
-              <TableCell>{cliente.telefono}</TableCell>
-              <TableCell>{cliente.direccion}</TableCell>
-              <TableCell>{cliente.ejecutivoId}</TableCell>
-              <TableCell>{cliente.banco}</TableCell>
-              <TableCell>{cliente.numeroCuenta}</TableCell>
-              <TableCell>{cliente.tipoCuenta}</TableCell>
-              <TableCell>
-                <div className="flex justify-center gap-2">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button size="icon" variant="ghost" onClick={() => navigate(`/deudores/${cliente.id}`)}>
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Ver</TooltipContent>
-                    </Tooltip>
-
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button size="icon" variant="ghost" onClick={() => abrirEditar(cliente)}>
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Editar</TooltipContent>
-                    </Tooltip>
-
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button size="icon" variant="ghost" className="text-red-600" onClick={() => handleEliminar(cliente.id!)}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Eliminar</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-              </TableCell>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Nombre</TableHead>
+              <TableHead>Correo</TableHead>
+              <TableHead>Teléfono</TableHead>
+              <TableHead>Dirección</TableHead>
+              <TableHead>Banco</TableHead>
+              <TableHead>N° Cuenta</TableHead>
+              <TableHead>Tipo Cuenta</TableHead>
+              <TableHead className="text-center">Acciones</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {clientes.map((cliente) => (
+              <TableRow key={cliente.id}>
+                <TableCell>{cliente.nombre}</TableCell>
+                <TableCell>{cliente.correo}</TableCell>
+                <TableCell>{cliente.telefono}</TableCell>
+                <TableCell>{cliente.direccion}</TableCell>
+                <TableCell>{cliente.ejecutivoId}</TableCell>
+                <TableCell>{cliente.banco}</TableCell>
+                <TableCell>{cliente.numeroCuenta}</TableCell>
+                <TableCell>{cliente.tipoCuenta}</TableCell>
+                <TableCell>
+                  <div className="flex justify-center gap-2">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button size="icon" variant="ghost" onClick={() => navigate(`/deudores/${cliente.id}`)}>
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Ver</TooltipContent>
+                      </Tooltip>
 
-         )}
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button size="icon" variant="ghost" onClick={() => abrirEditar(cliente)}>
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Editar</TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button size="icon" variant="ghost" className="text-red-600" onClick={() => handleEliminar(cliente.id!)}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Eliminar</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+
+      )}
 
       <Dialog open={mostrarDialogo} onOpenChange={setMostrarDialogo}>
         <DialogContent className="max-w-xl">
@@ -161,11 +161,6 @@ export default function ClientesCrud() {
               e.preventDefault();
               const form = e.target as HTMLFormElement;
               const formData = new FormData(form);
-              const tipoRaw = formData.get("tipo");
-              if (tipoRaw !== "natural" && tipoRaw !== "jurídica") {
-                throw new Error("Tipo inválido");
-              }
-              const tipo = tipoRaw as "natural" | "jurídica";
               const tipoCuentaRaw = formData.get("tipoCuenta");
               if (tipoCuentaRaw !== "ahorros" && tipoCuentaRaw !== "corriente" && tipoCuentaRaw !== "convenio") {
                 alert("Tipo de cuenta inválido");
@@ -173,17 +168,32 @@ export default function ClientesCrud() {
               }
               const tipoCuenta = tipoCuentaRaw as "ahorros" | "corriente" | "convenio";
 
-              const nuevo: Cliente = {
-                id: clienteEditando?.id,
-                nombre: formData.get("nombre") as string,
-                correo: formData.get("correo") as string,
-                telefono: formData.get("telefono") as string,
-                direccion: formData.get("direccion") as string,
-                ejecutivoId: formData.get(" ejecutivoId") as string,
-                banco: formData.get("banco") as string,
-                numeroCuenta: formData.get("numeroCuenta") as string,
-                tipoCuenta, // ✅ tipo seguro
-              };
+              let nuevo: Cliente;
+
+              if (clienteEditando) {
+                nuevo = {
+                  ...clienteEditando,
+                  nombre: formData.get("nombre") as string,
+                  correo: formData.get("correo") as string,
+                  telefono: formData.get("telefono") as string,
+                  direccion: formData.get("direccion") as string,
+                  ejecutivoId: formData.get("ejecutivoId") as string,
+                  banco: formData.get("banco") as string,
+                  numeroCuenta: formData.get("numeroCuenta") as string,
+                  tipoCuenta,
+                };
+              } else {
+                nuevo = {
+                  nombre: formData.get("nombre") as string,
+                  correo: formData.get("correo") as string,
+                  telefono: formData.get("telefono") as string,
+                  direccion: formData.get("direccion") as string,
+                  ejecutivoId: formData.get("ejecutivoId") as string,
+                  banco: formData.get("banco") as string,
+                  numeroCuenta: formData.get("numeroCuenta") as string,
+                  tipoCuenta,
+                };
+              }
 
               if (clienteEditando) {
                 await actualizarCliente(nuevo);
