@@ -33,7 +33,8 @@ export const enviarNotificacionCobro = async (deudor: Deudor) => {
     const res = await sendNotification({
       tipo: TipoNotificacion.WHATSAPP,
       destino: telefono,
-      templateId: "HX8438e2890309f9bd97a6803dca152099", // ← cambia por tu SID real
+      templateId: "HX9e26f25fa5239893cb69b2fa3d245ed9",
+      //templateId: "HX8438e2890309f9bd97a6803dca152099", // ← cambia por tu SID real
       templateData: {
         '1': nombreStr,
         '2': deudaStr,
