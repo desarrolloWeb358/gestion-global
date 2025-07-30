@@ -41,7 +41,7 @@ export default function EstadisticaAbonos({ deudor }: { deudor: Deudor }) {
   }
 
   const rawData = Object.entries(deudor.abonos || {}).map(([mes, info]) => {
-    const abonoInfo = info as { fecha: string; monto: number }
+    const abonoInfo = info as unknown as { fecha: string; monto: number }
     return {
       date: abonoInfo.fecha,
       monto: abonoInfo.monto,

@@ -41,7 +41,7 @@ export default function App() {
           <Route path="/deudores/:clienteId/:deudorId/seguimiento" element={<SeguimientoTable />} />
            <Route path="/clientes/:clienteId/deudores/:deudorId" element={<DeudorDetailPage />} />
           <Route path="/clientes-tables" element={<ClientesTable />} />
-          <Route path="/usuarios-tables" element={<UsuariosTable />} />
+          <Route path="/usuarios-tables" element={<UsuariosTable  />} />
           <Route path="/deudores/:clienteId" element={<InmueblesTable />} />
           <Route path="/consulta-personas" element={<ConsultaPersonasPage />} />
           <Route path="/probar-notificaciones" element={<ProbarNotificacionesPage />} />

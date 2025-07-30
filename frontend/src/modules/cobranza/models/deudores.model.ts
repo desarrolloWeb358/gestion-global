@@ -20,7 +20,6 @@ export interface Cuota {
 
 // Ahora podemos usarlo en acuerdo_pago e historial_acuerdos
 export interface Deudor {
-  abonos?: { [id: string]: Abono };
   id?: string;
    // Ubicación
   ubicacion?: string;
@@ -32,9 +31,6 @@ export interface Deudor {
     // Contacto adicional
   correos: string[];
   telefonos: string[];
-  // Relación con cliente y ejecutivo
-  clienteId: string;
-  ejecutivoId: string;
   // Estado general
   estado: string;
   deuda_total: number;
@@ -63,14 +59,16 @@ export interface Deudor {
     porcentajeHonorarios?: number;
     valor_total_acordado: number;
     cuotas: Cuota[];
-  };
-}
 
-export interface Abono {
+  };
+  // Abonos realizados
+  abonos?: {
   monto: number;
   fecha: string;
   recibo: string;
   tipo: 'ordinario' | 'extraordinario' | 'anticipo';
 }
+}
+
 
  

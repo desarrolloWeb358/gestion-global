@@ -10,7 +10,7 @@ import {
   arrayUnion,
 } from "firebase/firestore";
 import { db } from  "../../../firebase";
-import { Abono, Cuota, Deudor } from "../models/deudores.model";
+import {  Cuota, Deudor } from "../models/deudores.model";
 
 export async function eliminarCuotas(clienteId: string, deudorId: string) {
   const ref = collection(db, `clientes/${clienteId}/deudores/${deudorId}/cuotas_acuerdo`);
@@ -46,7 +46,7 @@ export async function guardarCuotasEnFirestore(
 export async function agregarAbonoAlDeudor(
   clienteId: string,
   deudorId: string,
-  abono: Abono
+  abono: { monto: number; fecha?: string; recibo?: string; tipo?: 'ordinario' | 'extraordinario' | 'anticipo' }
 ) {
   const ref = doc(db, `clientes/${clienteId}/deudores/${deudorId}`);
   return await updateDoc(ref, {
@@ -100,8 +100,6 @@ function mapDocToDeudores(id: string, data: DocumentData): Deudor {
         : [],
     }
     : undefined, // también debes manejar el else (cuando no hay acuerdo_pago)
-
-  abonos: {},
   tipificacion: "",
   cedula: "",
   clienteId: "",
