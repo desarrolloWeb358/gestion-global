@@ -23,55 +23,50 @@ export const obtenerUsuarios = async (): Promise<UsuarioSistema[]> => {
 /**
  * Crea un nuevo usuario en Firebase Auth y lo registra en Firestore
  */
-export const crearUsuario = async (usuario: UsuarioSistema & { password: string }): Promise<void> => {
+export const crearUsuario = async (
+  usuario: UsuarioSistema & { password: string }
+): Promise<string> => {
   const cred = await createUserWithEmailAndPassword(auth, usuario.email, usuario.password);
   const uid = cred.user.uid;
-
-  const ref = doc(db, "usuarios", uid);
 
   const usuarioFirestore: UsuarioSistema = {
     uid,
     email: usuario.email,
-    roles: usuario.roles, // ✅ arreglo completo
     nombre: usuario.nombre ?? "",
-    fecha_registro: serverTimestamp(),
+    telefonoUsuario: usuario.telefonoUsuario,
+    tipoDocumento: usuario.tipoDocumento,
+    numeroDocumento: usuario.numeroDocumento,
+    roles: usuario.roles,
     activo: true,
+    fecha_registro: serverTimestamp(),
   };
 
-  await setDoc(ref, usuarioFirestore);
+  await setDoc(doc(db, "usuarios", uid), usuarioFirestore);
 
-  // ✅ Si incluye el rol "cliente", crear también en colección clientes
   if (usuario.roles.includes("cliente")) {
-    const clienteRef = doc(db, "clientes", uid);
     const clienteData: Cliente = {
       id: uid,
       nombre: usuario.nombre ?? "",
-      correo: usuario.email,
+      email: usuario.email,
       direccion: "",
-      ejecutivoId: "",
-      telefono: "",
+      ejecutivoPrejuridicoId: "",
+      ejecutivojuridicoId: "",
+      telefonoUsuario: "",
       banco: '',
       numeroCuenta: '',
       tipoCuenta: '',
+      uid: "",
+      roles: [],
+      tipoDocumento: "CC",
+      numeroDocumento: "",
+      ejecutivoId: ""
     };
-    await setDoc(clienteRef, clienteData);
+    await setDoc(doc(db, "clientes", uid), clienteData);
   }
-  if (usuario.roles.includes("cliente")) {
-  const clienteRef = doc(db, "clientes", uid);
-  const clienteData: Cliente = {
-    id: uid,
-    nombre: usuario.nombre ?? "",
-    correo: usuario.email,
-    direccion: "",
-    ejecutivoId: "",
-    telefono: "",
-    banco: '',
-    numeroCuenta: '',
-    tipoCuenta: '',
-  };
-  await setDoc(clienteRef, clienteData);
-}
+
+  return uid; // ✅ Esto resuelve el error
 };
+
 
 
 export const actualizarUsuario = async (usuario: UsuarioSistema): Promise<void> => {

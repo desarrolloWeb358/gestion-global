@@ -6,6 +6,11 @@ import { Spinner } from "./ui/spinner"
 import { useState } from "react"
 import { useNavigate, Link } from "react-router-dom"
 import { loginConCorreo, loginConGoogle } from "../services/authService";
+import { UsuarioSistema } from "../modules/usuarios/models/usuarioSistema.model";
+import { getDoc, doc } from "firebase/firestore";
+import { db } from "@/firebase"
+import { toast } from "sonner"
+
 export function LoginForm({
   className,
   ...props
@@ -17,25 +22,50 @@ export function LoginForm({
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true)
+    setLoading(true);
     try {
-      await loginConCorreo(email.trim(), password);
-      navigate("/home"); // Cambia por la ruta deseada
+      const credenciales = await loginConCorreo(email.trim(), password);
+      const uid = credenciales.user.uid;
+
+      const docSnap = await getDoc(doc(db, "usuarios", uid));
+      if (!docSnap.exists()) {
+        toast("El usuario no está registrado en la base de datos.");
+        return;
+      }
+
+      const usuario = docSnap.data() as UsuarioSistema;
+
+      // Guarda el usuario si quieres reutilizarlo
+      localStorage.setItem("usuarioLogeado", JSON.stringify(usuario));
+
+      // Lógica de redirección
+      if (usuario.roles.length === 1) {
+        const rol = usuario.roles[0];
+        if (rol === "admin") navigate("/admin/dashboard");
+        else if (rol === "cliente") navigate("/admin/dashboard");
+        else if (rol === "abogado") navigate("/admin/dashboard");
+        else if (rol === "deudor") navigate("/admin/dashboard");
+        else if (rol === "ejecutivo") navigate("/admin/dashboard");
+        else navigate("/home"); // fallback
+      } else {
+        // Tiene múltiples roles
+        navigate("/seleccionar-rol");
+      }
+
     } catch (error: any) {
-      alert("Correo o contraseña incorrectos");
+      toast("Correo o contraseña incorrectos");
       console.error(error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   };
-
   const handleLoginGoogle = async () => {
     setLoading(true);
     try {
       await loginConGoogle();
       navigate("/home");
     } catch (error) {
-      alert("Error al iniciar sesión con Google");
+      toast("Error al iniciar sesión con Google");
     } finally {
       setLoading(false);
     }

@@ -2,6 +2,7 @@ import React from "react";
 import { Outlet } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger, useSidebar } from "../ui/sidebar";
 import { AppSidebar } from "../app-sidebar"; // Tu componente lateral
+import { Toaster } from "sonner";
 
 const LayoutContent: React.FC = () => {
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
@@ -39,6 +40,7 @@ const AppLayout: React.FC = () => {
   return (
     <SidebarProvider>
       <LayoutContent />
+       <Toaster richColors position="top-center" />
     </SidebarProvider>
   );
 };

@@ -11,6 +11,7 @@ import {
   TableCell,
 } from "../../../components/ui/table";
 import { Button } from "../../../components/ui/button";
+import { toast } from "sonner"
 import {
   Dialog,
   DialogContent,
@@ -47,48 +48,48 @@ export default function UsuariosCrud() {
   const rolesDisponibles = ["admin", "ejecutivo", "abogado", "cliente", "deudor"] as UsuarioSistema["roles"];
 
   function MultiSelectRoles({
-                selectedRoles,
-                setSelectedRoles,
-              }: {
-                selectedRoles: string[];
-                setSelectedRoles: (roles: string[]) => void;
-              }) {
-                const toggleRole = (rol: string) => {
-                  if (selectedRoles.includes(rol)) {
-                    setSelectedRoles(selectedRoles.filter((r) => r !== rol));
-                  } else {
-                    setSelectedRoles([...selectedRoles, rol]);
-                  }
-                };
-                return (
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full justify-between">
-                        {selectedRoles.length > 0
-                          ? selectedRoles.join(", ")
-                          : "Selecciona roles"}
-                        <ChevronDown className="ml-2 h-4 w-4" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-60 p-2 space-y-1">
-                      {rolesDisponibles.map((rol) => (
-                        <button
-                          key={rol}
-                          type="button"
-                          onClick={() => toggleRole(rol)}
-                          className={cn(
-                            "w-full flex items-center justify-between px-2 py-1.5 text-sm rounded hover:bg-muted",
-                            selectedRoles.includes(rol) && "bg-muted"
-                          )}
-                        >
-                          <span className="capitalize">{rol}</span>
-                          {selectedRoles.includes(rol) && <Check className="w-4 h-4" />}
-                        </button>
-                      ))}
-                    </PopoverContent>
-                  </Popover>
-                );
-              }
+    selectedRoles,
+    setSelectedRoles,
+  }: {
+    selectedRoles: string[];
+    setSelectedRoles: (roles: string[]) => void;
+  }) {
+    const toggleRole = (rol: string) => {
+      if (selectedRoles.includes(rol)) {
+        setSelectedRoles(selectedRoles.filter((r) => r !== rol));
+      } else {
+        setSelectedRoles([...selectedRoles, rol]);
+      }
+    };
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="outline" className="w-full justify-between">
+            {selectedRoles.length > 0
+              ? selectedRoles.join(", ")
+              : "Selecciona roles"}
+            <ChevronDown className="ml-2 h-4 w-4" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-60 p-2 space-y-1">
+          {rolesDisponibles.map((rol) => (
+            <button
+              key={rol}
+              type="button"
+              onClick={() => toggleRole(rol)}
+              className={cn(
+                "w-full flex items-center justify-between px-2 py-1.5 text-sm rounded hover:bg-muted",
+                selectedRoles.includes(rol) && "bg-muted"
+              )}
+            >
+              <span className="capitalize">{rol}</span>
+              {selectedRoles.includes(rol) && <Check className="w-4 h-4" />}
+            </button>
+          ))}
+        </PopoverContent>
+      </Popover>
+    );
+  }
 
 
   const fetchUsuarios = async () => {
@@ -221,48 +222,133 @@ export default function UsuariosCrud() {
               e.preventDefault();
               const form = e.target as HTMLFormElement;
               const formData = new FormData(form);
+
+              const email = formData.get("email") as string;
+              const nombre = formData.get("nombre") as string;
+              const telefonoUsuario = formData.get("telefono") as string;
+              const tipoDocumento = formData.get("tipoDocumento") as "CC" | "CE" | "TI" | "NIT";
+              const numeroDocumento = formData.get("numeroDocumento") as string;
+              const activo = (form.elements.namedItem("activo") as HTMLInputElement)?.checked;
               const fecha_registro = fecha ? Timestamp.fromDate(fecha) : Timestamp.now();
 
-              const activo = (form.elements.namedItem("activo") as HTMLInputElement)?.checked;
-              const rolesDisponibles = ["admin", "ejecutivo", "abogado", "cliente", "deudor"] as UsuarioSistema["roles"];
-              
-
-              const nuevo: UsuarioSistema = {
-                uid: usuarioEditando?.uid || "",
-                email: formData.get("email") as string,
-                nombre: formData.get("nombre") as string,
-                roles: rolesSeleccionados as UsuarioSistema["roles"],
-                activo, // ✅ valor booleano del switch
-                fecha_registro,
-              };
-
-              if (usuarioEditando) {
-                await actualizarUsuario(nuevo);
-                setUsuarios((prev) =>
-                  prev.map((u) => (u.uid === nuevo.uid ? nuevo : u))
-                );
-              } else {
-                if (!password) {
-                  alert("La contraseña es obligatoria");
-                  return;
-                }
-                await crearUsuario({ ...nuevo, password });
-                setUsuarios((prev) => [...prev, { ...nuevo, uid: nuevo.uid || crypto.randomUUID() }]);
+              if (!email || !/\S+@\S+\.\S+/.test(email)) {
+                toast("Por favor ingresa un correo electrónico válido.");
+                return;
               }
 
-              cerrarDialogo();
-            }
-            }
+              if (!nombre || !tipoDocumento || !numeroDocumento) {
+                if (!email || !/\S+@\S+\.\S+/.test(email)) {
+                  toast("Todos los campos personales son obligatorios.");
+                  return;
+                }
+              }
+
+              if (rolesSeleccionados.length === 0) {
+                toast("Debes seleccionar al menos un rol.");
+                return;
+              }
+
+              if (usuarioEditando) {
+                // 🟡 Modo edición
+                const actualizado: UsuarioSistema = {
+                  ...usuarioEditando,
+                  email,
+                  nombre,
+                  telefonoUsuario,
+                  tipoDocumento,
+                  numeroDocumento,
+                  roles: rolesSeleccionados as UsuarioSistema["roles"],
+                  activo,
+                  fecha_registro,
+                };
+
+                await actualizarUsuario(actualizado);
+                setUsuarios((prev) =>
+                  prev.map((u) => (u.uid === actualizado.uid ? actualizado : u))
+                );
+                cerrarDialogo();
+              } else {
+                // 🟢 Modo creación
+                if (!password) {
+                  toast("La contraseña es obligatoria para nuevos usuarios.");
+                  return;
+                }
+
+                try {
+                  const usuarioSinUid: UsuarioSistema & { password: string } = {
+                    uid: "",
+                    email,
+                    nombre,
+                    telefonoUsuario,
+                    tipoDocumento,
+                    numeroDocumento,
+                    roles: rolesSeleccionados as UsuarioSistema["roles"],
+                    activo,
+                    fecha_registro,
+                    password,
+                  };
+
+                  const uid = await crearUsuario(usuarioSinUid);
+
+                  const nuevo: UsuarioSistema = {
+                    ...usuarioSinUid,
+                    uid,
+                  };
+
+                  setUsuarios((prev) => [...prev, nuevo]);
+                  cerrarDialogo();
+                } catch (error: any) {
+                  if (error.code === "auth/email-already-in-use") {
+                    toast("❌ Este correo ya está registrado. Usa uno diferente.");
+                  } else {
+                    toast("⚠️ Error al crear el usuario: " + error.message);
+                  }
+                }
+              }
+            }}
+
           >
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Email</Label>
-                <Input name="email" defaultValue={usuarioEditando?.email} required />
-              </div>
               <div>
                 <Label>Nombre</Label>
                 <Input name="nombre" defaultValue={usuarioEditando?.nombre} />
               </div>
+              <div>
+                <Label>Email</Label>
+                <Input name="email" defaultValue={usuarioEditando?.email} required />
+              </div>
+
+              <div>
+                <Label>Teléfono</Label>
+                <Input name="telefono" defaultValue={usuarioEditando?.telefonoUsuario} />
+              </div>
+
+
+              <div>
+                <Label>Tipo de documento</Label>
+                <Select name="tipoDocumento" defaultValue={usuarioEditando?.tipoDocumento}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CC">Cédula de ciudadanía</SelectItem>
+                    <SelectItem value="CE">Cédula de extranjería</SelectItem>
+                    <SelectItem value="TI">Tarjeta de identidad</SelectItem>
+                    <SelectItem value="NIT">NIT</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>Número de documento</Label>
+                <Input
+                  name="numeroDocumento"
+                  defaultValue={usuarioEditando?.numeroDocumento}
+                  required
+                />
+              </div>
+
+
               <div className="col-span-2">
                 <Label>Roles</Label>
                 <MultiSelectRoles
@@ -301,6 +387,7 @@ export default function UsuariosCrud() {
                   </PopoverContent>
                 </Popover>
               </div>
+
               {!usuarioEditando && (
                 <div className="col-span-2">
                   <Label>Contraseña</Label>
@@ -318,6 +405,7 @@ export default function UsuariosCrud() {
               <Button type="submit">Guardar</Button>
             </DialogFooter>
           </form>
+
         </DialogContent>
       </Dialog>
     </div>

@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye, Pencil, Trash2 } from "lucide-react";
 import { createUserWithEmailAndPassword, getAuth } from "firebase/auth";
-import { serverTimestamp } from "firebase/firestore";
+import { collection, getDocs, query, serverTimestamp, where } from "firebase/firestore";
+import { db } from "../../../firebase";
+
 import {
   Dialog,
   DialogContent,
@@ -26,6 +28,7 @@ import {
 } from "../services/clienteService";
 import { UsuarioSistema } from "../../usuarios/models/usuarioSistema.model";
 import { obtenerUsuarios } from "../../usuarios/services/usuarioService";
+import UsuariosCrud from "@/modules/usuarios/components/UsuariosTable";
 
 export default function ClientesCrud() {
   const navigate = useNavigate();
@@ -36,7 +39,6 @@ export default function ClientesCrud() {
   const [clienteEditando, setClienteEditando] = useState<Cliente | null>(null);
   const [mostrarDialogo, setMostrarDialogo] = useState(false);
 
-
   const fetchClientes = async () => {
     setLoading(true);
     const data = await obtenerClientes();
@@ -45,12 +47,19 @@ export default function ClientesCrud() {
   };
 
   const fetchEjecutivos = async () => {
-  const todos = await obtenerUsuarios();
-  const ejecutivosFiltrados = todos.filter(
-    (u) => Array.isArray(u.roles) && u.roles.includes("ejecutivo")
-  );
-  setEjecutivos(ejecutivosFiltrados);
-};
+    const todos = await obtenerUsuarios();
+    const ejecutivosFiltrados = todos.filter(
+      (u) => Array.isArray(u.roles) && u.roles.includes("ejecutivo")
+    );
+    setEjecutivos(ejecutivosFiltrados);
+  };
+
+  const existeClienteConDocumento = async (numeroDocumento: string) => {
+    const ref = collection(db, "clientes");
+    const q = query(ref, where("numeroDocumento", "==", numeroDocumento));
+    const snapshot = await getDocs(q);
+    return !snapshot.empty;
+  };
 
   useEffect(() => {
     fetchClientes();
@@ -77,8 +86,6 @@ export default function ClientesCrud() {
     fetchClientes();
   };
 
-
-
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -89,7 +96,6 @@ export default function ClientesCrud() {
       {loading ? (
         <div className="py-12 text-center text-muted-foreground">Cargando clientes...</div>
       ) : (
-
         <Table>
           <TableHeader>
             <TableRow>
@@ -97,6 +103,7 @@ export default function ClientesCrud() {
               <TableHead>Correo</TableHead>
               <TableHead>Teléfono</TableHead>
               <TableHead>Dirección</TableHead>
+              <TableHead>Ejecutivo</TableHead>
               <TableHead>Banco</TableHead>
               <TableHead>N° Cuenta</TableHead>
               <TableHead>Tipo Cuenta</TableHead>
@@ -110,7 +117,9 @@ export default function ClientesCrud() {
                 <TableCell>{cliente.email}</TableCell>
                 <TableCell>{cliente.telefonoUsuario}</TableCell>
                 <TableCell>{cliente.direccion}</TableCell>
-                <TableCell>{cliente.ejecutivoId}</TableCell>
+                <TableCell>
+                  {ejecutivos.find(e => e.uid === cliente.ejecutivoId)?.nombre ?? "No asignado"}
+                </TableCell>
                 <TableCell>{cliente.banco}</TableCell>
                 <TableCell>{cliente.numeroCuenta}</TableCell>
                 <TableCell>{cliente.tipoCuenta}</TableCell>
@@ -150,7 +159,6 @@ export default function ClientesCrud() {
             ))}
           </TableBody>
         </Table>
-
       )}
 
       <Dialog open={mostrarDialogo} onOpenChange={setMostrarDialogo}>
@@ -171,12 +179,21 @@ export default function ClientesCrud() {
               const numeroDocumento = formData.get("numeroDocumento") as string;
               const activo = formData.get("activo") === "on";
 
-              if (tipoCuentaRaw !== "ahorros" && tipoCuentaRaw !== "corriente" && tipoCuentaRaw !== "convenio") {
+              if (!tipoDocumento || !numeroDocumento) {
+                alert("Tipo y número de documento son obligatorios.");
+                return;
+              }
+
+              if (
+                tipoCuentaRaw !== "ahorros" &&
+                tipoCuentaRaw !== "corriente" &&
+                tipoCuentaRaw !== "convenio"
+              ) {
                 alert("Tipo de cuenta inválido");
                 return;
               }
-              const tipoCuenta = tipoCuentaRaw as "ahorros" | "corriente" | "convenio";
 
+              const tipoCuenta = tipoCuentaRaw as "ahorros" | "corriente" | "convenio";
               let nuevo: Cliente;
 
               if (clienteEditando) {
@@ -190,18 +207,26 @@ export default function ClientesCrud() {
                   banco: formData.get("banco") as string,
                   numeroCuenta: formData.get("numeroCuenta") as string,
                   tipoCuenta,
+                  tipoDocumento,
+                  numeroDocumento,
+                  activo,
                 };
               } else {
                 const email = formData.get("correo") as string;
-                const password = "123456"; // ⚠️ Puedes pedirla en el form o generar una temporal
+                const password = "123456";
+
+                const yaExiste = await existeClienteConDocumento(numeroDocumento);
+                if (yaExiste) {
+                  alert("Ya existe un cliente con ese número de documento.");
+                  return;
+                }
 
                 const auth = getAuth();
-
                 let userCredential;
                 try {
                   userCredential = await createUserWithEmailAndPassword(auth, email, password);
                 } catch (error: any) {
-                  alert("Error creando usuario en Auth: " + error.message);
+                  alert("Error creando usuario: " + error.message);
                   return;
                 }
 
@@ -217,6 +242,8 @@ export default function ClientesCrud() {
                   banco: formData.get("banco") as string,
                   numeroCuenta: formData.get("numeroCuenta") as string,
                   tipoCuenta,
+                  ejecutivojuridicoId: "",
+                  ejecutivoPrejuridicoId: "",
                   tipoDocumento,
                   numeroDocumento,
                   activo,
@@ -236,24 +263,13 @@ export default function ClientesCrud() {
             }}
           >
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Nombre</Label>
-                <Input name="nombre" defaultValue={clienteEditando?.nombre} required />
-              </div>
-              <div>
-                <Label>Correo</Label>
-                <Input name="correo" defaultValue={clienteEditando?.email} required />
-              </div>
-              <div>
-                <Label>Teléfono</Label>
-                <Input name="telefono" defaultValue={clienteEditando?.telefonoUsuario} />
-              </div>
+              <div><Label>Nombre</Label><Input name="nombre" defaultValue={clienteEditando?.nombre} required /></div>
+              <div><Label>Correo</Label><Input name="correo" defaultValue={clienteEditando?.email} required /></div>
+              <div><Label>Teléfono</Label><Input name="telefono" defaultValue={clienteEditando?.telefonoUsuario} /></div>
               <div>
                 <Label>Tipo de documento</Label>
                 <Select name="tipoDocumento" defaultValue={clienteEditando?.tipoDocumento}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona" />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Selecciona" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="CC">Cédula de ciudadanía</SelectItem>
                     <SelectItem value="CE">Cédula de extranjería</SelectItem>
@@ -262,20 +278,12 @@ export default function ClientesCrud() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label>Número de documento</Label>
-                <Input name="numeroDocumento" defaultValue={clienteEditando?.numeroDocumento} />
-              </div>
-              <div>
-                <Label>Dirección</Label>
-                <Input name="direccion" defaultValue={clienteEditando?.direccion} />
-              </div>
+              <div><Label>Número de documento</Label><Input name="numeroDocumento" defaultValue={clienteEditando?.numeroDocumento} required /></div>
+              <div><Label>Dirección</Label><Input name="direccion" defaultValue={clienteEditando?.direccion} /></div>
               <div>
                 <Label>Ejecutivo</Label>
                 <Select name="ejecutivoId" defaultValue={clienteEditando?.ejecutivoId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona" />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Selecciona" /></SelectTrigger>
                   <SelectContent>
                     {ejecutivos.map((e) => (
                       <SelectItem key={e.uid} value={e.uid}>
@@ -285,20 +293,12 @@ export default function ClientesCrud() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label>Banco</Label>
-                <Input name="banco" defaultValue={clienteEditando?.banco} />
-              </div>
-              <div>
-                <Label>Número de cuenta</Label>
-                <Input name="numeroCuenta" defaultValue={clienteEditando?.numeroCuenta} />
-              </div>
+              <div><Label>Banco</Label><Input name="banco" defaultValue={clienteEditando?.banco} /></div>
+              <div><Label>Número de cuenta</Label><Input name="numeroCuenta" defaultValue={clienteEditando?.numeroCuenta} /></div>
               <div>
                 <Label>Tipo de cuenta</Label>
                 <Select name="tipoCuenta" defaultValue={clienteEditando?.tipoCuenta}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona" />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Selecciona" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ahorros">Ahorros</SelectItem>
                     <SelectItem value="corriente">Corriente</SelectItem>
@@ -309,17 +309,11 @@ export default function ClientesCrud() {
               <div>
                 <Label>Activo</Label>
                 <div className="flex items-center space-x-2 mt-2">
-                  <input
-                    type="checkbox"
-                    name="activo"
-                    defaultChecked={clienteEditando?.activo ?? true}
-                    className="w-4 h-4"
-                  />
+                  <input type="checkbox" name="activo" defaultChecked={clienteEditando?.activo ?? true} className="w-4 h-4" />
                   <span>¿Activo?</span>
                 </div>
               </div>
             </div>
-
 
             <DialogFooter className="mt-6">
               <Button type="submit">Guardar</Button>
