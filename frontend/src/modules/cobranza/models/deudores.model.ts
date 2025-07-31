@@ -1,12 +1,11 @@
-import { ReactNode } from "react";
-
+import { Timestamp, FieldValue } from "firebase/firestore";
 
 // Ahora podemos usarlo en acuerdo_pago e historial_acuerdos
 export interface Deudor { 
   
-
   id?: string;
   ubicacion?: string;
+  fechaCreacion?: Timestamp | { seconds: number; nanoseconds: number } | FieldValue;
   nombre: string;
   cedula?: string;
   correos: string[];
