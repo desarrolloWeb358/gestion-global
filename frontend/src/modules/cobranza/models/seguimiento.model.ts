@@ -4,7 +4,8 @@ export type TipoSeguimiento = 'llamada' | 'correo' | 'whatsapp' | 'sms' | 'visit
 export interface Seguimiento {
   id?: string;
   fecha?: Timestamp;
-  tipo: TipoSeguimiento;
+  tipoSeguimiento?: TipoSeguimiento;
+  tipo: number;
   descripcion: string;
   archivoUrl?: string; // si se carga archivo (PDF, audio, etc.)
 }
