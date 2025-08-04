@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Deudor } from "../models/deudores.model";
-import { obtenerDeudorPorCliente, crearDeudor, actualizarDeudor, eliminarDeudor } from "../services/deudorService";
+import { calcularDeudaTotal, obtenerDeudorPorCliente, crearDeudor, actualizarDeudor, eliminarDeudor } from "../services/deudorService";
 import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
@@ -40,7 +40,6 @@ export default function DeudoresTable() {
   const [deudorSeleccionado, setDeudorSeleccionado] = useState<Deudor | null>(null);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [deudaTotal, setDeudaTotal] = useState(0);
   const [porcentajeHonorarios, setPorcentajeHonorarios] = useState(10);
   const [honorariosCalculados, setHonorariosCalculados] = useState(0);
   const itemsPerPage = 5;
@@ -53,9 +52,13 @@ export default function DeudoresTable() {
   };
 
   useEffect(() => {
-    const honorarios = (deudaTotal * porcentajeHonorarios) / 100;
-    setHonorariosCalculados(isNaN(honorarios) ? 0 : honorarios);
-  }, [deudaTotal, porcentajeHonorarios]);
+    const deuda = formData.deuda ?? 0;
+    const porcentaje = porcentajeHonorarios ?? 0;
+    const honorarios = (deuda * porcentaje) / 100;
+    const total = deuda + honorarios;
+
+    setHonorariosCalculados(isNaN(total) ? 0 : total);
+  }, [formData.deuda, porcentajeHonorarios]);
 
   useEffect(() => {
     fetchDeudores();
@@ -89,19 +92,32 @@ export default function DeudoresTable() {
     if (!clienteId) return;
 
     if (deudorEditando) {
-      await actualizarDeudor(clienteId, {
+      const deudorActualizado = {
         ...deudorEditando,
         ...formData,
-      } as Deudor);
+        porcentajeHonorarios: porcentajeHonorarios ?? 0,
+      } as Deudor;
+
+      const { total } = calcularDeudaTotal(deudorActualizado);
+      deudorActualizado.deudaTotal = total;
+
+      await actualizarDeudor(clienteId, deudorActualizado);
     } else {
-      await crearDeudor(clienteId, {
+      const nuevoDeudor = {
         ...formData,
         nombre: formData.nombre ?? "",
         correos: formData.correos ?? [],
         telefonos: formData.telefonos ?? [],
-        deuda_total: formData.deuda_total ?? 0,
+        deuda: formData.deuda ?? 0,
+        porcentajeHonorarios: porcentajeHonorarios ?? 0,
         tipificacion: formData.tipificacion ?? "gestionando",
-      } as Deudor);
+        estado: formData.estado ?? "prejurídico",
+      } as Deudor;
+
+      const { total } = calcularDeudaTotal(nuevoDeudor);
+      nuevoDeudor.deudaTotal = total;
+
+      await crearDeudor(clienteId, nuevoDeudor);
     }
 
     setOpen(false);
@@ -157,18 +173,42 @@ export default function DeudoresTable() {
                 guardarDeudor();
               }}
             >
+
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t mt-4">
+                <div>
+                  <Label htmlFor="nombre">Nombre</Label>
+                  <Input
+                    name="nombre"
+                    value={formData.nombre ?? ""}
+                    onChange={handleChange}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="cedula">Cédula</Label>
+                  <Input
+                    name="cedula"
+                    value={formData.cedula ?? ""}
+                    onChange={handleChange}
+                  />
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="ubicacion">Ubicación</Label>
                   <Input name="ubicacion" value={formData.ubicacion ?? ""} onChange={handleChange} />
                 </div>
                 <div>
-                  <Label htmlFor="deuda_total">Deuda Total</Label>
+                  <Label htmlFor="deuda">Deuda sin honorarios</Label>
                   <Input
                     type="number"
-                    name="deuda_total"
-                    value={deudaTotal}
-                    onChange={(e) => setDeudaTotal(parseFloat(e.target.value))}
+                    value={formData.deuda ?? ""}
+                    onChange={(e) => {
+                      const valor = parseFloat(e.target.value);
+                      setFormData((prev) => ({
+                        ...prev,
+                        deuda: isNaN(valor) ? 0 : valor,
+                      }));
+                    }}
                   />
                 </div>
                 <div>
@@ -216,27 +256,10 @@ export default function DeudoresTable() {
                   }
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t mt-4">
-                <div>
-                  <Label htmlFor="nombre">Nombre</Label>
-                  <Input
-                    name="nombre"
-                    value={formData.nombre ?? ""}
-                    onChange={handleChange}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="cedula">Cédula</Label>
-                  <Input
-                    name="cedula"
-                    value={formData.cedula ?? ""}
-                    onChange={handleChange}
-                  />
-                </div>
-              </div>
+
               <div className="grid grid-cols-2 gap-4 pt-4 border-t mt-4">
 
-                <Label>Porcentaje de honorarios (%)</Label>
+                <Label>Porcentaje de honorarios</Label>
                 <Input
                   type="number"
                   name="porcentaje_honorarios"
@@ -269,19 +292,24 @@ export default function DeudoresTable() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>nombre</TableHead>
               <TableHead>Ubicación</TableHead>
               <TableHead>Tipificación</TableHead>
               <TableHead>Deuda Total</TableHead>
-              <TableHead>Estado</TableHead>
               <TableHead>Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {paginatedDeudores.map((deudor) => (
               <TableRow key={deudor.id}>
+                <TableCell>{deudor.nombre}</TableCell>
                 <TableCell>{deudor.ubicacion}</TableCell>
                 <TableCell>{deudor.tipificacion}</TableCell>
-                <TableCell>${deudor.deuda_total.toLocaleString()}</TableCell>
+                <TableCell>
+                  {deudor.deudaTotal !== undefined
+                    ? `$${deudor.deudaTotal.toLocaleString()}`
+                    : "—"}
+                </TableCell>
                 <TableCell>{deudor.estado}</TableCell> {/* Aquí va el estado real */}
                 <TableCell className="text-center">
                   <TooltipProvider>
@@ -292,37 +320,14 @@ export default function DeudoresTable() {
                           <Button
                             variant="outline"
                             size="icon"
-                            onClick={() => navigate(`/deudores/${clienteId}/${deudor.id}/acuerdo`)}
+                            onClick={() => navigate(`/clientes/${clienteId}/deudores/${deudor.id}`)}
                           >
 
                             <Eye className="h-4 w-4" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Ver Acuerdo</TooltipContent>
+                        <TooltipContent>Ver deudor</TooltipContent>
                       </Tooltip>
-
-                      {/* Historial */}
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => navigate(`/deudores/${clienteId}/${deudor.id}/seguimiento`)}
-                          >
-                            <History className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Historial</TooltipContent>
-                      </Tooltip>
-
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => navigate(`/clientes/${clienteId}/deudores/${deudor.id}`)}
-                      >
-                        <Eye className="w-4 h-4 mr-1" />
-                        Ver
-                      </Button>
 
                       {/* Editar */}
                       <Tooltip>

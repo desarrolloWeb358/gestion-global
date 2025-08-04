@@ -1,5 +1,6 @@
 import { Timestamp, FieldValue } from "firebase/firestore";
-
+import { AcuerdoPago } from "./acuerdoPago.model";
+import { Abono } from './abono.model';
 // Ahora podemos usarlo en acuerdo_pago e historial_acuerdos
 export interface Deudor { 
   
@@ -16,9 +17,11 @@ export interface Deudor {
   deudaTotal?: number;
   porcentajeHonorarios?: number;
   totalRecaudado?: number;
+  abonos?: Abono[];         // Lista de abonos realizados
 
   // Referencias para trazabilidad (no almacenar el acuerdo completo aquí)
   acuerdoActivoId?: string;
+  historialAcuerdos?: AcuerdoPago[]; // Lista de acuerdos previos
   
   // para llevar el control del proceso juridico
   juzgadoId?: string;

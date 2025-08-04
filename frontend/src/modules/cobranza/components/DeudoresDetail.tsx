@@ -3,13 +3,11 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../../components/ui/tabs';
-import { Cuota, Deudor } from '../models/deudores.model';
+import {  Deudor } from '../models/deudores.model';
 import AgreementTable from '../components/AgreementTableGrid';
 import SubirPlantillaExcel from '../../../components/SubirPlantillaExcel';
-import { db } from '../../../firebase';
-import { doc, getDoc } from 'firebase/firestore';
 import { Spinner } from '../../../components/ui/spinner';
-import { eliminarCuotas, getDeudorById } from '../services/deudorService';
+import { eliminarCuotas, getDeudorById, obtenerAcuerdoActivo } from '../services/deudorService';
 import {
   AlertDialog,
   AlertDialogTrigger,
@@ -23,6 +21,8 @@ import {
 } from '../../../components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { AcuerdoPDFView } from '../../../components/acuerdo/AcuerdoPagoPDF';
+import { AcuerdoPago, Cuota} from '../models/acuerdoPago.model';
+ // Asegúrate de que este modelo exista
 
 interface Props {
   deudor: Deudor;
@@ -38,8 +38,26 @@ function DeudorDetailTabsWrapper() {
   const { clienteId, deudorId } = useParams<{ clienteId: string; deudorId: string }>();
   const [deudor, setDeudor] = useState<Deudor | null>(null);
   const [loading, setLoading] = useState(true);
+  const [acuerdoActivo, setAcuerdoActivo] = useState<AcuerdoPago | null>(null);
+
+useEffect(() => {
+  const fetchAcuerdoActivo = async () => {
+    if (!clienteId || !deudorId) return;
+
+    const deudor = await getDeudorById(clienteId, deudorId);
+    console.log("Deudor cargado:", deudor);
+
+    if (deudor?.acuerdoActivoId) {
+      const acuerdo = await obtenerAcuerdoActivo(clienteId, deudorId, deudor.acuerdoActivoId);
+      setAcuerdoActivo(acuerdo);
+    }
+  };
+
+  fetchAcuerdoActivo();
+}, [clienteId, deudorId]);
 
   useEffect(() => {
+    
     const cargarDeudor = async () => {
       if (!clienteId || !deudorId) return;
       const deudorCargado = await getDeudorById(clienteId, deudorId);
@@ -71,7 +89,7 @@ function DeudorDetailTabsWrapper() {
       deudor={deudor}
       clienteId={clienteId}
       deudorId={deudor.id ?? deudorId} // ✅ Usar el ID real del deudor
-      porcentajeHonorarios={deudor.porcentaje_honorarios ?? 0}
+      porcentajeHonorarios={deudor.porcentajeHonorarios ?? 0}
       onCuotasProcesadas={(cuotas) => {
         console.log("Cuotas procesadas", cuotas);
       }}
@@ -86,7 +104,9 @@ function DeudorDetailTabsWrapper() {
 function DeudorDetailTabs({ deudor, clienteId, deudorId, porcentajeHonorarios, onCuotasProcesadas, onCuotasGuardadas }: Props) {
   const [cuotas, setCuotas] = useState<any[]>([]);
   const [recargarCuotas, setRecargarCuotas] = useState(false);
-  const historial = deudor.historial_acuerdos ?? [];
+  const historial = deudor?.historialAcuerdos ?? [];
+
+ 
 
   const handleDescargarExcel = () => {
     const header = [
@@ -200,7 +220,7 @@ function DeudorDetailTabs({ deudor, clienteId, deudorId, porcentajeHonorarios, o
             {historial.map((ac, index) => (
               <li key={index} className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">
-                  {ac.fecha_acuerdo} – #{ac.numero}
+                  {ac.fechaCreacion.toDate().toLocaleDateString()} – #{ac.numero}
                 </span>
                 {ac.archivoUrl ? (
                   <a

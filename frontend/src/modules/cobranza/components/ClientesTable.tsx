@@ -118,7 +118,8 @@ export default function ClientesCrud() {
                 <TableCell>{cliente.telefonoUsuario}</TableCell>
                 <TableCell>{cliente.direccion}</TableCell>
                 <TableCell>
-                  {ejecutivos.find(e => e.uid === cliente.ejecutivoId)?.nombre ?? "No asignado"}
+                  {ejecutivos.find(e => e.uid === cliente.ejecutivoPrejuridicoId)?.nombre ?? "No asignado"}
+                  {ejecutivos.find(e => e.uid === cliente.ejecutivoJuridicoId)?.nombre ?? "No asignado"}
                 </TableCell>
                 <TableCell>{cliente.banco}</TableCell>
                 <TableCell>{cliente.numeroCuenta}</TableCell>
@@ -203,7 +204,8 @@ export default function ClientesCrud() {
                   email: formData.get("correo") as string,
                   telefonoUsuario: formData.get("telefono") as string,
                   direccion: formData.get("direccion") as string,
-                  ejecutivoId: formData.get("ejecutivoId") as string,
+                  ejecutivoPrejuridicoId: formData.get("ejecutivoId") as string,
+                  ejecutivoJuridicoId: formData.get("ejecutivoId") as string,
                   banco: formData.get("banco") as string,
                   numeroCuenta: formData.get("numeroCuenta") as string,
                   tipoCuenta,
@@ -238,12 +240,11 @@ export default function ClientesCrud() {
                   nombre: formData.get("nombre") as string,
                   telefonoUsuario: formData.get("telefono") as string,
                   direccion: formData.get("direccion") as string,
-                  ejecutivoId: formData.get("ejecutivoId") as string,
+                  ejecutivoPrejuridicoId: formData.get("ejecutivoId") as string,
+                  ejecutivoJuridicoId: formData.get("ejecutivoId") as string,
                   banco: formData.get("banco") as string,
                   numeroCuenta: formData.get("numeroCuenta") as string,
                   tipoCuenta,
-                  ejecutivojuridicoId: "",
-                  ejecutivoPrejuridicoId: "",
                   tipoDocumento,
                   numeroDocumento,
                   activo,
@@ -282,7 +283,7 @@ export default function ClientesCrud() {
               <div><Label>Dirección</Label><Input name="direccion" defaultValue={clienteEditando?.direccion} /></div>
               <div>
                 <Label>Ejecutivo</Label>
-                <Select name="ejecutivoId" defaultValue={clienteEditando?.ejecutivoId}>
+                <Select name="ejecutivoId" defaultValue={clienteEditando?.ejecutivoPrejuridicoId ?? clienteEditando?.ejecutivoJuridicoId}>
                   <SelectTrigger><SelectValue placeholder="Selecciona" /></SelectTrigger>
                   <SelectContent>
                     {ejecutivos.map((e) => (
