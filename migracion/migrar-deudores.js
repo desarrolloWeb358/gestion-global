@@ -19,6 +19,7 @@ const main = async () => {
 
   const snapshot = await db.collection('usuarios')
     .where('roles', 'array-contains', 'cliente')
+    .where('migrado', '!=', true)
     .get();
 
   for (const doc of snapshot.docs) {
@@ -28,73 +29,87 @@ const main = async () => {
 
     if (!nit) continue;
 
-    console.log(`🧠 Cliente ${cliente.nombre} (${nit})`);
-
-    const [deudores] = await connection.execute(
-      'SELECT usr_id, usr_nombre, usr_identificacion FROM scc_usuarios WHERE usr_identificacion LIKE ?',
-      [`${nit}-%`]
+    // Buscar cliente en MySQL
+    const [clientesSQL] = await connection.execute(
+      'SELECT usr_id FROM scc_usuarios WHERE usr_identificacion = ?',
+      [nit]
     );
 
-    for (const d of deudores) {
-      const partes = d.usr_identificacion.split('-');
-      if (partes.length < 2) continue;
+    if (clientesSQL.length === 0) {
+      console.warn(`❌ Cliente no encontrado en MySQL: ${nit}`);
+      continue;
+    }
 
-      const ubicacion = partes[1];
-      const deudorId = `${nit}-${ubicacion}`;
+    console.log(` cantidad de clientes con el mismo nit: ${clientesSQL.length} `);
 
-      // Obtener procesos del deudor
-      const [procs] = await connection.execute(
-        'SELECT pro_id FROM scc_proceso_has_usuarios WHERE usr_demandado_id = ?',
-        [d.usr_id]
+    const afiliadoId = clientesSQL[0].usr_id;
+    const [procesos] = await connection.execute(
+      'SELECT * FROM scc_proceso WHERE usr_afiliado_id = ?',
+      [afiliadoId]
+    );
+
+    for (const proceso of procesos) {
+      const [demandados] = await connection.execute(
+        'SELECT usr_demandado_id FROM scc_proceso_has_usuarios WHERE pro_id = ?',
+        [proceso.pro_id]
       );
 
-      let proceso = null;
-      if (procs.length > 0) {
-        const ids = procs.map(p => p.pro_id);
-        const [procesos] = await connection.execute(
-          `SELECT * FROM scc_proceso WHERE pro_id IN (${ids.join(',')}) ORDER BY pro_creation_date DESC`
-        );
-        proceso = procesos[0];
-      }
+      for (const row of demandados) {
+        const demandadoId = row.usr_demandado_id;
 
-      // Obtener deuda total
-      let deudaTotal = 0;
-      if (proceso) {
+        const [usuarios] = await connection.execute(
+          'SELECT usr_nombre, usr_identificacion FROM scc_usuarios WHERE usr_id = ?',
+          [demandadoId]
+        );
+
+        if (usuarios.length === 0) continue;
+
+        const usuario = usuarios[0];
+        const partes = usuario.usr_identificacion.split('-');
+        const ubicacion = partes[1] || '';
+
+        // Consultar teléfonos
+        const [telefonosRows] = await connection.execute(
+          'SELECT tlu_numero FROM scc_tel_usuarios WHERE usr_id = ?',
+          [demandadoId]
+        );
+        const telefonos = telefonosRows.map(row => row.tlu_numero).filter(Boolean);
+
+        // Consultar dirección (solo la primera)
+        const [direccionRows] = await connection.execute(
+          'SELECT diru_direccion FROM scc_dir_usuarios WHERE usr_id = ? LIMIT 1',
+          [demandadoId]
+        );
+        const direccion = direccionRows.length > 0 && direccionRows[0].diru_direccion ? direccionRows[0].diru_direccion : '';
+
+
+        // Deuda total
         const [titulos] = await connection.execute(
           'SELECT tit_valor_de_entrega FROM scc_titulo WHERE pro_id = ?',
           [proceso.pro_id]
         );
-        deudaTotal = titulos.reduce((sum, t) => sum + (t.tit_valor_de_entrega || 0), 0);
-      }
+        const deudaTotal = titulos.reduce((sum, t) => sum + (t.tit_valor_de_entrega || 0), 0);
 
-      // Datos del deudor
-      const deudor = {
-        nombre: d.usr_nombre,
-        ubicacion,
-        correos: [],
-        telefonos: [],
-        estado: '',
-        tipificacion: '',
-        fechaCreacion: admin.firestore.FieldValue.serverTimestamp(),
-      };
+        const deudor = {
+          nombre: usuario.usr_nombre,
+          ubicacion,
+          direccion,
+          telefonos,
+          correos: [],          
+          estado: '',
+          tipificacion: '',
+          fechaCreacion: admin.firestore.FieldValue.serverTimestamp(),
+        };
 
-      if (deudaTotal > 0) deudor.deudaTotal = deudaTotal;
-      if (proceso) {
+        if (deudaTotal > 0) deudor.deudaTotal = deudaTotal;
         if (proceso.pro_numero) deudor.numeroProceso = proceso.pro_numero;
         if (proceso.pro_ano) deudor.anoProceso = proceso.pro_ano;
         if (proceso.juz_id) deudor.juzgadoId = proceso.juz_id;
-      }
 
-      // Crear o actualizar deudor
-      const ref = db.collection('clientes').doc(clienteId).collection('deudores').doc(deudorId);
-      await ref.set(deudor, { merge: true });
+        const deudorRef = await db.collection('clientes').doc(clienteId).collection('deudores').add(deudor);
+        console.log(`✅ Deudor migrado: ${deudor.nombre} (${deudorRef.id})`);
 
-      console.log(`✅ Guardado deudor ${deudorId}`);
-
-      // si tiene proceso
-      if (proceso) {
-
-        // abonos
+        // Migrar abonos
         const [abonos] = await connection.execute(
           'SELECT abn_monto, abn_fecha, abn_observaciones, abn_comprobante_num FROM scc_abono WHERE pro_id = ?',
           [proceso.pro_id]
@@ -105,19 +120,19 @@ const main = async () => {
             monto: Number(abn.abn_monto),
             fecha: abn.abn_fecha ? admin.firestore.Timestamp.fromDate(new Date(abn.abn_fecha)) : undefined,
             observaciones: abn.abn_observaciones || '',
-            comprobante: abn.abn_comprobante_num ? Number(abn.abn_comprobante_num) : '',
+            comprobante: abn.abn_comprobante_num || '', // "" si no hay número
             recibo: '',
             tipo: '',
           };
 
-          await ref.collection('abonos').add(abono);
+          await deudorRef.collection('abonos').add(abono);
         }
 
         if (abonos.length > 0) {
-          console.log(`➕ ${abonos.length} abonos añadidos a ${deudorId}`);
+          console.log(`➕ ${abonos.length} abonos añadidos a deudor ${deudorRef.id}`);
         }
 
-        // 7. Migrar seguimientos
+        // Migrar seguimientos
         const [seguimientos] = await connection.execute(
           'SELECT obp_observacion, tip_id, obp_fecha_observacion FROM scc_observacion_proceso WHERE pro_id = ?',
           [proceso.pro_id]
@@ -128,33 +143,33 @@ const main = async () => {
           const tipo = seguimiento.tip_id;
           const fechaRaw = seguimiento.obp_fecha_observacion;
 
-          // Evitar seguimiento vacío
           if (!descripcion || !fechaRaw) continue;
 
           const seguimientoDoc = {
             descripcion,
             tipo,
             fecha: admin.firestore.Timestamp.fromDate(new Date(fechaRaw)),
-            tipoSeguimiento: '', // vacío por ahora
-            archivoUrl: ''       // vacío por ahora
+            tipoSeguimiento: '',
+            archivoUrl: ''
           };
 
-          await db
-            .collection('clientes')
-            .doc(clienteId)
-            .collection('deudores')
-            .doc(deudorId)
-            .collection('seguimiento')
-            .add(seguimientoDoc);
-
-          console.log(`📌 Seguimiento agregado para deudor ${deudorId}`);
+          await deudorRef.collection('seguimiento').add(seguimientoDoc);
         }
+
+        if (seguimientos.length > 0) {
+          console.log(` ${seguimientos.length} seguimientos añadidos a deudor ${deudorRef.id}`);
+        }
+
       }
     }
+
+    // 🔖 Marcar cliente como migrado
+    await db.collection('usuarios').doc(clienteId).update({ migrado: true });
+    console.log(`🟢 Cliente ${cliente.nombre} marcado como migrado`);
   }
 
-  console.log('🚀 Migración finalizada');
   await connection.end();
+  console.log('🚀 Migración completa');
 };
 
 main();

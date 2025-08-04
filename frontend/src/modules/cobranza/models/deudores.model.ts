@@ -11,6 +11,7 @@ export interface Deudor {
   cedula?: string;
   correos: string[];
   telefonos: string[];
+  direccion?: string;
   estado: string;           // Ej: prejurídico, jurídico, en acuerdo, etc.
   tipificacion: string;     // Ej: acuerdo vigente, en mora, etc.
   deuda?: number;
