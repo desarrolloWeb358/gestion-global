@@ -37,7 +37,7 @@ export default function App() {
         {/* Layout protegido */}
         <Route element={<AppLayout />}>
           <Route path="/admin/dashboard" element={<DashboardAdmin />} />
-          <Route path="/deudores/:clienteId/:deudorId/acuerdo" element={<InmuebleDetailTabsWrapper  />} />
+          <Route path="/deudores/:clienteId/:deudorId/acuerdo" element={<InmuebleDetailTabsWrapper />} />
           <Route path="/deudores/:clienteId/:deudorId/seguimiento" element={<SeguimientoTable />} />
            <Route path="/clientes/:clienteId/deudores/:deudorId" element={<DeudorDetailPage />} />
           <Route path="/clientes-tables" element={<ClientesTable />} />

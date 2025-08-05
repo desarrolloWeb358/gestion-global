@@ -55,13 +55,13 @@ export default function SeguimientoTable() {
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-4">
           <Button
-      variant="ghost"
-      onClick={() => navigate(-1)}
-      className="flex items-center gap-2"
-    >
-      <ArrowLeft className="w-4 h-4" />
-      Volver
-    </Button>
+            variant="ghost"
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-2"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Volver
+          </Button>
           <h2 className="absolute left-1/2 transform -translate-x-1/2 text-2xl font-bold text-center">Seguimientos</h2>
         </div>
         <Button onClick={() => {
@@ -86,7 +86,9 @@ export default function SeguimientoTable() {
           {seguimientos.map((seg) => (
             <TableRow key={seg.id}>
               <TableCell>{seg.fecha?.toDate().toLocaleDateString()}</TableCell>
-              <TableCell>{seg.tipo}</TableCell>
+              <TableCell className="capitalize">
+                {seg.tipoSeguimiento ?? "No registrado"}
+              </TableCell>
               <TableCell>{seg.descripcion}</TableCell>
               <TableCell>
                 {seg.archivoUrl ? (

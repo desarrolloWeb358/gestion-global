@@ -30,22 +30,20 @@ interface Props {
 
 export default function SeguimientoForm({ open, seguimiento, onSave, onClose }: Props) {
     const [fecha, setFecha] = useState<Timestamp>()
-    const [tipo, setTipo] = useState<Seguimiento["tipo"]>("llamada");
+    const [tipoSeguimiento, setTipoSeguimiento] = useState<Seguimiento["tipoSeguimiento"]>("llamada");
     const [descripcion, setDescripcion] = useState("");
     const [archivo, setArchivo] = useState<File | undefined>();
     const [reemplazarArchivo, setReemplazarArchivo] = useState(false);
 
     useEffect(() => {
         if (seguimiento) {
-            setFecha(
-                seguimiento.fecha ?? Timestamp.fromDate(new Date())
-            );
-            setTipo(seguimiento.tipo);
+            setFecha(seguimiento.fecha ?? Timestamp.fromDate(new Date()));
+            setTipoSeguimiento(seguimiento.tipoSeguimiento ?? "llamada");
             setDescripcion(seguimiento.descripcion);
-            setArchivo(undefined); // no pre-carga archivo
+            setArchivo(undefined);
         } else {
             setFecha(Timestamp.fromDate(new Date()));
-            setTipo("llamada");
+            setTipoSeguimiento("llamada");
             setDescripcion("");
             setArchivo(undefined);
         }
@@ -54,8 +52,8 @@ export default function SeguimientoForm({ open, seguimiento, onSave, onClose }: 
     const handleSubmit = () => {
         const dataFinal: Omit<Seguimiento, "id"> = {
             fecha: fecha ?? Timestamp.now(),
-            tipo,
-            descripcion, // ✅ aquí lo usas directamente
+            tipoSeguimiento, // ✅ ahora sí correcto
+            descripcion,
             archivoUrl: seguimiento?.archivoUrl ?? "",
         };
 
@@ -91,7 +89,10 @@ export default function SeguimientoForm({ open, seguimiento, onSave, onClose }: 
 
                     <div className="grid gap-2">
                         <Label>Tipo</Label>
-                        <Select value={tipo} onValueChange={(val) => setTipo(val as Seguimiento["tipo"])}>
+                        <Select
+                            value={tipoSeguimiento}
+                            onValueChange={(val) => setTipoSeguimiento(val as Seguimiento["tipoSeguimiento"])}
+                        >
                             <SelectTrigger>
                                 <SelectValue placeholder="Selecciona tipo" />
                             </SelectTrigger>

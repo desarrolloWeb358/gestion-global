@@ -7,13 +7,14 @@ import { Eye, History } from "lucide-react"
 import { calcularDeudaTotal } from "../services/deudorService"
 import { Abono } from "../models/abono.model"
 
-interface Props {
-  deudor: Deudor
-  clienteId: string
-  abonos?: Abono[] // Lista de abonos, opcional
-} 
+// ✅ Esto debe ir al inicio del archivo o exportarse si se usará en otro lugar
+export interface DeudorInfoCardProps {
+  deudor: Deudor;
+  clienteId: string;
+  abonos?: Abono[];
+}
 
-export default function DeudorInfoCard({ deudor, clienteId, abonos }: { deudor: Deudor, clienteId: string, abonos?: Abono[] }) {
+export default function DeudorInfoCard({ deudor, clienteId, abonos }: DeudorInfoCardProps) {
   const navigate = useNavigate();
   const { deuda, honorarios, total } = calcularDeudaTotal(deudor);
 
@@ -48,7 +49,7 @@ export default function DeudorInfoCard({ deudor, clienteId, abonos }: { deudor: 
         <div className="pt-4 flex gap-2">
           <Button
             variant="outline"
-            onClick={() => navigate(`/clientes/${clienteId}/deudores/${deudor.id}`)}
+            onClick={() => navigate(`/deudores/${clienteId}/${deudor.id}/acuerdo`)}
           >
             <Eye className="w-4 h-4 mr-1" />
             Ver Acuerdo

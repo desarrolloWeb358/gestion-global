@@ -3,15 +3,20 @@ import { useReactToPrint } from "react-to-print";
 import { useAcuerdoData } from "../../shared/useAcuerdoData";
 import { Spinner } from "../ui/spinner";
 import numeroALetras from "../../shared/numeroALetras";
-import type { Cuota } from "../../modules/cobranza/models/deudores.model";
+import type { Cuota, AcuerdoPago } from "../../modules/cobranza/models/acuerdoPago.model";
+import { Deudor } from "../../modules/cobranza/models/deudores.model";
+import { CuotaAmortizacionVisual } from "../../modules/cobranza/models/cuotaVisual.model";
 
 
 interface Props {
   clienteId: string;
   deudorId: string;
+  cuotasVisuales?: CuotaAmortizacionVisual[]; // ✅ NUEVO
 }
 
-export function AcuerdoPDFView({ clienteId, deudorId }: Props) {
+
+export function AcuerdoPDFView({ clienteId, deudorId, cuotasVisuales }: Props) {
+  const cuotas = cuotasVisuales ?? [];
   const { data, loading } = useAcuerdoData(clienteId, deudorId);
   const printRef = useRef(null);
   const handlePrint = useReactToPrint({ contentRef: printRef });
@@ -26,7 +31,7 @@ export function AcuerdoPDFView({ clienteId, deudorId }: Props) {
 
   const deudor = data.deudor;
   const cliente = data.cliente;
-  const cuotas = deudor.acuerdo_pago?.cuotas || [];
+
 
   return (
     <div className="space-y-4">
@@ -103,34 +108,24 @@ export function AcuerdoPDFView({ clienteId, deudorId }: Props) {
             </tr>
           </thead>
           <tbody>
-            {cuotas.map((cuota: Cuota, index: number) => (
+            {cuotas.map((cuota, index) => (
               <tr key={index}>
                 <td className="border p-2 text-center">{index + 1}</td>
                 <td className="border p-2 text-right">
-                  {typeof cuota.deuda_capital === "number"
-                    ? cuota.deuda_capital.toLocaleString("es-CO", { style: "currency", currency: "COP" })
-                    : "-"}
+                  {cuota.deuda_capital.toLocaleString("es-CO", { style: "currency", currency: "COP" })}
                 </td>
                 <td className="border p-2 text-right">
-                  {typeof cuota.cuota_capital === "number"
-                    ? cuota.cuota_capital.toLocaleString("es-CO", { style: "currency", currency: "COP" })
-                    : "-"}
+                  {cuota.cuota_capital.toLocaleString("es-CO", { style: "currency", currency: "COP" })}
                 </td>
-                <td className="border p-2">{cuota.fecha_limite || "-"}</td>
+                <td className="border p-2">{cuota.fecha_limite}</td>
                 <td className="border p-2 text-right">
-                  {typeof cuota.deuda_honorarios === "number"
-                    ? cuota.deuda_honorarios.toLocaleString("es-CO", { style: "currency", currency: "COP" })
-                    : "-"}
+                  {cuota.deuda_honorarios.toLocaleString("es-CO", { style: "currency", currency: "COP" })}
                 </td>
                 <td className="border p-2 text-right">
-                  {typeof cuota.honorarios === "number"
-                    ? cuota.honorarios.toLocaleString("es-CO", { style: "currency", currency: "COP" })
-                    : "-"}
+                  {cuota.honorarios.toLocaleString("es-CO", { style: "currency", currency: "COP" })}
                 </td>
                 <td className="border p-2 text-right">
-                  {typeof cuota.cuota_acuerdo === "number"
-                    ? cuota.cuota_acuerdo.toLocaleString("es-CO", { style: "currency", currency: "COP" })
-                    : "-"}
+                  {cuota.cuota_acuerdo.toLocaleString("es-CO", { style: "currency", currency: "COP" })}
                 </td>
               </tr>
             ))}
