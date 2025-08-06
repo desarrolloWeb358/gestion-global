@@ -17,6 +17,7 @@ import DeudorDetailPage from "./modules/cobranza/components/DeudorDetailPage";
 
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
+import AbonosTable from "./modules/cobranza/components/AbonosTable";
 
 
 
@@ -39,15 +40,19 @@ export default function App() {
           <Route path="/admin/dashboard" element={<DashboardAdmin />} />
           <Route path="/deudores/:clienteId/:deudorId/acuerdo" element={<InmuebleDetailTabsWrapper />} />
           <Route path="/deudores/:clienteId/:deudorId/seguimiento" element={<SeguimientoTable />} />
-           <Route path="/clientes/:clienteId/deudores/:deudorId" element={<DeudorDetailPage />} />
+          <Route path="/clientes/:clienteId/deudores/:deudorId" element={<DeudorDetailPage />} />
+          <Route
+            path="/deudores/:clienteId/:deudorId/abonos"
+            element={<AbonosTable />}
+          />
           <Route path="/clientes-tables" element={<ClientesTable />} />
-          <Route path="/usuarios-tables" element={<UsuariosTable  />} />
+          <Route path="/usuarios-tables" element={<UsuariosTable />} />
           <Route path="/deudores/:clienteId" element={<InmueblesTable />} />
           <Route path="/consulta-personas" element={<ConsultaPersonasPage />} />
           <Route path="/probar-notificaciones" element={<ProbarNotificacionesPage />} />
         </Route>
         {/* 404 */}
-       
+
       </Routes>
     </>
   );

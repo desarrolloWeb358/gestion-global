@@ -60,7 +60,14 @@ export default function DeudorInfoCard({ deudor, clienteId, abonos }: DeudorInfo
             onClick={() => navigate(`/deudores/${clienteId}/${deudor.id}/seguimiento`)}
           >
             <History className="w-4 h-4 mr-1" />
-            Historial
+            Seguimiento
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => navigate(`/deudores/${clienteId}/${deudor.id}/abonos`)}
+          >
+            <History className="w-4 h-4 mr-1" />
+            Abonos
           </Button>
         </div>
       </CardContent>

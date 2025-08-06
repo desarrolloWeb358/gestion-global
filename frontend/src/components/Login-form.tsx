@@ -39,7 +39,7 @@ export function LoginForm({
       localStorage.setItem("usuarioLogeado", JSON.stringify(usuario));
 
       // Lógica de redirección
-      if (usuario.roles.length === 1) {
+      if (Array.isArray(usuario.roles) && usuario.roles.length === 1) {
         const rol = usuario.roles[0];
         if (rol === "admin") navigate("/admin/dashboard");
         else if (rol === "cliente") navigate("/admin/dashboard");
@@ -48,8 +48,7 @@ export function LoginForm({
         else if (rol === "ejecutivo") navigate("/admin/dashboard");
         else navigate("/home"); // fallback
       } else {
-        // Tiene múltiples roles
-        navigate("/seleccionar-rol");
+        navigate("/home"); // Si tiene múltiples roles, redirige a home
       }
 
     } catch (error: any) {
