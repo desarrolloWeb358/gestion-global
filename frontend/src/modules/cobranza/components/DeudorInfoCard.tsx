@@ -5,7 +5,7 @@ import { Deudor } from "../models/deudores.model"
 import { Button } from "@/components/ui/button"
 import { Eye, History } from "lucide-react"
 import { calcularDeudaTotal } from "../services/deudorService"
-import { Abono } from "../models/abono.model"
+import { Abono } from "../models/estadoMensual.model"
 
 // ✅ Esto debe ir al inicio del archivo o exportarse si se usará en otro lugar
 export interface DeudorInfoCardProps {

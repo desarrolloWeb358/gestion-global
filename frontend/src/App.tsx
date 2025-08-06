@@ -17,7 +17,7 @@ import DeudorDetailPage from "./modules/cobranza/components/DeudorDetailPage";
 
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
-import AbonosTable from "./modules/cobranza/components/AbonosTable";
+import EstadosMensualesTable from "./modules/cobranza/components/EstadosMensualesTable";
 
 
 
@@ -42,8 +42,8 @@ export default function App() {
           <Route path="/deudores/:clienteId/:deudorId/seguimiento" element={<SeguimientoTable />} />
           <Route path="/clientes/:clienteId/deudores/:deudorId" element={<DeudorDetailPage />} />
           <Route
-            path="/deudores/:clienteId/:deudorId/abonos"
-            element={<AbonosTable />}
+            path="/deudores/:clienteId/:deudorId/estadosMensuales"
+            element={<EstadosMensualesTable />}
           />
           <Route path="/clientes-tables" element={<ClientesTable />} />
           <Route path="/usuarios-tables" element={<UsuariosTable />} />

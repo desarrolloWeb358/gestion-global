@@ -1,9 +1,14 @@
-export interface Abono {
+export interface EstadoMensual {
   id?: string;
-  monto: number;
-  fecha: string;
+  mes: string;  // formato "AAAA-MM"
+  
+  deuda: number;    
+  honorarios?: number;
+  recaudo?: number;
+
   comprobante?: number; 
   recibo? : string;
   observaciones?: string;
   tipo: 'ordinario' | 'extraordinario' | 'anticipo';
+
 }

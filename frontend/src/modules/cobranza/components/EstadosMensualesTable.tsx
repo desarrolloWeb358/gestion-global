@@ -1,7 +1,7 @@
 import { useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { obtenerAbonos, crearAbono } from "../services/abonoService";
-import { Abono } from "../models/abono.model";
+import { obtenerEstadosMensuales, crearEstadoMensual } from "../services/estadoMensualService";
+import { EstadoMensual } from "../models/estadoMensual.model";
 import { useNavigate } from "react-router-dom";
 import {
   Dialog,
@@ -17,80 +17,80 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 
-export default function AbonosTable() {
+export default function EstadosMensualesTable() {
   const { clienteId, deudorId } = useParams();
-  const [abonos, setAbonos] = useState<Abono[]>([]);
+  const [estadosMensuales, setEstadosMensuales] = useState<EstadoMensual[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  // Formulario abono
-  const [nuevoAbono, setNuevoAbono] = useState<Partial<Abono>>({
-    monto: 0,
+  // Formulario estadoMensual
+  const [nuevoEstadoMensual, setNuevoEstadoMensual] = useState<Partial<EstadoMensual>>({
+    recaudo: 0,
     fecha: new Date().toISOString().split("T")[0],
     tipo: "ordinario",
     recibo: "",
     observaciones: "",
   });
 
-  const cargarAbonos = async () => {
+  const cargarEstadosMensuales = async () => {
     if (clienteId && deudorId) {
-      const data = await obtenerAbonos(clienteId, deudorId);
-      setAbonos(data);
+      const data = await obtenerEstadosMensuales(clienteId, deudorId);
+      setEstadosMensuales(data);
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    cargarAbonos();
+    cargarEstadosMensuales();
   }, [clienteId, deudorId]);
 
-  const handleCrearAbono = async () => {
-    if (!clienteId || !deudorId || !nuevoAbono.monto || !nuevoAbono.fecha) {
+  const handleCrearEstadoMensual = async () => {
+    if (!clienteId || !deudorId || !nuevoEstadoMensual.recaudo || !nuevoEstadoMensual.fecha) {
       toast.error("Debe llenar los campos obligatorios");
       return;
     }
 
     try {
-      await crearAbono(clienteId, deudorId, nuevoAbono as Abono);
-      toast.success("Abono creado correctamente");
-      setNuevoAbono({
-        monto: 0,
+      await crearEstadoMensual(clienteId, deudorId, nuevoEstadoMensual as EstadoMensual);
+      toast.success("EstadoMensual creado correctamente");
+      setNuevoEstadoMensual({
+        recaudo: 0,
         fecha: new Date().toISOString().split("T")[0],
         tipo: "ordinario",
         recibo: "",
         observaciones: "",
       });
-      cargarAbonos();
+      cargarEstadosMensuales();
     } catch (error) {
-      toast.error("Error al guardar el abono");
+      toast.error("Error al guardar el estadoMensual");
     }
   };
 
-  if (loading) return <p className="text-center mt-10">Cargando abonos...</p>;
+  if (loading) return <p className="text-center mt-10">Cargando estadoMensuals...</p>;
 
   return (
     <div className="max-w-4xl mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
     
-        <h2 className="text-3xl font-bold text-center w-full">Abonos</h2>
+        <h2 className="text-3xl font-bold text-center w-full">EstadosMensuales</h2>
         <Dialog>
           <DialogTrigger asChild>
             
-            <Button className="absolute right-4 top-4">Agregar abono</Button>
+            <Button className="absolute right-4 top-4">Agregar estadoMensual</Button>
             
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Nuevo abono</DialogTitle>
+              <DialogTitle>Nuevo estadoMensual</DialogTitle>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div>
-                <Label>Monto *</Label>
+                <Label>recaudo *</Label>
                 <Input
                   type="number"
-                  value={nuevoAbono.monto}
+                  value={nuevoEstadoMensual.recaudo}
                   onChange={(e) =>
-                    setNuevoAbono({ ...nuevoAbono, monto: parseFloat(e.target.value) })
+                    setNuevoEstadoMensual({ ...nuevoEstadoMensual, recaudo: parseFloat(e.target.value) })
                   }
                 />
               </div>
@@ -98,15 +98,15 @@ export default function AbonosTable() {
                 <Label>Fecha *</Label>
                 <Input
                   type="date"
-                  value={nuevoAbono.fecha}
-                  onChange={(e) => setNuevoAbono({ ...nuevoAbono, fecha: e.target.value })}
+                  value={nuevoEstadoMensual.fecha}
+                  onChange={(e) => setNuevoEstadoMensual({ ...nuevoEstadoMensual, fecha: e.target.value })}
                 />
               </div>
               <div>
                 <Label>Tipo</Label>
                 <Select
-                  value={nuevoAbono.tipo}
-                  onValueChange={(value) => setNuevoAbono({ ...nuevoAbono, tipo: value as any })}
+                  value={nuevoEstadoMensual.tipo}
+                  onValueChange={(value) => setNuevoEstadoMensual({ ...nuevoEstadoMensual, tipo: value as any })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Seleccionar tipo" />
@@ -121,22 +121,22 @@ export default function AbonosTable() {
               <div>
                 <Label>Recibo</Label>
                 <Input
-                  value={nuevoAbono.recibo}
-                  onChange={(e) => setNuevoAbono({ ...nuevoAbono, recibo: e.target.value })}
+                  value={nuevoEstadoMensual.recibo}
+                  onChange={(e) => setNuevoEstadoMensual({ ...nuevoEstadoMensual, recibo: e.target.value })}
                 />
               </div>
               <div>
                 <Label>Observaciones</Label>
                 <Input
-                  value={nuevoAbono.observaciones}
+                  value={nuevoEstadoMensual.observaciones}
                   onChange={(e) =>
-                    setNuevoAbono({ ...nuevoAbono, observaciones: e.target.value })
+                    setNuevoEstadoMensual({ ...nuevoEstadoMensual, observaciones: e.target.value })
                   }
                 />
               </div>
             </div>
             <DialogFooter>
-              <Button onClick={handleCrearAbono}>Guardar abono</Button>
+              <Button onClick={handleCrearEstadoMensual}>Guardar estadoMensual</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -146,20 +146,20 @@ export default function AbonosTable() {
         <thead className="bg-gray-100">
           <tr>
             <th className="text-left p-2">Fecha</th>
-            <th className="text-left p-2">Monto</th>
+            <th className="text-left p-2">Recaudo</th>
             <th className="text-left p-2">Tipo</th>
             <th className="text-left p-2">Recibo</th>
             <th className="text-left p-2">Observaciones</th>
           </tr>
         </thead>
         <tbody>
-          {abonos.map((abono, i) => (
+          {estadosMensuales.map((estadoMensual, i) => (
             <tr key={i} className="border-t">
-              <td className="p-2">{new Date(abono.fecha).toLocaleDateString()}</td>
-              <td className="p-2">${abono.monto.toLocaleString()}</td>
-              <td className="p-2 capitalize">{abono.tipo}</td>
-              <td className="p-2">{abono.recibo || "-"}</td>
-              <td className="p-2">{abono.observaciones || "-"}</td>
+              <td className="p-2">{new Date(estadoMensual.fecha).toLocaleDateString()}</td>
+              <td className="p-2">${estadoMensual.recaudo.toLocaleString()}</td>
+              <td className="p-2 capitalize">{estadoMensual.tipo}</td>
+              <td className="p-2">{estadoMensual.recibo || "-"}</td>
+              <td className="p-2">{estadoMensual.observaciones || "-"}</td>
             </tr>
           ))}
         </tbody>
@@ -167,3 +167,4 @@ export default function AbonosTable() {
     </div>
   );
 }
+
