@@ -1,90 +1,129 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Deudor } from "../models/deudores.model";
-import { calcularDeudaTotal, obtenerDeudorPorCliente, crearDeudor, actualizarDeudor, eliminarDeudor } from "../services/deudorService";
+import {
+  calcularDeudaTotal,
+  obtenerDeudorPorCliente,
+  crearDeudor,
+  actualizarDeudor,
+  eliminarDeudor,
+} from "../services/deudorService";
 import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
 import { Button } from "../../../components/ui/button";
-import { Eye, History, Pencil, Trash2 } from "lucide-react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "../../../components/ui/tooltip";
-
+import { Eye, Pencil, Trash2 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../../../components/ui/tooltip";
 import { enviarNotificacionCobroMasivo } from "../services/notificacionCobroService";
 import { toast } from "sonner";
-
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "../../../components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../../../components/ui/dialog";
+import { EstadoMensual } from "../models/estadoMensual.model";
 
+// ---- Tipos auxiliares ----
+type EstadoForm = Partial<EstadoMensual>;
 
 export default function DeudoresTable() {
   const navigate = useNavigate();
   const { clienteId } = useParams<{ clienteId: string }>();
+
+  // Estado general
   const [deudores, setDeudores] = useState<Deudor[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Diálogo crear/editar
   const [open, setOpen] = useState(false);
   const [deudorEditando, setDeudorEditando] = useState<Deudor | null>(null);
   const [formData, setFormData] = useState<Partial<Deudor>>({});
+
+  // Eliminar
   const [dialogoEliminar, setDialogoEliminar] = useState(false);
   const [deudorSeleccionado, setDeudorSeleccionado] = useState<Deudor | null>(null);
+
+  // Búsqueda y paginación
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
+
+  // Honorarios
   const [porcentajeHonorarios, setPorcentajeHonorarios] = useState(10);
   const [honorariosCalculados, setHonorariosCalculados] = useState(0);
-  const itemsPerPage = 5;
+
+  // Estado mensual (deuda vive aquí, NO en Deudor)
+  const [estadoForm, setEstadoForm] = useState<EstadoForm>({
+    mes: new Date().toISOString().slice(0, 7), // YYYY-MM
+    tipo: "ordinario",
+    deuda: 0,
+    honorarios: 0,
+    recaudo: 0,
+    comprobante: null,
+    recibo: null,
+    observaciones: null,
+  });
+
+  // Cargar deudores
   const fetchDeudores = async () => {
     if (!clienteId) return;
     setLoading(true);
-    const data = await obtenerDeudorPorCliente(clienteId);
-    setDeudores(data);
-    setLoading(false);
+    try {
+      const data = await obtenerDeudorPorCliente(clienteId);
+      setDeudores(data);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    const deuda = formData.deuda ?? 0;
-    const porcentaje = porcentajeHonorarios ?? 0;
-    const honorarios = (deuda * porcentaje) / 100;
-    const total = deuda + honorarios;
-
-    setHonorariosCalculados(isNaN(total) ? 0 : total);
-  }, [formData.deuda, porcentajeHonorarios]);
-
-  useEffect(() => {
     fetchDeudores();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clienteId]);
 
-  const filteredDeudores = deudores.filter((deudor) =>
-    `${deudor.ubicacion ?? ""}}`
-      .toLowerCase()
-      .includes(search.toLowerCase())
-  );
+  // Calcular honorarios cuando cambie deuda o %
+  useEffect(() => {
+    const deuda = estadoForm.deuda ?? 0;
+    const porcentaje = porcentajeHonorarios ?? 0;
+    const honorarios = (deuda * porcentaje) / 100;
+    setHonorariosCalculados(isNaN(honorarios) ? 0 : honorarios);
+  }, [estadoForm.deuda, porcentajeHonorarios]);
 
-  const totalPages = Math.ceil(filteredDeudores.length / itemsPerPage);
-  const paginatedDeudores = filteredDeudores.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  // Filtrado y paginación
+  const filteredDeudores = deudores.filter((d) => (d.ubicacion ?? "").toLowerCase().includes(search.toLowerCase()));
+  const totalPages = Math.ceil(filteredDeudores.length / itemsPerPage) || 1;
+  const paginatedDeudores = filteredDeudores.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
+  // --- Handlers ---
   const iniciarCrear = () => {
     setDeudorEditando(null);
     setFormData({});
+    setPorcentajeHonorarios(10);
+    setEstadoForm({
+      mes: new Date().toISOString().slice(0, 7),
+      tipo: "ordinario",
+      deuda: 0,
+      honorarios: 0,
+      recaudo: 0,
+      comprobante: null,
+      recibo: null,
+      observaciones: null,
+    });
     setOpen(true);
   };
 
   const iniciarEditar = (deudor: Deudor) => {
     setDeudorEditando(deudor);
     setFormData({ ...deudor });
+    setPorcentajeHonorarios(deudor.porcentajeHonorarios ?? 10);
+    setEstadoForm((prev) => ({
+      ...prev,
+      mes: new Date().toISOString().slice(0, 7),
+      tipo: "ordinario",
+      deuda: 0,
+      honorarios: 0,
+      recaudo: 0,
+      comprobante: null,
+      recibo: null,
+      observaciones: null,
+    }));
     setOpen(true);
   };
 
@@ -92,32 +131,48 @@ export default function DeudoresTable() {
     if (!clienteId) return;
 
     if (deudorEditando) {
-      const deudorActualizado = {
+      const deudorActualizado: Deudor = {
         ...deudorEditando,
         ...formData,
         porcentajeHonorarios: porcentajeHonorarios ?? 0,
-      } as Deudor;
-
-      const { total } = calcularDeudaTotal(deudorActualizado);
-      deudorActualizado.deudaTotal = total;
-
-      await actualizarDeudor(clienteId, deudorActualizado);
-    } else {
-      const nuevoDeudor = {
-        ...formData,
-        nombre: formData.nombre ?? "",
         correos: formData.correos ?? [],
         telefonos: formData.telefonos ?? [],
-        deuda: formData.deuda ?? 0,
+      } as Deudor;
+      // Debes construir un EstadoMensual válido aquí, ejemplo:
+      const estadoMensualActualizado: EstadoMensual = {
+        id: deudorActualizado.id!,
+        mes: estadoForm.mes ?? new Date().toISOString().slice(0, 7),
+        deuda: estadoForm.deuda ?? 0,
+        tipo: estadoForm.tipo ?? "ordinario",
+        honorarios: honorariosCalculados,
+        recaudo: estadoForm.recaudo ?? 0,
+        comprobante: estadoForm.comprobante ?? null,
+        recibo: estadoForm.recibo ?? null,
+        observaciones: estadoForm.observaciones ?? null,
+        // agrega otros campos requeridos por EstadoMensual si es necesario
+      };
+      await actualizarDeudor(clienteId, estadoMensualActualizado);
+    } else {
+      const estadoMensualNuevo: EstadoMensual = {
+        mes: estadoForm.mes ?? new Date().toISOString().slice(0, 7),
+        deuda: estadoForm.deuda ?? 0,
+        tipo: estadoForm.tipo ?? "ordinario",
+        honorarios: honorariosCalculados,
+        recaudo: estadoForm.recaudo ?? 0,
+        comprobante: estadoForm.comprobante ?? null,
+        recibo: estadoForm.recibo ?? null,
+        observaciones: estadoForm.observaciones ?? null,
+        // Puedes agregar otros campos requeridos por EstadoMensual aquí si es necesario
+        nombre: formData.nombre ?? "",
+        cedula: formData.cedula ?? "",
+        ubicacion: formData.ubicacion ?? "",
+        correos: formData.correos ?? [],
+        telefonos: formData.telefonos ?? [],
         porcentajeHonorarios: porcentajeHonorarios ?? 0,
         tipificacion: formData.tipificacion ?? "gestionando",
         estado: formData.estado ?? "prejurídico",
-      } as Deudor;
-
-      const { total } = calcularDeudaTotal(nuevoDeudor);
-      nuevoDeudor.deudaTotal = total;
-
-      await crearDeudor(clienteId, nuevoDeudor);
+      } as unknown as EstadoMensual;
+      await crearDeudor(clienteId, estadoMensualNuevo);
     }
 
     setOpen(false);
@@ -143,10 +198,9 @@ export default function DeudoresTable() {
     }
   };
 
-
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center gap-2">
         <h2 className="text-xl font-semibold">Deudores</h2>
         <Input
           type="text"
@@ -154,10 +208,11 @@ export default function DeudoresTable() {
           value={search}
           onChange={(e) => {
             setSearch(e.target.value);
-            setCurrentPage(1); // Reiniciar a página 1 cuando se busca
+            setCurrentPage(1);
           }}
           className="max-w-md"
         />
+
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button onClick={iniciarCrear}>Crear deudor</Button>
@@ -166,6 +221,7 @@ export default function DeudoresTable() {
             <DialogHeader>
               <DialogTitle>Crear / Editar deudor</DialogTitle>
             </DialogHeader>
+
             <form
               className="space-y-4"
               onSubmit={(e) => {
@@ -173,41 +229,30 @@ export default function DeudoresTable() {
                 guardarDeudor();
               }}
             >
-
               <div className="grid grid-cols-2 gap-4 pt-4 border-t mt-4">
                 <div>
                   <Label htmlFor="nombre">Nombre</Label>
-                  <Input
-                    name="nombre"
-                    value={formData.nombre ?? ""}
-                    onChange={handleChange}
-                  />
+                  <Input name="nombre" value={formData.nombre ?? ""} onChange={handleChange} />
                 </div>
                 <div>
                   <Label htmlFor="cedula">Cédula</Label>
-                  <Input
-                    name="cedula"
-                    value={formData.cedula ?? ""}
-                    onChange={handleChange}
-                  />
+                  <Input name="cedula" value={formData.cedula ?? ""} onChange={handleChange} />
                 </div>
               </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="ubicacion">Ubicación</Label>
                   <Input name="ubicacion" value={formData.ubicacion ?? ""} onChange={handleChange} />
                 </div>
                 <div>
-                  <Label htmlFor="deuda">Deuda sin honorarios</Label>
+                  <Label htmlFor="deuda">Deuda sin honorarios (Estado del mes)</Label>
                   <Input
                     type="number"
-                    value={formData.deuda ?? ""}
+                    value={estadoForm.deuda ?? 0}
                     onChange={(e) => {
-                      const valor = parseFloat(e.target.value);
-                      setFormData((prev) => ({
-                        ...prev,
-                        deuda: isNaN(valor) ? 0 : valor,
-                      }));
+                      const v = parseFloat(e.target.value);
+                      setEstadoForm((prev) => ({ ...prev, deuda: isNaN(v) ? 0 : v }));
                     }}
                   />
                 </div>
@@ -239,7 +284,7 @@ export default function DeudoresTable() {
                   onChange={(e) =>
                     setFormData((prev) => ({
                       ...prev,
-                      correos: e.target.value.split(",").map((c) => c.trim()),
+                      correos: e.target.value.split(",").map((c) => c.trim()).filter(Boolean),
                     }))
                   }
                 />
@@ -251,28 +296,29 @@ export default function DeudoresTable() {
                   onChange={(e) =>
                     setFormData((prev) => ({
                       ...prev,
-                      telefonos: e.target.value.split(",").map((t) => t.trim()),
+                      telefonos: e.target.value.split(",").map((t) => t.trim()).filter(Boolean),
                     }))
                   }
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4 pt-4 border-t mt-4">
-
-                <Label>Porcentaje de honorarios</Label>
-                <Input
-                  type="number"
-                  name="porcentaje_honorarios"
-                  value={porcentajeHonorarios}
-                  onChange={(e) => setPorcentajeHonorarios(parseFloat(e.target.value))}
-                />
-              </div>
-
-              <div>
-                <Label>Honorarios calculados</Label>
-                <p className="text-green-600 font-bold text-lg">
-                  ${honorariosCalculados.toLocaleString()}
-                </p>
+                <div>
+                  <Label>Porcentaje de honorarios</Label>
+                  <Input
+                    type="number"
+                    name="porcentaje_honorarios"
+                    value={porcentajeHonorarios}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value);
+                      setPorcentajeHonorarios(isNaN(v) ? 0 : v);
+                    }}
+                  />
+                </div>
+                <div>
+                  <Label>Honorarios calculados</Label>
+                  <p className="text-green-600 font-bold text-lg">${honorariosCalculados.toLocaleString()}</p>
+                </div>
               </div>
 
               <div className="pt-6">
@@ -281,7 +327,6 @@ export default function DeudoresTable() {
                 </Button>
               </div>
             </form>
-            {/* Aquí irá el formulario luego */}
           </DialogContent>
         </Dialog>
       </div>
@@ -292,10 +337,11 @@ export default function DeudoresTable() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>nombre</TableHead>
+              <TableHead>Nombre</TableHead>
               <TableHead>Ubicación</TableHead>
               <TableHead>Tipificación</TableHead>
               <TableHead>Deuda Total</TableHead>
+              <TableHead>Estado</TableHead>
               <TableHead>Acciones</TableHead>
             </TableRow>
           </TableHeader>
@@ -305,16 +351,10 @@ export default function DeudoresTable() {
                 <TableCell>{deudor.nombre}</TableCell>
                 <TableCell>{deudor.ubicacion}</TableCell>
                 <TableCell>{deudor.tipificacion}</TableCell>
-                <TableCell>
-                  {deudor.deudaTotal !== undefined
-                    ? `$${deudor.deudaTotal.toLocaleString()}`
-                    : "—"}
-                </TableCell>
-                <TableCell>{deudor.estado}</TableCell> {/* Aquí va el estado real */}
+                <TableCell>{deudor.estado}</TableCell>
                 <TableCell className="text-center">
                   <TooltipProvider>
                     <div className="flex justify-center gap-2">
-                      {/* Ver Acuerdo */}
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
@@ -322,14 +362,12 @@ export default function DeudoresTable() {
                             size="icon"
                             onClick={() => navigate(`/clientes/${clienteId}/deudores/${deudor.id}`)}
                           >
-
                             <Eye className="h-4 w-4" />
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>Ver deudor</TooltipContent>
                       </Tooltip>
 
-                      {/* Editar */}
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button variant="outline" size="icon" onClick={() => iniciarEditar(deudor)}>
@@ -339,7 +377,6 @@ export default function DeudoresTable() {
                         <TooltipContent>Editar</TooltipContent>
                       </Tooltip>
 
-                      {/* Eliminar */}
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
@@ -363,14 +400,13 @@ export default function DeudoresTable() {
           </TableBody>
         </Table>
       )}
+
       <Dialog open={dialogoEliminar} onOpenChange={setDialogoEliminar}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>¿Eliminar deudor?</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            ¿Estás seguro de que deseas eliminar este deudor? Esta acción no se puede deshacer.
-          </p>
+          <p className="text-sm text-muted-foreground">¿Estás seguro de que deseas eliminar este deudor? Esta acción no se puede deshacer.</p>
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setDialogoEliminar(false)}>
               Cancelar
@@ -391,7 +427,6 @@ export default function DeudoresTable() {
         </DialogContent>
       </Dialog>
 
-
       {!loading && filteredDeudores.length > 0 && (
         <div className="pt-4">
           <Button className="bg-primary text-white" onClick={handleEnviarNotificaciones}>
@@ -408,13 +443,15 @@ export default function DeudoresTable() {
           <Button variant="outline" disabled={currentPage === 1} onClick={() => setCurrentPage((p) => p - 1)}>
             Anterior
           </Button>
-          <Button variant="outline" disabled={currentPage === totalPages} onClick={() => setCurrentPage((p) => p + 1)}>
+          <Button
+            variant="outline"
+            disabled={currentPage === totalPages}
+            onClick={() => setCurrentPage((p) => p + 1)}
+          >
             Siguiente
           </Button>
         </div>
       </div>
-    </div >
-
+    </div>
   );
-
 }

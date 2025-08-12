@@ -18,6 +18,8 @@ import DeudorDetailPage from "./modules/cobranza/components/DeudorDetailPage";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
 import EstadosMensualesTable from "./modules/cobranza/components/EstadosMensualesTable";
+import ClienteDashboardPage from "./modules/cobranza/components/ClienteDashboardPage";
+import EstadosMensualesInputMasivo from "./modules/cobranza/components/EstadosMensualesInputMasivo";
 
 
 
@@ -45,6 +47,9 @@ export default function App() {
             path="/deudores/:clienteId/:deudorId/estadosMensuales"
             element={<EstadosMensualesTable />}
           />
+
+          <Route path="/clientes/:clienteId" element={<ClienteDashboardPage />} />
+          <Route path="/clientes/:clienteId/estado-mensual" element={<EstadosMensualesInputMasivo />} />
           <Route path="/clientes-tables" element={<ClientesTable />} />
           <Route path="/usuarios-tables" element={<UsuariosTable />} />
           <Route path="/deudores/:clienteId" element={<InmueblesTable />} />

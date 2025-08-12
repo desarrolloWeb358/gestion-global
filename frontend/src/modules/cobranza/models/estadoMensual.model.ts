@@ -6,9 +6,9 @@ export interface EstadoMensual {
   honorarios?: number;
   recaudo?: number;
 
-  comprobante?: number; 
-  recibo? : string;
-  observaciones?: string;
+  comprobante?: number | string | null;
+  recibo?: string | null;
+  observaciones?: string | null;
   tipo: 'ordinario' | 'extraordinario' | 'anticipo';
 
 }

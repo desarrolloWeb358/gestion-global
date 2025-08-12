@@ -2,7 +2,6 @@ import { useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { obtenerEstadosMensuales, crearEstadoMensual } from "../services/estadoMensualService";
 import { EstadoMensual } from "../models/estadoMensual.model";
-import { useNavigate } from "react-router-dom";
 import {
   Dialog,
   DialogTrigger,
@@ -21,13 +20,13 @@ export default function EstadosMensualesTable() {
   const { clienteId, deudorId } = useParams();
   const [estadosMensuales, setEstadosMensuales] = useState<EstadoMensual[]>([]);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
 
-  // Formulario estadoMensual
   const [nuevoEstadoMensual, setNuevoEstadoMensual] = useState<Partial<EstadoMensual>>({
-    recaudo: 0,
-    fecha: new Date().toISOString().split("T")[0],
+    mes: new Date().toISOString().slice(0, 7), // "YYYY-MM"
     tipo: "ordinario",
+    deuda: 0,
+    recaudo: 0,
+    honorarios: 0,
     recibo: "",
     observaciones: "",
   });
@@ -45,61 +44,50 @@ export default function EstadosMensualesTable() {
   }, [clienteId, deudorId]);
 
   const handleCrearEstadoMensual = async () => {
-    if (!clienteId || !deudorId || !nuevoEstadoMensual.recaudo || !nuevoEstadoMensual.fecha) {
+    if (!clienteId || !deudorId || !nuevoEstadoMensual.mes || nuevoEstadoMensual.recaudo === undefined) {
       toast.error("Debe llenar los campos obligatorios");
       return;
     }
 
     try {
       await crearEstadoMensual(clienteId, deudorId, nuevoEstadoMensual as EstadoMensual);
-      toast.success("EstadoMensual creado correctamente");
+      toast.success("Estado mensual creado");
       setNuevoEstadoMensual({
-        recaudo: 0,
-        fecha: new Date().toISOString().split("T")[0],
+        mes: new Date().toISOString().slice(0, 7),
         tipo: "ordinario",
+        deuda: 0,
+        recaudo: 0,
+        honorarios: 0,
         recibo: "",
         observaciones: "",
       });
       cargarEstadosMensuales();
     } catch (error) {
-      toast.error("Error al guardar el estadoMensual");
+      toast.error("Error al guardar el estado mensual");
     }
   };
 
-  if (loading) return <p className="text-center mt-10">Cargando estadoMensuals...</p>;
+  if (loading) return <p className="text-center mt-10">Cargando estados mensuales...</p>;
 
   return (
-    <div className="max-w-4xl mx-auto p-4">
+    <div className="max-w-5xl mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
-    
-        <h2 className="text-3xl font-bold text-center w-full">EstadosMensuales</h2>
+        <h2 className="text-3xl font-bold">Estados Mensuales del Deudor</h2>
         <Dialog>
           <DialogTrigger asChild>
-            
-            <Button className="absolute right-4 top-4">Agregar estadoMensual</Button>
-            
+            <Button>Agregar estado mensual</Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Nuevo estadoMensual</DialogTitle>
+              <DialogTitle>Nuevo Estado Mensual</DialogTitle>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4 py-4">
               <div>
-                <Label>recaudo *</Label>
+                <Label>Mes *</Label>
                 <Input
-                  type="number"
-                  value={nuevoEstadoMensual.recaudo}
-                  onChange={(e) =>
-                    setNuevoEstadoMensual({ ...nuevoEstadoMensual, recaudo: parseFloat(e.target.value) })
-                  }
-                />
-              </div>
-              <div>
-                <Label>Fecha *</Label>
-                <Input
-                  type="date"
-                  value={nuevoEstadoMensual.fecha}
-                  onChange={(e) => setNuevoEstadoMensual({ ...nuevoEstadoMensual, fecha: e.target.value })}
+                  type="month"
+                  value={nuevoEstadoMensual.mes}
+                  onChange={(e) => setNuevoEstadoMensual({ ...nuevoEstadoMensual, mes: e.target.value })}
                 />
               </div>
               <div>
@@ -109,7 +97,7 @@ export default function EstadosMensualesTable() {
                   onValueChange={(value) => setNuevoEstadoMensual({ ...nuevoEstadoMensual, tipo: value as any })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar tipo" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ordinario">Ordinario</SelectItem>
@@ -119,16 +107,46 @@ export default function EstadosMensualesTable() {
                 </Select>
               </div>
               <div>
-                <Label>Recibo</Label>
+                <Label>Deuda</Label>
                 <Input
-                  value={nuevoEstadoMensual.recibo}
-                  onChange={(e) => setNuevoEstadoMensual({ ...nuevoEstadoMensual, recibo: e.target.value })}
+                  type="number"
+                  value={nuevoEstadoMensual.deuda}
+                  onChange={(e) =>
+                    setNuevoEstadoMensual({ ...nuevoEstadoMensual, deuda: parseFloat(e.target.value) })
+                  }
                 />
               </div>
               <div>
+                <Label>Recaudo *</Label>
+                <Input
+                  type="number"
+                  value={nuevoEstadoMensual.recaudo}
+                  onChange={(e) =>
+                    setNuevoEstadoMensual({ ...nuevoEstadoMensual, recaudo: parseFloat(e.target.value) })
+                  }
+                />
+              </div>
+              <div>
+                <Label>Honorarios</Label>
+                <Input
+                  type="number"
+                  value={nuevoEstadoMensual.honorarios}
+                  onChange={(e) =>
+                    setNuevoEstadoMensual({ ...nuevoEstadoMensual, honorarios: parseFloat(e.target.value) })
+                  }
+                />
+              </div>
+              <div>
+                <Label>Recibo</Label>
+                <Input
+                  value={nuevoEstadoMensual.recibo ?? ""}
+                  onChange={(e) => setNuevoEstadoMensual({ ...nuevoEstadoMensual, recibo: e.target.value })}
+                />
+              </div>
+              <div className="col-span-2">
                 <Label>Observaciones</Label>
                 <Input
-                  value={nuevoEstadoMensual.observaciones}
+                  value={nuevoEstadoMensual.observaciones ?? ""}
                   onChange={(e) =>
                     setNuevoEstadoMensual({ ...nuevoEstadoMensual, observaciones: e.target.value })
                   }
@@ -136,7 +154,7 @@ export default function EstadosMensualesTable() {
               </div>
             </div>
             <DialogFooter>
-              <Button onClick={handleCrearEstadoMensual}>Guardar estadoMensual</Button>
+              <Button onClick={handleCrearEstadoMensual}>Guardar</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -145,21 +163,25 @@ export default function EstadosMensualesTable() {
       <table className="w-full text-sm border">
         <thead className="bg-gray-100">
           <tr>
-            <th className="text-left p-2">Fecha</th>
-            <th className="text-left p-2">Recaudo</th>
+            <th className="text-left p-2">Mes</th>
             <th className="text-left p-2">Tipo</th>
+            <th className="text-left p-2">Deuda</th>
+            <th className="text-left p-2">Recaudo</th>
+            <th className="text-left p-2">Honorarios</th>
             <th className="text-left p-2">Recibo</th>
             <th className="text-left p-2">Observaciones</th>
           </tr>
         </thead>
         <tbody>
-          {estadosMensuales.map((estadoMensual, i) => (
+          {estadosMensuales.map((estado, i) => (
             <tr key={i} className="border-t">
-              <td className="p-2">{new Date(estadoMensual.fecha).toLocaleDateString()}</td>
-              <td className="p-2">${estadoMensual.recaudo.toLocaleString()}</td>
-              <td className="p-2 capitalize">{estadoMensual.tipo}</td>
-              <td className="p-2">{estadoMensual.recibo || "-"}</td>
-              <td className="p-2">{estadoMensual.observaciones || "-"}</td>
+              <td className="p-2">{estado.mes}</td>
+              <td className="p-2 capitalize">{estado.tipo}</td>
+              <td className="p-2">${estado.deuda?.toLocaleString() || 0}</td>
+              <td className="p-2">${estado.recaudo?.toLocaleString() || 0}</td>
+              <td className="p-2">${estado.honorarios?.toLocaleString() || 0}</td>
+              <td className="p-2">{estado.recibo || "-"}</td>
+              <td className="p-2">{estado.observaciones || "-"}</td>
             </tr>
           ))}
         </tbody>
@@ -167,4 +189,3 @@ export default function EstadosMensualesTable() {
     </div>
   );
 }
-

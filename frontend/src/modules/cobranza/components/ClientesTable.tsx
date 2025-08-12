@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Eye, Pencil, Trash2 } from "lucide-react";
+import { Eye, Pencil, Trash2, User } from "lucide-react";
 import { createUserWithEmailAndPassword, getAuth } from "firebase/auth";
 import { collection, getDocs, query, serverTimestamp, where } from "firebase/firestore";
 import { db } from "../../../firebase";
@@ -102,8 +102,6 @@ export default function ClientesCrud() {
               <TableHead>Nombre</TableHead>
               <TableHead>Correo</TableHead>
               <TableHead>Teléfono</TableHead>
-              <TableHead>Dirección</TableHead>
-              <TableHead>Ejecutivo</TableHead>
               <TableHead>Banco</TableHead>
               <TableHead>N° Cuenta</TableHead>
               <TableHead>Tipo Cuenta</TableHead>
@@ -116,11 +114,7 @@ export default function ClientesCrud() {
                 <TableCell>{cliente.nombre}</TableCell>
                 <TableCell>{cliente.email}</TableCell>
                 <TableCell>{cliente.telefonoUsuario}</TableCell>
-                <TableCell>{cliente.direccion}</TableCell>
-                <TableCell>
-                  {ejecutivos.find(e => e.uid === cliente.ejecutivoPrejuridicoId)?.nombre ?? "No asignado"}
-                  {ejecutivos.find(e => e.uid === cliente.ejecutivoJuridicoId)?.nombre ?? "No asignado"}
-                </TableCell>
+        
                 <TableCell>{cliente.banco}</TableCell>
                 <TableCell>{cliente.numeroCuenta}</TableCell>
                 <TableCell>{cliente.tipoCuenta}</TableCell>
@@ -133,7 +127,16 @@ export default function ClientesCrud() {
                             <Eye className="w-4 h-4" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Ver</TooltipContent>
+                        <TooltipContent>Ver deudores</TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button size="icon" variant="ghost" onClick={() => navigate(`/clientes/${cliente.id}`)}>
+                            <User className="w-4 h-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Ver cliente</TooltipContent>
                       </Tooltip>
 
                       <Tooltip>

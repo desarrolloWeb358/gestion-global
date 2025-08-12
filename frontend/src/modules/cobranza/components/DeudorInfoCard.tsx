@@ -5,13 +5,13 @@ import { Deudor } from "../models/deudores.model"
 import { Button } from "@/components/ui/button"
 import { Eye, History } from "lucide-react"
 import { calcularDeudaTotal } from "../services/deudorService"
-import { Abono } from "../models/estadoMensual.model"
+import { EstadoMensual } from "../models/estadoMensual.model"
 
 // ✅ Esto debe ir al inicio del archivo o exportarse si se usará en otro lugar
 export interface DeudorInfoCardProps {
   deudor: Deudor;
   clienteId: string;
-  abonos?: Abono[];
+  abonos?: EstadoMensual[];
 }
 
 export default function DeudorInfoCard({ deudor, clienteId, abonos }: DeudorInfoCardProps) {
@@ -64,7 +64,7 @@ export default function DeudorInfoCard({ deudor, clienteId, abonos }: DeudorInfo
           </Button>
           <Button
             variant="outline"
-            onClick={() => navigate(`/deudores/${clienteId}/${deudor.id}/abonos`)}
+            onClick={() => navigate(`/deudores/${clienteId}/${deudor.id}/estadosMensuales`)}
           >
             <History className="w-4 h-4 mr-1" />
             Abonos

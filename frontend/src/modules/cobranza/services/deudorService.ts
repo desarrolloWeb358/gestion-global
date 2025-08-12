@@ -12,15 +12,16 @@ import {
 import { db } from "../../../firebase";
 import { Deudor } from "../models/deudores.model";
 import { Cuota, AcuerdoPago } from "../models/acuerdoPago.model";
+import  { EstadoMensual } from "../models/estadoMensual.model";
 
 
-export function calcularDeudaTotal(deudor: Deudor): {
+export function calcularDeudaTotal(estadoMensual: EstadoMensual): {
   deuda: number;
   honorarios: number;
   total: number;
 } {
-  const deuda = isNaN(Number(deudor.deuda)) ? 0 : Number(deudor.deuda);
-  const porcentaje = isNaN(Number(deudor.porcentajeHonorarios)) ? 0 : Number(deudor.porcentajeHonorarios);
+  const deuda = isNaN(Number(estadoMensual.deuda)) ? 0 : Number(estadoMensual.deuda);
+  const porcentaje = isNaN(Number(estadoMensual.honorarios)) ? 0 : Number(estadoMensual.honorarios);
   const honorarios = (deuda * porcentaje) / 100;
   const total = deuda + honorarios;
 
@@ -93,23 +94,19 @@ export async function getDeudorById(clienteId: string, deudorId: string): Promis
  */
 export function mapDocToDeudor(id: string, data: DocumentData): Deudor {
   return {
-    id,
-    ubicacion: data.ubicacion ?? "",
-    nombre: data.nombre ?? "",
-    cedula: data.cedula ?? "",
-    correos: Array.isArray(data.correos) ? data.correos : [],
-    telefonos: Array.isArray(data.telefonos) ? data.telefonos : [],
-    estado: data.estado ?? "prejurídico",
-    tipificacion: data.tipificacion ?? "",
-    deuda: Number(data.deuda ?? 0),
-    deudaTotal: Number(data.deudaTotal ?? 0),
-    porcentajeHonorarios: Number(data.porcentajeHonorarios ?? 0),
-    totalRecaudado: Number(data.totalRecaudado ?? 0),
-    acuerdoActivoId: data.acuerdoActivoId,
-    juzgadoId: data.juzgadoId,
-    numeroProceso: data.numeroProceso,
-    anoProceso: data.anoProceso,
-  };
+  id,
+  ubicacion: data.ubicacion ?? "",
+  nombre: data.nombre ?? "",
+  cedula: data.cedula ?? "",
+  correos: Array.isArray(data.correos) ? data.correos : [],
+  telefonos: Array.isArray(data.telefonos) ? data.telefonos : [],
+  estado: data.estado ?? "prejurídico",
+  acuerdoActivoId: data.acuerdoActivoId,
+  juzgadoId: data.juzgadoId,
+  numeroProceso: data.numeroProceso,
+  anoProceso: data.anoProceso,
+  tipificacion: ""
+};
 }
 export function mapDocToAcuerdoPago(id: string, data: DocumentData): AcuerdoPago {
   return {
@@ -148,14 +145,15 @@ export async function obtenerDeudorPorCliente(
  */
 export async function crearDeudor(
   clienteId: string,
-  deudor: Deudor
+  estadoMensual: EstadoMensual
+  
 ): Promise<void> {
   const ref = collection(db, `clientes/${clienteId}/deudores`);
 
-  const { total } = calcularDeudaTotal(deudor);
+  const { total } = calcularDeudaTotal(estadoMensual);
 
   await addDoc(ref, {
-    ...deudor,
+    ...estadoMensual,
     deudaTotal: total,
   });
 }
@@ -164,12 +162,12 @@ export async function crearDeudor(
 
 export async function actualizarDeudor(
   clienteId: string,
-  deudor: Deudor
+  estadoMensual: EstadoMensual
 ): Promise<void> {
-  const ref = doc(db, `clientes/${clienteId}/deudores/${deudor.id}`);
-  const { id, ...rest } = deudor;
+  const ref = doc(db, `clientes/${clienteId}/deudores/${estadoMensual.id}`);
+  const { id, ...rest } = estadoMensual;
 
-  const { total } = calcularDeudaTotal(deudor);
+  const { total } = calcularDeudaTotal(estadoMensual);
 
   const sanitized: any = {
     ...rest,
@@ -251,4 +249,14 @@ export async function obtenerAcuerdoActivo(
   return snap.exists()
     ? mapDocToAcuerdoPago(snap.id, snap.data())
     : null;
+}
+
+
+export async function crearEstadoMensual(
+  clienteId: string,
+  deudorId: string,
+  estado: EstadoMensual
+): Promise<void> {
+  const ref = collection(db, `clientes/${clienteId}/deudores/${deudorId}/estados_mensuales`);
+  await addDoc(ref, estado);
 }
