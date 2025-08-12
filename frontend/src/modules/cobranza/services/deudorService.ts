@@ -8,12 +8,21 @@ import {
   DocumentData,
   getDoc,
   arrayUnion,
+  setDoc,
+  orderBy,
+  query,
 } from "firebase/firestore";
 import { db } from "../../../firebase";
 import { Deudor } from "../models/deudores.model";
 import { Cuota, AcuerdoPago } from "../models/acuerdoPago.model";
 import  { EstadoMensual } from "../models/estadoMensual.model";
 
+export function toMesId(fecha: string | Date) {
+  const d = typeof fecha === "string" ? new Date(fecha) : fecha;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
+}
 
 export function calcularDeudaTotal(estadoMensual: EstadoMensual): {
   deuda: number;
@@ -255,8 +264,51 @@ export async function obtenerAcuerdoActivo(
 export async function crearEstadoMensual(
   clienteId: string,
   deudorId: string,
-  estado: EstadoMensual
+  estado: EstadoMensual,
+  { overwrite = false }: { overwrite?: boolean } = {}
 ): Promise<void> {
-  const ref = collection(db, `clientes/${clienteId}/deudores/${deudorId}/estados_mensuales`);
-  await addDoc(ref, estado);
+  const mesId = estado.mes; // asegúrate de guardar "2025-06" etc.  (o usa toMesId(...))
+  if (!/^\d{4}-\d{2}$/.test(mesId)) {
+    throw new Error(`'mes' inválido: ${mesId}. Usa formato YYYY-MM`);
+  }
+
+  const ref = doc(db, `clientes/${clienteId}/deudores/${deudorId}/estadosMensuales`, mesId);
+
+  if (!overwrite) {
+    const exists = await getDoc(ref);
+    if (exists.exists()) throw new Error(`Ya existe un estado para ${mesId}`);
+  }
+
+  // setDoc permite usar merge para no borrar otros campos si actualizas
+  await setDoc(ref, estado, { merge: overwrite });
 }
+
+export async function upsertEstadoMensual(
+  clienteId: string,
+  deudorId: string,
+  estado: Partial<EstadoMensual> & { mes: string }
+): Promise<void> {
+  const ref = doc(db, `clientes/${clienteId}/deudores/${deudorId}/estadosMensuales`, estado.mes);
+  await setDoc(ref, estado, { merge: true });
+}
+
+export async function getEstadoMensual(
+  clienteId: string,
+  deudorId: string,
+  mes: string
+): Promise<EstadoMensual | null> {
+  const ref = doc(db, `clientes/${clienteId}/deudores/${deudorId}/estadosMensuales`, mes);
+  const snap = await getDoc(ref);
+  return snap.exists() ? ({ id: snap.id, ...snap.data() } as EstadoMensual) : null;
+}
+
+export async function listarEstadosMensuales(
+  clienteId: string,
+  deudorId: string
+): Promise<EstadoMensual[]> {
+  const col = collection(db, `clientes/${clienteId}/deudores/${deudorId}/estadosMensuales`);
+  const q = query(col, orderBy("mes", "asc"));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() } as EstadoMensual));
+}
+
