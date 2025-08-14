@@ -9,4 +9,6 @@ export interface Cliente extends UsuarioSistema {
   tipoCuenta: "ahorros" | "corriente" | "convenio" | "";
   ejecutivoPrejuridicoId: string;
   ejecutivoJuridicoId: string;
+
+  
 }

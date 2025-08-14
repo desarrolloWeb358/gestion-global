@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye, Pencil, Trash2, User } from "lucide-react";
-import { createUserWithEmailAndPassword, getAuth } from "firebase/auth";
-import { collection, getDocs, query, serverTimestamp, where } from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../../firebase";
 
 import {
@@ -28,7 +27,6 @@ import {
 } from "../services/clienteService";
 import { UsuarioSistema } from "../../usuarios/models/usuarioSistema.model";
 import { obtenerUsuarios } from "../../usuarios/services/usuarioService";
-import UsuariosCrud from "@/modules/usuarios/components/UsuariosTable";
 
 export default function ClientesCrud() {
   const navigate = useNavigate();
@@ -38,6 +36,12 @@ export default function ClientesCrud() {
   const [ejecutivos, setEjecutivos] = useState<UsuarioSistema[]>([]);
   const [clienteEditando, setClienteEditando] = useState<Cliente | null>(null);
   const [mostrarDialogo, setMostrarDialogo] = useState(false);
+
+  // Selects controlados para el formulario
+  const [tipoCuentaSel, setTipoCuentaSel] = useState<"ahorros" | "corriente" | "convenio" | "">("");
+  const [ejecutivoPreSel, setEjecutivoPreSel] = useState<string>("");
+  const [ejecutivoJurSel, setEjecutivoJurSel] = useState<string>("");
+  const [activoSel, setActivoSel] = useState<boolean>(true);
 
   const fetchClientes = async () => {
     setLoading(true);
@@ -54,13 +58,6 @@ export default function ClientesCrud() {
     setEjecutivos(ejecutivosFiltrados);
   };
 
-  const existeClienteConDocumento = async (numeroDocumento: string) => {
-    const ref = collection(db, "clientes");
-    const q = query(ref, where("numeroDocumento", "==", numeroDocumento));
-    const snapshot = await getDocs(q);
-    return !snapshot.empty;
-  };
-
   useEffect(() => {
     fetchClientes();
     fetchEjecutivos();
@@ -68,11 +65,19 @@ export default function ClientesCrud() {
 
   const abrirCrear = () => {
     setClienteEditando(null);
+    setTipoCuentaSel("");
+    setEjecutivoPreSel("");
+    setEjecutivoJurSel("");
+    setActivoSel(true);
     setMostrarDialogo(true);
   };
 
   const abrirEditar = (cliente: Cliente) => {
     setClienteEditando(cliente);
+    setTipoCuentaSel((cliente.tipoCuenta as any) ?? "");
+    setEjecutivoPreSel(cliente.ejecutivoPrejuridicoId ?? "");
+    setEjecutivoJurSel(cliente.ejecutivoJuridicoId ?? "");
+    setActivoSel(cliente.activo ?? true);
     setMostrarDialogo(true);
   };
 
@@ -82,14 +87,16 @@ export default function ClientesCrud() {
   };
 
   const handleEliminar = async (id: string) => {
+    if (!confirm("¿Eliminar este cliente? Esta acción no se puede deshacer.")) return;
     await eliminarCliente(id);
     fetchClientes();
   };
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold">Clientes</h2>
+      {/* Encabezado limpio */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">Clientes</h2>
         <Button onClick={abrirCrear}>Crear cliente</Button>
       </div>
 
@@ -100,8 +107,7 @@ export default function ClientesCrud() {
           <TableHeader>
             <TableRow>
               <TableHead>Nombre</TableHead>
-              <TableHead>Correo</TableHead>
-              <TableHead>Teléfono</TableHead>
+              {/* Quitamos correo/teléfono/documentos porque viven en UsuarioSistema */}
               <TableHead>Banco</TableHead>
               <TableHead>N° Cuenta</TableHead>
               <TableHead>Tipo Cuenta</TableHead>
@@ -112,9 +118,6 @@ export default function ClientesCrud() {
             {clientes.map((cliente) => (
               <TableRow key={cliente.id}>
                 <TableCell>{cliente.nombre}</TableCell>
-                <TableCell>{cliente.email}</TableCell>
-                <TableCell>{cliente.telefonoUsuario}</TableCell>
-        
                 <TableCell>{cliente.banco}</TableCell>
                 <TableCell>{cliente.numeroCuenta}</TableCell>
                 <TableCell>{cliente.tipoCuenta}</TableCell>
@@ -175,91 +178,52 @@ export default function ClientesCrud() {
             className="grid gap-4 py-4"
             onSubmit={async (e) => {
               e.preventDefault();
-
-              const form = e.target as HTMLFormElement;
+              const form = e.currentTarget as HTMLFormElement;
               const formData = new FormData(form);
-              const tipoCuentaRaw = formData.get("tipoCuenta");
-              const tipoDocumento = formData.get("tipoDocumento") as "CC" | "CE" | "TI" | "NIT";
-              const numeroDocumento = formData.get("numeroDocumento") as string;
-              const activo = formData.get("activo") === "on";
 
-              if (!tipoDocumento || !numeroDocumento) {
-                alert("Tipo y número de documento son obligatorios.");
+              // Campos que SÍ pertenecen a Cliente:
+              const nombre = (formData.get("nombre") as string)?.trim();
+              const direccion = (formData.get("direccion") as string)?.trim();
+              const banco = (formData.get("banco") as string)?.trim();
+              const numeroCuenta = (formData.get("numeroCuenta") as string)?.trim();
+
+              // Selects controlados
+              const tipoCuenta = tipoCuentaSel as "ahorros" | "corriente" | "convenio" | "";
+              const ejecutivoPrejuridicoId = ejecutivoPreSel || "";
+              const ejecutivoJuridicoId = ejecutivoJurSel || "";
+              const activo = activoSel;
+
+              if (!nombre) {
+                alert("El nombre es obligatorio.");
                 return;
               }
-
-              if (
-                tipoCuentaRaw !== "ahorros" &&
-                tipoCuentaRaw !== "corriente" &&
-                tipoCuentaRaw !== "convenio"
-              ) {
+              if (!["ahorros", "corriente", "convenio", ""].includes(tipoCuenta)) {
                 alert("Tipo de cuenta inválido");
                 return;
               }
 
-              const tipoCuenta = tipoCuentaRaw as "ahorros" | "corriente" | "convenio";
-              let nuevo: Cliente;
+              // Omitimos 'uid' si está undefined para cumplir con el tipo 'Cliente'
+              const payload: Cliente = {
+                ...(clienteEditando ?? {}),
+                nombre,
+                direccion: direccion || "",
+                banco: banco || "",
+                numeroCuenta: numeroCuenta || "",
+                tipoCuenta: (tipoCuentaSel || undefined) as any,
+                ejecutivoPrejuridicoId: ejecutivoPreSel || "",
+                ejecutivoJuridicoId: ejecutivoJurSel || "",
+                activo,
+                uid: (clienteEditando?.uid ?? ""),
+              };
 
-              if (clienteEditando) {
-                nuevo = {
-                  ...clienteEditando,
-                  nombre: formData.get("nombre") as string,
-                  email: formData.get("correo") as string,
-                  telefonoUsuario: formData.get("telefono") as string,
-                  direccion: formData.get("direccion") as string,
-                  ejecutivoPrejuridicoId: formData.get("ejecutivoId") as string,
-                  ejecutivoJuridicoId: formData.get("ejecutivoId") as string,
-                  banco: formData.get("banco") as string,
-                  numeroCuenta: formData.get("numeroCuenta") as string,
-                  tipoCuenta,
-                  tipoDocumento,
-                  numeroDocumento,
-                  activo,
-                };
+              // OJO: si la interface `Cliente` exige uid:string, este cast solo silencia TS,
+              // por eso es mejor la Opción 1.
+              if (clienteEditando?.id) {
+                payload.id = clienteEditando.id;
+                const { id, ...data } = payload;
+                await actualizarCliente(id, data as any);
               } else {
-                const email = formData.get("correo") as string;
-                const password = "123456";
-
-                const yaExiste = await existeClienteConDocumento(numeroDocumento);
-                if (yaExiste) {
-                  alert("Ya existe un cliente con ese número de documento.");
-                  return;
-                }
-
-                const auth = getAuth();
-                let userCredential;
-                try {
-                  userCredential = await createUserWithEmailAndPassword(auth, email, password);
-                } catch (error: any) {
-                  alert("Error creando usuario: " + error.message);
-                  return;
-                }
-
-                const uid = userCredential.user.uid;
-
-                nuevo = {
-                  uid,
-                  email,
-                  nombre: formData.get("nombre") as string,
-                  telefonoUsuario: formData.get("telefono") as string,
-                  direccion: formData.get("direccion") as string,
-                  ejecutivoPrejuridicoId: formData.get("ejecutivoId") as string,
-                  ejecutivoJuridicoId: formData.get("ejecutivoId") as string,
-                  banco: formData.get("banco") as string,
-                  numeroCuenta: formData.get("numeroCuenta") as string,
-                  tipoCuenta,
-                  tipoDocumento,
-                  numeroDocumento,
-                  activo,
-                  roles: ["cliente"],
-                  fecha_registro: serverTimestamp(),
-                };
-              }
-
-              if (clienteEditando) {
-                await actualizarCliente(nuevo);
-              } else {
-                await crearCliente(nuevo);
+                await crearCliente(payload as any);
               }
 
               cerrarDialogo();
@@ -267,26 +231,14 @@ export default function ClientesCrud() {
             }}
           >
             <div className="grid grid-cols-2 gap-4">
+              {/* Campos propios de Cliente */}
               <div><Label>Nombre</Label><Input name="nombre" defaultValue={clienteEditando?.nombre} required /></div>
-              <div><Label>Correo</Label><Input name="correo" defaultValue={clienteEditando?.email} required /></div>
-              <div><Label>Teléfono</Label><Input name="telefono" defaultValue={clienteEditando?.telefonoUsuario} /></div>
-              <div>
-                <Label>Tipo de documento</Label>
-                <Select name="tipoDocumento" defaultValue={clienteEditando?.tipoDocumento}>
-                  <SelectTrigger><SelectValue placeholder="Selecciona" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="CC">Cédula de ciudadanía</SelectItem>
-                    <SelectItem value="CE">Cédula de extranjería</SelectItem>
-                    <SelectItem value="TI">Tarjeta de identidad</SelectItem>
-                    <SelectItem value="NIT">NIT</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div><Label>Número de documento</Label><Input name="numeroDocumento" defaultValue={clienteEditando?.numeroDocumento} required /></div>
               <div><Label>Dirección</Label><Input name="direccion" defaultValue={clienteEditando?.direccion} /></div>
+
+              {/* Ejecutivos separados */}
               <div>
-                <Label>Ejecutivo</Label>
-                <Select name="ejecutivoId" defaultValue={clienteEditando?.ejecutivoPrejuridicoId ?? clienteEditando?.ejecutivoJuridicoId}>
+                <Label>Ejecutivo Prejurídico</Label>
+                <Select value={ejecutivoPreSel} onValueChange={setEjecutivoPreSel}>
                   <SelectTrigger><SelectValue placeholder="Selecciona" /></SelectTrigger>
                   <SelectContent>
                     {ejecutivos.map((e) => (
@@ -297,11 +249,28 @@ export default function ClientesCrud() {
                   </SelectContent>
                 </Select>
               </div>
+
+              <div>
+                <Label>Ejecutivo Jurídico</Label>
+                <Select value={ejecutivoJurSel} onValueChange={setEjecutivoJurSel}>
+                  <SelectTrigger><SelectValue placeholder="Selecciona" /></SelectTrigger>
+                  <SelectContent>
+                    {ejecutivos.map((e) => (
+                      <SelectItem key={e.uid} value={e.uid}>
+                        {e.nombre ?? e.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Datos bancarios del Cliente */}
               <div><Label>Banco</Label><Input name="banco" defaultValue={clienteEditando?.banco} /></div>
               <div><Label>Número de cuenta</Label><Input name="numeroCuenta" defaultValue={clienteEditando?.numeroCuenta} /></div>
+
               <div>
                 <Label>Tipo de cuenta</Label>
-                <Select name="tipoCuenta" defaultValue={clienteEditando?.tipoCuenta}>
+                <Select value={tipoCuentaSel} onValueChange={(value) => setTipoCuentaSel(value as "ahorros" | "corriente" | "convenio" | "")}>
                   <SelectTrigger><SelectValue placeholder="Selecciona" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ahorros">Ahorros</SelectItem>
@@ -310,10 +279,16 @@ export default function ClientesCrud() {
                   </SelectContent>
                 </Select>
               </div>
+
               <div>
                 <Label>Activo</Label>
                 <div className="flex items-center space-x-2 mt-2">
-                  <input type="checkbox" name="activo" defaultChecked={clienteEditando?.activo ?? true} className="w-4 h-4" />
+                  <input
+                    type="checkbox"
+                    checked={activoSel}
+                    onChange={(e) => setActivoSel(e.target.checked)}
+                    className="w-4 h-4"
+                  />
                   <span>¿Activo?</span>
                 </div>
               </div>

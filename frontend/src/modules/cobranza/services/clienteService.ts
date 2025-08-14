@@ -56,12 +56,11 @@ export const crearCliente = async (cliente: Omit<Cliente, "id">): Promise<void> 
 /**
  * Actualizar cliente existente
  */
-export const actualizarCliente = async (cliente: Cliente): Promise<void> => {
-  const { id, ...data } = cliente;
-  if (!id) throw new Error("Cliente no tiene ID para actualizar");
+export async function actualizarCliente(id: string, data: Partial<Cliente>) {
   const ref = doc(db, "clientes", id);
-  await updateDoc(ref, data);
-};
+  // Limpia undefined si corresponde
+  return updateDoc(ref, data as any);
+}
 
 /**
  * Eliminar cliente por ID

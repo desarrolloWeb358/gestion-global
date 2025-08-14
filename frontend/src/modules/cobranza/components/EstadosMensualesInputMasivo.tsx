@@ -2,201 +2,188 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Deudor } from "../models/deudores.model";
 import { EstadoMensual } from "../models/estadoMensual.model";
 import { obtenerDeudorPorCliente, crearEstadoMensual } from "../services/deudorService";
+// Si ya tienes un servicio para cliente, úsalo. De lo contrario, implementa este import y función.
+import { db } from "@/firebase";
+import { doc, getDoc } from "firebase/firestore";
 
-
-interface FilaEstado extends EstadoMensual {
-    deudorId: string;
-    nombre: string;
-    porcentajeHonorarios: number;
-
+interface FilaEstadoBase {
+  deudorId: string;
+  nombre: string;
+  porcentajeHonorarios: number;
+  deuda: number;
+  recaudo: number;
 }
 
 export default function EstadosMensualesInputMasivo() {
-    const { clienteId } = useParams();
-    const navigate = useNavigate();
-    const [filas, setFilas] = useState<FilaEstado[]>([]);
-    const [loading, setLoading] = useState(true);
+  const { clienteId } = useParams();
+  const navigate = useNavigate();
 
-    useEffect(() => {
-        if (!clienteId) return;
+  const [clienteNombre, setClienteNombre] = useState<string>("");
+  const [mesGlobal, setMesGlobal] = useState<string>(() => new Date().toISOString().slice(0, 7));
+  const [filas, setFilas] = useState<FilaEstadoBase[]>([]);
+  const [loading, setLoading] = useState(true);
 
-        obtenerDeudorPorCliente(clienteId).then((deudores: Deudor[]) => {
-            const mesActual = new Date().toISOString().slice(0, 7);
-            const nuevasFilas = deudores.map((d) => {
-                const deuda = 0;
-                const porcentaje = d.porcentajeHonorarios || 0;
-                const honorarios = (deuda * porcentaje) / 100;
+  // Cargar nombre del cliente (conjunto)
+  useEffect(() => {
+    if (!clienteId) return;
 
-                return {
-                    deudorId: d.id!,
-                    nombre: d.nombre || "Sin nombre",
-                    mes: mesActual,
-                    tipo: "ordinario" as const,
-                    deuda: 0,
-                    porcentajeHonorarios: d.porcentajeHonorarios || 0,
-                    honorarios: 0,
-                    recaudo: 0,
-                    comprobante: null,      // ✅ ahora válido
-                    recibo: "",
-                    observaciones: "",
-                };
-            });
+    (async () => {
+      try {
+        // Si tienes un servicio como obtenerClientePorId, úsalo aquí en vez de Firestore directo.
+        const ref = doc(db, "clientes", clienteId);
+        const snap = await getDoc(ref);
+        const nombre = snap.exists() ? (snap.data().nombre as string) : "Cliente";
+        setClienteNombre(nombre || "Cliente");
+      } catch {
+        setClienteNombre("Cliente");
+      }
+    })();
+  }, [clienteId]);
 
-            setFilas(nuevasFilas);
-            setLoading(false);
-        });
-    }, [clienteId]);
+  // Cargar deudores y preparar filas
+  useEffect(() => {
+    if (!clienteId) return;
 
-    const handleChange = (index: number, field: keyof FilaEstado, value: any) => {
-        const nuevasFilas = [...filas];
-        const fila = { ...nuevasFilas[index] };
+    obtenerDeudorPorCliente(clienteId).then((deudores: Deudor[]) => {
+      const nuevasFilas: FilaEstadoBase[] = deudores.map((d) => ({
+        deudorId: d.id!,
+        nombre: d.nombre || "Sin nombre",
+        porcentajeHonorarios: d.porcentajeHonorarios || 0,
+        deuda: undefined as unknown as number,
+        recaudo: undefined as unknown as number,
+      }));
+      setFilas(nuevasFilas);
+      setLoading(false);
+    });
+  }, [clienteId]);
 
-        if (field === "deuda" || field === "honorarios" || field === "recaudo") {
-            const n = parseFloat(value);
-            (fila as any)[field] = isNaN(n) ? 0 : n;
+  const handleChange = (index: number, field: keyof FilaEstadoBase, value: any) => {
+    const nuevas = [...filas];
+    const fila = { ...nuevas[index] };
 
-            if (field === "deuda") {
-                const porcentaje = fila.porcentajeHonorarios ?? 0;
-                fila.honorarios = isNaN(n) ? 0 : (n * porcentaje) / 100;
-            }
-        } else if (field === "tipo" || field === "mes" || field === "recibo" || field === "observaciones") {
-            (fila as any)[field] = value;
-        } else if (field === "comprobante") {
-            // Si algún día lo editas: nunca undefined
-            (fila as any)[field] = value ?? null;
-        }
-
-        nuevasFilas[index] = fila;
-        setFilas(nuevasFilas);
-    };
-
-    function limpiarUndefined<T extends Record<string, any>>(obj: T): T {
-        const limpio = Object.fromEntries(
-            Object.entries(obj).filter(([_, v]) => v !== undefined)
-        ) as T;
-        // Si tienes campos opcionales conocidos, puedes convertir "" a null si quieres:
-        if ('comprobante' in limpio && limpio.comprobante === undefined) (limpio as any).comprobante = null;
-        if ('recibo' in limpio && limpio.recibo === undefined) (limpio as any).recibo = null;
-        if ('observaciones' in limpio && limpio.observaciones === undefined) (limpio as any).observaciones = null;
-        return limpio;
+    if (field === "deuda" || field === "recaudo") {
+      const n = parseFloat(value);
+      (fila as any)[field] = isNaN(n) ? 0 : n;
     }
 
-    const guardarTodos = async () => {
-        if (!clienteId) return;
+    nuevas[index] = fila;
+    setFilas(nuevas);
+  };
 
-        try {
-            for (const fila of filas) {
-                const { deudorId, nombre, porcentajeHonorarios, ...estado } = fila;
+  function limpiarUndefined<T extends Record<string, any>>(obj: T): T {
+    return Object.fromEntries(Object.entries(obj).filter(([_, v]) => v !== undefined)) as T;
+  }
 
-                // Normaliza por si acaso:
-                const estadoLimpio = limpiarUndefined({
-                    ...estado,
-                    comprobante: estado.comprobante ?? null, // ✅ asegúralo aquí también
-                    recibo: estado.recibo ?? null,
-                    observaciones: estado.observaciones ?? null,
-                });
+  const guardarTodos = async () => {
+    if (!clienteId) return;
+    if (!mesGlobal) {
+      toast.error("Selecciona un mes válido.");
+      return;
+    }
 
-                await crearEstadoMensual(clienteId, deudorId, estadoLimpio);
-            }
+    try {
+      for (const fila of filas) {
+        const { deudorId, nombre, porcentajeHonorarios, deuda, recaudo } = fila;
 
-            toast.success("Todos los estados fueron guardados correctamente.");
-        } catch (err) {
-            console.error(err);
-            toast.error("Error al guardar algunos estados.");
-        }
-    };
-    return (
-        <div className="p-6 space-y-6">
-            <Button variant="outline" onClick={() => navigate(-1)}>
-                ← Volver
-            </Button>
-            <h2 className="text-2xl font-bold">Ingreso Masivo de Estados Mensuales</h2>
+        const honorarios = (Number(deuda) * Number(porcentajeHonorarios || 0)) / 100;
 
-            <div className="overflow-x-auto">
-                <table className="w-full text-sm border">
-                    <thead className="bg-gray-100">
-                        <tr>
-                            <th className="p-2 text-left">Deudor</th>
-                            <th className="p-2">Mes</th>
-                            <th className="p-2">Tipo</th>
-                            <th className="p-2">Deuda</th>
-                            <th className="p-2">Honorarios</th>
-                            <th className="p-2">Recaudo</th>
-                            <th className="p-2">Recibo</th>
-                            <th className="p-2">Observaciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filas.map((fila, i) => (
-                            <tr key={i} className="border-t">
-                                <td className="p-2">{fila.nombre}</td>
-                                <td className="p-2">
-                                    <Input
-                                        type="month"
-                                        value={fila.mes}
-                                        onChange={(e) => handleChange(i, "mes", e.target.value)}
-                                    />
-                                </td>
-                                <td className="p-2">
-                                    <Select
-                                        value={fila.tipo}
-                                        onValueChange={(val) => handleChange(i, "tipo", val as any)}
-                                    >
-                                        <SelectTrigger className="w-[120px]">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="ordinario">Ordinario</SelectItem>
-                                            <SelectItem value="extraordinario">Extraordinario</SelectItem>
-                                            <SelectItem value="anticipo">Anticipo</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </td>
-                                <td className="p-2">
-                                    <Input
-                                        type="number"
-                                        value={fila.deuda}
-                                        onChange={(e) => handleChange(i, "deuda", e.target.value)}
-                                    />
-                                </td>
-                                <td className="p-2 text-right">
-                                    <Input
-                                        type="number"
-                                        value={fila.honorarios}
-                                        onChange={(e) => handleChange(i, "honorarios", e.target.value)}
-                                    />
-                                </td>
-                                <td className="p-2">
-                                    <Input
-                                        type="number"
-                                        value={fila.recaudo}
-                                        onChange={(e) => handleChange(i, "recaudo", e.target.value)}
-                                    />
-                                </td>
-                                <td className="p-2">
-                                    <Input
-                                        value={fila.recibo ?? ""}
-                                        onChange={(e) => handleChange(i, "recibo", e.target.value)}
-                                    />
-                                </td>
-                                <td className="p-2">
-                                    <Input
-                                        value={fila.observaciones ?? ""}
-                                        onChange={(e) => handleChange(i, "observaciones", e.target.value)}
-                                    />
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+        // Estado mensual mínimo requerido por tu modelo/colección
+        const estado: EstadoMensual = {
+          mes: mesGlobal,
+          tipo: "ordinario",           // fijo por defecto (puedes cambiarlo si lo necesitas)
+          deuda: Number(deuda) || 0,
+          honorarios: Number(honorarios) || 0,
+          recaudo: Number(recaudo) || 0,
+          comprobante: null,
+          recibo: null,
+          observaciones: null,
+        };
 
-            <Button onClick={guardarTodos} className="mt-4">Guardar todos los estados</Button>
-        </div>
-    );
+        await crearEstadoMensual(clienteId, deudorId, estado);
+      }
+
+      toast.success("Todos los estados fueron guardados correctamente.");
+    } catch (err) {
+      console.error(err);
+      toast.error("Error al guardar algunos estados.");
+    }
+  };
+
+  if (loading) return <div className="p-6">Cargando…</div>;
+
+  return (
+    <div className="p-6 space-y-6">
+  {/* Encabezado */}
+  <div className="flex flex-col gap-1">
+    <div className="flex items-center justify-between">
+      <Button variant="outline" onClick={() => navigate(-1)}>
+        ← Volver
+      </Button>
+      <h1 className="text-2xl font-bold text-center flex-1">
+        Ingreso Masivo de Estados Mensuales
+      </h1>
+      <div className="w-[85px]"></div> {/* espacio para balancear con el botón */}
+    </div>
+
+    <p className="text-lg text-muted-foreground text-center">
+      Conjunto: <span className="font-semibold text-gray-900">{clienteNombre}</span>
+    </p>
+  </div>
+
+  {/* Selector de mes */}
+  <div className="flex items-center gap-3">
+    <label className="font-medium">Mes:</label>
+    <Input
+      type="month"
+      value={mesGlobal}
+      onChange={(e) => setMesGlobal(e.target.value)}
+      className="max-w-[200px]"
+    />
+  </div>
+
+      {/* Tabla simplificada: Deudor | Deuda | Recaudo */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm border">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="p-2 text-left">Deudor</th>
+              <th className="p-2 text-right">Deuda</th>
+              <th className="p-2 text-right">Recaudo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filas.map((fila, i) => (
+              <tr key={fila.deudorId} className="border-t">
+                <td className="p-2">{fila.nombre}</td>
+                <td className="p-2">
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    value={fila.deuda}
+                    onChange={(e) => handleChange(i, "deuda", e.target.value)}
+                    className="text-right"
+                  />
+                </td>
+                <td className="p-2">
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    value={fila.recaudo}
+                    onChange={(e) => handleChange(i, "recaudo", e.target.value)}
+                    className="text-right"
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <Button onClick={guardarTodos} className="mt-4">Guardar todos los estados</Button>
+    </div>
+  );
 }
