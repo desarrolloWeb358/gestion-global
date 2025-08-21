@@ -20,7 +20,7 @@ import "ag-grid-community/styles/ag-theme-alpine.css";
 import EstadosMensualesTable from "./modules/cobranza/components/EstadosMensualesTable";
 import ClienteDashboardPage from "./modules/cobranza/components/ClienteDashboardPage";
 import EstadosMensualesInputMasivo from "./modules/cobranza/components/EstadosMensualesInputMasivo";
-
+import TipificacionPorInmueblePage from "./modules/cobranza/components/reportes/TipificacionPorInmueblePage";
 
 
 export default function App() {
@@ -43,11 +43,7 @@ export default function App() {
           <Route path="/deudores/:clienteId/:deudorId/acuerdo" element={<InmuebleDetailTabsWrapper />} />
           <Route path="/deudores/:clienteId/:deudorId/seguimiento" element={<SeguimientoTable />} />
           <Route path="/clientes/:clienteId/deudores/:deudorId" element={<DeudorDetailPage />} />
-          <Route
-            path="/deudores/:clienteId/:deudorId/estadosMensuales"
-            element={<EstadosMensualesTable />}
-          />
-
+          <Route path="/deudores/:clienteId/:deudorId/estadosMensuales" element={<EstadosMensualesTable />} />
           <Route path="/clientes/:clienteId" element={<ClienteDashboardPage />} />
           <Route path="/clientes/:clienteId/estado-mensual" element={<EstadosMensualesInputMasivo />} />
           <Route path="/clientes-tables" element={<ClientesTable />} />
@@ -55,6 +51,8 @@ export default function App() {
           <Route path="/deudores/:clienteId" element={<InmueblesTable />} />
           <Route path="/consulta-personas" element={<ConsultaPersonasPage />} />
           <Route path="/probar-notificaciones" element={<ProbarNotificacionesPage />} />
+          <Route path="/clientes/:clienteId/reportes/tipificacion" element={<TipificacionPorInmueblePage />} />
+
         </Route>
         {/* 404 */}
 

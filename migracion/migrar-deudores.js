@@ -6,6 +6,29 @@ const serviceAccount = require('./serviceAccountKey.json');
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 const db = admin.firestore();
 
+// --- NUEVO: Helper para calcular tipificación ---
+const TIP_IDS_DEMANDA = new Set([39, 47, 85]);
+function computeTipificacion(rows) {
+  if (!rows || rows.length === 0) return '';
+
+  // Mapear a números o null (si viene null)
+  const ids = rows
+    .map(r => (r.tip_id === null ? null : Number(r.tip_id)))
+    .filter(v => v === null || !Number.isNaN(v));
+
+  // Prioridad: DEMANDA > ACUERDO > GESTIONANDO
+  const hasDemanda = ids.some(v => v === null || TIP_IDS_DEMANDA.has(v));
+  if (hasDemanda) return 'Demanda';
+
+  const hasAcuerdo = ids.some(v => v === 2);
+  if (hasAcuerdo) return 'Acuerdo';
+
+  const allGestionando = ids.length > 0 && ids.every(v => v === 1);
+  if (allGestionando) return 'Gestionando';
+
+  return 'Gestionando'; // Por defecto si no hay tipificación clara
+}
+
 const main = async () => {
   const connection = await mysql.createConnection({
     host: 'localhost',
@@ -80,7 +103,7 @@ const main = async () => {
         );
         const direccion = (direccionRows[0] && direccionRows[0].diru_direccion) ? direccionRows[0].diru_direccion : '';
 
-        // 4) Crear deudor (sin deudaTotal)
+        // 4) Crear deudor (sin deudaTotal); tipificacion se calculará luego)
         const deudorData = {
           nombre: usuario.usr_nombre,
           ubicacion,
@@ -88,7 +111,7 @@ const main = async () => {
           telefonos,
           correos: [],
           estado: '',
-          tipificacion: '',
+          tipificacion: '', // <- se actualizará después según seguimientos
           fechaCreacion: admin.firestore.FieldValue.serverTimestamp(),
           ...(proceso.pro_numero ? { numeroProceso: proceso.pro_numero } : {}),
           ...(proceso.pro_ano ? { anoProceso: proceso.pro_ano } : {}),
@@ -146,11 +169,18 @@ const main = async () => {
           console.log(`📆 Estado mensual ${mes} → deuda=${estadoDoc.deuda} / recaudo=${estadoDoc.recaudo}`);
         }
 
-        // 8) Seguimientos (igual que antes)
+       // 8) Seguimientos: obtener primero para calcular tipificación
         const [seguimientos] = await connection.execute(
           'SELECT obp_observacion, tip_id, obp_fecha_observacion FROM scc_observacion_proceso WHERE pro_id = ?',
           [proceso.pro_id]
         );
+
+        // --- NUEVO: calcular tipificación y actualizar deudor ---
+        const tipificacion = computeTipificacion(seguimientos);
+        if (tipificacion) {
+          await deudorRef.update({ tipificacion });
+          console.log(`🏷️ Tipificación asignada: ${tipificacion}`);
+        }
 
         for (const s of seguimientos) {
           const desc = s.obp_observacion?.trim();
@@ -159,7 +189,8 @@ const main = async () => {
 
           const seguimientoDoc = {
             descripcion: desc,
-            tipo: s.tip_id,
+            // IMPORTANTE: ya NO guardamos s.tip_id aquí para no “dejar” la tipificación en seguimiento
+            // tipo: s.tip_id,  <-- eliminado
             fecha: admin.firestore.Timestamp.fromDate(new Date(fechaRaw)),
             tipoSeguimiento: '',
             archivoUrl: ''

@@ -62,6 +62,14 @@ export default function ClienteDashboardPage() {
                     Ver Deudores
                 </Button>
                 <Button onClick={() => navigate("envio-masivo")}>Enviar Mensaje Masivo</Button>
+
+                <Button                    
+                    onClick={() =>
+                        navigate(`/clientes/${cliente.id}/reportes/tipificacion`)
+                    }
+                >
+                    📊 Ver Reporte
+                </Button>
             </div>
         </div>
     );
