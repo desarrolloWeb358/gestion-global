@@ -65,7 +65,7 @@ export default function ClienteDashboardPage() {
 
                 <Button                    
                     onClick={() =>
-                        navigate(`/clientes/${cliente.id}/reportes/tipificacion`)
+                        navigate(`/clientes/${cliente.id}/reporte`)
                     }
                 >
                     📊 Ver Reporte

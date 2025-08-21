@@ -20,7 +20,7 @@ import "ag-grid-community/styles/ag-theme-alpine.css";
 import EstadosMensualesTable from "./modules/cobranza/components/EstadosMensualesTable";
 import ClienteDashboardPage from "./modules/cobranza/components/ClienteDashboardPage";
 import EstadosMensualesInputMasivo from "./modules/cobranza/components/EstadosMensualesInputMasivo";
-import TipificacionPorInmueblePage from "./modules/cobranza/components/reportes/TipificacionPorInmueblePage";
+import ReporteClientePage from "./modules/cobranza/components/reportes/ReporteClientePage";
 
 
 export default function App() {
@@ -51,7 +51,7 @@ export default function App() {
           <Route path="/deudores/:clienteId" element={<InmueblesTable />} />
           <Route path="/consulta-personas" element={<ConsultaPersonasPage />} />
           <Route path="/probar-notificaciones" element={<ProbarNotificacionesPage />} />
-          <Route path="/clientes/:clienteId/reportes/tipificacion" element={<TipificacionPorInmueblePage />} />
+          <Route path="/clientes/:clienteId/reporte" element={<ReporteClientePage />} />
 
         </Route>
         {/* 404 */}
