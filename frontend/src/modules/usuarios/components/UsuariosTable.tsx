@@ -18,6 +18,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
+  DialogTrigger,
 } from "../../../components/ui/dialog";
 import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
@@ -125,6 +127,11 @@ export default function UsuariosCrud() {
   };
 
   const handleEliminar = async (uid: string) => {
+    const ok = window.confirm(
+      "¿Desea borrar el usuario? Este borrado es permanente y no podrá recuperarlo."
+    );
+    if (!ok) return;
+
     await eliminarUsuario(uid);
     fetchUsuarios();
   };
@@ -177,33 +184,76 @@ export default function UsuariosCrud() {
                     })()
                     : ""}
                 </TableCell>
+
+
                 <TableCell>
                   <div className="flex justify-center gap-2">
                     <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button size="icon" variant="ghost" onClick={() => abrirEditar(usuario)}>
-                            <Pencil className="w-4 h-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Editar</TooltipContent>
-                      </Tooltip>
+                      {/* Botón Editar */}
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="text-red-600"
-                            onClick={() => handleEliminar(usuario.uid)}
+                            onClick={() => abrirEditar(usuario)}
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Pencil className="w-4 h-4" />
                           </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Editar</TooltipContent>
+                      </Tooltip>
+
+                      {/* Botón Eliminar con Dialog pantalla completa */}
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="text-red-600"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </DialogTrigger>
+
+                            <DialogContent className="sm:max-w-md">
+                              <DialogHeader>
+                                <DialogTitle className="text-red-600">
+                                  ¿Desea borrar el usuario?
+                                </DialogTitle>
+                                <DialogDescription>
+                                  Este borrado es <strong>definitivo</strong> y no podrá recuperarlo.
+                                </DialogDescription>
+                              </DialogHeader>
+                              <DialogFooter className="flex justify-end gap-2">
+                                <Button
+                                  variant="outline"
+                                  onClick={() => {
+                                    // el componente Dialog se cerrará automáticamente con onOpenChange
+                                  }}
+                                >
+                                  Cancelar
+                                </Button>
+                                <Button
+                                  className="bg-red-600 hover:bg-red-700"
+                                  onClick={async () => {
+                                    await eliminarUsuario(usuario.uid);
+                                    fetchUsuarios();
+                                  }}
+                                >
+                                  Borrar definitivamente
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
                         </TooltipTrigger>
                         <TooltipContent>Eliminar</TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   </div>
                 </TableCell>
+
               </TableRow>
             ))}
           </TableBody>
@@ -271,6 +321,11 @@ export default function UsuariosCrud() {
                 // 🟢 Modo creación
                 if (!password) {
                   toast("La contraseña es obligatoria para nuevos usuarios.");
+                  return;
+                }
+
+                if (password.length < 6) {
+                  toast("⚠️ La contraseña debe tener al menos 6 caracteres.");
                   return;
                 }
 

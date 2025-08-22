@@ -16,7 +16,7 @@ export interface DeudorInfoCardProps {
 
 export default function DeudorInfoCard({ deudor, clienteId, abonos }: DeudorInfoCardProps) {
   const navigate = useNavigate();
-  const { deuda, honorarios, total } = calcularDeudaTotal(deudor);
+
 
   return (
     <Card>
@@ -30,20 +30,7 @@ export default function DeudorInfoCard({ deudor, clienteId, abonos }: DeudorInfo
         <div><span className="font-medium text-foreground">Correos:</span> {deudor.correos?.join(', ') || 'No registrados'}</div>
         <div><span className="font-medium text-foreground">Tipificación:</span> {deudor.tipificacion}</div>
 
-        <div>
-          <span className="font-medium text-foreground">Deuda base:</span>{" "}
-          ${deuda.toLocaleString("es-CO")}
-        </div>
-
-        <div>
-          <span className="font-medium text-foreground">Honorarios ({deudor.porcentajeHonorarios ?? 0}%):</span>{" "}
-          ${honorarios.toLocaleString("es-CO")}
-        </div>
-
-        <div>
-          <span className="font-medium text-foreground">Deuda total:</span>{" "}
-          <span className="text-green-600 font-semibold">${total.toLocaleString("es-CO")}</span>
-        </div>
+  
 
         {/* Acciones */}
         <div className="pt-4 flex gap-2">

@@ -51,7 +51,7 @@ export default function ClienteDashboardPage() {
                 ← Volver
             </Button>
 
-            <ClienteInfoCard cliente={cliente} ejecutivos={ejecutivos} />
+            <ClienteInfoCard cliente={cliente} ejecutivos={ejecutivos} usuarios={[]} />
 
 
             <div className="space-x-4 mt-4">

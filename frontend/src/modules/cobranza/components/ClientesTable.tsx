@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye, Pencil, Trash2, User } from "lucide-react";
-import { collection, getDocs, query, where } from "firebase/firestore";
-import { db } from "../../../firebase";
 
 import {
   Dialog,
@@ -21,7 +19,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../../
 import { Cliente } from "../models/cliente.model";
 import {
   obtenerClientes,
-  crearCliente,
   actualizarCliente,
   eliminarCliente,
 } from "../services/clienteService";
@@ -38,7 +35,7 @@ export default function ClientesCrud() {
   const [mostrarDialogo, setMostrarDialogo] = useState(false);
 
   // Selects controlados para el formulario
-  const [tipoCuentaSel, setTipoCuentaSel] = useState<"ahorros" | "corriente" | "convenio" | "">("");
+  const [tipoCuentaSel, setTipoCuentaSel] = useState<"" | "ahorros" | "corriente" | "convenio">("");
   const [ejecutivoPreSel, setEjecutivoPreSel] = useState<string>("");
   const [ejecutivoJurSel, setEjecutivoJurSel] = useState<string>("");
   const [activoSel, setActivoSel] = useState<boolean>(true);
@@ -63,15 +60,6 @@ export default function ClientesCrud() {
     fetchEjecutivos();
   }, []);
 
-  const abrirCrear = () => {
-    setClienteEditando(null);
-    setTipoCuentaSel("");
-    setEjecutivoPreSel("");
-    setEjecutivoJurSel("");
-    setActivoSel(true);
-    setMostrarDialogo(true);
-  };
-
   const abrirEditar = (cliente: Cliente) => {
     setClienteEditando(cliente);
     setTipoCuentaSel((cliente.tipoCuenta as any) ?? "");
@@ -94,10 +82,10 @@ export default function ClientesCrud() {
 
   return (
     <div className="space-y-4">
-      {/* Encabezado limpio */}
+      {/* Encabezado sin botón de creación */}
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Clientes</h2>
-        <Button onClick={abrirCrear}>Crear cliente</Button>
+        {/* (Se eliminó el botón "Crear cliente") */}
       </div>
 
       {loading ? (
@@ -107,7 +95,6 @@ export default function ClientesCrud() {
           <TableHeader>
             <TableRow>
               <TableHead>Nombre</TableHead>
-              {/* Quitamos correo/teléfono/documentos porque viven en UsuarioSistema */}
               <TableHead>Banco</TableHead>
               <TableHead>N° Cuenta</TableHead>
               <TableHead>Tipo Cuenta</TableHead>
@@ -168,64 +155,57 @@ export default function ClientesCrud() {
         </Table>
       )}
 
+      {/* Dialogo solo para EDITAR */}
       <Dialog open={mostrarDialogo} onOpenChange={setMostrarDialogo}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
-            <DialogTitle>{clienteEditando ? "Editar cliente" : "Crear cliente"}</DialogTitle>
+            <DialogTitle>Editar cliente</DialogTitle>
           </DialogHeader>
 
           <form
             className="grid gap-4 py-4"
             onSubmit={async (e) => {
               e.preventDefault();
+              if (!clienteEditando?.id) {
+                // seguridad: no se permite crear desde aquí
+                cerrarDialogo();
+                return;
+              }
+
               const form = e.currentTarget as HTMLFormElement;
               const formData = new FormData(form);
 
-              // Campos que SÍ pertenecen a Cliente:
+              // Campos de Cliente
               const nombre = (formData.get("nombre") as string)?.trim();
               const direccion = (formData.get("direccion") as string)?.trim();
               const banco = (formData.get("banco") as string)?.trim();
               const numeroCuenta = (formData.get("numeroCuenta") as string)?.trim();
 
               // Selects controlados
-              const tipoCuenta = tipoCuentaSel as "ahorros" | "corriente" | "convenio" | "";
-              const ejecutivoPrejuridicoId = ejecutivoPreSel || "";
-              const ejecutivoJuridicoId = ejecutivoJurSel || "";
+              const tipoCuentaRaw = tipoCuentaSel; // "" | union
+              const tipoCuenta =
+                tipoCuentaRaw === "" ? undefined : (tipoCuentaRaw as "ahorros" | "corriente" | "convenio");
+              const ejecutivoPrejuridicoId = ejecutivoPreSel || null;
+              const ejecutivoJuridicoId = ejecutivoJurSel || null;
               const activo = activoSel;
 
               if (!nombre) {
                 alert("El nombre es obligatorio.");
                 return;
               }
-              if (!["ahorros", "corriente", "convenio", ""].includes(tipoCuenta)) {
-                alert("Tipo de cuenta inválido");
-                return;
-              }
 
-              // Omitimos 'uid' si está undefined para cumplir con el tipo 'Cliente'
-              const payload: Cliente = {
-                ...(clienteEditando ?? {}),
+              const payload: Partial<Cliente> = {
                 nombre,
                 direccion: direccion || "",
                 banco: banco || "",
                 numeroCuenta: numeroCuenta || "",
-                tipoCuenta: (tipoCuentaSel || undefined) as any,
-                ejecutivoPrejuridicoId: ejecutivoPreSel || "",
-                ejecutivoJuridicoId: ejecutivoJurSel || "",
+                ...(tipoCuenta ? { tipoCuenta } : {}), // evita guardar ""
+                ejecutivoPrejuridicoId,
+                ejecutivoJuridicoId,
                 activo,
-                uid: (clienteEditando?.uid ?? ""),
               };
 
-              // OJO: si la interface `Cliente` exige uid:string, este cast solo silencia TS,
-              // por eso es mejor la Opción 1.
-              if (clienteEditando?.id) {
-                payload.id = clienteEditando.id;
-                const { id, ...data } = payload;
-                await actualizarCliente(id, data as any);
-              } else {
-                await crearCliente(payload as any);
-              }
-
+              await actualizarCliente(clienteEditando.id, payload);
               cerrarDialogo();
               fetchClientes();
             }}
@@ -235,7 +215,7 @@ export default function ClientesCrud() {
               <div><Label>Nombre</Label><Input name="nombre" defaultValue={clienteEditando?.nombre} required /></div>
               <div><Label>Dirección</Label><Input name="direccion" defaultValue={clienteEditando?.direccion} /></div>
 
-              {/* Ejecutivos separados */}
+              {/* Ejecutivos */}
               <div>
                 <Label>Ejecutivo Prejurídico</Label>
                 <Select value={ejecutivoPreSel} onValueChange={setEjecutivoPreSel}>
@@ -270,7 +250,10 @@ export default function ClientesCrud() {
 
               <div>
                 <Label>Tipo de cuenta</Label>
-                <Select value={tipoCuentaSel} onValueChange={(value) => setTipoCuentaSel(value as "ahorros" | "corriente" | "convenio" | "")}>
+                <Select
+                  value={tipoCuentaSel}
+                  onValueChange={(value) => setTipoCuentaSel(value as "ahorros" | "corriente" | "convenio" | "")}
+                >
                   <SelectTrigger><SelectValue placeholder="Selecciona" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ahorros">Ahorros</SelectItem>
