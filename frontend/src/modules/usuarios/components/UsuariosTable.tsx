@@ -204,52 +204,6 @@ export default function UsuariosCrud() {
                       </Tooltip>
 
                       {/* Botón Eliminar con Dialog pantalla completa */}
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="text-red-600"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </DialogTrigger>
-
-                            <DialogContent className="sm:max-w-md">
-                              <DialogHeader>
-                                <DialogTitle className="text-red-600">
-                                  ¿Desea borrar el usuario?
-                                </DialogTitle>
-                                <DialogDescription>
-                                  Este borrado es <strong>definitivo</strong> y no podrá recuperarlo.
-                                </DialogDescription>
-                              </DialogHeader>
-                              <DialogFooter className="flex justify-end gap-2">
-                                <Button
-                                  variant="outline"
-                                  onClick={() => {
-                                    // el componente Dialog se cerrará automáticamente con onOpenChange
-                                  }}
-                                >
-                                  Cancelar
-                                </Button>
-                                <Button
-                                  className="bg-red-600 hover:bg-red-700"
-                                  onClick={async () => {
-                                    await eliminarUsuario(usuario.uid);
-                                    fetchUsuarios();
-                                  }}
-                                >
-                                  Borrar definitivamente
-                                </Button>
-                              </DialogFooter>
-                            </DialogContent>
-                          </Dialog>
-                        </TooltipTrigger>
-                        <TooltipContent>Eliminar</TooltipContent>
-                      </Tooltip>
                     </TooltipProvider>
                   </div>
                 </TableCell>

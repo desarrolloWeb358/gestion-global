@@ -74,12 +74,6 @@ export default function ClientesCrud() {
     setMostrarDialogo(false);
   };
 
-  const handleEliminar = async (id: string) => {
-    if (!confirm("¿Eliminar este cliente? Esta acción no se puede deshacer.")) return;
-    await eliminarCliente(id);
-    fetchClientes();
-  };
-
   return (
     <div className="space-y-4">
       {/* Encabezado sin botón de creación */}
@@ -136,15 +130,6 @@ export default function ClientesCrud() {
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>Editar</TooltipContent>
-                      </Tooltip>
-
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button size="icon" variant="ghost" className="text-red-600" onClick={() => handleEliminar(cliente.id!)}>
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Eliminar</TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   </div>

@@ -5,10 +5,10 @@ export interface EstadoMensual {
   deuda: number;    
   honorarios?: number;
   recaudo?: number;
+  porcentajeHonorarios?: number; 
 
   comprobante?: number | string | null;
   recibo?: string | null;
   observaciones?: string | null;
-  tipo: 'ordinario' | 'extraordinario' | 'anticipo';
 
 }

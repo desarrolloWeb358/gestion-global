@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Deudor } from "../models/deudores.model";
 import {
-  calcularDeudaTotal,
   obtenerDeudorPorCliente,
   crearDeudor,
   actualizarDeudor,
@@ -47,12 +46,10 @@ export default function DeudoresTable() {
 
   // Honorarios
   const [porcentajeHonorarios, setPorcentajeHonorarios] = useState(10);
-  const [honorariosCalculados, setHonorariosCalculados] = useState(0);
 
   // Estado mensual (deuda vive aquí, NO en Deudor)
   const [estadoForm, setEstadoForm] = useState<EstadoForm>({
     mes: new Date().toISOString().slice(0, 7), // YYYY-MM
-    tipo: "ordinario",
     deuda: 0,
     honorarios: 0,
     recaudo: 0,
@@ -78,14 +75,6 @@ export default function DeudoresTable() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clienteId]);
 
-  // Calcular honorarios cuando cambie deuda o %
-  useEffect(() => {
-    const deuda = estadoForm.deuda ?? 0;
-    const porcentaje = porcentajeHonorarios ?? 0;
-    const honorarios = (deuda * porcentaje) / 100;
-    setHonorariosCalculados(isNaN(honorarios) ? 0 : honorarios);
-  }, [estadoForm.deuda, porcentajeHonorarios]);
-
   // Filtrado y paginación
   const filteredDeudores = deudores.filter((d) => (d.ubicacion ?? "").toLowerCase().includes(search.toLowerCase()));
   const totalPages = Math.ceil(filteredDeudores.length / itemsPerPage) || 1;
@@ -98,7 +87,6 @@ export default function DeudoresTable() {
     setPorcentajeHonorarios(10);
     setEstadoForm({
       mes: new Date().toISOString().slice(0, 7),
-      tipo: "ordinario",
       deuda: 0,
       honorarios: 0,
       recaudo: 0,
@@ -116,7 +104,6 @@ export default function DeudoresTable() {
     setEstadoForm((prev) => ({
       ...prev,
       mes: new Date().toISOString().slice(0, 7),
-      tipo: "ordinario",
       deuda: 0,
       honorarios: 0,
       recaudo: 0,
@@ -143,21 +130,16 @@ export default function DeudoresTable() {
         id: deudorActualizado.id!,
         mes: estadoForm.mes ?? new Date().toISOString().slice(0, 7),
         deuda: estadoForm.deuda ?? 0,
-        tipo: estadoForm.tipo ?? "ordinario",
-        honorarios: honorariosCalculados,
         recaudo: estadoForm.recaudo ?? 0,
         comprobante: estadoForm.comprobante ?? null,
         recibo: estadoForm.recibo ?? null,
         observaciones: estadoForm.observaciones ?? null,
-        // agrega otros campos requeridos por EstadoMensual si es necesario
       };
       await actualizarDeudor(clienteId, estadoMensualActualizado);
     } else {
       const estadoMensualNuevo: EstadoMensual = {
         mes: estadoForm.mes ?? new Date().toISOString().slice(0, 7),
         deuda: estadoForm.deuda ?? 0,
-        tipo: estadoForm.tipo ?? "ordinario",
-        honorarios: honorariosCalculados,
         recaudo: estadoForm.recaudo ?? 0,
         comprobante: estadoForm.comprobante ?? null,
         recibo: estadoForm.recibo ?? null,
@@ -189,10 +171,10 @@ export default function DeudoresTable() {
       setLoading(true);
       const resultado = await enviarNotificacionCobroMasivo(filteredDeudores);
       console.log("Resultados:", resultado);
-      toast.success("✅ Notificaciones de cobro enviadas correctamente.");
+      toast.success("Notificaciones de cobro enviadas correctamente.");
     } catch (err) {
       console.error("Error al enviar notificaciones:", err);
-      toast.error("❌ Error al enviar notificaciones.");
+      toast.error("Error al enviar notificaciones.");
     } finally {
       setLoading(false);
     }
@@ -244,17 +226,6 @@ export default function DeudoresTable() {
                 <div>
                   <Label htmlFor="ubicacion">Ubicación</Label>
                   <Input name="ubicacion" value={formData.ubicacion ?? ""} onChange={handleChange} />
-                </div>
-                <div>
-                  <Label htmlFor="deuda">Deuda sin honorarios (Estado del mes)</Label>
-                  <Input
-                    type="number"
-                    value={estadoForm.deuda ?? 0}
-                    onChange={(e) => {
-                      const v = parseFloat(e.target.value);
-                      setEstadoForm((prev) => ({ ...prev, deuda: isNaN(v) ? 0 : v }));
-                    }}
-                  />
                 </div>
                 <div>
                   <Label>Tipificación</Label>
@@ -314,10 +285,6 @@ export default function DeudoresTable() {
                       setPorcentajeHonorarios(isNaN(v) ? 0 : v);
                     }}
                   />
-                </div>
-                <div>
-                  <Label>Honorarios calculados</Label>
-                  <p className="text-green-600 font-bold text-lg">${honorariosCalculados.toLocaleString()}</p>
                 </div>
               </div>
 

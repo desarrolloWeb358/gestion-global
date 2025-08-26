@@ -17,6 +17,21 @@ import { Deudor } from "../models/deudores.model";
 import { Cuota, AcuerdoPago } from "../models/acuerdoPago.model";
 import  { EstadoMensual } from "../models/estadoMensual.model";
 
+
+/** Elige el porcentaje: usa el del estado mensual si existe; si no, toma el del deudor; si no, 0 */
+export function resolverPorcentajeHonorarios(
+  estado: Partial<EstadoMensual> | undefined,
+  deudor: Partial<Deudor> | undefined
+): number {
+  const e = Number(estado?.porcentajeHonorarios);
+  if (!isNaN(e) && e > 0) return e;
+
+  const d = Number(deudor?.porcentajeHonorarios);
+  if (!isNaN(d) && d > 0) return d;
+
+  return 0;
+}
+
 export function toMesId(fecha: string | Date) {
   const d = typeof fecha === "string" ? new Date(fecha) : fecha;
   const y = d.getFullYear();
@@ -24,32 +39,21 @@ export function toMesId(fecha: string | Date) {
   return `${y}-${m}`;
 }
 
-export function calcularDeudaTotal(estadoMensual: EstadoMensual): {
-  deuda: number;
-  honorarios: number;
-  total: number;
-} {
-  const deuda = isNaN(Number(estadoMensual.deuda)) ? 0 : Number(estadoMensual.deuda);
-  const porcentaje = isNaN(Number(estadoMensual.honorarios)) ? 0 : Number(estadoMensual.honorarios);
-  const honorarios = (deuda * porcentaje) / 100;
-  const total = deuda + honorarios;
+  export function calcularDeudaTotal(estadoMensual: EstadoMensual): {
+    deuda: number;
+    honorariosCalculados: number; // <- monto
+    total: number;
+  } {
+    const deuda = isNaN(Number(estadoMensual.deuda)) ? 0 : Number(estadoMensual.deuda);
+    const porcentaje = isNaN(Number(estadoMensual.porcentajeHonorarios)) // <- usa porcentajeHonorarios
+      ? 0
+      : Number(estadoMensual.porcentajeHonorarios);
 
-  return { deuda, honorarios, total };
-}
-export async function eliminarCuotas(clienteId: string, deudorId: string) {
-  const ref = collection(
-    db,
-    `clientes/${clienteId}/deudores/${deudorId}/cuotas_acuerdo`
-  );
-  const snapshot = await getDocs(ref);
+    const honorariosCalculados = (deuda * porcentaje) / 100;
+    const total = deuda + honorariosCalculados;
 
-  const deletePromises = snapshot.docs.map((docSnap) =>
-    deleteDoc(doc(db, ref.path, docSnap.id))
-  );
-
-  await Promise.all(deletePromises);
-}
-
+    return { deuda, honorariosCalculados, total };
+  }
 export async function guardarCuotasEnFirestore(deudorId: string, cuotas: Cuota[]) {
   const batchErrors = [];
 
@@ -77,7 +81,6 @@ export async function agregarAbonoAlDeudor(
     monto: number;
     fecha?: string;
     recibo?: string;
-    tipo?: "ordinario" | "extraordinario" | "anticipo";
   }
 ) {
   const ref = doc(db, `clientes/${clienteId}/deudores/${deudorId}`);
@@ -122,7 +125,6 @@ export function mapDocToAcuerdoPago(id: string, data: DocumentData): AcuerdoPago
     id,
     numero: data.numero ?? "",
     fechaCreacion: data.fechaCreacion,
-    tipo: data.tipo ?? "fijo",
     descripcion: data.descripcion ?? "",
     valorTotal: Number(data.valorTotal ?? 0),
     porcentajeHonorarios: Number(data.porcentajeHonorarios ?? 0),
@@ -155,14 +157,14 @@ export async function obtenerDeudorPorCliente(
 export async function crearDeudor(
   clienteId: string,
   estadoMensual: EstadoMensual
-  
 ): Promise<void> {
   const ref = collection(db, `clientes/${clienteId}/deudores`);
-
-  const { total } = calcularDeudaTotal(estadoMensual);
+  const { honorariosCalculados, total } = calcularDeudaTotal(estadoMensual);
 
   await addDoc(ref, {
     ...estadoMensual,
+    porcentajeHonorarios: Number(estadoMensual.honorarios) || 0,
+    honorariosCalculados, // monto
     deudaTotal: total,
   });
 }
@@ -176,14 +178,15 @@ export async function actualizarDeudor(
   const ref = doc(db, `clientes/${clienteId}/deudores/${estadoMensual.id}`);
   const { id, ...rest } = estadoMensual;
 
-  const { total } = calcularDeudaTotal(estadoMensual);
+  const { honorariosCalculados, total } = calcularDeudaTotal(estadoMensual);
 
   const sanitized: any = {
     ...rest,
-    deudaTotal: total, // ✅ actualiza automáticamente
+    porcentajeHonorarios: Number(rest.honorarios) || 0,
+    honorariosCalculados, // monto
+    deudaTotal: total,
   };
 
-  // Elimina campos vacíos
   Object.keys(sanitized).forEach((key) => {
     if (sanitized[key] === undefined || sanitized[key] === null) {
       delete sanitized[key];
@@ -219,15 +222,17 @@ export async function guardarAcuerdoPorReferencia(
 
   return acuerdoId;
 }
-export async function actualizarHonorarios(
+export async function actualizarHonorariosDeAcuerdo(
   clienteId: string,
   deudorId: string,
+  acuerdoId: string,
   porcentajeHonorarios: number
 ): Promise<void> {
-  const ref = doc(db, `clientes/${clienteId}/deudores/${deudorId}`);
-  await updateDoc(ref, {
-    "AcuerdoPago.porcentajeHonorarios": porcentajeHonorarios,
-  });
+  const acuerdoRef = doc(
+    db,
+    `clientes/${clienteId}/deudores/${deudorId}/acuerdos/${acuerdoId}`
+  );
+  await updateDoc(acuerdoRef, { porcentajeHonorarios });
 }
 
 export async function guardarAcuerdoEnSubcoleccion(
