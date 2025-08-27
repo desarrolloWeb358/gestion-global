@@ -7,7 +7,8 @@ import {  Deudor } from '../models/deudores.model';
 import AgreementTable from '../components/AgreementTableGrid';
 import SubirPlantillaExcel from '../../../components/SubirPlantillaExcel';
 import { Spinner } from '../../../components/ui/spinner';
-import { eliminarCuotas, getDeudorById, obtenerAcuerdoActivo } from '../services/deudorService';
+import {  getDeudorById, obtenerAcuerdoActivo } from '../services/deudorService';
+import {eliminarEstadoMensual } from '../services/estadoMensualService';
 import {
   AlertDialog,
   AlertDialogTrigger,
@@ -28,6 +29,7 @@ interface Props {
   deudor: Deudor;
   clienteId: string;
   deudorId: string;
+  estadoMensualId: string;
   porcentajeHonorarios: number;
   onCuotasProcesadas: (cuotas: Cuota[]) => void;
   onCuotasGuardadas: () => void;
@@ -92,16 +94,15 @@ useEffect(() => {
       porcentajeHonorarios={deudor.porcentajeHonorarios ?? 0}
       onCuotasProcesadas={(cuotas) => {
         console.log("Cuotas procesadas", cuotas);
-      }}
+      } }
       onCuotasGuardadas={() => {
         console.log("Cuotas guardadas");
-      }}
-    />
+      } } estadoMensualId={''}    />
   );
 }
 
 
-function DeudorDetailTabs({ deudor, clienteId, deudorId, porcentajeHonorarios, onCuotasProcesadas, onCuotasGuardadas }: Props) {
+function DeudorDetailTabs({ deudor, clienteId, deudorId,estadoMensualId,}: Props) {
   const [cuotas, setCuotas] = useState<any[]>([]);
   const [recargarCuotas, setRecargarCuotas] = useState(false);
   const historial = deudor?.historialAcuerdos ?? [];
@@ -192,7 +193,7 @@ function DeudorDetailTabs({ deudor, clienteId, deudorId, porcentajeHonorarios, o
                 <AlertDialogAction
                   onClick={async () => {
                     try {
-                      await eliminarCuotas(clienteId, deudorId);
+                      await eliminarEstadoMensual(clienteId, deudorId, estadoMensualId);
                       toast.success("Todas las cuotas fueron eliminadas");
                       setRecargarCuotas(prev => !prev);
                     } catch (error) {

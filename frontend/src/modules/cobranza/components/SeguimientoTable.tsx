@@ -62,7 +62,7 @@ export default function SeguimientoTable() {
             <ArrowLeft className="w-4 h-4" />
             Volver
           </Button>
-          <h2 className="absolute left-1/2 transform -translate-x-1/2 text-2xl font-bold text-center">Seguimientos</h2>
+          <h2 className="absolute left-1/2 transform -translate-x-1/2 text-2xl font-bold text-center">Seguimientos pre-juridico</h2>
         </div>
         <Button onClick={() => {
           setSeguimientoActual(null);
