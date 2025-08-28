@@ -1,6 +1,7 @@
 import { Timestamp, FieldValue } from "firebase/firestore";
 import { AcuerdoPago } from "./acuerdoPago.model";
 import { EstadoMensual } from './estadoMensual.model';
+import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 // Ahora podemos usarlo en acuerdo_pago e historial_acuerdos
 export interface Deudor { 
   
@@ -11,9 +12,8 @@ export interface Deudor {
   cedula?: string;
   correos: string[];
   telefonos: string[];
-  direccion?: string;
-  estado: string;           // Ej: prejurídico, jurídico, en acuerdo, etc.
-  tipificacion: string;     // Ej: acuerdo vigente, en mora, etc.
+  direccion?: string;          // Ej: prejurídico, jurídico, en acuerdo, etc.
+  tipificacion: TipificacionDeuda;     // Ej: acuerdo vigente, en mora, etc.
   porcentajeHonorarios?: number; // Porcentaje de honorarios aplicable
   
   estadoMensual?: EstadoMensual[];         // Estado mensual de la deuda

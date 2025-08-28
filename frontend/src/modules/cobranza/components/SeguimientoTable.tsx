@@ -1,149 +1,140 @@
-// src/pages/SeguimientoTable.tsx
-import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Button } from "../../../components/ui/button";
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "../../../components/ui/table";
-import { Edit, Trash2, Plus, ArrowLeft } from "lucide-react";
-import SeguimientoForm from '../../../components/SeguimientoForm';
-import { Seguimiento } from '../models/seguimiento.model';
-import { getSeguimientos, deleteSeguimiento, addSeguimiento, updateSeguimiento } from '../services/seguimientoService';
-import { useLoading } from "../../../context/LoadingContext";
-import { ref, deleteObject } from 'firebase/storage';
-import { storage } from '../../../firebase';
+import { DialogHeader } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogTitle } from "@radix-ui/react-dialog";
+import * as React from "react";
+import { Button } from "react-day-picker";
+import { Label } from "recharts";
+import { Seguimiento } from "../models/seguimiento.model";
 
 
+type Props = {
+  open: boolean;
+  onClose: () => void;
+  seguimiento?: Seguimiento;
+  onSave: (
+    data: Omit<Seguimiento, "id">,
+    archivo?: File,
+    reemplazar?: boolean
+  ) => Promise<void>;
+  // NUEVO: para insertar el selector de Ámbito (u otro contenido)
+  extraHeader?: React.ReactNode;
+};
 
+export default function SeguimientoForm({
+  open,
+  onClose,
+  seguimiento,
+  onSave,
+  extraHeader,
+}: Props) {
+  const [fecha, setFecha] = React.useState<string>(() => {
+    // yyyy-mm-dd para <input type="date">
+    const d = seguimiento?.fecha?.toDate?.() ?? new Date();
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  });
+  const [tipoSeguimiento, setTipoSeguimiento] = React.useState<string>(seguimiento?.tipoSeguimiento ?? "");
+  const [descripcion, setDescripcion] = React.useState<string>(seguimiento?.descripcion ?? "");
+  const [archivo, setArchivo] = React.useState<File | undefined>(undefined);
+  const [reemplazarArchivo, setReemplazarArchivo] = React.useState<boolean>(false);
+  const [saving, setSaving] = React.useState(false);
 
-export default function SeguimientoTable() {
-  const navigate = useNavigate();
-  const { clienteId, deudorId } = useParams<{ clienteId: string; deudorId: string }>();
-  const [seguimientos, setSeguimientos] = useState<Seguimiento[]>([]);
-  const [openForm, setOpenForm] = useState(false);
-  const [seguimientoActual, setSeguimientoActual] = useState<Seguimiento | null>(null);
-  const { setLoading } = useLoading();
+  React.useEffect(() => {
+    const d = seguimiento?.fecha?.toDate?.() ?? new Date();
+    setFecha(new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10));
+    setTipoSeguimiento(seguimiento?.tipoSeguimiento ?? "");
+    setDescripcion(seguimiento?.descripcion ?? "");
+    setArchivo(undefined);
+    setReemplazarArchivo(false);
+  }, [seguimiento, open]);
 
-  const fetchData = async () => {
-    if (!clienteId || !deudorId) return;
-    setLoading(true);
-    const data = await getSeguimientos(clienteId, deudorId);
-    setSeguimientos(data);
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, [clienteId, deudorId]);
-
-
-  const handleEliminar = async (seg: Seguimiento) => {
-    if (seg.archivoUrl) {
-      try {
-        await deleteObject(ref(storage, seg.archivoUrl));
-      } catch (e) {
-        console.warn("Error al eliminar archivo:", e);
-      }
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      // construimos el payload; asumo que tu servicio convierte date->Timestamp internamente
+      const data: Omit<Seguimiento, "id"> = {
+        fecha: (seguimiento?.fecha as any) || ({} as any), // si tu servicio espera Date/Timestamp, ajústalo
+        tipoSeguimiento,
+        descripcion,
+        archivoUrl: seguimiento?.archivoUrl, // lo maneja el servicio al subir
+      };
+      await onSave(data, archivo, reemplazarArchivo);
+      onClose();
+    } finally {
+      setSaving(false);
     }
-    await deleteSeguimiento(clienteId!, deudorId!, seg.id!);
-    fetchData();
   };
-
-
-
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            onClick={() => navigate(-1)}
-            className="flex items-center gap-2"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Volver
-          </Button>
-          <h2 className="absolute left-1/2 transform -translate-x-1/2 text-2xl font-bold text-center">Seguimientos pre-juridico</h2>
-        </div>
-        <Button onClick={() => {
-          setSeguimientoActual(null);
-          setOpenForm(true);
-        }}>
-          <Plus className="w-4 h-4 mr-2" /> Crear Seguimiento
-        </Button>
-      </div>
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{seguimiento ? "Editar seguimiento" : "Crear seguimiento"}</DialogTitle>
+          {extraHeader ? <div className="mt-2">{extraHeader}</div> : null}
+        </DialogHeader>
 
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Fecha</TableHead>
-            <TableHead>Tipo</TableHead>
-            <TableHead>Descripción</TableHead>
-            <TableHead>Archivo</TableHead>
-            <TableHead>Acciones</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {seguimientos.map((seg) => (
-            <TableRow key={seg.id}>
-              <TableCell>{seg.fecha?.toDate().toLocaleDateString()}</TableCell>
-              <TableCell className="capitalize">
-                {seg.tipoSeguimiento ?? "No registrado"}
-              </TableCell>
-              <TableCell>{seg.descripcion}</TableCell>
-              <TableCell>
-                {seg.archivoUrl ? (
-                  <a href={seg.archivoUrl} target="_blank" rel="noopener noreferrer" className="underline text-blue-500">Ver</a>
-                ) : "-"}
-              </TableCell>
-              <TableCell>
-                <div className="flex gap-2">
-                  <Button size="icon" variant="ghost" onClick={() => {
-                    setSeguimientoActual(seg);
-                    setOpenForm(true);
-                  }}>
-                    <Edit className="w-4 h-4" />
-                  </Button>
-                  <Button size="icon" variant="ghost" onClick={() => handleEliminar(seg)}>
-                    <Trash2 className="w-4 h-4 text-red-600" />
-                  </Button>
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+        <form className="space-y-4" onSubmit={handleSubmit}>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Fecha</Label>
+              <Input
+                type="date"
+                value={fecha}
+                onChange={(e) => setFecha(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>Tipo</Label>
+              <Input
+                placeholder="Llamada, Visita, Correo..."
+                value={tipoSeguimiento}
+                onChange={(e) => setTipoSeguimiento(e.target.value)}
+              />
+            </div>
+          </div>
 
-      <SeguimientoForm
-        open={openForm}
-        onClose={() => {
-          setOpenForm(false);
-          setSeguimientoActual(null);
-        }}
-        seguimiento={seguimientoActual || undefined}
-        onSave={async (data, archivo, reemplazar) => {
-          if (!clienteId || !deudorId) return;
+          <div>
+            <Label>Descripción</Label>
+            <Textarea
+              className="min-h-[140px]"
+              placeholder="Escribe la gestión realizada..."
+              value={descripcion}
+              onChange={(e) => setDescripcion(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Se respetarán los saltos de línea al mostrarla en la tabla.
+            </p>
+          </div>
 
-          if (seguimientoActual && seguimientoActual.id) {
-            // Editar seguimiento existente
-            await updateSeguimiento(
-              clienteId,
-              deudorId,
-              seguimientoActual.id,
-              data,
-              archivo,
-              reemplazar
-            );
-          } else {
-            // Crear nuevo seguimiento
-            await addSeguimiento(clienteId, deudorId, data, archivo);
-          }
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Archivo (opcional)</Label>
+              <Input
+                type="file"
+                onChange={(e) => setArchivo(e.target.files?.[0])}
+              />
+            </div>
+            {seguimiento?.archivoUrl ? (
+              <div className="flex items-center gap-2">
+                <input
+                  id="reemplazar"
+                  type="checkbox"
+                  checked={reemplazarArchivo}
+                  onChange={(e) => setReemplazarArchivo(e.target.checked)}
+                />
+                <Label htmlFor="reemplazar">Reemplazar archivo existente</Label>
+              </div>
+            ) : null}
+          </div>
 
-          await fetchData();
-          setOpenForm(false);
-          setSeguimientoActual(null);
-        }}
-
-      />
-    </div>
+          <div className="pt-2">
+            <Button type="submit" className="w-full" disabled={saving}>
+              {saving ? "Guardando..." : "Guardar"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

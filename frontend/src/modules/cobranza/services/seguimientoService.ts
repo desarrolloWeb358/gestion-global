@@ -26,6 +26,11 @@ const tipoMap: Record<number, TipoSeguimiento> = {
   6: "otro",
 };
 
+export async function getSeguimientosJuridico(clienteId: string, deudorId: string) { /* query a `.../seguimientoJuridico` */ }
+export async function addSeguimientoJuridico(clienteId: string, deudorId: string, data: Seguimiento, archivo?: File) { /* add a `seguimientoJuridico` */ }
+export async function updateSeguimientoJuridico(clienteId: string, deudorId: string, segId: string, data: Seguimiento, archivo?: File, reemplazar?: boolean) { /* update */ }
+export async function deleteSeguimientoJuridico(clienteId: string, deudorId: string, segId: string) { /* delete */ }
+
 export async function getSeguimientos(
   clienteId: string,
   deudorId: string
@@ -141,3 +146,4 @@ export const deleteSeguimiento = async (
   );
   return await deleteDoc(refDoc);
 };
+

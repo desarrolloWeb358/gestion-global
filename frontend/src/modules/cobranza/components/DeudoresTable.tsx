@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Deudor } from "../models/deudores.model";
+
 import {
   obtenerDeudorPorCliente,
   crearDeudor,
-  actualizarDeudor,
   eliminarDeudor,
+  actualizarTipificacionDeudor,
+  actualizarDeudorDatos,
+  crearEstadoMensual,
+  upsertEstadoMensual,
 } from "../services/deudorService";
 import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
@@ -18,6 +22,7 @@ import { toast } from "sonner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../../../components/ui/dialog";
 import { EstadoMensual } from "../models/estadoMensual.model";
+import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 
 // ---- Tipos auxiliares ----
 type EstadoForm = Partial<EstadoMensual>;
@@ -39,6 +44,9 @@ export default function DeudoresTable() {
   const [dialogoEliminar, setDialogoEliminar] = useState(false);
   const [deudorSeleccionado, setDeudorSeleccionado] = useState<Deudor | null>(null);
 
+  const formatCOP = (n: number) =>
+    new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(n || 0);
+
   // Búsqueda y paginación
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -51,7 +59,7 @@ export default function DeudoresTable() {
   const [estadoForm, setEstadoForm] = useState<EstadoForm>({
     mes: new Date().toISOString().slice(0, 7), // YYYY-MM
     deuda: 0,
-    honorarios: 0,
+    porcentajeHonorarios: 0,
     recaudo: 0,
     comprobante: null,
     recibo: null,
@@ -83,12 +91,14 @@ export default function DeudoresTable() {
   // --- Handlers ---
   const iniciarCrear = () => {
     setDeudorEditando(null);
-    setFormData({});
+    setFormData({
+      tipificacion: TipificacionDeuda.GESTIONANDO,
+    });
     setPorcentajeHonorarios(10);
     setEstadoForm({
       mes: new Date().toISOString().slice(0, 7),
       deuda: 0,
-      honorarios: 0,
+      porcentajeHonorarios: 0,
       recaudo: 0,
       comprobante: null,
       recibo: null,
@@ -101,42 +111,65 @@ export default function DeudoresTable() {
     setDeudorEditando(deudor);
     setFormData({ ...deudor });
     setPorcentajeHonorarios(deudor.porcentajeHonorarios ?? 10);
-    setEstadoForm((prev) => ({
-      ...prev,
+    setEstadoForm({
       mes: new Date().toISOString().slice(0, 7),
       deuda: 0,
-      honorarios: 0,
+      porcentajeHonorarios: 0,
       recaudo: 0,
       comprobante: null,
       recibo: null,
       observaciones: null,
-    }));
+    });
     setOpen(true);
   };
 
+  // Cambiar tipificación en diálogo (estado local)
+  const onChangeTipificacion = (val: string) => {
+    const t = val as TipificacionDeuda;
+    setFormData((prev) => ({ ...prev, tipificacion: t }));
+  };
+
+  // Guardar (crear o actualizar)
   const guardarDeudor = async () => {
     if (!clienteId) return;
 
     if (deudorEditando) {
-      const deudorActualizado: Deudor = {
-        ...deudorEditando,
-        ...formData,
-        porcentajeHonorarios: porcentajeHonorarios ?? 0,
+      // 1) Actualiza datos del DEUDOR (sin estados mensuales)
+      await actualizarDeudorDatos(clienteId, deudorEditando.id!, {
+        nombre: formData.nombre,
+        cedula: formData.cedula,
+        ubicacion: formData.ubicacion,
         correos: formData.correos ?? [],
         telefonos: formData.telefonos ?? [],
-      } as Deudor;
-      // Debes construir un EstadoMensual válido aquí, ejemplo:
-      const estadoMensualActualizado: EstadoMensual = {
-        id: deudorActualizado.id!,
+        tipificacion: formData.tipificacion as TipificacionDeuda,
+        // porcentajeHonorarios lo puedes guardar en deudor si quieres,
+        // pero por diseño lo estamos aplicando al estado mensual:
+      });
+
+      // 2) Upsert del ESTADO MENSUAL (sin tipificacion)
+      const estadoMensualActualizado: Partial<EstadoMensual> & { mes: string } = {
         mes: estadoForm.mes ?? new Date().toISOString().slice(0, 7),
         deuda: estadoForm.deuda ?? 0,
         recaudo: estadoForm.recaudo ?? 0,
         comprobante: estadoForm.comprobante ?? null,
         recibo: estadoForm.recibo ?? null,
         observaciones: estadoForm.observaciones ?? null,
+        porcentajeHonorarios: porcentajeHonorarios ?? 0,
       };
-      await actualizarDeudor(clienteId, estadoMensualActualizado);
+
+      await upsertEstadoMensual(clienteId, deudorEditando.id!, estadoMensualActualizado);
     } else {
+      // 1) Crea el DEUDOR
+      const newDeudorId = await crearDeudor(clienteId, {
+        nombre: formData.nombre ?? "",
+        cedula: formData.cedula,
+        ubicacion: formData.ubicacion,
+        correos: formData.correos ?? [],
+        telefonos: formData.telefonos ?? [],
+        tipificacion: (formData.tipificacion as TipificacionDeuda) ?? TipificacionDeuda.GESTIONANDO,
+      });
+
+      // 2) Crea el ESTADO MENSUAL (sin tipificacion)
       const estadoMensualNuevo: EstadoMensual = {
         mes: estadoForm.mes ?? new Date().toISOString().slice(0, 7),
         deuda: estadoForm.deuda ?? 0,
@@ -144,17 +177,10 @@ export default function DeudoresTable() {
         comprobante: estadoForm.comprobante ?? null,
         recibo: estadoForm.recibo ?? null,
         observaciones: estadoForm.observaciones ?? null,
-        // Puedes agregar otros campos requeridos por EstadoMensual aquí si es necesario
-        nombre: formData.nombre ?? "",
-        cedula: formData.cedula ?? "",
-        ubicacion: formData.ubicacion ?? "",
-        correos: formData.correos ?? [],
-        telefonos: formData.telefonos ?? [],
         porcentajeHonorarios: porcentajeHonorarios ?? 0,
-        tipificacion: formData.tipificacion ?? "gestionando",
-        estado: formData.estado ?? "prejurídico",
-      } as unknown as EstadoMensual;
-      await crearDeudor(clienteId, estadoMensualNuevo);
+      };
+
+      await crearEstadoMensual(clienteId, newDeudorId, estadoMensualNuevo);
     }
 
     setOpen(false);
@@ -164,6 +190,15 @@ export default function DeudoresTable() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // Cambio de tipificación inline en tabla (opcional)
+  const handleTipificacionChange = async (deudorId: string, val: string) => {
+    if (!clienteId) return;
+    const t = val as TipificacionDeuda;
+    await actualizarTipificacionDeudor(clienteId, deudorId, t);
+    // Optimistic update
+    setDeudores((prev) => prev.map((d) => (d.id === deudorId ? { ...d, tipificacion: t } : d)));
   };
 
   const handleEnviarNotificaciones = async () => {
@@ -230,18 +265,18 @@ export default function DeudoresTable() {
                 <div>
                   <Label>Tipificación</Label>
                   <Select
-                    value={formData.tipificacion ?? "gestionando"}
-                    onValueChange={(val) => setFormData((prev) => ({ ...prev, tipificacion: val }))}
+                    value={(formData.tipificacion as TipificacionDeuda) ?? TipificacionDeuda.GESTIONANDO}
+                    onValueChange={onChangeTipificacion}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecciona" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="gestionando">Gestionando</SelectItem>
-                      <SelectItem value="acuerdo de pago">Acuerdo de Pago</SelectItem>
-                      <SelectItem value="acuerdo demanda">Acuerdo + Demanda</SelectItem>
-                      <SelectItem value="demandado">Demandado</SelectItem>
-                      <SelectItem value="inactivo">Inactivo</SelectItem>
+                      {Object.values(TipificacionDeuda).map((t) => (
+                        <SelectItem key={t} value={t}>
+                          {t}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -308,62 +343,72 @@ export default function DeudoresTable() {
               <TableHead>Ubicación</TableHead>
               <TableHead>Tipificación</TableHead>
               <TableHead>Deuda Total</TableHead>
-              <TableHead>Estado</TableHead>
               <TableHead>Acciones</TableHead>
             </TableRow>
           </TableHeader>
+
           <TableBody>
-            {paginatedDeudores.map((deudor) => (
-              <TableRow key={deudor.id}>
-                <TableCell>{deudor.nombre}</TableCell>
-                <TableCell>{deudor.ubicacion}</TableCell>
-                <TableCell>{deudor.tipificacion}</TableCell>
-                <TableCell>{deudor.estado}</TableCell>
-                <TableCell className="text-center">
-                  <TooltipProvider>
-                    <div className="flex justify-center gap-2">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => navigate(`/clientes/${clienteId}/deudores/${deudor.id}`)}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Ver deudor</TooltipContent>
-                      </Tooltip>
+            {paginatedDeudores.map((deudor) => {
+              const deudaTotal =
+                (deudor as any).deudaTotal ??
+                (deudor.estadoMensual?.[deudor.estadoMensual.length - 1]?.deuda ?? 0);
 
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button variant="outline" size="icon" onClick={() => iniciarEditar(deudor)}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Editar</TooltipContent>
-                      </Tooltip>
+              return (
+                <TableRow key={deudor.id}>
+                  <TableCell>{deudor.nombre}</TableCell>
+                  <TableCell>{deudor.ubicacion}</TableCell>
+                  <TableCell>{deudor.tipificacion}</TableCell>
 
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="destructive"
-                            size="icon"
-                            onClick={() => {
-                              setDeudorSeleccionado(deudor);
-                              setDialogoEliminar(true);
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Eliminar</TooltipContent>
-                      </Tooltip>
-                    </div>
-                  </TooltipProvider>
-                </TableCell>
-              </TableRow>
-            ))}
+                  {/* Columna Deuda Total */}
+                  <TableCell>{formatCOP(Number(deudaTotal) || 0)}</TableCell>
+
+                  {/* Columna Acciones */}
+                  <TableCell className="text-center">
+                    <TooltipProvider>
+                      <div className="flex justify-center gap-2">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => navigate(`/clientes/${clienteId}/deudores/${deudor.id}`)}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Ver deudor</TooltipContent>
+                        </Tooltip>
+
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button variant="outline" size="icon" onClick={() => iniciarEditar(deudor)}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Editar</TooltipContent>
+                        </Tooltip>
+
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="destructive"
+                              size="icon"
+                              onClick={() => {
+                                setDeudorSeleccionado(deudor);
+                                setDialogoEliminar(true);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Eliminar</TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </TooltipProvider>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       )}
@@ -373,7 +418,7 @@ export default function DeudoresTable() {
           <DialogHeader>
             <DialogTitle>¿Eliminar deudor?</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">¿Estás seguro de que deseas eliminar este deudor? Esta acción no se puede deshacer.</p>
+        <p className="text-sm text-muted-foreground">¿Estás seguro de que deseas eliminar este deudor? Esta acción no se puede deshacer.</p>
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setDialogoEliminar(false)}>
               Cancelar

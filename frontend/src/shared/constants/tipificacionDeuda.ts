@@ -1,4 +1,4 @@
-export enum TipoNotificacion {
+export enum TipificacionDeuda {
    DEVUELTO= "Devuelto",
    TERMINADO = "Terminado",
   ACUERDO = "Acuerdo",

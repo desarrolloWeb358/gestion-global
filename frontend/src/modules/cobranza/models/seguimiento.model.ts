@@ -1,6 +1,13 @@
 import { Timestamp } from "firebase/firestore";
 
-export type TipoSeguimiento = 'llamada' | 'correo' | 'whatsapp' | 'sms' | 'visita' | 'otro';
+export enum TipoSeguimiento {
+  LLAMADA = "LLAMADA",
+  VISITA = "VISITA",
+  CORREO = "CORREO",
+  WHATSAPP = "WHATSAPP",
+  NOTIFICACION = "NOTIFICACION",
+  OTRO = "OTRO",
+}
 export interface Seguimiento {
   id?: string;
   fecha?: Timestamp;
