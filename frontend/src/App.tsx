@@ -37,6 +37,7 @@ export default function App() {
         <Route path="/forgot-password" element={<ResetPasswordForm />} />
         <Route path="/home" element={<RedirectByRol />} />
 
+
         {/* Layout protegido */}
         <Route element={<AppLayout />}>
           <Route path="/admin/dashboard" element={<DashboardAdmin />} />

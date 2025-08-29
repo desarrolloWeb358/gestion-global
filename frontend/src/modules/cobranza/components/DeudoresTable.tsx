@@ -6,10 +6,7 @@ import {
   obtenerDeudorPorCliente,
   crearDeudor,
   eliminarDeudor,
-  actualizarTipificacionDeudor,
-  actualizarDeudorDatos,
-  crearEstadoMensual,
-  upsertEstadoMensual,
+  actualizarDeudorDatos
 } from "../services/deudorService";
 import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
@@ -21,11 +18,7 @@ import { enviarNotificacionCobroMasivo } from "../services/notificacionCobroServ
 import { toast } from "sonner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../../../components/ui/dialog";
-import { EstadoMensual } from "../models/estadoMensual.model";
 import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
-
-// ---- Tipos auxiliares ----
-type EstadoForm = Partial<EstadoMensual>;
 
 export default function DeudoresTable() {
   const navigate = useNavigate();
@@ -51,21 +44,7 @@ export default function DeudoresTable() {
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
-
-  // Honorarios
-  const [porcentajeHonorarios, setPorcentajeHonorarios] = useState(10);
-
-  // Estado mensual (deuda vive aquí, NO en Deudor)
-  const [estadoForm, setEstadoForm] = useState<EstadoForm>({
-    mes: new Date().toISOString().slice(0, 7), // YYYY-MM
-    deuda: 0,
-    porcentajeHonorarios: 0,
-    recaudo: 0,
-    comprobante: null,
-    recibo: null,
-    observaciones: null,
-  });
-
+  
   // Cargar deudores
   const fetchDeudores = async () => {
     if (!clienteId) return;
@@ -94,32 +73,12 @@ export default function DeudoresTable() {
     setFormData({
       tipificacion: TipificacionDeuda.GESTIONANDO,
     });
-    setPorcentajeHonorarios(10);
-    setEstadoForm({
-      mes: new Date().toISOString().slice(0, 7),
-      deuda: 0,
-      porcentajeHonorarios: 0,
-      recaudo: 0,
-      comprobante: null,
-      recibo: null,
-      observaciones: null,
-    });
     setOpen(true);
   };
 
   const iniciarEditar = (deudor: Deudor) => {
     setDeudorEditando(deudor);
     setFormData({ ...deudor });
-    setPorcentajeHonorarios(deudor.porcentajeHonorarios ?? 10);
-    setEstadoForm({
-      mes: new Date().toISOString().slice(0, 7),
-      deuda: 0,
-      porcentajeHonorarios: 0,
-      recaudo: 0,
-      comprobante: null,
-      recibo: null,
-      observaciones: null,
-    });
     setOpen(true);
   };
 
@@ -141,46 +100,22 @@ export default function DeudoresTable() {
         ubicacion: formData.ubicacion,
         correos: formData.correos ?? [],
         telefonos: formData.telefonos ?? [],
-        tipificacion: formData.tipificacion as TipificacionDeuda,
-        // porcentajeHonorarios lo puedes guardar en deudor si quieres,
-        // pero por diseño lo estamos aplicando al estado mensual:
+        tipificacion: formData.tipificacion as TipificacionDeuda,    
+        porcentajeHonorarios: Number(formData.porcentajeHonorarios ?? 15),
       });
 
-      // 2) Upsert del ESTADO MENSUAL (sin tipificacion)
-      const estadoMensualActualizado: Partial<EstadoMensual> & { mes: string } = {
-        mes: estadoForm.mes ?? new Date().toISOString().slice(0, 7),
-        deuda: estadoForm.deuda ?? 0,
-        recaudo: estadoForm.recaudo ?? 0,
-        comprobante: estadoForm.comprobante ?? null,
-        recibo: estadoForm.recibo ?? null,
-        observaciones: estadoForm.observaciones ?? null,
-        porcentajeHonorarios: porcentajeHonorarios ?? 0,
-      };
-
-      await upsertEstadoMensual(clienteId, deudorEditando.id!, estadoMensualActualizado);
     } else {
       // 1) Crea el DEUDOR
       const newDeudorId = await crearDeudor(clienteId, {
         nombre: formData.nombre ?? "",
         cedula: formData.cedula,
         ubicacion: formData.ubicacion,
+        porcentajeHonorarios: Number(formData.porcentajeHonorarios ?? 15),
         correos: formData.correos ?? [],
         telefonos: formData.telefonos ?? [],
         tipificacion: (formData.tipificacion as TipificacionDeuda) ?? TipificacionDeuda.GESTIONANDO,
       });
 
-      // 2) Crea el ESTADO MENSUAL (sin tipificacion)
-      const estadoMensualNuevo: EstadoMensual = {
-        mes: estadoForm.mes ?? new Date().toISOString().slice(0, 7),
-        deuda: estadoForm.deuda ?? 0,
-        recaudo: estadoForm.recaudo ?? 0,
-        comprobante: estadoForm.comprobante ?? null,
-        recibo: estadoForm.recibo ?? null,
-        observaciones: estadoForm.observaciones ?? null,
-        porcentajeHonorarios: porcentajeHonorarios ?? 0,
-      };
-
-      await crearEstadoMensual(clienteId, newDeudorId, estadoMensualNuevo);
     }
 
     setOpen(false);
@@ -188,19 +123,20 @@ export default function DeudoresTable() {
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
+  const { name, value } = e.target;
 
-  // Cambio de tipificación inline en tabla (opcional)
-  const handleTipificacionChange = async (deudorId: string, val: string) => {
-    if (!clienteId) return;
-    const t = val as TipificacionDeuda;
-    await actualizarTipificacionDeudor(clienteId, deudorId, t);
-    // Optimistic update
-    setDeudores((prev) => prev.map((d) => (d.id === deudorId ? { ...d, tipificacion: t } : d)));
-  };
+  setFormData((prev) => {
+    // Campos numéricos que quieres forzar a number:
+    const numericFields = new Set(['porcentajeHonorarios']);
+    const parsedValue =
+      numericFields.has(name)
+        ? (value === '' ? undefined : Number(value)) // permite limpiar y reescribir
+        : value;
 
+    return { ...prev, [name]: parsedValue as any };
+  });
+};
+  
   const handleEnviarNotificaciones = async () => {
     try {
       setLoading(true);
@@ -310,16 +246,8 @@ export default function DeudoresTable() {
 
               <div className="grid grid-cols-2 gap-4 pt-4 border-t mt-4">
                 <div>
-                  <Label>Porcentaje de honorarios</Label>
-                  <Input
-                    type="number"
-                    name="porcentaje_honorarios"
-                    value={porcentajeHonorarios}
-                    onChange={(e) => {
-                      const v = parseFloat(e.target.value);
-                      setPorcentajeHonorarios(isNaN(v) ? 0 : v);
-                    }}
-                  />
+                  <Label htmlFor="porcentajeHonorarios">Porcentaje de honorarios</Label>
+                  <Input type="number" name="porcentajeHonorarios" value={formData.porcentajeHonorarios ?? 15} onChange={handleChange} />
                 </div>
               </div>
 
@@ -341,27 +269,19 @@ export default function DeudoresTable() {
             <TableRow>
               <TableHead>Nombre</TableHead>
               <TableHead>Ubicación</TableHead>
-              <TableHead>Tipificación</TableHead>
-              <TableHead>Deuda Total</TableHead>
+              <TableHead>Tipificación</TableHead>              
               <TableHead>Acciones</TableHead>
             </TableRow>
           </TableHeader>
 
           <TableBody>
-            {paginatedDeudores.map((deudor) => {
-              const deudaTotal =
-                (deudor as any).deudaTotal ??
-                (deudor.estadoMensual?.[deudor.estadoMensual.length - 1]?.deuda ?? 0);
-
+            {paginatedDeudores.map((deudor) => {              
               return (
                 <TableRow key={deudor.id}>
                   <TableCell>{deudor.nombre}</TableCell>
                   <TableCell>{deudor.ubicacion}</TableCell>
                   <TableCell>{deudor.tipificacion}</TableCell>
-
-                  {/* Columna Deuda Total */}
-                  <TableCell>{formatCOP(Number(deudaTotal) || 0)}</TableCell>
-
+                 
                   {/* Columna Acciones */}
                   <TableCell className="text-center">
                     <TooltipProvider>

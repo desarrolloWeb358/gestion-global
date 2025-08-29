@@ -25,12 +25,13 @@ export type DeudorCreateInput = {
   ubicacion?: string;
   correos?: string[];
   telefonos?: string[];
-  estado?: string; // "prejurídico" | "jurídico" | ...
+  porcentajeHonorarios?: number; 
   tipificacion?: TipificacionDeuda;
 };
 export type DeudorPatch = Partial<DeudorCreateInput>;
 
 // ------------ Utilidades ------------
+/*
 export function resolverPorcentajeHonorarios(
   estado: Partial<EstadoMensual> | undefined,
   deudor: Partial<Deudor> | undefined
@@ -43,6 +44,7 @@ export function resolverPorcentajeHonorarios(
 
   return 0;
 }
+  */
 
 function normalizeTipificacion(input: unknown): TipificacionDeuda {
   const v = String(input ?? "").trim();
@@ -69,6 +71,7 @@ export function toMesId(fecha: string | Date) {
   return `${y}-${m}`;
 }
 
+/*
 export function calcularDeudaTotal(estadoMensual: EstadoMensual): {
   deuda: number;
   honorariosCalculados: number;
@@ -82,8 +85,10 @@ export function calcularDeudaTotal(estadoMensual: EstadoMensual): {
   const total = deuda + honorariosCalculados;
   return { deuda, honorariosCalculados, total };
 }
+  */
 
 // ------------ Abonos / Cuotas ------------
+/*
 export async function guardarCuotasEnFirestore(deudorId: string, cuotas: Cuota[]) {
   // NOTE: Esta ruta no incluye clienteId; si tu estructura los anida por cliente, ajusta la ruta aquí.
   const batchErrors: Array<{ cuota: Cuota; error: unknown }> = [];
@@ -97,6 +102,7 @@ export async function guardarCuotasEnFirestore(deudorId: string, cuotas: Cuota[]
   }
   if (batchErrors.length > 0) throw new Error("Algunas cuotas no se pudieron guardar");
 }
+*/
 
 export async function agregarAbonoAlDeudor(
   clienteId: string,
@@ -126,6 +132,7 @@ export function mapDocToDeudor(id: string, data: DocumentData): Deudor {
     ubicacion: data.ubicacion ?? "",
     nombre: data.nombre ?? "",
     cedula: data.cedula ?? "",
+    porcentajeHonorarios: Number(data.porcentajeHonorarios ?? 15),
     correos: Array.isArray(data.correos) ? data.correos : [],
     telefonos: Array.isArray(data.telefonos) ? data.telefonos : [],
     acuerdoActivoId: data.acuerdoActivoId,
@@ -151,7 +158,7 @@ export async function crearDeudor(clienteId: string, data: DeudorCreateInput): P
     ubicacion: data.ubicacion ?? "",
     correos: data.correos ?? [],
     telefonos: data.telefonos ?? [],
-    estado: data.estado ?? "prejurídico",
+    porcentajeHonorarios: data.porcentajeHonorarios ?? 15,
     tipificacion: data.tipificacion ?? TipificacionDeuda.GESTIONANDO,
   };
   const docRef = await addDoc(ref, payload);
@@ -253,6 +260,7 @@ export async function obtenerAcuerdoActivo(
 }
 
 // ------------ Estados Mensuales (sin tipificación) ------------
+
 export async function crearEstadoMensual(
   clienteId: string,
   deudorId: string,

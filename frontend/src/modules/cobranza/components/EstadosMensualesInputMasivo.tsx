@@ -94,7 +94,6 @@ export default function EstadosMensualesInputMasivo() {
         // Estado mensual mínimo requerido por tu modelo/colección
         const estado: EstadoMensual = {
           mes: mesGlobal,
-          tipo: "ordinario",           // fijo por defecto (puedes cambiarlo si lo necesitas)
           deuda: Number(deuda) || 0,
           honorarios: Number(honorarios) || 0,
           recaudo: Number(recaudo) || 0,
