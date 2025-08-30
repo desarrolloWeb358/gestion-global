@@ -7,7 +7,6 @@ import RedirectByRol from "./modules/auth/pages/RedirectByRol";
 import DashboardAdmin from "../src/components/dashboard/dashboardPage"; // Ya esta con shadcn
 import ResetPasswordForm from "./components/forgot-password";
 import InmueblesTable from "./modules/cobranza/components/DeudoresTable";
-import InmuebleDetailTabsWrapper from "./modules/cobranza/components/DeudoresDetail";
 import SeguimientoTable from './modules/cobranza/components/SeguimientoTable';
 import ConsultaPersonasPage from './modules/cobranza/components/ConsultarPersonasPage';
 import ProbarNotificacionesPage from './modules/cobranza/components/ProbarNotificacionesPage';
@@ -41,7 +40,6 @@ export default function App() {
         {/* Layout protegido */}
         <Route element={<AppLayout />}>
           <Route path="/admin/dashboard" element={<DashboardAdmin />} />
-          <Route path="/deudores/:clienteId/:deudorId/acuerdo" element={<InmuebleDetailTabsWrapper />} />
           <Route path="/deudores/:clienteId/:deudorId/seguimiento" element={<SeguimientoTable />} />
           <Route path="/clientes/:clienteId/deudores/:deudorId" element={<DeudorDetailPage />} />
           <Route path="/deudores/:clienteId/:deudorId/estadosMensuales" element={<EstadosMensualesTable />} />
