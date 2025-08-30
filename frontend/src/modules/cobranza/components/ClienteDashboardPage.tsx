@@ -61,6 +61,9 @@ export default function ClienteDashboardPage() {
                 <Button onClick={() => navigate(`/deudores/${cliente.id}`)}>
                     Ver Deudores
                 </Button>
+                <Button onClick={() => navigate(`/valores-agregados/${cliente.id}`)}>
+                    Valores Agregados
+                </Button>
                 <Button onClick={() => navigate("envio-masivo")}>Enviar Mensaje Masivo</Button>
 
                 <Button                    

@@ -6,7 +6,7 @@ import UsuariosTable from "./modules/usuarios/components/UsuariosTable";
 import RedirectByRol from "./modules/auth/pages/RedirectByRol";
 import DashboardAdmin from "../src/components/dashboard/dashboardPage"; // Ya esta con shadcn
 import ResetPasswordForm from "./components/forgot-password";
-import InmueblesTable from "./modules/cobranza/components/DeudoresTable";
+import DeudoresTable from "./modules/cobranza/components/DeudoresTable";
 import SeguimientoTable from './modules/cobranza/components/SeguimientoTable';
 import ConsultaPersonasPage from './modules/cobranza/components/ConsultarPersonasPage';
 import ProbarNotificacionesPage from './modules/cobranza/components/ProbarNotificacionesPage';
@@ -20,6 +20,10 @@ import EstadosMensualesTable from "./modules/cobranza/components/EstadosMensuale
 import ClienteDashboardPage from "./modules/cobranza/components/ClienteDashboardPage";
 import EstadosMensualesInputMasivo from "./modules/cobranza/components/EstadosMensualesInputMasivo";
 import ReporteClientePage from "./modules/cobranza/components/reportes/ReporteClientePage";
+
+/// valores agregados
+import ValorAgregadoDetailPage from "./modules/valoresAgregados/components/ValorAgregadoDetailPage";
+import ValoresAgregadosTable from "./modules/valoresAgregados/components/ValoresAgregadosTable";
 
 
 export default function App() {
@@ -36,7 +40,6 @@ export default function App() {
         <Route path="/forgot-password" element={<ResetPasswordForm />} />
         <Route path="/home" element={<RedirectByRol />} />
 
-
         {/* Layout protegido */}
         <Route element={<AppLayout />}>
           <Route path="/admin/dashboard" element={<DashboardAdmin />} />
@@ -47,10 +50,13 @@ export default function App() {
           <Route path="/clientes/:clienteId/estado-mensual" element={<EstadosMensualesInputMasivo />} />
           <Route path="/clientes-tables" element={<ClientesTable />} />
           <Route path="/usuarios-tables" element={<UsuariosTable />} />
-          <Route path="/deudores/:clienteId" element={<InmueblesTable />} />
+          <Route path="/deudores/:clienteId" element={<DeudoresTable />} />
           <Route path="/consulta-personas" element={<ConsultaPersonasPage />} />
           <Route path="/probar-notificaciones" element={<ProbarNotificacionesPage />} />
           <Route path="/clientes/:clienteId/reporte" element={<ReporteClientePage />} />
+          {/* valores agregados */}
+          <Route path="/valores-agregados/:clienteId" element={<ValoresAgregadosTable />} />
+          <Route path="/clientes/:clienteId/valores-agregados/:valorId" element={<ValorAgregadoDetailPage />} />
 
         </Route>
         {/* 404 */}
