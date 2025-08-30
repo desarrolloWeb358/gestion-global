@@ -6,7 +6,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Spinner } from '@/components/ui/spinner';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Eye, History } from 'lucide-react';
+import { Eye, History, ArrowLeft } from 'lucide-react';
 import { getDeudorById } from '../services/deudorService';
 import type { Deudor } from '../models/deudores.model';
 
@@ -35,6 +35,12 @@ export default function DeudorDetailPage() {
 
   return (
     <div className="px-4 py-6 space-y-6">
+      {/* Botón Volver */}
+      <Button variant="ghost" size="sm" className="mb-1 w-fit" onClick={() => navigate(-1)}>
+        <ArrowLeft className="w-4 h-4 mr-1" />
+        Volver
+      </Button>
+
       <Card>
         <CardHeader>
           <CardTitle>Información del Deudor</CardTitle>

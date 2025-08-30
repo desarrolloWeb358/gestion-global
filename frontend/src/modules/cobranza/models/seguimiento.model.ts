@@ -7,6 +7,7 @@ export enum TipoSeguimiento {
   WHATSAPP = "WHATSAPP",
   NOTIFICACION = "NOTIFICACION",
   OTRO = "OTRO",
+  SMS = "SMS",
 }
 export interface Seguimiento {
   id?: string;
