@@ -169,7 +169,7 @@ const main = async () => {
           console.log(`📆 Estado mensual ${mes} → deuda=${estadoDoc.deuda} / recaudo=${estadoDoc.recaudo}`);
         }
 
-       // 8) Seguimientos: obtener primero para calcular tipificación
+        // 8) Seguimientos: obtener primero para calcular tipificación
         const [seguimientos] = await connection.execute(
           'SELECT obp_observacion, tip_id, obp_fecha_observacion FROM scc_observacion_proceso WHERE pro_id = ?',
           [proceso.pro_id]
@@ -182,21 +182,26 @@ const main = async () => {
           console.log(`🏷️ Tipificación asignada: ${tipificacion}`);
         }
 
+        // Guardar cada seguimiento en la colección correcta:
+        // - si tip_id ∈ {39, 47, 85} => 'seguimientoJuridico' (incluye null)
+        // - en otro caso  => 'seguimiento'
         for (const s of seguimientos) {
           const desc = s.obp_observacion?.trim();
           const fechaRaw = s.obp_fecha_observacion;
           if (!desc || !fechaRaw) continue;
 
+          const tipNum = s.tip_id === null ? null : Number(s.tip_id);
+          const esJuridico = (tipNum === null) || TIP_IDS_DEMANDA.has(tipNum);
+          const collectionName = esJuridico ? 'seguimientoJuridico' : 'seguimiento';
+
           const seguimientoDoc = {
             descripcion: desc,
-            // IMPORTANTE: ya NO guardamos s.tip_id aquí para no “dejar” la tipificación en seguimiento
-            // tipo: s.tip_id,  <-- eliminado
             fecha: admin.firestore.Timestamp.fromDate(new Date(fechaRaw)),
-            tipoSeguimiento: '',
+            tipoSeguimiento: 'OTRO',
             archivoUrl: ''
           };
 
-          await deudorRef.collection('seguimiento').add(seguimientoDoc);
+          await deudorRef.collection(collectionName).add(seguimientoDoc);
         }
       }
     }
