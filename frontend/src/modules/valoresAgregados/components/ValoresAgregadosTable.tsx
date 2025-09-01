@@ -280,8 +280,7 @@ export default function ValoresAgregadosTable() {
             <TableRow>
               <TableHead>Fecha</TableHead>
               <TableHead>Tipo</TableHead>
-              <TableHead>Título</TableHead>
-              <TableHead>Archivo</TableHead>
+              <TableHead>Título</TableHead>              
               <TableHead>Acciones</TableHead>
             </TableRow>
           </TableHeader>
@@ -291,20 +290,7 @@ export default function ValoresAgregadosTable() {
                 <TableCell>{formatFechaCO(it.fecha as any) || "—"}</TableCell>
                 <TableCell>{TipoValorAgregadoLabels[it.tipo]}</TableCell>
                 <TableCell>{it.titulo}</TableCell>
-                <TableCell>
-                  {it.archivoURL ? (
-                    <a
-                      className="text-primary underline"
-                      href={it.archivoURL}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {it.archivoNombre ?? "Ver archivo"}
-                    </a>
-                  ) : (
-                    "—"
-                  )}
-                </TableCell>
+                
                 <TableCell className="text-center">
                   <TooltipProvider>
                     <div className="flex justify-center gap-2">

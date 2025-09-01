@@ -40,8 +40,6 @@ function mapDocToValorAgregado(id: string, data: any): ValorAgregado {
     archivoPath: data.archivoPath,
     archivoURL: data.archivoURL,
     archivoNombre: data.archivoNombre,
-    creadoEn: data.creadoEn,
-    actualizadoEn: data.actualizadoEn,
   };
 }
 
@@ -130,8 +128,6 @@ export async function crearValorAgregado(
     titulo: data.titulo,
     observaciones: data.observaciones ?? "",
     fecha: data.fechaTs ?? serverTimestamp(), // ⬅️ guarda como Timestamp
-    creadoEn: serverTimestamp(),
-    actualizadoEn: serverTimestamp(),
   };
 
   const created = await addDoc(colRef(clienteId), payload);
@@ -147,7 +143,6 @@ export async function crearValorAgregado(
       archivoPath: path,
       archivoURL: url,
       archivoNombre: archivo.name,
-      actualizadoEn: serverTimestamp(),
     });
   }
 
@@ -161,7 +156,7 @@ export async function actualizarValorAgregado(
   patch: ActualizarValorPatch,
   nuevoArchivo?: File
 ): Promise<void> {
-  const basePatch: any = { actualizadoEn: serverTimestamp() };
+  const basePatch: any = { };
   if (patch.tipo !== undefined) basePatch.tipo = patch.tipo;
   if (patch.titulo !== undefined) basePatch.titulo = patch.titulo;
   if (patch.observaciones !== undefined) basePatch.observaciones = patch.observaciones;

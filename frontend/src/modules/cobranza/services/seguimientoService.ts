@@ -45,7 +45,7 @@ export async function addSeguimiento(
   let archivoUrl: string | undefined;
 
   if (archivo) {
-    const sref = ref(storage, `clintes/${clienteId}/deudores/${deudorId}/seguimientos/${Date.now()}_${archivo.name}`);
+    const sref = ref(storage, `clientes/${clienteId}/deudores/${deudorId}/seguimientos/${Date.now()}_${archivo.name}`);
     const snap = await uploadBytes(sref, archivo);
     archivoUrl = await getDownloadURL(snap.ref);
   }
@@ -82,8 +82,8 @@ export async function updateSeguimiento(
         console.warn("Error al eliminar archivo previo:", err);
       }
     }
-
-    const sref = ref(storage, `seguimientos/${clienteId}/${deudorId}/${Date.now()}_${archivo.name}`);
+                            
+    const sref = ref(storage, `clientes/${clienteId}/deudores/${deudorId}/seguimientos/${Date.now()}_${archivo.name}`);
     const snap = await uploadBytes(sref, archivo);
     archivoUrl = await getDownloadURL(snap.ref);
   }
@@ -130,7 +130,8 @@ export async function addSeguimientoJuridico(
   let archivoUrl: string | undefined;
 
   if (archivo) {
-    const sref = ref(storage, `seguimientos_juridico/${clienteId}/${deudorId}/${Date.now()}_${archivo.name}`);
+    
+    const sref = ref(storage, `clientes/${clienteId}/deudores/${deudorId}/seguimientos/${Date.now()}_${archivo.name}`);
     const snap = await uploadBytes(sref, archivo);
     archivoUrl = await getDownloadURL(snap.ref);
   }
@@ -168,7 +169,7 @@ export async function updateSeguimientoJuridico(
       }
     }
 
-    const sref = ref(storage, `seguimientos_juridico/${clienteId}/${deudorId}/${Date.now()}_${archivo.name}`);
+    const sref = ref(storage, `clientes/${clienteId}/deudores/${deudorId}/seguimientos/${Date.now()}_${archivo.name}`);
     const snap = await uploadBytes(sref, archivo);
     archivoUrl = await getDownloadURL(snap.ref);
   }
