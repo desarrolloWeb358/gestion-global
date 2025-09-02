@@ -9,8 +9,8 @@ import {
   TableHead,
   TableBody,
   TableCell,
-} from "../../../components/ui/table";
-import { Button } from "../../../components/ui/button";
+} from "@/shared/ui/table";
+import { Button } from "@/shared/ui/button";
 import { toast } from "sonner"
 import {
   Dialog,
@@ -20,15 +20,15 @@ import {
   DialogFooter,
   DialogDescription,
   DialogTrigger,
-} from "../../../components/ui/dialog";
-import { Input } from "../../../components/ui/input";
-import { Label } from "../../../components/ui/label";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../../../components/ui/select";
-import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "../../../components/ui/tooltip";
-import { Switch } from "../../../components/ui/switch";
+} from "@/shared/ui/dialog";
+import { Input } from "@/shared/ui/input";
+import { Label } from "@/shared/ui/label";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/shared/ui/select";
+import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/shared/ui/tooltip";
+import { Switch } from "@/shared/ui/switch";
 import { CalendarIcon } from "lucide-react";
-import { Popover, PopoverContent, PopoverTrigger } from "../../../components/ui/popover";
-import { Calendar } from "../../../components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover";
+import { Calendar } from "@/shared/ui/calendar";
 
 import { UsuarioSistema } from "../models/usuarioSistema.model";
 import {
@@ -37,7 +37,7 @@ import {
   actualizarUsuario,
   eliminarUsuario,
 } from "../services/usuarioService";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/cn";
 
 export default function UsuariosCrud() {
   const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([]);

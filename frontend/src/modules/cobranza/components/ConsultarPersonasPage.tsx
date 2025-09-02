@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { Input } from "../../../components/ui/input";
-import { Button } from "../../../components/ui/button";
+import { Input } from "@/shared/ui/input";
+import { Button } from "@/shared/ui/button";
 import {
   Table,
   TableBody,
@@ -10,11 +10,11 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "../../../components/ui/table";
-import { useLoading } from "../../../context/LoadingContext";
+} from "@/shared/ui/table";
+import { useLoading } from "@/app/providers/LoadingContext";
 import { extraerDatos } from "../services/consultaPersona";
 import { getAuth } from "firebase/auth";
-import { Spinner } from "../../../components/ui/spinner";
+import { Spinner } from "@/shared/ui/spinner";
 
 export default function ConsultarPersonasPage() {
   const [formData, setFormData] = useState({

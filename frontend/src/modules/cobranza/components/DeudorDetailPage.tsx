@@ -3,9 +3,9 @@
 
 import * as React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Spinner } from '@/components/ui/spinner';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Spinner } from '@/shared/ui/spinner';
+import { Card, CardHeader, CardTitle, CardContent } from '@/shared/ui/card';
+import { Button } from '@/shared/ui/button';
 import { Eye, History, ArrowLeft } from 'lucide-react';
 import { getDeudorById } from '../services/deudorService';
 import type { Deudor } from '../models/deudores.model';

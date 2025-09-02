@@ -4,14 +4,13 @@ import SignUp from "./modules/auth/components/SignUp"; // Ya esta con shadcn
 import ClientesTable from "./modules/cobranza/components/ClientesTable";
 import UsuariosTable from "./modules/usuarios/components/UsuariosTable";
 import RedirectByRol from "./modules/auth/pages/RedirectByRol";
-import DashboardAdmin from "../src/components/dashboard/dashboardPage"; // Ya esta con shadcn
-import ResetPasswordForm from "./components/forgot-password";
+import ResetPasswordForm from "@/modules/auth/components/forgot-password";
 import DeudoresTable from "./modules/cobranza/components/DeudoresTable";
 import SeguimientoTable from './modules/cobranza/components/SeguimientoTable';
 import ConsultaPersonasPage from './modules/cobranza/components/ConsultarPersonasPage';
 import ProbarNotificacionesPage from './modules/cobranza/components/ProbarNotificacionesPage';
-import AppLayout from "./components/layout/AppLayout";
-import ScrollToTop from "./components/layout/ScrollToTop";
+import AppLayout from "@/app/layout/AppLayout";
+import ScrollToTop from "@/app/layout/ScrollToTop";
 import DeudorDetailPage from "./modules/cobranza/components/DeudorDetailPage";
 
 import "ag-grid-community/styles/ag-grid.css";
@@ -42,7 +41,6 @@ export default function App() {
 
         {/* Layout protegido */}
         <Route element={<AppLayout />}>
-          <Route path="/admin/dashboard" element={<DashboardAdmin />} />
           <Route path="/deudores/:clienteId/:deudorId/seguimiento" element={<SeguimientoTable />} />
           <Route path="/clientes/:clienteId/deudores/:deudorId" element={<DeudorDetailPage />} />
           <Route path="/deudores/:clienteId/:deudorId/estadosMensuales" element={<EstadosMensualesTable />} />

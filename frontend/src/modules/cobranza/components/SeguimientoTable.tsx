@@ -2,7 +2,7 @@
 import * as React from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/button";
 import {
   Table,
   TableHeader,
@@ -10,7 +10,7 @@ import {
   TableHead,
   TableBody,
   TableCell,
-} from "@/components/ui/table";
+} from "@/shared/ui/table";
 
 import SeguimientoForm from "./SeguimientoForm";
 import { Seguimiento } from "../models/seguimiento.model";
@@ -32,7 +32,7 @@ import {
   AlertDialogDescription,
   AlertDialogCancel,
   AlertDialogAction,
-} from "@/components/ui/alert-dialog";
+} from "@/shared/ui/alert-dialog";
 
 // 👉 Importa la tabla de Jurídico
 import SeguimientoJuridicoTable from "./SeguimientoJuridicoTable";

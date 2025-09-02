@@ -8,7 +8,7 @@ import { ClienteInfoCard } from "../components/ClienteInfoCard";
 import { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 import { obtenerUsuarios } from "@/modules/usuarios/services/usuarioService";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/button";
 
 export default function ClienteDashboardPage() {
     const { clienteId } = useParams();

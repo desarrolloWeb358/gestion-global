@@ -2,7 +2,7 @@
 import * as React from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/ui/button";
 import type { Deudor } from "../models/deudores.model";
 import {
   Table,
@@ -11,7 +11,7 @@ import {
   TableHead,
   TableBody,
   TableCell,
-} from "@/components/ui/table";
+} from "@/shared/ui/table";
 
 import SeguimientoForm from "./SeguimientoForm";
 import { DestinoColeccion } from "./SeguimientoForm";
@@ -33,7 +33,7 @@ import {
   AlertDialogDescription,
   AlertDialogCancel,
   AlertDialogAction,
-} from "@/components/ui/alert-dialog";
+} from "@/shared/ui/alert-dialog";
 
 export default function SeguimientoJuridicoTable() {
   const { clienteId, deudorId } = useParams();

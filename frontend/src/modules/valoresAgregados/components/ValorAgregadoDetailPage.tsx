@@ -2,9 +2,9 @@
 
 import * as React from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
+import { Button } from "@/shared/ui/button";
+import { Spinner } from "@/shared/ui/spinner";
 import { obtenerValorAgregado, timestampToDateInput } from "../services/valorAgregadoService";
 import { ValorAgregado } from "../models/valorAgregado.model";
 import { TipoValorAgregadoLabels } from "../../../shared/constants/tipoValorAgregado";

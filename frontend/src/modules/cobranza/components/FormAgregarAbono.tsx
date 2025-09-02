@@ -1,8 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
+import { Input } from "@/shared/ui/input"
+import { Button } from "@/shared/ui/button"
 import { Deudor } from "../models/deudores.model"
 import { useParams } from "react-router-dom"
 import { agregarAbonoAlDeudor } from "../services/deudorService"

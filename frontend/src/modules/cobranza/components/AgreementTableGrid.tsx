@@ -8,8 +8,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "../../../components/ui/table";
-import { Checkbox } from "../../../components/ui/checkbox";
+} from "@/shared/ui/table";
+import { Checkbox } from "@/shared/ui/checkbox";
 
 interface Cuota {
   id: string;

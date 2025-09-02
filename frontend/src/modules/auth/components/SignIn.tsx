@@ -1,5 +1,5 @@
 import { Globe } from "lucide-react"
-import { LoginForm } from "../../../components/Login-form";
+import { LoginForm } from "@/modules/auth/components/Login-form";
 import portadaImage from "@/assets/icons/images/GestionGlobalPortada.png";
 
 export default function LoginPage() {

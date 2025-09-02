@@ -8,8 +8,8 @@ import {
 import type { Payload as LegendPayload } from "recharts/types/component/DefaultLegendContent";
 
 // shadcn/ui
-import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
+import { Card, CardHeader, CardContent, CardTitle } from "@/shared/ui/card";
+import { Separator } from "@/shared/ui/separator";
 import { Loader2 } from "lucide-react";
 
 // services

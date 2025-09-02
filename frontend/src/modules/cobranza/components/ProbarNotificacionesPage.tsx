@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useState } from "react";
-import { Input } from "../../../components/ui/input";
-import { Button } from "../../../components/ui/button";
-import { useLoading } from "../../../context/LoadingContext";
-import { Spinner } from "../../../components/ui/spinner";
-import { Label } from "../../../components/ui/label";
+import { Input } from "@/shared/ui/input";
+import { Button } from "@/shared/ui/button";
+import { useLoading } from "@/app/providers/LoadingContext";
+import { Spinner } from "@/shared/ui/spinner";
+import { Label } from "@/shared/ui/label";
 
 import { TipoNotificacion } from "@/shared/constants/notificacionTipos";
 import { sendNotification } from "@/shared/services/sendNotification";
