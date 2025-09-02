@@ -10,6 +10,7 @@ export interface NotificationPayload {
 }
 
 export const sendNotification = async (payload: NotificationPayload): Promise<string> => {
+  console.log("Enviando notificación con payload:", payload);
   const response = await fetch("https://enviarnotificacion-prldsxsgzq-uc.a.run.app", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

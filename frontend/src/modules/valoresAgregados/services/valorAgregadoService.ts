@@ -15,7 +15,46 @@ import {
 import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { db, storage } from "../../../firebase";
 import { ValorAgregado } from "../models/valorAgregado.model";
-import { TipoValorAgregado } from "../../../shared/constants/tipoValorAgregado";
+import { TipoValorAgregado, TipoValorAgregadoLabels } from "../../../shared/constants/tipoValorAgregado";
+import { enviarNotificacionValorAgregadoBasico } from "./NotificacionValorAgregadoService"; 
+import { normalizeToE164 } from "@/shared/phoneUtils";
+
+
+
+/*
+// 👇 Helper para formatear el teléfono del cliente a E.164 Colombia (+57)
+function toE164Co(input?: string): string | undefined {
+  if (!input) return undefined;
+  const digits = input.replace(/\D/g, "");
+  if (!digits) return undefined;
+  if (input.startsWith("+")) return input;
+  if (digits.startsWith("57")) return "+" + digits;
+  return "+57" + digits;
+}
+  */
+
+async function obtenerContactoCliente(clienteId: string): Promise<{
+  nombre?: string;
+  correo?: string;
+  whatsapp?: string;
+}> {
+  // 1) usuarios/{clienteId}
+  const uSnap = await getDoc(doc(db, `usuarios/${clienteId}`));
+  let nombre: string | undefined;
+  let correo: string | undefined;
+  let whatsapp: string | undefined;
+
+  if (uSnap.exists()) {
+    const uData: any = uSnap.data() || {};
+    nombre = uData.nombre || nombre;
+    correo = uData.email || correo;
+    //whatsapp = toE164Co(uData.telefonoUsuario) || whatsapp;
+    whatsapp = normalizeToE164(uData.telefonoUsuario, { defaultCountry: "CO" }) || whatsapp;
+  }
+
+  return { nombre, correo, whatsapp };
+}
+
 
 /** Normaliza el campo 'tipo' a uno de los valores del enum */
 function normalizarTipo(input: unknown): TipoValorAgregado {
@@ -120,19 +159,26 @@ type ActualizarValorPatch = Partial<{
 /** Crear (con subida opcional de archivo a Storage) */
 export async function crearValorAgregado(
   clienteId: string,
-  data: CrearValorInput,
+  data: {
+    tipo: TipoValorAgregado;
+    titulo: string;
+    observaciones?: string;
+    fechaTs?: Timestamp;
+  },
   archivo?: File
 ): Promise<string> {
   const payload: Partial<ValorAgregado> = {
     tipo: data.tipo,
     titulo: data.titulo,
     observaciones: data.observaciones ?? "",
-    fecha: data.fechaTs ?? serverTimestamp(), // ⬅️ guarda como Timestamp
+    fecha: data.fechaTs ?? serverTimestamp(), // ⬅️ Timestamp
   };
 
+  // 1) Guardar doc base
   const created = await addDoc(colRef(clienteId), payload);
   const valorId = created.id;
 
+  // 2) Subir archivo si viene
   if (archivo) {
     const path = storagePath(clienteId, valorId, archivo.name);
     const rf = ref(storage, path);
@@ -145,6 +191,31 @@ export async function crearValorAgregado(
       archivoNombre: archivo.name,
     });
   }
+
+  try {
+  const contacto = await obtenerContactoCliente(clienteId); // ← ahora trae de `usuarios/{clienteId}`
+  const tipoLabel   = TipoValorAgregadoLabels[data.tipo];
+  const nombreValor = data.titulo || "Documento";
+  const nombreCliente = contacto.nombre || "Cliente";
+
+  if (contacto.correo || contacto.whatsapp) {
+    await enviarNotificacionValorAgregadoBasico(
+      {
+        correoCliente:  contacto.correo,
+        whatsappCliente: contacto.whatsapp,
+      },
+      {
+        nombreCliente,   // {{1}}
+        tipoLabel,       // {{2}}
+        nombreValor,     // {{3}}
+      }
+    );
+  } else {
+    console.warn(`[crearValorAgregado] Cliente ${clienteId} sin correo/whatsapp; no se envía notificación.`);
+  }
+} catch (err) {
+  console.error("[crearValorAgregado] Error al enviar notificación:", err);
+}
 
   return valorId;
 }

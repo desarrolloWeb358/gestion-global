@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { Eye, Pencil, Trash2, Upload, Calendar as CalendarIcon } from "lucide-react";
+import { Eye, Pencil, Trash2, Upload, Calendar as CalendarIcon, Loader2 } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 import { toast } from "sonner";
 
@@ -51,6 +51,9 @@ export default function ValoresAgregadosTable() {
   const [page, setPage] = useState(1);
   const itemsPerPage = 5;
 
+  // --- NUEVO: flag de guardado para bloquear UI y evitar doble submit ---
+  const [saving, setSaving] = useState(false);
+
   const fetchData = async () => {
     if (!clienteId) return;
     setLoading(true);
@@ -99,7 +102,7 @@ export default function ValoresAgregadosTable() {
   const iniciarEditar = (it: ValorAgregado) => {
     setEditando(it);
     setFormData({ ...it });
-    if (it.fecha && "toDate" in it.fecha) {
+    if (it.fecha && "toDate" in (it.fecha as any)) {
       setFecha((it.fecha as any).toDate());
     } else {
       setFecha(undefined);
@@ -110,6 +113,10 @@ export default function ValoresAgregadosTable() {
 
   const onSubmit = async () => {
     if (!clienteId) return;
+    // --- NUEVO: cortar si ya está guardando ---
+    if (saving) return;
+
+    setSaving(true);
     try {
       const fechaTs = fecha ? Timestamp.fromDate(fecha) : undefined;
 
@@ -140,16 +147,29 @@ export default function ValoresAgregadosTable() {
         toast.success("Valor agregado creado");
       }
 
+      // Cierra el modal y recarga la tabla ANTES de quitar el bloqueo
       setOpen(false);
-      fetchData();
+      await fetchData();
     } catch (e) {
       console.error(e);
       toast.error("Error guardando el valor agregado");
+    } finally {
+      setSaving(false);
     }
   };
 
   return (
     <div className="space-y-4">
+      {/* Overlay global durante guardado para bloquear pantalla */}
+      {saving && (
+        <div className="fixed inset-0 z-[60] bg-black/20 backdrop-blur-sm grid place-items-center">
+          <div className="flex items-center gap-3 rounded-xl bg-white px-4 py-3 shadow-lg">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span className="text-sm font-medium">Guardando…</span>
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-between items-center gap-2">
         <h2 className="text-xl font-semibold">Valores agregados</h2>
 
@@ -161,11 +181,21 @@ export default function ValoresAgregadosTable() {
             setPage(1);
           }}
           className="max-w-md"
+          disabled={saving}
         />
 
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog
+          open={open}
+          // --- NUEVO: no permitir cerrar el dialog mientras guarda ---
+          onOpenChange={(v) => {
+            if (saving) return;
+            setOpen(v);
+          }}
+        >
           <DialogTrigger asChild>
-            <Button onClick={iniciarCrear}>Crear valor agregado</Button>
+            <Button onClick={iniciarCrear} disabled={saving}>
+              Crear valor agregado
+            </Button>
           </DialogTrigger>
 
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -186,6 +216,7 @@ export default function ValoresAgregadosTable() {
                   <Select
                     value={(formData.tipo as TipoValorAgregado) ?? TipoValorAgregado.DERECHO_DE_PETICION}
                     onValueChange={(val) => setFormData((prev) => ({ ...prev, tipo: val as TipoValorAgregado }))}
+                    disabled={saving}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecciona" />
@@ -209,6 +240,7 @@ export default function ValoresAgregadosTable() {
                         variant="outline"
                         role="combobox"
                         className="w-full justify-start text-left font-normal"
+                        disabled={saving}
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {fecha ? fecha.toLocaleDateString("es-CO") : "Selecciona una fecha"}
@@ -226,9 +258,8 @@ export default function ValoresAgregadosTable() {
                   <Label>Título</Label>
                   <Input
                     value={formData.titulo ?? ""}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, titulo: e.target.value }))
-                    }
+                    onChange={(e) => setFormData((prev) => ({ ...prev, titulo: e.target.value }))}
+                    disabled={saving}
                   />
                 </div>
 
@@ -236,9 +267,8 @@ export default function ValoresAgregadosTable() {
                   <Label>Observaciones</Label>
                   <Input
                     value={formData.observaciones ?? ""}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, observaciones: e.target.value }))
-                    }
+                    onChange={(e) => setFormData((prev) => ({ ...prev, observaciones: e.target.value }))}
+                    disabled={saving}
                   />
                 </div>
               </div>
@@ -251,6 +281,7 @@ export default function ValoresAgregadosTable() {
                       type="file"
                       accept=".pdf,.doc,.docx,.xls,.xlsx"
                       onChange={(e) => setArchivoFile(e.target.files?.[0])}
+                      disabled={saving}
                     />
                     <Upload className="w-4 h-4" />
                   </div>
@@ -263,8 +294,15 @@ export default function ValoresAgregadosTable() {
               </div>
 
               <div className="pt-6">
-                <Button type="submit" className="w-full">
-                  Guardar
+                <Button type="submit" className="w-full" disabled={saving}>
+                  {saving ? (
+                    <span className="inline-flex items-center justify-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Guardando…
+                    </span>
+                  ) : (
+                    "Guardar"
+                  )}
                 </Button>
               </div>
             </form>
@@ -280,7 +318,7 @@ export default function ValoresAgregadosTable() {
             <TableRow>
               <TableHead>Fecha</TableHead>
               <TableHead>Tipo</TableHead>
-              <TableHead>Título</TableHead>              
+              <TableHead>Título</TableHead>
               <TableHead>Acciones</TableHead>
             </TableRow>
           </TableHeader>
@@ -290,7 +328,7 @@ export default function ValoresAgregadosTable() {
                 <TableCell>{formatFechaCO(it.fecha as any) || "—"}</TableCell>
                 <TableCell>{TipoValorAgregadoLabels[it.tipo]}</TableCell>
                 <TableCell>{it.titulo}</TableCell>
-                
+
                 <TableCell className="text-center">
                   <TooltipProvider>
                     <div className="flex justify-center gap-2">
@@ -299,9 +337,8 @@ export default function ValoresAgregadosTable() {
                           <Button
                             variant="outline"
                             size="icon"
-                            onClick={() =>
-                              navigate(`/clientes/${clienteId}/valores-agregados/${it.id}`)
-                            }
+                            onClick={() => navigate(`/clientes/${clienteId}/valores-agregados/${it.id}`)}
+                            disabled={saving}
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
@@ -311,7 +348,7 @@ export default function ValoresAgregadosTable() {
 
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Button variant="outline" size="icon" onClick={() => iniciarEditar(it)}>
+                          <Button variant="outline" size="icon" onClick={() => iniciarEditar(it)} disabled={saving}>
                             <Pencil className="h-4 w-4" />
                           </Button>
                         </TooltipTrigger>
@@ -327,6 +364,7 @@ export default function ValoresAgregadosTable() {
                               setSeleccionado(it);
                               setOpenEliminar(true);
                             }}
+                            disabled={saving}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -348,24 +386,39 @@ export default function ValoresAgregadosTable() {
           <DialogHeader>
             <DialogTitle>¿Eliminar valor agregado?</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Esta acción no se puede deshacer.
-          </p>
+          <p className="text-sm text-muted-foreground">Esta acción no se puede deshacer.</p>
           <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setOpenEliminar(false)}>
+            <Button variant="outline" onClick={() => setOpenEliminar(false)} disabled={saving}>
               Cancelar
             </Button>
             <Button
               variant="destructive"
               onClick={async () => {
                 if (seleccionado && clienteId) {
-                  await eliminarValorAgregado(clienteId, seleccionado.id!);
-                  setOpenEliminar(false);
-                  fetchData();
+                  // Opcional: podrías tener un flag separado 'deleting'
+                  setSaving(true);
+                  try {
+                    await eliminarValorAgregado(clienteId, seleccionado.id!);
+                    setOpenEliminar(false);
+                    await fetchData();
+                  } catch (e) {
+                    console.error(e);
+                    toast.error("Error eliminando el valor agregado");
+                  } finally {
+                    setSaving(false);
+                  }
                 }
               }}
+              disabled={saving}
             >
-              Eliminar
+              {saving ? (
+                <span className="inline-flex items-center justify-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Eliminando…
+                </span>
+              ) : (
+                "Eliminar"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -377,18 +430,10 @@ export default function ValoresAgregadosTable() {
           Página {page} de {totalPages}
         </p>
         <div className="space-x-2">
-          <Button
-            variant="outline"
-            disabled={page === 1}
-            onClick={() => setPage((p) => p - 1)}
-          >
+          <Button variant="outline" disabled={page === 1 || saving} onClick={() => setPage((p) => p - 1)}>
             Anterior
           </Button>
-          <Button
-            variant="outline"
-            disabled={page === totalPages}
-            onClick={() => setPage((p) => p + 1)}
-          >
+          <Button variant="outline" disabled={page === totalPages || saving} onClick={() => setPage((p) => p + 1)}>
             Siguiente
           </Button>
         </div>
