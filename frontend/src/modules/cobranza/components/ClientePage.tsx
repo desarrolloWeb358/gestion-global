@@ -4,13 +4,13 @@ import { getDoc, doc } from "firebase/firestore";
 import { db } from "@/firebase";
 
 import { Cliente } from "../models/cliente.model";
-import { ClienteInfoCard } from "../components/ClienteInfoCard";
+import { ClienteInfoCard } from "./ClienteInfoCard";
 import { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 import { obtenerUsuarios } from "@/modules/usuarios/services/usuarioService";
 
 import { Button } from "@/shared/ui/button";
 
-export default function ClienteDashboardPage() {
+export default function ClientePage() {
     const { clienteId } = useParams();
     const navigate = useNavigate();
 

@@ -1,39 +1,46 @@
+// src/modules/auth/hooks/useUsuarioActual.ts
 import { useEffect, useState } from "react";
-import { getAuth } from "firebase/auth";
+import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
-import { db } from "../../../firebase";
-import { UsuarioSistema } from "../../usuarios/models/usuarioSistema.model";
+import { auth, db } from "@/firebase";
+import { sanitizeRoles, type Rol } from "@/shared/constants/acl";
+import type { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 
-export const useUsuarioActual = () => {
+export function useUsuarioActual() {
   const [usuario, setUsuario] = useState<UsuarioSistema | null>(null);
+  const [roles, setRoles] = useState<Rol[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const cargarUsuario = async () => {
+    const unsub = onAuthStateChanged(auth, async (fbUser) => {
       try {
-        const auth = getAuth();
-        const user = auth.currentUser;
-        if (user) {
-          const ref = doc(db, "usuarios", user.uid);
-          const snapshot = await getDoc(ref);
-          if (snapshot.exists()) {
-            setUsuario({ uid: snapshot.id, ...snapshot.data() } as UsuarioSistema);
-          } else {
-            console.warn("⚠️ No se encontró el documento del usuario:", user.uid);
-          }
-        } else {
-          console.warn("⚠️ No hay usuario autenticado.");
+        if (!fbUser) {
+          setUsuario(null);
+          setRoles([]);
+          setLoading(false);
+          return;
         }
-
-      } catch (error) {
-        console.error("❌ Error cargando usuario desde Firestore:", error);
+        const snap = await getDoc(doc(db, "usuarios", fbUser.uid));
+        if (snap.exists()) {
+          const data = snap.data() as UsuarioSistema;
+          const safeRoles = sanitizeRoles(data.roles);
+          setUsuario({ ...data, uid: snap.id, roles: safeRoles });
+          setRoles(safeRoles);
+        } else {
+          console.warn("No existe documento de usuario:", fbUser.uid);
+          setUsuario(null);
+          setRoles([]);
+        }
+      } catch (err) {
+        console.error("useUsuarioActual error:", err);
+        setUsuario(null);
+        setRoles([]);
       } finally {
         setLoading(false);
       }
-    };
-
-    cargarUsuario();
+    });
+    return () => unsub();
   }, []);
 
-  return { usuario, loading };
-};
+  return { usuario, roles, loading };
+}

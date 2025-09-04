@@ -38,6 +38,7 @@ import {
   eliminarUsuario,
 } from "../services/usuarioService";
 import { cn } from "@/shared/lib/cn";
+import { Rol, ROLES } from "@/shared/constants/acl";
 
 export default function UsuariosCrud() {
   const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([]);
@@ -46,17 +47,17 @@ export default function UsuariosCrud() {
   const [mostrarDialogo, setMostrarDialogo] = useState(false);
   const [password, setPassword] = useState("");
   const [fecha, setFecha] = useState<Date | undefined>();
-  const [rolesSeleccionados, setRolesSeleccionados] = useState<string[]>([]);
-  const rolesDisponibles = ["admin", "ejecutivo", "abogado", "cliente", "deudor"] as UsuarioSistema["roles"];
+  const [rolesSeleccionados, setRolesSeleccionados] = useState<Rol[]>([]);
+  const rolesDisponibles = ROLES; // ← una sola fuente de verdad
 
   function MultiSelectRoles({
     selectedRoles,
     setSelectedRoles,
   }: {
-    selectedRoles: string[];
-    setSelectedRoles: (roles: string[]) => void;
+    selectedRoles: Rol[];
+    setSelectedRoles: (roles: Rol[]) => void;
   }) {
-    const toggleRole = (rol: string) => {
+    const toggleRole = (rol: Rol) => {
       if (selectedRoles.includes(rol)) {
         setSelectedRoles(selectedRoles.filter((r) => r !== rol));
       } else {
@@ -117,7 +118,7 @@ export default function UsuariosCrud() {
     setUsuarioEditando(usuario);
     setPassword("");
     setFecha(usuario.fecha_registro instanceof Timestamp ? usuario.fecha_registro.toDate() : undefined);
-    setRolesSeleccionados(usuario.roles || []);
+    setRolesSeleccionados((usuario.roles ?? []) as Rol[]);
     setMostrarDialogo(true);
   };
   const cerrarDialogo = () => {
@@ -162,7 +163,7 @@ export default function UsuariosCrud() {
               <TableRow key={usuario.uid}>
                 <TableCell>{usuario.email}</TableCell>
                 <TableCell>{usuario.nombre}</TableCell>
-                <TableCell>{usuario.roles}</TableCell>
+                <TableCell>{usuario.roles?.join(", ")}</TableCell>
                 <TableCell>
                   <Switch checked={usuario.activo}
                     onCheckedChange={async (checked) => {
@@ -261,7 +262,7 @@ export default function UsuariosCrud() {
                   telefonoUsuario,
                   tipoDocumento,
                   numeroDocumento,
-                  roles: rolesSeleccionados as UsuarioSistema["roles"],
+                  roles: rolesSeleccionados,
                   activo,
                   fecha_registro,
                 };
@@ -291,7 +292,7 @@ export default function UsuariosCrud() {
                     telefonoUsuario,
                     tipoDocumento,
                     numeroDocumento,
-                    roles: rolesSeleccionados as UsuarioSistema["roles"],
+                    roles: rolesSeleccionados,
                     activo,
                     fecha_registro,
                     password,
