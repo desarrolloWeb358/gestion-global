@@ -1,8 +1,8 @@
 import { Routes, Route, Navigate } from "react-router-dom";// ← Usa 'react-router-dom'
 import SignIn from "./modules/auth/components/SignIn"; // Ya esta con shadcn
 import SignUp from "./modules/auth/components/SignUp"; // Ya esta con shadcn
-import ClientesTable from "./modules/cobranza/components/ClientesTable";
-import ClientePage from "./modules/cobranza/components/ClientePage";
+import ClientesTable from "@/modules/clientes/components/ClientesTable";
+import ClientePage from "@/modules/clientes/components/ClientePage";
 import UsuariosTable from "./modules/usuarios/components/UsuariosTable";
 import RedirectByRol from "./modules/auth/pages/RedirectByRol";
 import ResetPasswordForm from "@/modules/auth/components/forgot-password";

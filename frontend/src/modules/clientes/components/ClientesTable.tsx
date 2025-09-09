@@ -16,14 +16,14 @@ import { Button } from "@/shared/ui/button";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/shared/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/shared/ui/tooltip";
 
-import { Cliente } from "../models/cliente.model";
+import { Cliente } from "@/modules/clientes/models/cliente.model";
 import {
   obtenerClientes,
   actualizarCliente,
   eliminarCliente,
-} from "../services/clienteService";
-import { UsuarioSistema } from "../../usuarios/models/usuarioSistema.model";
-import { obtenerUsuarios } from "../../usuarios/services/usuarioService";
+} from "@/modules/clientes/services/clienteService";
+import { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
+import { obtenerUsuarios } from "@/modules/usuarios/services/usuarioService";
 
 export default function ClientesCrud() {
   const navigate = useNavigate();

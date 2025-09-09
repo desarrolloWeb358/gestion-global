@@ -1,5 +1,5 @@
 import { Card, CardHeader, CardTitle, CardContent } from "@/shared/ui/card";
-import { Cliente } from "../models/cliente.model";
+import { Cliente } from "@/modules/clientes/models/cliente.model";
 import { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 import { useNavigate } from "react-router-dom";
 

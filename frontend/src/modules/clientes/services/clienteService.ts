@@ -1,4 +1,4 @@
-import { db } from "../../../firebase";
+import { db } from "@/firebase";
 import {
   collection,
   getDocs,
@@ -8,7 +8,7 @@ import {
   doc,
   setDoc,
 } from "firebase/firestore";
-import { Cliente } from "../models/cliente.model";
+import { Cliente } from "@/modules/clientes/models/cliente.model";
 import { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 
 // ===============================
