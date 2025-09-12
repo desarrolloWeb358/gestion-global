@@ -14,7 +14,7 @@ import {
 } from "firebase/firestore";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { UsuarioSistema } from "../models/usuarioSistema.model";
-import { Cliente } from "../../cobranza/models/cliente.model";
+import { Cliente } from "@/modules/clientes/models/cliente.model";
 
 /* ============================================
    Utilidad: elimina claves con undefined

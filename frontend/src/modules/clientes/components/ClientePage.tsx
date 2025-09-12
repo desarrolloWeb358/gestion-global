@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { getDoc, doc } from "firebase/firestore";
 import { db } from "@/firebase";
 
-import { Cliente } from "../models/cliente.model";
+import { Cliente } from "@/modules/clientes/models/cliente.model";
 import { ClienteInfoCard } from "./ClienteInfoCard";
 import { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 import { obtenerUsuarios } from "@/modules/usuarios/services/usuarioService";

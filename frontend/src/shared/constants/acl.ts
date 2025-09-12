@@ -61,6 +61,14 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly (typeof PERMS)[keyof typeof 
   ],
 };
 
+// helper opcional (si no lo tienes ya)
+export type CanFn = (required: Perm | Perm[]) => boolean;
+export function crudMode(can: CanFn, p: { view: Perm; edit: Perm }) {
+  if (can(p.edit)) return "rw" as const;
+  if (can(p.view)) return "ro" as const;
+  return "none" as const;
+}
+
 // (Opcional) runtime guard para limpiar roles que vengan de Firestore mal escritos
 export function sanitizeRoles(input: unknown): Rol[] {
   if (!Array.isArray(input)) return [];

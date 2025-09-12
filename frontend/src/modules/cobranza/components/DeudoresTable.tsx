@@ -20,9 +20,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/shared/ui/dialog";
 import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 
+// 🔐 ACL
+import { useAcl } from "@/modules/auth/hooks/useAcl";
+import { PERMS } from "@/shared/constants/acl";
+
 export default function DeudoresTable() {
   const navigate = useNavigate();
   const { clienteId } = useParams<{ clienteId: string }>();
+
+  // 🔐 ACL: permisos de la pantalla
+  const { can, loading: aclLoading } = useAcl();
+  const canView = can(PERMS.Deudores_Read);
+  const canEdit = can(PERMS.Deudores_Edit);   // admin/ejecutivo = true; cliente = false
+  const readOnly = !canEdit && canView;       // cliente = true
 
   // Estado general
   const [deudores, setDeudores] = useState<Deudor[]>([]);
@@ -44,7 +54,7 @@ export default function DeudoresTable() {
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
-  
+
   // Cargar deudores
   const fetchDeudores = async () => {
     if (!clienteId) return;
@@ -58,9 +68,12 @@ export default function DeudoresTable() {
   };
 
   useEffect(() => {
+    // 🔐 Bloquear fetch hasta saber permisos y solo si puede ver
+    if (aclLoading) return;
+    if (!canView) return;
     fetchDeudores();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clienteId]);
+  }, [clienteId, aclLoading, canView]);
 
   // Filtrado y paginación
   const filteredDeudores = deudores.filter((d) => (d.ubicacion ?? "").toLowerCase().includes(search.toLowerCase()));
@@ -69,6 +82,8 @@ export default function DeudoresTable() {
 
   // --- Handlers ---
   const iniciarCrear = () => {
+    // 🔐 Bloquear crear si no tiene permiso
+    if (!canEdit) return;
     setDeudorEditando(null);
     setFormData({
       tipificacion: TipificacionDeuda.GESTIONANDO,
@@ -77,6 +92,8 @@ export default function DeudoresTable() {
   };
 
   const iniciarEditar = (deudor: Deudor) => {
+    // 🔐 Bloquear editar si no tiene permiso
+    if (!canEdit) return;
     setDeudorEditando(deudor);
     setFormData({ ...deudor });
     setOpen(true);
@@ -91,6 +108,8 @@ export default function DeudoresTable() {
   // Guardar (crear o actualizar)
   const guardarDeudor = async () => {
     if (!clienteId) return;
+    // 🔐 Bloquear submit si no tiene permiso
+    if (!canEdit) return;
 
     if (deudorEditando) {
       // 1) Actualiza datos del DEUDOR (sin estados mensuales)
@@ -100,13 +119,13 @@ export default function DeudoresTable() {
         ubicacion: formData.ubicacion,
         correos: formData.correos ?? [],
         telefonos: formData.telefonos ?? [],
-        tipificacion: formData.tipificacion as TipificacionDeuda,    
+        tipificacion: formData.tipificacion as TipificacionDeuda,
         porcentajeHonorarios: Number(formData.porcentajeHonorarios ?? 15),
       });
 
     } else {
       // 1) Crea el DEUDOR
-      const newDeudorId = await crearDeudor(clienteId, {
+      await crearDeudor(clienteId, {
         nombre: formData.nombre ?? "",
         cedula: formData.cedula,
         ubicacion: formData.ubicacion,
@@ -115,7 +134,6 @@ export default function DeudoresTable() {
         telefonos: formData.telefonos ?? [],
         tipificacion: (formData.tipificacion as TipificacionDeuda) ?? TipificacionDeuda.GESTIONANDO,
       });
-
     }
 
     setOpen(false);
@@ -123,21 +141,22 @@ export default function DeudoresTable() {
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const { name, value } = e.target;
+    const { name, value } = e.target;
 
-  setFormData((prev) => {
-    // Campos numéricos que quieres forzar a number:
-    const numericFields = new Set(['porcentajeHonorarios']);
-    const parsedValue =
-      numericFields.has(name)
-        ? (value === '' ? undefined : Number(value)) // permite limpiar y reescribir
-        : value;
+    setFormData((prev) => {
+      const numericFields = new Set(['porcentajeHonorarios']);
+      const parsedValue =
+        numericFields.has(name)
+          ? (value === '' ? undefined : Number(value))
+          : value;
 
-    return { ...prev, [name]: parsedValue as any };
-  });
-};
-  
+      return { ...prev, [name]: parsedValue as any };
+    });
+  };
+
   const handleEnviarNotificaciones = async () => {
+    // 🔐 Opcional: solo RW puede enviar masivo
+    if (!canEdit) return;
     try {
       setLoading(true);
       const resultado = await enviarNotificacionCobroMasivo(filteredDeudores);
@@ -150,6 +169,16 @@ export default function DeudoresTable() {
       setLoading(false);
     }
   };
+
+  // 🔐 1) Bloquear mientras se cargan los permisos
+  if (aclLoading) {
+    return <p className="text-muted-foreground text-center py-6">Cargando permisos…</p>;
+  }
+
+  // 🔐 2) Sin permiso de lectura → no renderizar contenido
+  if (!canView) {
+    return <p className="text-center py-6">No tienes acceso a Deudores.</p>;
+  }
 
   return (
     <div className="space-y-4">
@@ -167,40 +196,47 @@ export default function DeudoresTable() {
         />
 
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={iniciarCrear}>Crear deudor</Button>
-          </DialogTrigger>
+          {/* 🔐 3) Botón “Crear deudor” solo si puede editar */}
+          {canEdit && (
+            <DialogTrigger asChild>
+              <Button onClick={iniciarCrear}>Crear deudor</Button>
+            </DialogTrigger>
+          )}
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Crear / Editar deudor</DialogTitle>
+              {/* 🔐 Título opcional dinámico según modo */}
+              <DialogTitle>{deudorEditando ? (readOnly ? "Ver deudor" : "Editar deudor") : (readOnly ? "Ver deudor" : "Crear deudor")}</DialogTitle>
             </DialogHeader>
 
             <form
               className="space-y-4"
               onSubmit={(e) => {
                 e.preventDefault();
-                guardarDeudor();
+                // 🔐 4) En RO no se envía
+                if (!readOnly) guardarDeudor();
               }}
             >
               <div className="grid grid-cols-2 gap-4 pt-4 border-t mt-4">
                 <div>
                   <Label htmlFor="nombre">Nombre</Label>
-                  <Input name="nombre" value={formData.nombre ?? ""} onChange={handleChange} />
+                  <Input name="nombre" value={formData.nombre ?? ""} onChange={handleChange} readOnly={readOnly} />
                 </div>
                 <div>
                   <Label htmlFor="cedula">Cédula</Label>
-                  <Input name="cedula" value={formData.cedula ?? ""} onChange={handleChange} />
+                  <Input name="cedula" value={formData.cedula ?? ""} onChange={handleChange} readOnly={readOnly} />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="ubicacion">Ubicación</Label>
-                  <Input name="ubicacion" value={formData.ubicacion ?? ""} onChange={handleChange} />
+                  <Input name="ubicacion" value={formData.ubicacion ?? ""} onChange={handleChange} readOnly={readOnly} />
                 </div>
                 <div>
                   <Label>Tipificación</Label>
                   <Select
+                    // 🔐 Select deshabilitado en RO
+                    disabled={readOnly}
                     value={(formData.tipificacion as TipificacionDeuda) ?? TipificacionDeuda.GESTIONANDO}
                     onValueChange={onChangeTipificacion}
                   >
@@ -229,6 +265,7 @@ export default function DeudoresTable() {
                       correos: e.target.value.split(",").map((c) => c.trim()).filter(Boolean),
                     }))
                   }
+                  readOnly={readOnly}
                 />
 
                 <Label>Teléfonos</Label>
@@ -241,21 +278,31 @@ export default function DeudoresTable() {
                       telefonos: e.target.value.split(",").map((t) => t.trim()).filter(Boolean),
                     }))
                   }
+                  readOnly={readOnly}
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4 pt-4 border-t mt-4">
                 <div>
                   <Label htmlFor="porcentajeHonorarios">Porcentaje de honorarios</Label>
-                  <Input type="number" name="porcentajeHonorarios" value={formData.porcentajeHonorarios ?? 15} onChange={handleChange} />
+                  <Input
+                    type="number"
+                    name="porcentajeHonorarios"
+                    value={formData.porcentajeHonorarios ?? 15}
+                    onChange={handleChange}
+                    readOnly={readOnly}
+                  />
                 </div>
               </div>
 
-              <div className="pt-6">
-                <Button type="submit" className="w-full">
-                  Guardar
-                </Button>
-              </div>
+              {/* 🔐 5) Ocultar botón Guardar en RO */}
+              {!readOnly && (
+                <div className="pt-6">
+                  <Button type="submit" className="w-full">
+                    Guardar
+                  </Button>
+                </div>
+              )}
             </form>
           </DialogContent>
         </Dialog>
@@ -269,23 +316,24 @@ export default function DeudoresTable() {
             <TableRow>
               <TableHead>Nombre</TableHead>
               <TableHead>Ubicación</TableHead>
-              <TableHead>Tipificación</TableHead>              
+              <TableHead>Tipificación</TableHead>
               <TableHead>Acciones</TableHead>
             </TableRow>
           </TableHeader>
 
           <TableBody>
-            {paginatedDeudores.map((deudor) => {              
+            {paginatedDeudores.map((deudor) => {
               return (
                 <TableRow key={deudor.id}>
                   <TableCell>{deudor.nombre}</TableCell>
                   <TableCell>{deudor.ubicacion}</TableCell>
                   <TableCell>{deudor.tipificacion}</TableCell>
-                 
+
                   {/* Columna Acciones */}
                   <TableCell className="text-center">
                     <TooltipProvider>
                       <div className="flex justify-center gap-2">
+                        {/* Ver: siempre visible porque ya pasó canView */}
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
@@ -299,30 +347,36 @@ export default function DeudoresTable() {
                           <TooltipContent>Ver deudor</TooltipContent>
                         </Tooltip>
 
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button variant="outline" size="icon" onClick={() => iniciarEditar(deudor)}>
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Editar</TooltipContent>
-                        </Tooltip>
+                        {/* 🔐 Editar: solo si canEdit */}
+                        {canEdit && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="outline" size="icon" onClick={() => iniciarEditar(deudor)}>
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Editar</TooltipContent>
+                          </Tooltip>
+                        )}
 
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="destructive"
-                              size="icon"
-                              onClick={() => {
-                                setDeudorSeleccionado(deudor);
-                                setDialogoEliminar(true);
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Eliminar</TooltipContent>
-                        </Tooltip>
+                        {/* 🔐 Eliminar: solo si canEdit */}
+                        {canEdit && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="destructive"
+                                size="icon"
+                                onClick={() => {
+                                  setDeudorSeleccionado(deudor);
+                                  setDialogoEliminar(true);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Eliminar</TooltipContent>
+                          </Tooltip>
+                        )}
                       </div>
                     </TooltipProvider>
                   </TableCell>
@@ -333,12 +387,13 @@ export default function DeudoresTable() {
         </Table>
       )}
 
+      {/* 🔐 Diálogo eliminar: doble seguro en el confirm */}
       <Dialog open={dialogoEliminar} onOpenChange={setDialogoEliminar}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>¿Eliminar deudor?</DialogTitle>
           </DialogHeader>
-        <p className="text-sm text-muted-foreground">¿Estás seguro de que deseas eliminar este deudor? Esta acción no se puede deshacer.</p>
+          <p className="text-sm text-muted-foreground">¿Estás seguro de que deseas eliminar este deudor? Esta acción no se puede deshacer.</p>
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setDialogoEliminar(false)}>
               Cancelar
@@ -346,6 +401,7 @@ export default function DeudoresTable() {
             <Button
               variant="destructive"
               onClick={async () => {
+                if (!canEdit) return; // 🔐
                 if (deudorSeleccionado && clienteId) {
                   await eliminarDeudor(clienteId, deudorSeleccionado.id!);
                   setDialogoEliminar(false);
@@ -359,7 +415,8 @@ export default function DeudoresTable() {
         </DialogContent>
       </Dialog>
 
-      {!loading && filteredDeudores.length > 0 && (
+      {/* 🔐 Accción masiva opcional: solo RW */}
+      {!loading && filteredDeudores.length > 0 && canEdit && (
         <div className="pt-4">
           <Button className="bg-primary text-white" onClick={handleEnviarNotificaciones}>
             Enviar notificación de cobro a todos los listados
