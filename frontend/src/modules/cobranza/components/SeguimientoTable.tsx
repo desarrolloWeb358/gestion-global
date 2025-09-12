@@ -12,7 +12,7 @@ import {
   TableCell,
 } from "@/shared/ui/table";
 
-import SeguimientoForm from "./SeguimientoForm";
+import SeguimientoForm, { DestinoColeccion } from "./SeguimientoForm";
 import { Seguimiento } from "../models/seguimiento.model";
 import {
   getSeguimientos,
@@ -20,7 +20,7 @@ import {
   updateSeguimiento,
   deleteSeguimiento,
   addSeguimientoJuridico,
-  updateSeguimientoJuridico,
+  // updateSeguimientoJuridico,  // ⛔️ ya no se usa desde esta tabla
 } from "@/modules/cobranza/services/seguimientoService";
 
 import {
@@ -34,12 +34,9 @@ import {
   AlertDialogAction,
 } from "@/shared/ui/alert-dialog";
 
-// 👉 Importa la tabla de Jurídico
+// 👉 Tabla de Jurídico
 import SeguimientoJuridicoTable from "./SeguimientoJuridicoTable";
 import { Deudor } from "../models/deudores.model";
-
-// Type compartido
-export type DestinoColeccion = "seguimiento" | "seguimientoJuridico";
 
 export default function SeguimientoTable() {
   const { clienteId, deudorId } = useParams();
@@ -54,6 +51,9 @@ export default function SeguimientoTable() {
 
   const [deleteId, setDeleteId] = React.useState<string | null>(null);
 
+  // 🔄 llave para refrescar la tabla de Jurídico cuando se crea/mueve algo allá
+  const [refreshJuridicoKey, setRefreshJuridicoKey] = React.useState(0);
+
   // 👉 Cargar seguimientos pre-jurídico
   React.useEffect(() => {
     if (!clienteId || !deudorId) return;
@@ -64,7 +64,7 @@ export default function SeguimientoTable() {
       .finally(() => setLoading(false));
   }, [clienteId, deudorId]);
 
-  // 👉 Guardar con destino dinámico
+  // 👉 Guardar con destino dinámico (incluye mover entre colecciones si cambia el destino)
   const onSaveWithDestino = async (
     destino: DestinoColeccion,
     data: Omit<Seguimiento, "id">,
@@ -75,14 +75,21 @@ export default function SeguimientoTable() {
 
     try {
       if (seleccionado?.id) {
+        // 📝 EDITAR un seguimiento que actualmente está en PRE-JURÍDICO
         if (destino === "seguimientoJuridico") {
-          await updateSeguimientoJuridico(clienteId, deudorId, seleccionado.id, data, archivo, reemplazar);
+          // 🔁 MOVER: crear en Jurídico y borrar el original en Prejurídico
+          await addSeguimientoJuridico(clienteId, deudorId, data, archivo);
+          await deleteSeguimiento(clienteId, deudorId, seleccionado.id);
+          setRefreshJuridicoKey((k) => k + 1); // refrescar tabla jurídico
         } else {
+          // ✅ Sigue en Prejurídico → solo actualizar
           await updateSeguimiento(clienteId, deudorId, seleccionado.id, data, archivo, reemplazar);
         }
       } else {
+        // ➕ CREAR
         if (destino === "seguimientoJuridico") {
           await addSeguimientoJuridico(clienteId, deudorId, data, archivo);
+          setRefreshJuridicoKey((k) => k + 1); // refrescar tabla jurídico
         } else {
           await addSeguimiento(clienteId, deudorId, data, archivo);
         }
@@ -91,13 +98,16 @@ export default function SeguimientoTable() {
       toast.success("Seguimiento guardado.");
       setOpen(false);
       setSeleccionado(undefined);
+
+      // refrescar pre-jurídico
       setItems(await getSeguimientos(clienteId, deudorId));
-    } catch {
+    } catch (e) {
+      console.error(e);
       toast.error("No se pudo guardar el seguimiento.");
     }
   };
 
-  // 👉 Eliminar
+  // 👉 Eliminar (solo Prejurídico en esta tabla)
   const handleConfirmDelete = async () => {
     if (!clienteId || !deudorId || !deleteId) return;
     try {
@@ -153,7 +163,7 @@ export default function SeguimientoTable() {
               {items.map((seg) => (
                 <TableRow key={seg.id}>
                   <TableCell>
-                    {seg.fecha ? seg.fecha.toDate().toLocaleString() : "—"}
+                    {seg.fecha ? seg.fecha.toDate().toLocaleDateString("es-CO") : "—"}
                   </TableCell>
                   <TableCell className="capitalize">
                     {seg.tipoSeguimiento ?? "—"}
@@ -212,6 +222,7 @@ export default function SeguimientoTable() {
           seguimiento={seleccionado}
           tipificacionDeuda={deudor?.tipificacion}
           onSaveWithDestino={onSaveWithDestino}
+          destinoInicial="seguimiento"  // ✅ muy importante desde la tabla de Prejurídico
         />
 
         {/* Diálogo confirmación eliminación */}
@@ -238,8 +249,8 @@ export default function SeguimientoTable() {
         </AlertDialog>
       </div>
 
-      {/* Bloque Jurídico */}
-      <SeguimientoJuridicoTable />
+      {/* Bloque Jurídico (se recarga cuando cambia refreshJuridicoKey) */}
+      <SeguimientoJuridicoTable key={refreshJuridicoKey} />
     </div>
   );
 }

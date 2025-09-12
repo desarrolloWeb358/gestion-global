@@ -9,13 +9,17 @@ import { Button } from '@/shared/ui/button';
 import { Eye, History, ArrowLeft } from 'lucide-react';
 import { getDeudorById } from '../services/deudorService';
 import type { Deudor } from '../models/deudores.model';
+import { getUsuarioByUid } from '@/modules/usuarios/services/usuarioService';
+import type { UsuarioSistema } from '@/modules/usuarios/models/usuarioSistema.model';
 
 export default function DeudorDetailPage() {
   const { clienteId, deudorId } = useParams<{ clienteId: string; deudorId: string }>();
   const navigate = useNavigate();
 
   const [deudor, setDeudor] = React.useState<Deudor | null>(null);
+  const [usuario, setUsuario] = React.useState<UsuarioSistema | null>(null);
   const [loading, setLoading] = React.useState(true);
+  const [loadingUsuario, setLoadingUsuario] = React.useState(false);
 
   React.useEffect(() => {
     if (!clienteId || !deudorId) return;
@@ -24,10 +28,28 @@ export default function DeudorDetailPage() {
     setLoading(true);
 
     getDeudorById(clienteId, deudorId)
-      .then((d) => { if (!canceled) setDeudor(d); })
-      .finally(() => { if (!canceled) setLoading(false); });
+      .then(async (d) => {
+        if (canceled) return;
+        setDeudor(d);
 
-    return () => { canceled = true; };
+        // si el deudor tiene relación con un usuario
+        if (d?.uidUsuario) {
+          setLoadingUsuario(true);
+          try {
+            const u = await getUsuarioByUid(String(d.uidUsuario));
+            if (!canceled) setUsuario(u);
+          } finally {
+            if (!canceled) setLoadingUsuario(false);
+          }
+        }
+      })
+      .finally(() => {
+        if (!canceled) setLoading(false);
+      });
+
+    return () => {
+      canceled = true;
+    };
   }, [clienteId, deudorId]);
 
   if (loading) return <Spinner />;
@@ -47,10 +69,34 @@ export default function DeudorDetailPage() {
         </CardHeader>
 
         <CardContent className="grid gap-3 text-sm text-muted-foreground">
-          <div><span className="font-medium text-foreground">Nombre del deudor:</span> {deudor.nombre}</div>
-          <div><span className="font-medium text-foreground">Teléfonos:</span> {deudor.telefonos?.join(', ') || 'No registrados'}</div>
-          <div><span className="font-medium text-foreground">Correos:</span> {deudor.correos?.join(', ') || 'No registrados'}</div>
-          <div><span className="font-medium text-foreground">Tipificación:</span> {deudor.tipificacion}</div>
+          <div>
+            <span className="font-medium text-foreground">Nombre del deudor:</span>{' '}
+            {deudor.nombre}
+          </div>
+
+          <div>
+            <span className="font-medium text-foreground">Teléfono:</span>{' '}
+            {loadingUsuario ? 'Cargando…' : usuario?.telefonoUsuario || 'No registrado'}
+          </div>
+
+          <div>
+            <span className="font-medium text-foreground">Correo:</span>{' '}
+            {loadingUsuario ? 'Cargando…' : usuario?.email || 'No registrado'}
+          </div>
+
+          <div>
+            <span className="font-medium text-foreground">Documento:</span>{' '}
+            {loadingUsuario
+              ? 'Cargando…'
+              : usuario
+              ? `${usuario.tipoDocumento} ${usuario.numeroDocumento}`
+              : 'No registrado'}
+          </div>
+
+          <div>
+            <span className="font-medium text-foreground">Tipificación:</span>{' '}
+            {deudor.tipificacion}
+          </div>
 
           {/* Acciones */}
           <div className="pt-4 flex gap-2">

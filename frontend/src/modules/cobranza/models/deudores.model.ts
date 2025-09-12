@@ -3,9 +3,9 @@ import { AcuerdoPago } from "./acuerdoPago.model";
 import { EstadoMensual } from './estadoMensual.model';
 import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 // Ahora podemos usarlo en acuerdo_pago e historial_acuerdos
-export interface Deudor { 
-  
-  id?: string;
+export interface Deudor {
+  uidUsuario(uidUsuario: any): unknown;
+ id?: string;
   ubicacion?: string;
   fechaCreacion?: Timestamp | { seconds: number; nanoseconds: number } | FieldValue;
   nombre: string;

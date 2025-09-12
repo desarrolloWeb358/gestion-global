@@ -1,9 +1,9 @@
-// src/modules/cobranza/services/seguimientoService.ts
 import { db, storage } from "../../../firebase";
 import {
   collection,
   addDoc,
   getDocs,
+  getDoc,
   updateDoc,
   deleteDoc,
   doc,
@@ -16,11 +16,45 @@ import {
   getDownloadURL,
   deleteObject,
 } from "firebase/storage";
-import { Seguimiento, TipoSeguimiento } from "../models/seguimiento.model";
+import { Seguimiento } from "../models/seguimiento.model";
+
+/* ====================== Helpers ====================== */
+
+// Sube el archivo y retorna la URL de descarga
+async function uploadArchivo(
+  clienteId: string,
+  deudorId: string,
+  archivo: File
+): Promise<string> {
+  const sref = ref(
+    storage,
+    `clientes/${clienteId}/deudores/${deudorId}/seguimientos/${Date.now()}_${archivo.name}`
+  );
+  await uploadBytes(sref, archivo);
+  return getDownloadURL(sref);
+}
+
+// Elimina por URL completa (https://... o gs://...) de forma segura
+async function safeDeleteByUrl(url?: string) {
+  if (!url) return;
+  try {
+    const sref = ref(storage, url); // Firebase acepta URL completa
+    await deleteObject(sref);
+  } catch (e) {
+    console.warn("No se pudo borrar el archivo de Storage:", e);
+  }
+}
+
+// Remueve keys con valor undefined (evita errores en Firestore)
+function stripUndefined<T extends Record<string, any>>(obj: T): T {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([, v]) => v !== undefined)
+  ) as T;
+}
 
 /* ======================================================
    PRE-JURÍDICO
-   Colección: clientes/{clienteId}/deudores/{deudorId}/seguimiento
+   clientes/{clienteId}/deudores/{deudorId}/seguimiento
    ====================================================== */
 
 export async function getSeguimientos(
@@ -29,11 +63,7 @@ export async function getSeguimientos(
 ): Promise<Seguimiento[]> {
   const refCol = collection(db, `clientes/${clienteId}/deudores/${deudorId}/seguimiento`);
   const snap = await getDocs(refCol);
-
-  return snap.docs.map((d) => ({
-    id: d.id,
-    ...(d.data() as Seguimiento),
-  }));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Seguimiento) }));
 }
 
 export async function addSeguimiento(
@@ -42,21 +72,21 @@ export async function addSeguimiento(
   data: Omit<Seguimiento, "id">,
   archivo?: File
 ) {
-  let archivoUrl: string | undefined;
-
+  let archivoUrl = data.archivoUrl;
   if (archivo) {
-    const sref = ref(storage, `clientes/${clienteId}/deudores/${deudorId}/seguimientos/${Date.now()}_${archivo.name}`);
-    const snap = await uploadBytes(sref, archivo);
-    archivoUrl = await getDownloadURL(snap.ref);
+    archivoUrl = await uploadArchivo(clienteId, deudorId, archivo);
   }
 
   const refCol = collection(db, `clientes/${clienteId}/deudores/${deudorId}/seguimiento`);
 
-  return addDoc(refCol, {
-    ...data,
-    fecha: data.fecha ?? Timestamp.now(),
+  const payload = stripUndefined({
+    fecha: data.fecha ?? Timestamp.fromDate(new Date()),
+    tipoSeguimiento: data.tipoSeguimiento,
+    descripcion: data.descripcion,
     ...(archivoUrl ? { archivoUrl } : {}),
   });
+
+  return addDoc(refCol, payload);
 }
 
 export async function updateSeguimiento(
@@ -67,31 +97,40 @@ export async function updateSeguimiento(
   archivo?: File,
   reemplazar?: boolean
 ) {
-  const refDoc = doc(db, `clientes/${clienteId}/deudores/${deudorId}/seguimiento/${seguimientoId}`);
+  const refDocu = doc(db, `clientes/${clienteId}/deudores/${deudorId}/seguimiento/${seguimientoId}`);
 
-  let archivoUrl = data.archivoUrl;
+  // Resolver mutación de archivo:
+  // - Si hay archivo nuevo:
+  //    * si había anterior y "reemplazar", primero bórralo
+  //    * sube el nuevo y setea archivoUrl
+  // - Si NO hay archivo nuevo:
+  //    * si "reemplazar" true ⇒ eliminar archivoUrl (deleteField)
+  //    * de lo contrario, NO tocar archivoUrl
+  let nuevoArchivoUrl: string | undefined;
 
-  if (archivo && reemplazar) {
-    if (data.archivoUrl) {
-      try {
-        const path = data.archivoUrl.startsWith("http")
-          ? decodeURIComponent(data.archivoUrl.split("/o/")[1].split("?")[0])
-          : data.archivoUrl;
-        await deleteObject(ref(storage, path));
-      } catch (err) {
-        console.warn("Error al eliminar archivo previo:", err);
-      }
+  if (archivo) {
+    if (data.archivoUrl && reemplazar) {
+      await safeDeleteByUrl(data.archivoUrl);
     }
-                            
-    const sref = ref(storage, `clientes/${clienteId}/deudores/${deudorId}/seguimientos/${Date.now()}_${archivo.name}`);
-    const snap = await uploadBytes(sref, archivo);
-    archivoUrl = await getDownloadURL(snap.ref);
+    nuevoArchivoUrl = await uploadArchivo(clienteId, deudorId, archivo);
   }
 
-  return updateDoc(refDoc, {
-    ...data,
-    archivoUrl: archivoUrl ?? deleteField(),
+  const payloadBase = stripUndefined({
+    fecha: data.fecha, // si viene undefined, no se envía
+    tipoSeguimiento: data.tipoSeguimiento,
+    descripcion: data.descripcion,
   });
+
+  const payloadArchivo =
+    archivo
+      ? { archivoUrl: nuevoArchivoUrl } // se setea nuevo
+      : reemplazar
+        ? { archivoUrl: deleteField() } // se elimina explícitamente
+        : {}; // no se toca el campo
+
+  const payload = { ...payloadBase, ...payloadArchivo };
+
+  return updateDoc(refDocu, payload);
 }
 
 export async function deleteSeguimiento(
@@ -99,13 +138,18 @@ export async function deleteSeguimiento(
   deudorId: string,
   seguimientoId: string
 ) {
-  const refDoc = doc(db, `clientes/${clienteId}/deudores/${deudorId}/seguimiento/${seguimientoId}`);
-  return deleteDoc(refDoc);
+  const refDocu = doc(db, `clientes/${clienteId}/deudores/${deudorId}/seguimiento/${seguimientoId}`);
+  const snap = await getDoc(refDocu);
+  if (snap.exists()) {
+    const d = snap.data() as Seguimiento;
+    await safeDeleteByUrl(d.archivoUrl);
+  }
+  return deleteDoc(refDocu);
 }
 
 /* ======================================================
    JURÍDICO
-   Colección: clientes/{clienteId}/deudores/{deudorId}/seguimientoJuridico
+   clientes/{clienteId}/deudores/{deudorId}/seguimientoJuridico
    ====================================================== */
 
 export async function getSeguimientosJuridico(
@@ -114,11 +158,7 @@ export async function getSeguimientosJuridico(
 ): Promise<Seguimiento[]> {
   const refCol = collection(db, `clientes/${clienteId}/deudores/${deudorId}/seguimientoJuridico`);
   const snap = await getDocs(refCol);
-
-  return snap.docs.map((d) => ({
-    id: d.id,
-    ...(d.data() as Seguimiento),
-  }));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Seguimiento) }));
 }
 
 export async function addSeguimientoJuridico(
@@ -127,22 +167,21 @@ export async function addSeguimientoJuridico(
   data: Omit<Seguimiento, "id">,
   archivo?: File
 ) {
-  let archivoUrl: string | undefined;
-
+  let archivoUrl = data.archivoUrl;
   if (archivo) {
-    
-    const sref = ref(storage, `clientes/${clienteId}/deudores/${deudorId}/seguimientos/${Date.now()}_${archivo.name}`);
-    const snap = await uploadBytes(sref, archivo);
-    archivoUrl = await getDownloadURL(snap.ref);
+    archivoUrl = await uploadArchivo(clienteId, deudorId, archivo);
   }
 
   const refCol = collection(db, `clientes/${clienteId}/deudores/${deudorId}/seguimientoJuridico`);
 
-  return addDoc(refCol, {
-    ...data,
-    fecha: data.fecha ?? Timestamp.now(),
+  const payload = stripUndefined({
+    fecha: data.fecha ?? Timestamp.fromDate(new Date()),
+    tipoSeguimiento: data.tipoSeguimiento,
+    descripcion: data.descripcion,
     ...(archivoUrl ? { archivoUrl } : {}),
   });
+
+  return addDoc(refCol, payload);
 }
 
 export async function updateSeguimientoJuridico(
@@ -153,31 +192,36 @@ export async function updateSeguimientoJuridico(
   archivo?: File,
   reemplazar?: boolean
 ) {
-  const refDoc = doc(db, `clientes/${clienteId}/deudores/${deudorId}/seguimientoJuridico/${seguimientoId}`);
+  const refDocu = doc(
+    db,
+    `clientes/${clienteId}/deudores/${deudorId}/seguimientoJuridico/${seguimientoId}`
+  );
 
-  let archivoUrl = data.archivoUrl;
+  let nuevoArchivoUrl: string | undefined;
 
-  if (archivo && reemplazar) {
-    if (data.archivoUrl) {
-      try {
-        const path = data.archivoUrl.startsWith("http")
-          ? decodeURIComponent(data.archivoUrl.split("/o/")[1].split("?")[0])
-          : data.archivoUrl;
-        await deleteObject(ref(storage, path));
-      } catch (err) {
-        console.warn("Error al eliminar archivo previo (jurídico):", err);
-      }
+  if (archivo) {
+    if (data.archivoUrl && reemplazar) {
+      await safeDeleteByUrl(data.archivoUrl);
     }
-
-    const sref = ref(storage, `clientes/${clienteId}/deudores/${deudorId}/seguimientos/${Date.now()}_${archivo.name}`);
-    const snap = await uploadBytes(sref, archivo);
-    archivoUrl = await getDownloadURL(snap.ref);
+    nuevoArchivoUrl = await uploadArchivo(clienteId, deudorId, archivo);
   }
 
-  return updateDoc(refDoc, {
-    ...data,
-    archivoUrl: archivoUrl ?? deleteField(),
+  const payloadBase = stripUndefined({
+    fecha: data.fecha,
+    tipoSeguimiento: data.tipoSeguimiento,
+    descripcion: data.descripcion,
   });
+
+  const payloadArchivo =
+    archivo
+      ? { archivoUrl: nuevoArchivoUrl }
+      : reemplazar
+        ? { archivoUrl: deleteField() }
+        : {};
+
+  const payload = { ...payloadBase, ...payloadArchivo };
+
+  return updateDoc(refDocu, payload);
 }
 
 export async function deleteSeguimientoJuridico(
@@ -185,6 +229,14 @@ export async function deleteSeguimientoJuridico(
   deudorId: string,
   seguimientoId: string
 ) {
-  const refDoc = doc(db, `clientes/${clienteId}/deudores/${deudorId}/seguimientoJuridico/${seguimientoId}`);
-  return deleteDoc(refDoc);
+  const refDocu = doc(
+    db,
+    `clientes/${clienteId}/deudores/${deudorId}/seguimientoJuridico/${seguimientoId}`
+  );
+  const snap = await getDoc(refDocu);
+  if (snap.exists()) {
+    const d = snap.data() as Seguimiento;
+    await safeDeleteByUrl(d.archivoUrl);
+  }
+  return deleteDoc(refDocu);
 }
