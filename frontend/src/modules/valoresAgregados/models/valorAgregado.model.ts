@@ -8,7 +8,7 @@ export interface ValorAgregado {
   tipo: TipoValorAgregado;
   fecha: Timestamp | { seconds: number; nanoseconds: number } | FieldValue; // día/mes/año
   titulo: string;
-  observaciones?: string;          // (corrijo el nombre del campo)
+  descripcion?: string;          // (corrijo el nombre del campo)
   
   // Archivo en Storage
   archivoPath?: string;            // ruta en Storage (lo que quieres guardar)

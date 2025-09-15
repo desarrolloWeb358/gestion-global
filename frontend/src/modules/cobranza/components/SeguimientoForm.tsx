@@ -69,8 +69,17 @@ function defaultDestinoFromTipificacion(t?: TipificacionDeuda): DestinoColeccion
 }
 
 function toLocalISODateString(d: Date) {
-  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 10); // "yyyy-MM-dd"
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+// ✅ Parsear "YYYY-MM-DD" a Date EN LOCAL (no uses new Date("YYYY-MM-DD"))
+function parseLocalDateString(s?: string) {
+  if (!s) return undefined as unknown as Date | undefined;
+  const [y, m, d] = s.split("-").map(Number);
+  return new Date(y, (m || 1) - 1, d || 1); // Date local
 }
 
 function toISO(d?: Date) {
@@ -122,7 +131,7 @@ function FechaPicker({
   onChange: (v: string) => void;
   disabled?: boolean;
 }) {
-  const date = value ? new Date(value) : undefined;
+  const date = value ? parseLocalDateString(value) : undefined;
 
   return (
     <Popover>
@@ -143,7 +152,7 @@ function FechaPicker({
         <Calendar
           mode="single"
           selected={date}
-          onSelect={(d) => onChange(d ? d.toISOString().split("T")[0] : "")}
+           onSelect={(d) => onChange(d ? toLocalISODateString(d) : "")}
           locale={es}
           initialFocus
           disabled={disabled}

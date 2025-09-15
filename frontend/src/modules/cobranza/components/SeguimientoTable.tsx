@@ -12,6 +12,9 @@ import {
   TableCell,
 } from "@/shared/ui/table";
 
+import { useAcl } from "@/modules/auth/hooks/useAcl";
+import { PERMS } from "@/shared/constants/acl";
+
 import SeguimientoForm, { DestinoColeccion } from "./SeguimientoForm";
 import { Seguimiento } from "../models/seguimiento.model";
 import {
@@ -20,7 +23,6 @@ import {
   updateSeguimiento,
   deleteSeguimiento,
   addSeguimientoJuridico,
-  // updateSeguimientoJuridico,  // ⛔️ ya no se usa desde esta tabla
 } from "@/modules/cobranza/services/seguimientoService";
 
 import {
@@ -34,15 +36,13 @@ import {
   AlertDialogAction,
 } from "@/shared/ui/alert-dialog";
 
-// 👉 Tabla de Jurídico
 import SeguimientoJuridicoTable from "./SeguimientoJuridicoTable";
-import { Deudor } from "../models/deudores.model";
 
 export default function SeguimientoTable() {
   const { clienteId, deudorId } = useParams();
   const navigate = useNavigate();
 
-  const [deudor, setDeudor] = React.useState<Deudor | null>(null);
+  // ===== estado =====
   const [items, setItems] = React.useState<Seguimiento[]>([]);
   const [loading, setLoading] = React.useState(false);
 
@@ -50,11 +50,16 @@ export default function SeguimientoTable() {
   const [seleccionado, setSeleccionado] = React.useState<Seguimiento | undefined>(undefined);
 
   const [deleteId, setDeleteId] = React.useState<string | null>(null);
-
-  // 🔄 llave para refrescar la tabla de Jurídico cuando se crea/mueve algo allá
   const [refreshJuridicoKey, setRefreshJuridicoKey] = React.useState(0);
 
-  // 👉 Cargar seguimientos pre-jurídico
+  // ===== RBAC =====
+  const { can, loading: aclLoading, roles = [] } = useAcl(); // roles default []
+  const canView = can(PERMS.Seguimientos_Read);
+  const canEdit = can(PERMS.Seguimientos_Edit);
+  const isCliente = Array.isArray(roles) && roles.includes("cliente");
+  const canEditSafe = canEdit && !isCliente; // defensa extra
+
+  // ===== efectos (siempre se declaran antes de cualquier return) =====
   React.useEffect(() => {
     if (!clienteId || !deudorId) return;
     setLoading(true);
@@ -64,7 +69,7 @@ export default function SeguimientoTable() {
       .finally(() => setLoading(false));
   }, [clienteId, deudorId]);
 
-  // 👉 Guardar con destino dinámico (incluye mover entre colecciones si cambia el destino)
+  // ===== handlers =====
   const onSaveWithDestino = async (
     destino: DestinoColeccion,
     data: Omit<Seguimiento, "id">,
@@ -73,23 +78,35 @@ export default function SeguimientoTable() {
   ) => {
     if (!clienteId || !deudorId) return;
 
+    // 🚫 bloquea si no tiene permiso
+    if (!canEditSafe) {
+      toast.error("No tienes permiso para crear/editar seguimientos.");
+      return;
+    }
+
     try {
       if (seleccionado?.id) {
-        // 📝 EDITAR un seguimiento que actualmente está en PRE-JURÍDICO
+        // Editar (pre-jurídico)
         if (destino === "seguimientoJuridico") {
-          // 🔁 MOVER: crear en Jurídico y borrar el original en Prejurídico
+          // mover a jurídico: crear allá y borrar aquí
           await addSeguimientoJuridico(clienteId, deudorId, data, archivo);
           await deleteSeguimiento(clienteId, deudorId, seleccionado.id);
-          setRefreshJuridicoKey((k) => k + 1); // refrescar tabla jurídico
+          setRefreshJuridicoKey((k) => k + 1);
         } else {
-          // ✅ Sigue en Prejurídico → solo actualizar
-          await updateSeguimiento(clienteId, deudorId, seleccionado.id, data, archivo, reemplazar);
+          await updateSeguimiento(
+            clienteId,
+            deudorId,
+            seleccionado.id,
+            data,
+            archivo,
+            reemplazar
+          );
         }
       } else {
-        // ➕ CREAR
+        // Crear
         if (destino === "seguimientoJuridico") {
           await addSeguimientoJuridico(clienteId, deudorId, data, archivo);
-          setRefreshJuridicoKey((k) => k + 1); // refrescar tabla jurídico
+          setRefreshJuridicoKey((k) => k + 1);
         } else {
           await addSeguimiento(clienteId, deudorId, data, archivo);
         }
@@ -107,9 +124,16 @@ export default function SeguimientoTable() {
     }
   };
 
-  // 👉 Eliminar (solo Prejurídico en esta tabla)
   const handleConfirmDelete = async () => {
     if (!clienteId || !deudorId || !deleteId) return;
+
+    // 🚫 bloquea si no tiene permiso
+    if (!canEditSafe) {
+      toast.error("No tienes permiso para eliminar seguimientos.");
+      setDeleteId(null);
+      return;
+    }
+
     try {
       await deleteSeguimiento(clienteId, deudorId, deleteId);
       setItems((prev) => prev.filter((x) => x.id !== deleteId));
@@ -121,6 +145,26 @@ export default function SeguimientoTable() {
     }
   };
 
+  // ===== guard de UI (no rompe hooks: se retorna al final) =====
+  let guard: React.ReactNode | null = null;
+  if (aclLoading) {
+    guard = <p className="p-4 text-sm">Cargando permisos…</p>;
+  } else if (!canView) {
+    guard = <p className="p-4 text-sm">No tienes acceso a Seguimientos.</p>;
+  }
+
+  if (guard) {
+    return (
+      <div className="space-y-2">
+        <Button variant="ghost" className="mb-2" onClick={() => navigate(-1)}>
+          ← Volver
+        </Button>
+        {guard}
+      </div>
+    );
+  }
+
+  // ===== render =====
   return (
     <div className="space-y-8">
       {/* Botón volver */}
@@ -132,14 +176,18 @@ export default function SeguimientoTable() {
       <div className="space-y-4">
         <div className="flex justify-between items-center">
           <h2 className="text-xl font-semibold">Seguimiento Pre-Jurídico</h2>
-          <Button
-            onClick={() => {
-              setSeleccionado(undefined);
-              setOpen(true);
-            }}
-          >
-            Nuevo seguimiento
-          </Button>
+
+          {/* “Nuevo seguimiento” solo si puede editar */}
+          {canEditSafe && (
+            <Button
+              onClick={() => {
+                setSeleccionado(undefined);
+                setOpen(true);
+              }}
+            >
+              Nuevo seguimiento
+            </Button>
+          )}
         </div>
 
         {loading ? (
@@ -156,14 +204,20 @@ export default function SeguimientoTable() {
                 <TableHead className="w-[160px]">Tipo</TableHead>
                 <TableHead>Descripción</TableHead>
                 <TableHead className="w-[140px]">Archivo</TableHead>
-                <TableHead className="w-[160px] text-right">Acciones</TableHead>
+                {/* Columna Acciones solo si puede editar */}
+                {canEditSafe && (
+                  <TableHead className="w-[160px] text-right">Acciones</TableHead>
+                )}
               </TableRow>
             </TableHeader>
+
             <TableBody>
               {items.map((seg) => (
                 <TableRow key={seg.id}>
                   <TableCell>
-                    {seg.fecha ? seg.fecha.toDate().toLocaleDateString("es-CO") : "—"}
+                    {seg.fecha && typeof (seg.fecha as any).toDate === "function"
+                      ? (seg.fecha as any).toDate().toLocaleDateString("es-CO")
+                      : "—"}
                   </TableCell>
                   <TableCell className="capitalize">
                     {seg.tipoSeguimiento ?? "—"}
@@ -187,25 +241,29 @@ export default function SeguimientoTable() {
                       <span className="text-muted-foreground">—</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-right space-x-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setSeleccionado(seg);
-                        setOpen(true);
-                      }}
-                    >
-                      Editar
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => setDeleteId(seg.id!)}
-                    >
-                      Eliminar
-                    </Button>
-                  </TableCell>
+
+                  {/* Acciones por fila solo si puede editar */}
+                  {canEditSafe && (
+                    <TableCell className="text-right space-x-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setSeleccionado(seg);
+                          setOpen(true);
+                        }}
+                      >
+                        Editar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => setDeleteId(seg.id!)}
+                      >
+                        Eliminar
+                      </Button>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
@@ -220,13 +278,13 @@ export default function SeguimientoTable() {
             setSeleccionado(undefined);
           }}
           seguimiento={seleccionado}
-          tipificacionDeuda={deudor?.tipificacion}
+          tipificacionDeuda={undefined} // si no lo usas aquí, evita pasar algo no definido
           onSaveWithDestino={onSaveWithDestino}
-          destinoInicial="seguimiento"  // ✅ muy importante desde la tabla de Prejurídico
+          destinoInicial="seguimiento" // importante desde Prejurídico
         />
 
         {/* Diálogo confirmación eliminación */}
-        <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <AlertDialog open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>¿Eliminar seguimiento pre-jurídico?</AlertDialogTitle>

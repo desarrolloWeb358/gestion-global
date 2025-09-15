@@ -7,6 +7,7 @@ import {
   deleteDoc,
   doc,
   setDoc,
+  getDoc,
 } from "firebase/firestore";
 import { Cliente } from "@/modules/clientes/models/cliente.model";
 import { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
@@ -42,7 +43,12 @@ export function crearClienteDesdeUsuario(usuario: UsuarioSistema): Cliente {
     // fecha_registro: puedes no duplicarla aquí; la del usuario ya existe en "usuarios"
   };
 }
-
+export async function getClienteById(clienteId: string): Promise<Cliente | null> {
+  const ref = doc(db, "clientes", clienteId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...(snap.data() as Omit<Cliente, "id">) };
+}
 // ===============================
 // Obtener todos los clientes (base, sin hidratar)
 // ===============================

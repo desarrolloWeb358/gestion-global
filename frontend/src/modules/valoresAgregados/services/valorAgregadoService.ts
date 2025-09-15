@@ -16,8 +16,8 @@ import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage
 import { db, storage } from "../../../firebase";
 import { ValorAgregado } from "../models/valorAgregado.model";
 import { TipoValorAgregado, TipoValorAgregadoLabels } from "../../../shared/constants/tipoValorAgregado";
-import { enviarNotificacionValorAgregadoBasico } from "./NotificacionValorAgregadoService"; 
 import { normalizeToE164 } from "@/shared/phoneUtils";
+import { enviarNotificacionValorAgregadoBasico } from "./notificacionValorAgregadoService";
 
 
 
@@ -75,7 +75,7 @@ function mapDocToValorAgregado(id: string, data: any): ValorAgregado {
     tipo: normalizarTipo(data.tipo),
     fecha: data.fecha,
     titulo: data.titulo ?? "",
-    observaciones: data.observaciones ?? "",
+    descripcion: data.descripcion ?? "",
     archivoPath: data.archivoPath,
     archivoURL: data.archivoURL,
     archivoNombre: data.archivoNombre,
@@ -143,7 +143,7 @@ export async function obtenerValorAgregado(
 type CrearValorInput = {
   tipo: TipoValorAgregado;
   titulo: string;
-  observaciones?: string;
+  descripcion?: string;
   /** Fecha como Timestamp para guardar directamente en Firestore */
   fechaTs?: Timestamp;
 };
@@ -151,7 +151,7 @@ type CrearValorInput = {
 type ActualizarValorPatch = Partial<{
   tipo: TipoValorAgregado;
   titulo: string;
-  observaciones: string;
+  descripcion: string;
   /** Fecha como Timestamp para guardar directamente */
   fechaTs: Timestamp;
 }>;
@@ -162,7 +162,7 @@ export async function crearValorAgregado(
   data: {
     tipo: TipoValorAgregado;
     titulo: string;
-    observaciones?: string;
+    descripcion?: string;
     fechaTs?: Timestamp;
   },
   archivo?: File
@@ -170,7 +170,7 @@ export async function crearValorAgregado(
   const payload: Partial<ValorAgregado> = {
     tipo: data.tipo,
     titulo: data.titulo,
-    observaciones: data.observaciones ?? "",
+    descripcion: data.descripcion ?? "",
     fecha: data.fechaTs ?? serverTimestamp(), // ⬅️ Timestamp
   };
 
@@ -230,7 +230,7 @@ export async function actualizarValorAgregado(
   const basePatch: any = { };
   if (patch.tipo !== undefined) basePatch.tipo = patch.tipo;
   if (patch.titulo !== undefined) basePatch.titulo = patch.titulo;
-  if (patch.observaciones !== undefined) basePatch.observaciones = patch.observaciones;
+  if (patch.descripcion !== undefined) basePatch.descripcion = patch.descripcion;
   if (patch.fechaTs !== undefined) basePatch.fecha = patch.fechaTs; // ⬅️ Timestamp
 
   // Reemplazo de archivo (si viene)
