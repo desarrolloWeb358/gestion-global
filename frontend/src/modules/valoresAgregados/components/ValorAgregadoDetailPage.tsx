@@ -46,7 +46,7 @@ export default function ValorAgregadoDetailPage() {
           <div><span className="font-medium text-foreground">Fecha:</span> {timestampToDateInput(item.fecha as any) || "—"}</div>
           <div><span className="font-medium text-foreground">Tipo:</span> {TipoValorAgregadoLabels[item.tipo]}</div>
           <div><span className="font-medium text-foreground">Título:</span> {item.titulo}</div>
-          <div><span className="font-medium text-foreground">Observaciones:</span> {item.observaciones || "—"}</div>
+          <div><span className="font-medium text-foreground">Detalle:</span> {item.descripcion || "—"}</div>
           <div>
             <span className="font-medium text-foreground">Archivo:</span>{" "}
             {item.archivoURL ? (
