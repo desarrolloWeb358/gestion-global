@@ -123,6 +123,13 @@ export default function DeudorDetailPage() {
               <History className="w-4 h-4 mr-1" />
               Abonos
             </Button>
+            <Button
+              variant="outline"
+              onClick={() => navigate(`/clientes/${clienteId}/deudores/${deudor.id}/demanda`)}
+            >
+              <History className="w-4 h-4 mr-1" />
+              información demanda
+            </Button>
           </div>
         </CardContent>
       </Card>

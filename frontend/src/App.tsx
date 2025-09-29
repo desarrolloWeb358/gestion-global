@@ -30,6 +30,7 @@ import EjecutivoDashboardPage from "@/modules/dashboard/pages/EjecutivoDashboard
 import AbogadoDashboardPage from "@/modules/dashboard/pages/AbogadoDashboardPage";
 import ClienteDashboardPage from "@/modules/dashboard/pages/ClienteDashboardPage";
 import DeudorDashboardPage from "@/modules/dashboard/pages/DeudorDashboardPage";
+import { DemandaInfoPage } from "./modules/cobranza/components/DemandaInfoPage";
 
 
 export default function App() {
@@ -59,6 +60,7 @@ export default function App() {
           <Route path="/consulta-personas" element={<ConsultaPersonasPage />} />
           <Route path="/probar-notificaciones" element={<ProbarNotificacionesPage />} />
           <Route path="/clientes/:clienteId/reporte" element={<ReporteClientePage />} />
+          <Route path="/clientes/:clienteId/deudores/:deudorId/demanda" element={<DemandaInfoPage />} />
           {/* valores agregados */}
           <Route path="/valores-agregados/:clienteId" element={<ValoresAgregadosTable />} />
           <Route path="/clientes/:clienteId/valores-agregados/:valorId" element={<ValorAgregadoDetailPage />} />
