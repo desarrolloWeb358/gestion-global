@@ -1,4 +1,4 @@
-// migrar-deudores-estados-mensuales.js
+// migrar-deudores.js
 const admin = require('firebase-admin');
 const mysql = require('mysql2/promise');
 const serviceAccount = require('./serviceAccountKey.json');

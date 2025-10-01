@@ -46,6 +46,7 @@ const main = async () => {
       }
 
       let uid;
+      let isNewUser = false;
 
       try {
         // Verificar si ya existe el usuario en Auth
@@ -60,6 +61,7 @@ const main = async () => {
             password: String(contraseña),
           });
           uid = newUser.uid;
+          isNewUser = true;
           console.log(`✅ Usuario creado: ${correo} (${uid})`);
         } else {
           console.error(`❌ Error consultando Auth para ${correo}:`, error.message);
@@ -72,20 +74,24 @@ const main = async () => {
       const timestampNow = admin.firestore.Timestamp.now();
 
       // Crear o actualizar documento en 'usuarios'
+      // Agregamos Migrado:false SOLO si es nuevo (isNewUser === true)
       await db.collection('usuarios').doc(uid).set({
+        // Campos comunes que puedes querer actualizar siempre:
         activo: true,
         email: correo,
         nombre: nombre,
         roles: ['cliente'],
-        fecha_registro: timestampNow,
         tipoDocumento: 'NIT',
         numeroDocumento: String(nit),
+        telefonoUsuario: String(telefono || ''),
+        // Si quieres que fecha_registro se ponga solo en creación, descomenta el bloque de abajo
+        // ...(isNewUser ? { fecha_registro: timestampNow } : {}),
+        // NEW: campo Migrado solo en la primera creación
+        ...(isNewUser ? { migrado: false } : {}),
       }, { merge: true });
 
       // Crear o actualizar documento en 'clientes'
       await db.collection('clientes').doc(uid).set({
-        nombre: nombre || '',
-        telefono: String(telefono || ''),
         direccion: direccion || '',
         banco: banco || '',
         numeroCuenta: String(numero_cuenta || ''),
