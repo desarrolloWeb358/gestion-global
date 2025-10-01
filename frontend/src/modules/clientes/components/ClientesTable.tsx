@@ -130,9 +130,6 @@ export default function ClientesCrud() {
           <TableHeader>
             <TableRow>
               <TableHead>Nombre</TableHead>
-              <TableHead>Banco</TableHead>
-              <TableHead>N° Cuenta</TableHead>
-              <TableHead>Tipo Cuenta</TableHead>
               <TableHead className="text-center">Acciones</TableHead>
             </TableRow>
           </TableHeader>
@@ -143,9 +140,6 @@ export default function ClientesCrud() {
                   {resolverNombreCliente(cliente)}
                   {!cliente.usuarioUid }
                 </TableCell>
-                <TableCell>{cliente.banco ?? ""}</TableCell>
-                <TableCell>{cliente.numeroCuenta ?? ""}</TableCell>
-                <TableCell>{cliente.tipoCuenta ?? ""}</TableCell>
                 <TableCell>
                   <div className="flex justify-center gap-2">
                     <TooltipProvider>
