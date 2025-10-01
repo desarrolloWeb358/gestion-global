@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Eye, Pencil, Trash2, User } from "lucide-react";
+import { Eye, Pencil, User } from "lucide-react";
 
 import {
   Dialog,
@@ -9,18 +9,35 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/shared/ui/dialog";
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/shared/ui/table";
+import {
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
+} from "@/shared/ui/table";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
 import { Button } from "@/shared/ui/button";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/shared/ui/select";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/shared/ui/tooltip";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/shared/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/shared/ui/tooltip";
 
 import { Cliente } from "@/modules/clientes/models/cliente.model";
 import {
   obtenerClientes,
   actualizarCliente,
-  eliminarCliente,
 } from "@/modules/clientes/services/clienteService";
 import { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 import { obtenerUsuarios } from "@/modules/usuarios/services/usuarioService";
@@ -30,15 +47,39 @@ export default function ClientesCrud() {
 
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Todos los usuarios (para resolver nombre/teléfono/email del cliente vía usuarioUid)
+  const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([]);
+  // Solo ejecutivos para los selects de ejecutivos
   const [ejecutivos, setEjecutivos] = useState<UsuarioSistema[]>([]);
+
   const [clienteEditando, setClienteEditando] = useState<Cliente | null>(null);
   const [mostrarDialogo, setMostrarDialogo] = useState(false);
 
-  // Selects controlados para el formulario
+  // Selects controlados del formulario
   const [tipoCuentaSel, setTipoCuentaSel] = useState<"" | "ahorros" | "corriente" | "convenio">("");
   const [ejecutivoPreSel, setEjecutivoPreSel] = useState<string>("");
   const [ejecutivoJurSel, setEjecutivoJurSel] = useState<string>("");
+  const [usuarioUidSel, setUsuarioUidSel] = useState<string>(""); // vínculo al usuario dueño del cliente
   const [activoSel, setActivoSel] = useState<boolean>(true);
+
+  // Mapa rápido de usuarios por uid
+  const usuariosMap = useMemo(() => {
+    const m: Record<string, UsuarioSistema> = {};
+    for (const u of usuarios) if (u.uid) m[u.uid] = u;
+    return m;
+  }, [usuarios]);
+
+  // Resolver de nombre robusto: usuarioUid → nombre | displayName | email
+  function resolverNombreCliente(c: Cliente) {
+    // 1) por usuarioUid
+    let u = c.usuarioUid ? usuariosMap[c.usuarioUid] : undefined;
+    // 2) fallback: si el doc clientes usa el mismo id que el uid del usuario
+    if (!u && c.id) u = usuariosMap[c.id];
+    // 3) display final
+    if (u) return (u as any).nombre ?? (u as any).displayName ?? u.email ?? "(Sin usuario)";
+    return "(Sin usuario)";
+  }
 
   const fetchClientes = async () => {
     setLoading(true);
@@ -47,17 +88,17 @@ export default function ClientesCrud() {
     setLoading(false);
   };
 
-  const fetchEjecutivos = async () => {
+  const fetchUsuarios = async () => {
     const todos = await obtenerUsuarios();
-    const ejecutivosFiltrados = todos.filter(
-      (u) => Array.isArray(u.roles) && u.roles.includes("ejecutivo")
-    );
-    setEjecutivos(ejecutivosFiltrados);
+    setUsuarios(todos);
+
+    const execs = todos.filter((u) => Array.isArray(u.roles) && u.roles.includes("ejecutivo"));
+    setEjecutivos(execs);
   };
 
   useEffect(() => {
     fetchClientes();
-    fetchEjecutivos();
+    fetchUsuarios();
   }, []);
 
   const abrirEditar = (cliente: Cliente) => {
@@ -65,6 +106,7 @@ export default function ClientesCrud() {
     setTipoCuentaSel((cliente.tipoCuenta as any) ?? "");
     setEjecutivoPreSel(cliente.ejecutivoPrejuridicoId ?? "");
     setEjecutivoJurSel(cliente.ejecutivoJuridicoId ?? "");
+    setUsuarioUidSel(cliente.usuarioUid ?? ""); // seleccionar vínculo actual si existe
     setActivoSel(cliente.activo ?? true);
     setMostrarDialogo(true);
   };
@@ -76,10 +118,9 @@ export default function ClientesCrud() {
 
   return (
     <div className="space-y-4">
-      {/* Encabezado sin botón de creación */}
+      {/* Encabezado */}
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Clientes</h2>
-        {/* (Se eliminó el botón "Crear cliente") */}
       </div>
 
       {loading ? (
@@ -98,16 +139,24 @@ export default function ClientesCrud() {
           <TableBody>
             {clientes.map((cliente) => (
               <TableRow key={cliente.id}>
-                <TableCell>{cliente.nombre}</TableCell>
-                <TableCell>{cliente.banco}</TableCell>
-                <TableCell>{cliente.numeroCuenta}</TableCell>
-                <TableCell>{cliente.tipoCuenta}</TableCell>
+                <TableCell>
+                  {resolverNombreCliente(cliente)}
+                  {!cliente.usuarioUid }
+                </TableCell>
+                <TableCell>{cliente.banco ?? ""}</TableCell>
+                <TableCell>{cliente.numeroCuenta ?? ""}</TableCell>
+                <TableCell>{cliente.tipoCuenta ?? ""}</TableCell>
                 <TableCell>
                   <div className="flex justify-center gap-2">
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Button size="icon" variant="ghost" onClick={() => navigate(`/deudores/${cliente.id}`)}>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => navigate(`/deudores/${cliente.id}`)}
+                            aria-label="Ver deudores"
+                          >
                             <Eye className="w-4 h-4" />
                           </Button>
                         </TooltipTrigger>
@@ -116,7 +165,12 @@ export default function ClientesCrud() {
 
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Button size="icon" variant="ghost" onClick={() => navigate(`/clientes/${cliente.id}`)}>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => navigate(`/clientes/${cliente.id}`)}
+                            aria-label="Ver cliente"
+                          >
                             <User className="w-4 h-4" />
                           </Button>
                         </TooltipTrigger>
@@ -125,7 +179,12 @@ export default function ClientesCrud() {
 
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Button size="icon" variant="ghost" onClick={() => abrirEditar(cliente)}>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => abrirEditar(cliente)}
+                            aria-label="Editar"
+                          >
                             <Pencil className="w-4 h-4" />
                           </Button>
                         </TooltipTrigger>
@@ -140,7 +199,7 @@ export default function ClientesCrud() {
         </Table>
       )}
 
-      {/* Dialogo solo para EDITAR */}
+      {/* Diálogo de edición (sin campo 'nombre') */}
       <Dialog open={mostrarDialogo} onOpenChange={setMostrarDialogo}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
@@ -152,7 +211,6 @@ export default function ClientesCrud() {
             onSubmit={async (e) => {
               e.preventDefault();
               if (!clienteEditando?.id) {
-                // seguridad: no se permite crear desde aquí
                 cerrarDialogo();
                 return;
               }
@@ -160,33 +218,33 @@ export default function ClientesCrud() {
               const form = e.currentTarget as HTMLFormElement;
               const formData = new FormData(form);
 
-              // Campos de Cliente
-              const nombre = (formData.get("nombre") as string)?.trim();
+              // Campos del cliente (sin nombre)
               const direccion = (formData.get("direccion") as string)?.trim();
               const banco = (formData.get("banco") as string)?.trim();
               const numeroCuenta = (formData.get("numeroCuenta") as string)?.trim();
 
-              // Selects controlados
-              const tipoCuentaRaw = tipoCuentaSel; // "" | union
+              // Controlados
               const tipoCuenta =
-                tipoCuentaRaw === "" ? undefined : (tipoCuentaRaw as "ahorros" | "corriente" | "convenio");
+                tipoCuentaSel === "" ? undefined : (tipoCuentaSel as "ahorros" | "corriente" | "convenio");
               const ejecutivoPrejuridicoId = ejecutivoPreSel || null;
               const ejecutivoJuridicoId = ejecutivoJurSel || null;
+              const usuarioUid = usuarioUidSel || null;
               const activo = activoSel;
 
-              if (!nombre) {
-                alert("El nombre es obligatorio.");
-                return;
-              }
+              // Si quieres forzar que siempre haya usuario:
+              // if (!usuarioUid) {
+              //   alert("Debes asociar un Usuario al cliente.");
+              //   return;
+              // }
 
               const payload: Partial<Cliente> = {
-                nombre,
                 direccion: direccion || "",
                 banco: banco || "",
                 numeroCuenta: numeroCuenta || "",
-                ...(tipoCuenta ? { tipoCuenta } : {}), // evita guardar ""
+                ...(tipoCuenta ? { tipoCuenta } : {}),
                 ejecutivoPrejuridicoId,
                 ejecutivoJuridicoId,
+                usuarioUid,
                 activo,
               };
 
@@ -196,19 +254,47 @@ export default function ClientesCrud() {
             }}
           >
             <div className="grid grid-cols-2 gap-4">
-              {/* Campos propios de Cliente */}
-              <div><Label>Nombre</Label><Input name="nombre" defaultValue={clienteEditando?.nombre} required /></div>
-              <div><Label>Dirección</Label><Input name="direccion" defaultValue={clienteEditando?.direccion} /></div>
+              {/* Nombre solo lectura (desde Usuarios) */}
+              <div className="col-span-2">
+                <Label>Nombre (desde Usuarios)</Label>
+                <Input
+                  value={clienteEditando ? resolverNombreCliente(clienteEditando) : ""}
+                  readOnly
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Para editar el nombre, hazlo en el módulo <b>Usuarios</b>.
+                </p>
+              </div>
+
+              {/* Asociación al usuario propietario */}
+              <div className="col-span-2">
+                <Label>Usuario asociado</Label>
+                <Select value={usuarioUidSel} onValueChange={setUsuarioUidSel}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona el usuario propietario" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {usuarios.map((u) => (
+                      <SelectItem key={u.uid} value={u.uid}>
+                        {(u.nombre ?? (u as any).displayName ?? u.email) +
+                          (u.uid === (clienteEditando?.id ?? "") ? " (id)" : "")}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
               {/* Ejecutivos */}
               <div>
                 <Label>Ejecutivo Prejurídico</Label>
                 <Select value={ejecutivoPreSel} onValueChange={setEjecutivoPreSel}>
-                  <SelectTrigger><SelectValue placeholder="Selecciona" /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona" />
+                  </SelectTrigger>
                   <SelectContent>
                     {ejecutivos.map((e) => (
                       <SelectItem key={e.uid} value={e.uid}>
-                        {e.nombre ?? e.email}
+                        {e.nombre ?? (e as any).displayName ?? e.email}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -218,34 +304,50 @@ export default function ClientesCrud() {
               <div>
                 <Label>Ejecutivo Jurídico</Label>
                 <Select value={ejecutivoJurSel} onValueChange={setEjecutivoJurSel}>
-                  <SelectTrigger><SelectValue placeholder="Selecciona" /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona" />
+                  </SelectTrigger>
                   <SelectContent>
                     {ejecutivos.map((e) => (
                       <SelectItem key={e.uid} value={e.uid}>
-                        {e.nombre ?? e.email}
+                        {e.nombre ?? (e as any).displayName ?? e.email}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Datos bancarios del Cliente */}
-              <div><Label>Banco</Label><Input name="banco" defaultValue={clienteEditando?.banco} /></div>
-              <div><Label>Número de cuenta</Label><Input name="numeroCuenta" defaultValue={clienteEditando?.numeroCuenta} /></div>
+              {/* Datos bancarios */}
+              <div>
+                <Label>Banco</Label>
+                <Input name="banco" defaultValue={clienteEditando?.banco} />
+              </div>
+
+              <div>
+                <Label>Número de cuenta</Label>
+                <Input name="numeroCuenta" defaultValue={clienteEditando?.numeroCuenta} />
+              </div>
 
               <div>
                 <Label>Tipo de cuenta</Label>
                 <Select
                   value={tipoCuentaSel}
-                  onValueChange={(value) => setTipoCuentaSel(value as "ahorros" | "corriente" | "convenio" | "")}
+                  onValueChange={(v) => setTipoCuentaSel(v as "ahorros" | "corriente" | "convenio" | "")}
                 >
-                  <SelectTrigger><SelectValue placeholder="Selecciona" /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona" />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ahorros">Ahorros</SelectItem>
                     <SelectItem value="corriente">Corriente</SelectItem>
                     <SelectItem value="convenio">Convenio</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div>
+                <Label>Dirección</Label>
+                <Input name="direccion" defaultValue={clienteEditando?.direccion} />
               </div>
 
               <div>
