@@ -1,4 +1,4 @@
-// migrar-deudores-completo.js
+// migrar-nomos-mysql.js
 /* eslint-disable no-console */
 const admin = require('firebase-admin');
 const mysql = require('mysql2/promise');
@@ -8,8 +8,25 @@ const path = require('path');
 const serviceAccount = require('./serviceAccountKey.json');
 
 // ====== PARAMETROS ======
-const LIMIT = Number(process.env.LIMIT || process.argv[2] || 5); // Ej: LIMIT=10 node script.js  ó  node script.js 10
-const OUT_FILE = process.env.OUTFILE || `reporte_migracion_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.xlsx`;
+const argv = process.argv.slice(2).reduce((acc, cur) => {
+  const [k, v] = cur.includes('=') ? cur.split('=') : [cur, true];
+  const key = k.replace(/^--/, '');
+  acc[key] = v === undefined ? true : v;
+  return acc;
+}, {});
+
+const LIMIT = Number(process.env.LIMIT || argv.LIMIT || argv.limit || argv[0] || 5);
+const OUT_FILE =
+  process.env.OUTFILE ||
+  `reporte_migracion_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.xlsx`;
+
+const ARG_UID = argv.uid || process.env.CLIENT_UID || null;
+const ARG_UIDS = (argv.uids || process.env.CLIENT_UIDS || '')
+  .toString()
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+const ARG_XLSX = argv.xlsx || process.env.CLIENTS_XLSX || null;
 
 // ====== FIREBASE ======
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
@@ -20,30 +37,25 @@ const MYSQL_CONFIG = {
   host: process.env.MYSQL_HOST || 'localhost',
   user: process.env.MYSQL_USER || 'root',
   password: process.env.MYSQL_PASS || 'gestion_2025',
-  database: process.env.MYSQL_DB  || 'gestion_octubre',
+  database: process.env.MYSQL_DB || 'gestion_octubre',
 };
 
 // ====== TIPIFICACION ======
 const TIP_IDS_DEMANDA = new Set([39, 47, 85]);
 
 function computeTipificacion(rows) {
-  if (!rows || rows.length === 0) return '';
-
+  if (!rows || rows.length === 0) return 'Gestionando';
   const ids = rows
     .map(r => (r.tip_id === null ? null : Number(r.tip_id)))
     .filter(v => v === null || !Number.isNaN(v));
 
-  // Prioridad: DEMANDA > ACUERDO > GESTIONANDO
   const hasDemanda = ids.some(v => v === null || TIP_IDS_DEMANDA.has(v));
   if (hasDemanda) return 'Demanda';
-
   const hasAcuerdo = ids.some(v => v === 2);
   if (hasAcuerdo) return 'Acuerdo';
-
   const allGestionando = ids.length > 0 && ids.every(v => v === 1);
   if (allGestionando) return 'Gestionando';
-
-  return 'Gestionando'; // por defecto
+  return 'Gestionando';
 }
 
 // ====== RECOLECCION DE REPORTE ======
@@ -54,45 +66,226 @@ const errores = [];
 function logError(scope, info, err) {
   errores.push({
     timestamp: new Date().toISOString(),
-    scope, // CLIENTE | PROCESO | DEUDOR | ESTADOS | SEGUIMIENTOS | FINAL | QUERY
+    scope, // CLIENTE | PROCESO | DEUDOR | ESTADOS | SEGUIMIENTOS | FINAL | QUERY | TARGETS
     ...info,
     message: err?.message || String(err),
-    stack: (err && err.stack) ? String(err.stack).slice(0, 1000) : ''
+    stack: (err && err.stack) ? String(err.stack).slice(0, 1000) : '',
   });
   console.warn(`❌ [${scope}]`, info, err?.message || err);
 }
 
+// -------- Helpers para targets (selección de clientes a migrar) --------
+
+// Devuelve [{id, data}] como si fueran snapshot.docs (subset)
+async function fetchClientsByIds(ids) {
+  const results = [];
+  for (const id of ids) {
+    try {
+      const ref = db.collection('usuarios').doc(id);
+      const snap = await ref.get();
+      if (snap.exists) {
+        const data = snap.data() || {};
+        // Asegurar rol cliente
+        const roles = Array.isArray(data.roles) ? data.roles : [];
+        if (roles.includes('cliente')) {
+          results.push({ id: snap.id, data: () => data });
+        } else {
+          logError('TARGETS', { id, note: 'No tiene rol cliente' }, new Error('ROL_NO_CLIENTE'));
+        }
+      } else {
+        logError('TARGETS', { id, note: 'No existe doc en usuarios' }, new Error('NO_DOC'));
+      }
+    } catch (e) {
+      logError('TARGETS', { id, note: 'Error leyendo usuario por id' }, e);
+    }
+  }
+  return results;
+}
+
+// Cuando desde Excel hay NIT: buscar por numeroDocumento (NIT)
+async function fetchClientsByNits(nits) {
+  const results = [];
+  for (const nit of nits) {
+    try {
+      const q = await db
+        .collection('usuarios')
+        .where('roles', 'array-contains', 'cliente')
+        .where('numeroDocumento', '==', nit)
+        .limit(1)
+        .get();
+      if (!q.empty) {
+        const doc = q.docs[0];
+        results.push({ id: doc.id, data: () => doc.data() });
+      } else {
+        logError('TARGETS', { nit, note: 'No encontrado por numeroDocumento' }, new Error('NO_DOC_NIT'));
+      }
+    } catch (e) {
+      logError('TARGETS', { nit, note: 'Error consultando por NIT' }, e);
+    }
+  }
+  return results;
+}
+
+function readXlsxTargets(filePath) {
+  const ids = new Set();
+  const nits = new Set();
+  try {
+    const wb = XLSX.readFile(filePath);
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+    for (const r of rows) {
+      // soporta: clienteId | uid | nit
+      if (r.clienteId) ids.add(String(r.clienteId).trim());
+      if (r.uid) ids.add(String(r.uid).trim());
+      if (r.nit) nits.add(String(r.nit).trim());
+    }
+  } catch (e) {
+    logError('TARGETS', { filePath }, e);
+  }
+  return { ids: Array.from(ids), nits: Array.from(nits) };
+}
+
+async function resolveTargetClients() {
+  // 1) uid único
+  if (ARG_UID) {
+    console.log(`🎯 Target: UID único: ${ARG_UID}`);
+    return await fetchClientsByIds([ARG_UID]);
+  }
+
+  // 2) uids CSV
+  if (ARG_UIDS.length > 0) {
+    console.log(`🎯 Target: Lista de UIDs (${ARG_UIDS.length})`);
+    return await fetchClientsByIds(ARG_UIDS);
+  }
+
+  // 3) Excel
+  if (ARG_XLSX) {
+    console.log(`🎯 Target: Excel ${ARG_XLSX}`);
+    const { ids, nits } = readXlsxTargets(ARG_XLSX);
+    const byIds = ids.length ? await fetchClientsByIds(ids) : [];
+    const byNits = nits.length ? await fetchClientsByNits(nits) : [];
+    // Unificar por id
+    const map = new Map();
+    for (const d of [...byIds, ...byNits]) map.set(d.id, d);
+    const arr = Array.from(map.values());
+    console.log(`   → Resueltos desde Excel: ${arr.length} cliente(s)`);
+    return arr;
+  }
+
+  // 4) Comportamiento original: LIMIT y migrado != true
+  console.log(`🎯 Target: Query por LIMIT (migrado != true), LIMIT=${LIMIT}`);
+  try {
+    let snapshot;
+    try {
+      snapshot = await db
+        .collection('usuarios')
+        .where('roles', 'array-contains', 'cliente')
+        .where('migrado', '!=', true)
+        .orderBy('migrado')
+        .limit(LIMIT)
+        .get();
+      return snapshot.docs;
+    } catch (e) {
+      logError('QUERY', { note: 'Fallo query con .limit(). Se traerán todos y se aplicará tope en memoria.' }, e);
+      snapshot = await db
+        .collection('usuarios')
+        .where('roles', 'array-contains', 'cliente')
+        .where('migrado', '!=', true)
+        .get();
+      return snapshot.docs.slice(0, LIMIT);
+    }
+  } catch (e) {
+    logError('TARGETS', { note: 'Error resolviendo targets' }, e);
+    return [];
+  }
+}
+
+function extractUbicacion(idStrRaw, nitRaw) {
+  const idStr = String(idStrRaw || '').trim();
+  const nit = String(nitRaw || '').trim();
+
+  if (!idStr) return '';
+  // Normaliza espacios múltiples
+  const compact = idStr.replace(/\s+/g, ' ');
+
+  // ¿idStr inicia exactamente con el NIT?
+  let rest = compact;
+  let joinedNoSep = false;
+
+  if (nit && rest.startsWith(nit)) {
+    const nextChar = rest.charAt(nit.length) || '';
+    rest = rest.slice(nit.length);
+
+    // Si NO hay separador (espacio o guion) justo después del NIT → venía pegado (ej: 9003346807-604)
+    if (nextChar && !/[\s-]/.test(nextChar)) {
+      joinedNoSep = true;
+    }
+
+    // Limpia separadores iniciales (espacios/guiones)
+    rest = rest.replace(/^[\s-]+/, '');
+  } else {
+    rest = rest.trim();
+  }
+
+  // Si hay espacios, busca el ÚLTIMO token con forma d+-d+ (permitiendo guion sobrante al final)
+  const tokens = rest.split(' ').filter(Boolean);
+  if (tokens.length > 1) {
+    for (let i = tokens.length - 1; i >= 0; i--) {
+      const t = tokens[i];
+      if (/^\d+-\d+-?$/.test(t)) {
+        return t.replace(/-+$/, ''); // quita guion final si sobra
+      }
+    }
+    // Fallback: todo lo posterior al primer guion
+    const idx = rest.indexOf('-');
+    return idx >= 0 ? rest.slice(idx + 1).replace(/[^\d]+$/, '') : rest.replace(/[^\d]+$/, '');
+  }
+
+  // Un solo token (sin espacios relevantes)
+  rest = tokens.length === 1 ? tokens[0] : rest;
+
+  if (!rest) return '';
+
+  // Normaliza: quitar guiones/ruido al final (p. ej. "4-304-" → "4-304")
+  rest = rest.replace(/[^\d]+$/, '');
+
+  // Si venía pegado al NIT y luce como X-YYY → descarta el primer bloque antes del primer guion
+  if (joinedNoSep && /^\d+-\d+$/.test(rest)) {
+    const p = rest.indexOf('-');
+    return p >= 0 ? rest.slice(p + 1) : rest;
+  }
+
+  // Si arranca con "-" (ej. "-1-304"), quitarlo
+  if (rest.startsWith('-')) {
+    rest = rest.slice(1);
+  }
+
+  // Si ya cumple d+-d+, devolver
+  if (/^\d+-\d+$/.test(rest)) {
+    return rest;
+  }
+
+  // Fallback general: lo que esté tras el primer guion, limpiando colas
+  const p = rest.indexOf('-');
+  if (p >= 0) return rest.slice(p + 1).replace(/[^\d]+$/, '');
+
+  // Sin guiones: devolver tal cual (último recurso)
+  return rest;
+}
+
+
+// ====================== MAIN ======================
 async function main() {
   const connection = await mysql.createConnection(MYSQL_CONFIG);
   console.log('✅ Conectado a MySQL');
 
-  // ---- Traer clientes por migrar con tope LIMIT ----
-  let snapshot;
-  let docs = [];
-  try {
-    // Algunos índices compuestos pueden ser necesarios para '!='; si falla, hacemos fallback sin limit en query.
-    snapshot = await db.collection('usuarios')
-      .where('roles', 'array-contains', 'cliente')
-      .where('migrado', '!=', true)
-      .orderBy('migrado')            // ayuda a Firestore con '!='
-      .limit(LIMIT)                  // top N directamente desde Firestore
-      .get();
-
-    docs = snapshot.docs;
-  } catch (e) {
-    logError('QUERY', { note: 'Fallo query con .limit(). Se traerán todos y se aplicará tope en memoria.' }, e);
-    snapshot = await db.collection('usuarios')
-      .where('roles', 'array-contains', 'cliente')
-      .where('migrado', '!=', true)
-      .get();
-    docs = snapshot.docs.slice(0, LIMIT); // tope en memoria
-  }
-
-  console.log(`▶️ Se migrarán ${docs.length} cliente(s) (tope LIMIT=${LIMIT})`);
+  // ---- Resolver clientes objetivo ----
+  const docs = await resolveTargetClients();
+  console.log(`▶️ Se migrarán ${docs.length} cliente(s).`);
 
   for (const doc of docs) {
     const clienteId = doc.id;
-    const cliente = doc.data();
+    const cliente = typeof doc.data === 'function' ? doc.data() : doc.data;
     const nit = cliente.numeroDocumento;
     const clienteNombre = cliente.nombre || '';
 
@@ -105,7 +298,7 @@ async function main() {
       totalEstadosMensuales: 0,
       totalSeguimientos: 0,
       status: 'PENDIENTE',
-      detalle: ''
+      detalle: '',
     };
 
     if (!nit) {
@@ -133,9 +326,9 @@ async function main() {
 
       const afiliadoId = clientesSQL[0].usr_id;
 
-      // 2) Procesos del afiliado
+      // 2) Procesos del afiliado (ejemplo: activos esp_id = 1)
       const [procesos] = await connection.execute(
-        'SELECT * FROM scc_proceso WHERE usr_afiliado_id = ?',
+        'SELECT * FROM scc_proceso WHERE esp_id = 1 AND usr_afiliado_id = ?',
         [afiliadoId]
       );
       clienteRow.totalProcesos = procesos.length;
@@ -164,17 +357,14 @@ async function main() {
               }
 
               const usuario = usuarios[0];
-              const partes = String(usuario.usr_identificacion || '').split('-');
-              const ubicacion = partes[1] || '';
+              const ubicacion = extractUbicacion(usuario.usr_identificacion, nit);
 
               // Teléfonos (array)
               const [telefonosRows] = await connection.execute(
                 'SELECT tlu_numero FROM scc_tel_usuarios WHERE usr_id = ?',
                 [demandadoId]
               );
-              const telefonos = (telefonosRows || [])
-                .map(r => r.tlu_numero)
-                .filter(Boolean);
+              const telefonos = (telefonosRows || []).map(r => r.tlu_numero).filter(Boolean);
 
               // Dirección (primera)
               const [direccionRows] = await connection.execute(
@@ -237,7 +427,7 @@ async function main() {
                 }
 
                 const estadoDoc = {
-                  mes,                        // "AAAA-MM"
+                  mes, // "AAAA-MM"
                   deuda: Number(deudaTotal) || 0,
                   recaudo: Number(sumaRecaudo) || 0,
                   ...(comprobante ? { comprobante } : {}),
@@ -283,7 +473,7 @@ async function main() {
                     descripcion: desc,
                     fecha: admin.firestore.Timestamp.fromDate(new Date(fechaRaw)),
                     tipoSeguimiento: 'OTRO',
-                    archivoUrl: ''
+                    archivoUrl: '',
                   };
 
                   await deudorRef.collection(collectionName).add(seguimientoDoc);
@@ -307,7 +497,7 @@ async function main() {
                 deudaTotal,
                 mesesCreados,
                 seguimientosCreados: segCount,
-                tipificacion
+                tipificacion,
               });
 
               console.log(`✅ Deudor migrado: ${deudorData.nombre} (${deudorRef.id}) [meses=${mesesCreados}, seg=${segCount}]`);
@@ -335,11 +525,10 @@ async function main() {
       resumenClientes.push(clienteRow);
     } catch (e) {
       logError('CLIENTE', { clienteId, nit }, e);
-      // No marcar migrado si hubo error global del cliente
       resumenClientes.push({
         ...clienteRow,
         status: 'ERROR',
-        detalle: e?.message || 'Error procesando cliente'
+        detalle: e?.message || 'Error procesando cliente',
       });
     }
   }
