@@ -26,9 +26,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function parseNitFromTitleCell(valA1) {
   const s = toStr(valA1);
-  // acepta "123456789 - Nombre" o extrae primer bloque numérico
-  const m = s.match(/(\d[\d\.\-]*)/);
-  return m ? m[1].replace(/[^\d]/g, "") : "";
+
+  if (!s) return "";
+
+  // Elimina prefijos "NIT", "NIT.", "NIT-" (con o sin espacios) al inicio
+  let cleaned = s.trim().toUpperCase().replace(/^NIT[\s\.\-]*/i, "");
+
+  // Busca la primera secuencia de dígitos dentro del string
+  const m = cleaned.match(/(\d+)/);
+  return m ? m[1] : "";
 }
 
 async function getClienteUidByNit(nit) {
@@ -51,6 +57,18 @@ async function getDeudorDocRefByUbicacion(uidCliente, ubicacion) {
 
 function withMotivo(row, motivo) {
   return { ...row, _motivo_no_migrado: motivo || "Motivo no especificado" };
+}
+
+// Convierte letra inicial a número (A=1, B=2, ... Z=26)
+function normalizeUbicacion(ubicacion) {
+  if (!ubicacion) return ubicacion;
+  const s = String(ubicacion).trim();
+  const ch = s.charAt(0).toUpperCase();
+  if (ch >= 'A' && ch <= 'Z') {
+    const num = ch.charCodeAt(0) - 64; // 'A' => 65
+    return String(num) + s.slice(1);
+  }
+  return s;
 }
 
 async function main() {
@@ -96,8 +114,9 @@ async function main() {
     }
 
     for (let r = 2; r < matrix.length; r++) {
-      const row = matrix[r] || [];
-      const ubicacion = toStr(row[0]);                    // Columna A
+      const row = matrix[r] || [];                     
+      const ubicacionRaw = toStr(row[0]);         // Columna A
+      const ubicacion = normalizeUbicacion(ubicacionRaw);
       const observacion = toStr(row[lastColIdx]);         // Última columna
 
       // Fila vacía → omitir silenciosamente
