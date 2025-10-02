@@ -20,7 +20,7 @@ const MYSQL_CONFIG = {
   host: process.env.MYSQL_HOST || 'localhost',
   user: process.env.MYSQL_USER || 'root',
   password: process.env.MYSQL_PASS || 'gestion_2025',
-  database: process.env.MYSQL_DB  || 'gestion_antigua',
+  database: process.env.MYSQL_DB  || 'gestion_octubre',
 };
 
 // ====== TIPIFICACION ======

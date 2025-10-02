@@ -1,120 +1,193 @@
+/* eslint-disable no-console */
 const admin = require('firebase-admin');
 const xlsx = require('xlsx');
+const path = require('path');
 
-// Inicializar Firebase Admin SDK
+// ---- Firebase Admin ----
 const serviceAccount = require('./serviceAccountKey.json');
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
-
+admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 const auth = admin.auth();
 const db = admin.firestore();
 
-const excelPath = './Clientes.xlsx';
-const outputPath = './Clientes_migrados.xlsx';
+// ---- Archivos ----
+const excelPath = process.env.INPUT || './Clientes.xlsx';
+const outputPath =
+  process.env.OUTPUT ||
+  `./Clientes_migrados_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.xlsx`;
 
-const main = async () => {
+// ---- Utilidades ----
+function isValidEmail(email) {
+  if (!email || typeof email !== 'string') return false;
+  // Regex simple y suficiente para validación básica
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+}
+
+function normStr(v) {
+  if (v === null || v === undefined) return '';
+  return String(v).trim();
+}
+
+function toStrOrEmpty(v) {
+  return v === null || v === undefined ? '' : String(v);
+}
+
+(async function main() {
+  let data = [];
+  const updatedData = [];
+  const errores = []; // hoja opcional con los errores “planos”
+
   try {
+    // 1) Leer Excel origen
     const workbook = xlsx.readFile(excelPath);
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const data = xlsx.utils.sheet_to_json(sheet);
-
+    data = xlsx.utils.sheet_to_json(sheet);
     console.log(`📄 ${data.length} registros leídos del archivo`);
+  } catch (e) {
+    console.error('❌ No se pudo leer el Excel de entrada:', e.message);
+    // Igual generamos un Excel vacío con encabezados útiles
+  }
 
-    const updatedData = [];
+  for (const rawRow of data) {
+    // Clonamos para no perder columnas originales y agregar columnas de resultado
+    const row = { ...rawRow };
+    let status = 'PENDIENTE';
+    let errorMessage = '';
+    let uid = '';
 
-    for (const row of data) {
-      const {
-        nombre,
-        nit,
-        correo,
-        contraseña,
-        telefono,
-        direccion,
-        banco,
-        numero_cuenta,
-        tipo_cuenta,
-        ejecutivoPrejuridico,
-        ejecutivoJuridico
-      } = row;
+    try {
+      const nombre = normStr(row.nombre);
+      const nit = normStr(row.nit);
+      const correo = normStr(row.correo).toLowerCase();
+      const contraseña = toStrOrEmpty(row.contraseña);
+      const telefono = toStrOrEmpty(row.telefono);
+      const direccion = toStrOrEmpty(row.direccion);
+      const banco = toStrOrEmpty(row.banco);
+      const numero_cuenta = toStrOrEmpty(row.numero_cuenta);
+      const tipo_cuenta = toStrOrEmpty(row.tipo_cuenta);
+      const ejecutivoPrejuridico = toStrOrEmpty(row.ejecutivoPrejuridico);
+      const ejecutivoJuridico = toStrOrEmpty(row.ejecutivoJuridico);
 
-      if (!correo || !contraseña) {
-        console.warn(`⛔️ Usuario omitido por falta de correo o contraseña: ${nombre}`);
-        row.uid = 'ERROR: Sin correo o contraseña';
-        updatedData.push(row);
-        continue;
+      // ---- Validaciones previas (para evitar explotar en Auth) ----
+      if (!isValidEmail(correo)) {
+        throw new Error('Email inválido o mal formateado');
+      }
+      if (!contraseña || String(contraseña).length < 6) {
+        // Firebase requiere mínimo 6 caracteres
+        throw new Error('Contraseña ausente o con menos de 6 caracteres');
       }
 
-      let uid;
       let isNewUser = false;
 
+      // 2) Buscar/crear en Auth con manejo fino de errores
       try {
-        // Verificar si ya existe el usuario en Auth
-        const existingUser = await auth.getUserByEmail(correo);
-        uid = existingUser.uid;
+        const u = await auth.getUserByEmail(correo);
+        uid = u.uid;
+        status = 'OK'; // ya existía
         console.log(`🔁 Usuario ya existe: ${correo} (${uid})`);
-      } catch (error) {
-        if (error.code === 'auth/user-not-found') {
-          // Crear nuevo usuario en Auth
-          const newUser = await auth.createUser({
-            email: correo,
-            password: String(contraseña),
-          });
-          uid = newUser.uid;
-          isNewUser = true;
-          console.log(`✅ Usuario creado: ${correo} (${uid})`);
+      } catch (e) {
+        if (e.code === 'auth/user-not-found') {
+          try {
+            const created = await auth.createUser({ email: correo, password: String(contraseña) });
+            uid = created.uid;
+            isNewUser = true;
+            status = 'CREATED';
+            console.log(`✅ Usuario creado: ${correo} (${uid})`);
+          } catch (eCreate) {
+            // Error real de creación (p. ej. email inválido)
+            throw new Error(`Error creando usuario: ${eCreate.message}`);
+          }
         } else {
-          console.error(`❌ Error consultando Auth para ${correo}:`, error.message);
-          row.uid = `ERROR: ${error.message}`;
-          updatedData.push(row);
-          continue;
+          throw new Error(`Error consultando Auth: ${e.message}`);
         }
       }
 
       const timestampNow = admin.firestore.Timestamp.now();
 
-      // Crear o actualizar documento en 'usuarios'
-      // Agregamos Migrado:false SOLO si es nuevo (isNewUser === true)
-      await db.collection('usuarios').doc(uid).set({
-        // Campos comunes que puedes querer actualizar siempre:
-        activo: true,
-        email: correo,
-        nombre: nombre,
-        roles: ['cliente'],
-        tipoDocumento: 'NIT',
-        numeroDocumento: String(nit),
-        telefonoUsuario: String(telefono || ''),
-        // Si quieres que fecha_registro se ponga solo en creación, descomenta el bloque de abajo
-        // ...(isNewUser ? { fecha_registro: timestampNow } : {}),
-        // NEW: campo Migrado solo en la primera creación
-        ...(isNewUser ? { migrado: false } : {}),
-      }, { merge: true });
+      // 3) Escribir/actualizar coleccion 'usuarios'
+      try {
+        await db.collection('usuarios').doc(uid).set(
+          {
+            activo: true,
+            email: correo,
+            nombre,
+            roles: ['cliente'],
+            tipoDocumento: 'NIT',
+            numeroDocumento: nit,
+            telefonoUsuario: telefono,
+            // fecha_registro solo si quisieras en creación:
+            // ...(isNewUser ? { fecha_registro: timestampNow } : {}),
+            ...(isNewUser ? { migrado: false } : {}),
+          },
+          { merge: true }
+        );
+      } catch (eUser) {
+        throw new Error(`Error escribiendo documento 'usuarios/${uid}': ${eUser.message}`);
+      }
 
-      // Crear o actualizar documento en 'clientes'
-      await db.collection('clientes').doc(uid).set({
-        direccion: direccion || '',
-        banco: banco || '',
-        numeroCuenta: String(numero_cuenta || ''),
-        tipoCuenta: tipo_cuenta || '',
-        ejecutivoPrejuridicoId: String(ejecutivoPrejuridico || ''),
-        ejecutivoJuridicoId: String(ejecutivoJuridico || ''),
-      }, { merge: true });
+      // 4) Escribir/actualizar coleccion 'clientes'
+      try {
+        await db.collection('clientes').doc(uid).set(
+          {
+            direccion,
+            banco,
+            numeroCuenta: numero_cuenta,
+            tipoCuenta: tipo_cuenta,
+            ejecutivoPrejuridicoId: ejecutivoPrejuridico,
+            ejecutivoJuridicoId: ejecutivoJuridico,
+            // Si quieres trazar cuándo se tocó por última vez:
+            fechaActualizacion: timestampNow,
+          },
+          { merge: true }
+        );
+      } catch (eCli) {
+        throw new Error(`Error escribiendo documento 'clientes/${uid}': ${eCli.message}`);
+      }
 
+      // Si llegamos aquí, todo bien para esta fila
       row.uid = uid;
+      row.status = status;
+      row.error = '';
+    } catch (eRow) {
+      // Atrapamos el error por fila y continuamos
+      errorMessage = eRow?.message || String(eRow);
+      row.uid = row.uid || '';
+      row.status = 'ERROR';
+      row.error = errorMessage;
+
+      errores.push({
+        nombre: row.nombre || '',
+        correo: row.correo || '',
+        nit: row.nit || '',
+        error: errorMessage,
+        timestamp: new Date().toISOString(),
+      });
+
+      console.warn(`⛔️ Error en fila (${row.correo || row.nombre || 'sin-id'}): ${errorMessage}`);
+    } finally {
+      // Siempre empujamos la fila con su status
       updatedData.push(row);
     }
-
-    // Guardar archivo con columna UID
-    const newSheet = xlsx.utils.json_to_sheet(updatedData);
-    const newWorkbook = xlsx.utils.book_new();
-    xlsx.utils.book_append_sheet(newWorkbook, newSheet, 'Migrados');
-    xlsx.writeFile(newWorkbook, outputPath);
-
-    console.log(`📁 Archivo actualizado: ${outputPath}`);
-    console.log('🚀 Migración completada con validaciones');
-  } catch (err) {
-    console.error('❌ Error general en la migración:', err);
   }
-};
 
-main();
+  // 5) Siempre generamos Excel de salida, haya o no errores
+  try {
+    const wbOut = xlsx.utils.book_new();
+    const shMigrados = xlsx.utils.json_to_sheet(updatedData);
+    xlsx.utils.book_append_sheet(wbOut, shMigrados, 'Migrados');
+
+    if (errores.length > 0) {
+      const shErrores = xlsx.utils.json_to_sheet(errores);
+      xlsx.utils.book_append_sheet(wbOut, shErrores, 'Errores');
+    }
+
+    xlsx.writeFile(wbOut, outputPath);
+    console.log(`📁 Archivo actualizado: ${path.resolve(outputPath)}`);
+  } catch (eOut) {
+    console.error('❌ No se pudo escribir el Excel de salida:', eOut.message);
+  }
+
+  console.log('🚀 Proceso de migración finalizado');
+})().catch((e) => {
+  // Nunca dejamos el proceso caer sin reportar
+  console.error('❌ Error no controlado:', e);
+});
