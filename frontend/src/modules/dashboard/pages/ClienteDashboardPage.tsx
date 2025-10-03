@@ -75,20 +75,28 @@ export default function ClienteDashboardPage() {
 
   return (
     <div className="space-y-6 p-6">
-      <h1 className="text-xl font-semibold">Hola, {cliente.nombre}</h1>
+      <h1 className="text-xl font-semibold">Hola, {usuario.nombre}</h1>
 
       {/* 👉 ahora sí pasamos usuarioCliente al card */}
       <ClienteInfoSummaryCard cliente={cliente} usuarioCliente={usuarioCliente} />
 
-      <div className="mt-4">
-        <Button
-          disabled={!canViewDeudores}
-          onClick={() => navigate(`/deudores/${cliente.id}`)}
-        >
-          Ver Deudores
-        </Button>
-      </div>
+      <div className="flex gap-4 mt-4">
+  <Button
+    disabled={!canViewDeudores}  // Verifica si el cliente tiene permiso para ver los deudores
+    onClick={() => navigate(`/deudores/${cliente.id}`)}
+    className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-md px-6 py-2 transition duration-200 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
+  >
+    Ver Deudores
+  </Button>
+
+  <Button
+    disabled={!canViewDeudores}  // Verifica si el cliente tiene permiso para ver los valores agregados
+    onClick={() => navigate(`/valores-agregados/${cliente.id}`)}
+    className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-md px-6 py-2 transition duration-200 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
+  >
+    Valores Agregados
+  </Button>
+</div>
     </div>
   );
 }
-  

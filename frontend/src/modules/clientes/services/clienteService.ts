@@ -53,6 +53,7 @@ export async function getClienteById(clienteId: string): Promise<Cliente | null>
   return { id: snap.id, ...(snap.data() as Omit<Cliente, "id">) };
 }
 
+
 export const setUsuarioClinte = async (clienteId: string, uid: string | null) => {
   const ref = doc(db, "clientes", clienteId); 
   await updateDoc(ref, { usuarioUid: uid });

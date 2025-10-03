@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Deudor } from "../models/deudores.model";
-
 import {
   obtenerDeudorPorCliente,
   crearDeudor,
@@ -386,61 +385,6 @@ export default function DeudoresTable() {
           </TableBody>
         </Table>
       )}
-
-      {/* 🔐 Diálogo eliminar: doble seguro en el confirm */}
-      <Dialog open={dialogoEliminar} onOpenChange={setDialogoEliminar}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>¿Eliminar deudor?</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">¿Estás seguro de que deseas eliminar este deudor? Esta acción no se puede deshacer.</p>
-          <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setDialogoEliminar(false)}>
-              Cancelar
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={async () => {
-                if (!canEdit) return; // 🔐
-                if (deudorSeleccionado && clienteId) {
-                  await eliminarDeudor(clienteId, deudorSeleccionado.id!);
-                  setDialogoEliminar(false);
-                  fetchDeudores();
-                }
-              }}
-            >
-              Eliminar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* 🔐 Accción masiva opcional: solo RW */}
-      {!loading && filteredDeudores.length > 0 && canEdit && (
-        <div className="pt-4">
-          <Button className="bg-primary text-white" onClick={handleEnviarNotificaciones}>
-            Enviar notificación de cobro a todos los listados
-          </Button>
-        </div>
-      )}
-
-      <div className="flex justify-between items-center pt-4">
-        <p className="text-sm text-muted-foreground">
-          Página {currentPage} de {totalPages}
-        </p>
-        <div className="space-x-2">
-          <Button variant="outline" disabled={currentPage === 1} onClick={() => setCurrentPage((p) => p - 1)}>
-            Anterior
-          </Button>
-          <Button
-            variant="outline"
-            disabled={currentPage === totalPages}
-            onClick={() => setCurrentPage((p) => p + 1)}
-          >
-            Siguiente
-          </Button>
-        </div>
-      </div>
     </div>
   );
 }

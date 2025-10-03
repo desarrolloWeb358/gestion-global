@@ -35,7 +35,16 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/shared/ui/alert-dialog";
+import { Textarea } from "@/shared/ui/textarea";
+import { Card, CardHeader, CardTitle, CardContent } from "@/shared/ui/card";
 
+import type { ObservacionCliente } from "@/modules/cobranza/models/observacionCliente.model";
+import {
+  getObservacionesCliente,
+  addObservacionCliente,
+} from "@/modules/cobranza/services/observacionClienteService";
+
+import { getAuth } from "firebase/auth";
 import SeguimientoJuridicoTable from "./SeguimientoJuridicoTable";
 
 export default function SeguimientoTable() {
@@ -58,6 +67,10 @@ export default function SeguimientoTable() {
   const canEdit = can(PERMS.Seguimientos_Edit);
   const isCliente = Array.isArray(roles) && roles.includes("cliente");
   const canEditSafe = canEdit && !isCliente; // defensa extra
+  const [obsCliente, setObsCliente] = React.useState<ObservacionCliente[]>([]);
+  const [obsLoading, setObsLoading] = React.useState(false);
+  const [obsTexto, setObsTexto] = React.useState("");
+  const auth = getAuth();
 
   // ===== efectos (siempre se declaran antes de cualquier return) =====
   React.useEffect(() => {
@@ -68,7 +81,14 @@ export default function SeguimientoTable() {
       .catch(() => toast.error("No se pudo cargar el listado de seguimientos."))
       .finally(() => setLoading(false));
   }, [clienteId, deudorId]);
-
+  React.useEffect(() => {
+    if (!clienteId || !deudorId) return;
+    setObsLoading(true);
+    getObservacionesCliente(clienteId, deudorId)
+      .then(setObsCliente)
+      .catch(() => toast.error("No se pudieron cargar las observaciones del cliente."))
+      .finally(() => setObsLoading(false));
+  }, [clienteId, deudorId]);
   // ===== handlers =====
   const onSaveWithDestino = async (
     destino: DestinoColeccion,
@@ -124,6 +144,8 @@ export default function SeguimientoTable() {
     }
   };
 
+
+
   const handleConfirmDelete = async () => {
     if (!clienteId || !deudorId || !deleteId) return;
 
@@ -142,6 +164,30 @@ export default function SeguimientoTable() {
       toast.error("No se pudo eliminar el seguimiento.");
     } finally {
       setDeleteId(null);
+    }
+  };
+  const handleAgregarObservacion = async () => {
+    if (!clienteId || !deudorId) return;
+    if (!isCliente) {
+      toast.error("Solo el cliente puede agregar observaciones.");
+      return;
+    }
+    const texto = obsTexto.trim();
+    if (!texto) {
+      toast.error("Escribe la observación.");
+      return;
+    }
+
+    try {
+      const uid = auth.currentUser?.uid ?? null;
+      await addObservacionCliente(clienteId, deudorId, texto, uid);
+      setObsTexto("");
+      setObsCliente(await getObservacionesCliente(clienteId, deudorId));
+      toast.success("Observación agregada.");
+      // La Cloud Function (sección 4) enviará el correo automáticamente.
+    } catch (e) {
+      console.error(e);
+      toast.error("No se pudo agregar la observación.");
     }
   };
 
@@ -307,8 +353,55 @@ export default function SeguimientoTable() {
         </AlertDialog>
       </div>
 
+      {/* === Observaciones del Cliente === */}
+      
+
+
       {/* Bloque Jurídico (se recarga cuando cambia refreshJuridicoKey) */}
       <SeguimientoJuridicoTable key={refreshJuridicoKey} />
+      <Card>
+        <CardHeader>
+          <CardTitle>Observaciones del cliente</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Lista */}
+          {obsLoading ? (
+            <p className="text-sm text-muted-foreground">Cargando…</p>
+          ) : obsCliente.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No hay observaciones del cliente.</p>
+          ) : (
+            <div className="space-y-3">
+              {obsCliente.map((o) => {
+                const fecha =
+                  (o.fecha as any)?.toDate?.() instanceof Date
+                    ? (o.fecha as any).toDate().toLocaleString("es-CO", { hour12: false })
+                    : "—";
+                return (
+                  <div key={o.id} className="rounded-md border p-3">
+                    <div className="text-xs text-muted-foreground mb-1">{fecha}</div>
+                    <div className="text-sm whitespace-pre-wrap">{o.texto}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Formulario solo para CLIENTE */}
+          {isCliente && (
+            <div className="space-y-2">
+              <Textarea
+                value={obsTexto}
+                onChange={(e) => setObsTexto(e.target.value)}
+                className="min-h-24"
+                placeholder="Escribe tu observación para el ejecutivo…"
+              />
+              <div className="flex justify-end">
+                <Button onClick={handleAgregarObservacion}>Agregar observación</Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
