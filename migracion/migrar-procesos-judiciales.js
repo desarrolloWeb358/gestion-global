@@ -25,7 +25,7 @@ const DRY_RUN = false; // true = no escribe, solo simula
 const EJECUTIVOS_UID = {
   // claves en minúscula
   nicoll: "FWn2ELTvlSSDxnrvoAkBGewzBr43",
-  laura:  "TkBWDCsUzjNCwdu5q8cXciSQqmQ2",
+  laura: "TkBWDCsUzjNCwdu5q8cXciSQqmQ2",
   // agrega más si aparecen en tu Excel...
 };
 
@@ -70,6 +70,66 @@ function withMotivoNoMigrado(row, motivo) {
   return out;
 }
 
+// Convierte una letra inicial en número (A=1, B=2, ... Z=26)
+function normalizeUbicacion(ubicacion) {
+  if (!ubicacion) return ubicacion;
+
+  const trimmed = ubicacion.trim();
+  const firstChar = trimmed.charAt(0).toUpperCase();
+
+  // Si empieza con letra de A-Z → la convierte a número y concatena lo que sigue
+  if (firstChar >= 'A' && firstChar <= 'Z') {
+    const num = firstChar.charCodeAt(0) - 'A'.charCodeAt(0) + 1;
+    return num + trimmed.slice(1);
+  }
+
+  // Si no empieza con letra, devuelve igual
+  return trimmed;
+}
+
+// Bogotá no usa DST; offset fijo
+const TIMEZONE_OFFSET_HOURS = -5;
+
+// Devuelve una Date en "medianoche" local de Bogotá (00:00 -05 → 05:00 UTC)
+function toBogotaMidnight(dateUTCOrLocal) {
+  const y = dateUTCOrLocal.getUTCFullYear();
+  const m = dateUTCOrLocal.getUTCMonth();
+  const d = dateUTCOrLocal.getUTCDate();
+  // 00:00 local -05 equivale a 05:00 UTC
+  return new Date(Date.UTC(y, m, d, -TIMEZONE_OFFSET_HOURS, 0, 0));
+}
+
+function parseFechaUltimaRevision(value) {
+  if (value === undefined || value === null || value === "") return null;
+
+  // a) Date nativa
+  if (value instanceof Date && !isNaN(value)) {
+    return toBogotaMidnight(value);
+  }
+
+  // b) Serial Excel (número)
+  const asNumber = Number(value);
+  if (!Number.isNaN(asNumber) && Number.isFinite(asNumber)) {
+    const EXCEL_EPOCH_UTC_MS = Date.UTC(1899, 11, 30, 0, 0, 0); // 1899-12-30
+    const ms = Math.round(asNumber * 24 * 60 * 60 * 1000);
+    const utcDate = new Date(EXCEL_EPOCH_UTC_MS + ms); // medianoche UTC del día
+    return toBogotaMidnight(utcDate);
+  }
+
+  // c) Texto "DD-MM-AAAA" (o con / .)
+  const s = String(value).trim();
+  const m = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})$/);
+  if (!m) return null;
+
+  const day = parseInt(m[1], 10);
+  const month = parseInt(m[2], 10);
+  const year = parseInt(m[3], 10);
+  if (year < 1900 || month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+  // Creamos una Date a medianoche Bogotá directamente
+  return new Date(Date.UTC(year, month - 1, day, -TIMEZONE_OFFSET_HOURS, 0, 0));
+}
+
 async function main() {
   let migrados = 0;
   let noMigrados = 0;
@@ -87,12 +147,14 @@ async function main() {
     const raw = rows[i];
 
     // Lectura tolerante de encabezados
-    const ejecutivoRaw   = toStr(raw.ejecutivo || raw.Ejecutivo || raw.EJECUTIVO);
-    const nit            = toStr(raw.nit || raw.Nit || raw.NIT || raw.CLIENTE || raw.cliente);
-    const ubicacion      = toStr(raw.ubicacion || raw.UBICACIÓN || raw.UBICACION);
+    const ejecutivoRaw = toStr(raw.ejecutivo || raw.Ejecutivo || raw.EJECUTIVO);
+    const nit = toStr(raw.nit || raw.Nit || raw.NIT || raw.CLIENTE || raw.cliente);
+    let ubicacion = toStr(raw.ubicacion || raw.UBICACIÓN || raw.UBICACION);
+    // Normalizar ubicación si empieza con letra
+    ubicacion = normalizeUbicacion(ubicacion);
 
-    const demandados     = toStr(raw.demandados || raw.Demandados || raw.DEMANDADOS);
-    const juzgado        = toStr(raw.juzgado || raw.Juzgado || raw.JUZGADO);
+    const demandados = toStr(raw.demandados || raw.Demandados || raw.DEMANDADOS);
+    const juzgado = toStr(raw.juzgado || raw.Juzgado || raw.JUZGADO);
     const numeroRadicado = toStr(
       raw.numero_radicado ||
       raw["numero radicado"] ||
@@ -101,13 +163,24 @@ async function main() {
       raw.NumeroRadicado ||
       raw.NUMERO_RADICADO
     );
-    const localidad      = toStr(raw.localidad || raw.Localidad || raw.LOCALIDAD);
-    const observaciones  = toStr(raw.observaciones || raw.Observaciones || raw.OBSERVACIONES);
+    const localidad = toStr(raw.localidad || raw.Localidad || raw.LOCALIDAD);
+    const observaciones = toStr(raw.observaciones || raw.Observaciones || raw.OBSERVACIONES);
+
+    // Puede venir con distintas variantes de encabezado; si es la última, igual la toma por nombre
+    const fechaUltRevRaw = toStr(
+      raw["FECHA DE ULTIMA REVISION"] ||
+      raw["FECHA DE LA ULTIMA REVISION"] ||
+      raw["FECHA DE ULTIMA REVISION DEL EXPEDIENTE DIGITAL"] ||
+      raw["fecha_ultima_revision"] ||
+      raw["fechaUltimaRevision"] ||
+      raw["FechaUltimaRevision"] ||
+      raw["FECHA_ULTIMA_REVISION"]
+    );
 
     // Validaciones suaves (NO throw)
     if (!nit) {
       badRows.push(withMotivoNoMigrado(raw, "Falta NIT (columna 2)"));
-      noMigrados++; 
+      noMigrados++;
       console.warn(`⚠️  [${i + 1}] Fila sin NIT.`);
       continue;
     }
@@ -168,6 +241,16 @@ async function main() {
 
       // 5) Actualizar campos judiciales del deudor
       const updateDeudor = { demandados, juzgado, numeroRadicado, localidad, observacionesDemanda: observaciones };
+      // Parseo y agregado de la fecha de última revisión si viene válida
+      console.log(`    → Parseando fecha última revisión: '${fechaUltRevRaw}'`);
+      const parsedDate = parseFechaUltimaRevision(fechaUltRevRaw);
+      console.log(`    → Fecha última revisión raw='${fechaUltRevRaw}' parsed=${parsedDate}`);
+      if (parsedDate) {
+        updateDeudor.fechaUltimaRevision = admin.firestore.Timestamp.fromDate(parsedDate);
+      } else {
+        console.warn(`    ⚠️ Fecha última revisión inválida/ausente para NIT=${nit}, ubicacion='${ubicacion}'`);
+      }
+
       if (!DRY_RUN) await deudorRef.set(updateDeudor, { merge: true });
 
       // éxito → empuja la misma fila original + metadatos opcionales
