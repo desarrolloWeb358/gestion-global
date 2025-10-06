@@ -12,8 +12,5 @@ export interface Cliente {
   ejecutivoPrejuridicoId?: string | null;
   ejecutivoJuridicoId?: string | null;
 
-  // Usuario “propietario” del cliente (de aquí se toma el nombre, teléfono y email)
-  usuarioUid?: string | null;
-
   activo?: boolean;
 }

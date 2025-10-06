@@ -60,7 +60,7 @@ export default function ClientesCrud() {
   const [tipoCuentaSel, setTipoCuentaSel] = useState<"" | "ahorros" | "corriente" | "convenio">("");
   const [ejecutivoPreSel, setEjecutivoPreSel] = useState<string>("");
   const [ejecutivoJurSel, setEjecutivoJurSel] = useState<string>("");
-  const [usuarioUidSel, setUsuarioUidSel] = useState<string>(""); // vínculo al usuario dueño del cliente
+ 
   const [activoSel, setActivoSel] = useState<boolean>(true);
 
   // Mapa rápido de usuarios por uid
@@ -73,7 +73,7 @@ export default function ClientesCrud() {
   // Resolver de nombre robusto: usuarioUid → nombre | displayName | email
   function resolverNombreCliente(c: Cliente) {
     // 1) por usuarioUid
-    let u = c.usuarioUid ? usuariosMap[c.usuarioUid] : undefined;
+    let u;
     // 2) fallback: si el doc clientes usa el mismo id que el uid del usuario
     if (!u && c.id) u = usuariosMap[c.id];
     // 3) display final
@@ -106,7 +106,6 @@ export default function ClientesCrud() {
     setTipoCuentaSel((cliente.tipoCuenta as any) ?? "");
     setEjecutivoPreSel(cliente.ejecutivoPrejuridicoId ?? "");
     setEjecutivoJurSel(cliente.ejecutivoJuridicoId ?? "");
-    setUsuarioUidSel(cliente.usuarioUid ?? ""); // seleccionar vínculo actual si existe
     setActivoSel(cliente.activo ?? true);
     setMostrarDialogo(true);
   };
@@ -137,8 +136,7 @@ export default function ClientesCrud() {
             {clientes.map((cliente) => (
               <TableRow key={cliente.id}>
                 <TableCell>
-                  {resolverNombreCliente(cliente)}
-                  {!cliente.usuarioUid }
+                  {resolverNombreCliente(cliente)}                  
                 </TableCell>
                 <TableCell>
                   <div className="flex justify-center gap-2">
@@ -222,7 +220,6 @@ export default function ClientesCrud() {
                 tipoCuentaSel === "" ? undefined : (tipoCuentaSel as "ahorros" | "corriente" | "convenio");
               const ejecutivoPrejuridicoId = ejecutivoPreSel || null;
               const ejecutivoJuridicoId = ejecutivoJurSel || null;
-              const usuarioUid = usuarioUidSel || null;
               const activo = activoSel;
 
               // Si quieres forzar que siempre haya usuario:
@@ -238,7 +235,6 @@ export default function ClientesCrud() {
                 ...(tipoCuenta ? { tipoCuenta } : {}),
                 ejecutivoPrejuridicoId,
                 ejecutivoJuridicoId,
-                usuarioUid,
                 activo,
               };
 
@@ -260,23 +256,6 @@ export default function ClientesCrud() {
                 </p>
               </div>
 
-              {/* Asociación al usuario propietario */}
-              <div className="col-span-2">
-                <Label>Usuario asociado</Label>
-                <Select value={usuarioUidSel} onValueChange={setUsuarioUidSel}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona el usuario propietario" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {usuarios.map((u) => (
-                      <SelectItem key={u.uid} value={u.uid}>
-                        {(u.nombre ?? (u as any).displayName ?? u.email) +
-                          (u.uid === (clienteEditando?.id ?? "") ? " (id)" : "")}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
 
               {/* Ejecutivos */}
               <div>
