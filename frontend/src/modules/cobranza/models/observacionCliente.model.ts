@@ -1,8 +1,9 @@
-import { Timestamp } from "firebase/firestore";
-
+// src/modules/cobranza/models/observacionCliente.model.ts
 export interface ObservacionCliente {
   id?: string;
   texto: string;
-  fecha: Timestamp;    
-  autorUid: string;  
+  fecha: Date;        // para UI
+  fechaTs?: any;      // Timestamp de Firestore (source of truth)
+  creadoPorUid?: string;
+  creadoPorNombre?: string;
 }

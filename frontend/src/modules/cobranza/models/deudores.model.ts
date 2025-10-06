@@ -34,4 +34,6 @@ observacionesDemandaCliente?: string;
 juzgadoId?: string;
 numeroProceso?: string;
 anoProceso?: number;
+
+fechaUltimaRevision?: Timestamp | { seconds: number; nanoseconds: number } | Date | FieldValue | null;
 }

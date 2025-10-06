@@ -8,19 +8,28 @@ import { toast } from "sonner";
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
 import { Button } from "@/shared/ui/button";
-import { Dialog, DialogContent,  DialogHeader, DialogTitle, DialogTrigger } from "@/shared/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/shared/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover";
 import { Calendar } from "@/shared/ui/calendar";
 
 import { ValorAgregado } from "../models/valorAgregado.model";
-import { listarValoresAgregados, crearValorAgregado, actualizarValorAgregado, formatFechaCO, } from "../services/valorAgregadoService";
+import {
+  listarValoresAgregados,
+  crearValorAgregado,
+  actualizarValorAgregado,
+  formatFechaCO,
+  listarObservacionesCliente,
+  crearObservacionCliente,
+} from "../services/valorAgregadoService";
 import { TipoValorAgregado, TipoValorAgregadoLabels } from "../../../shared/constants/tipoValorAgregado";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { PERMS } from "@/shared/constants/acl";
 import { Input } from "@/shared/ui/input";
 import { Textarea } from "@/shared/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/shared/ui/select";
-import { Label } from "recharts";
+import { Label } from "@/shared/ui/label"; // ✅ corregido
+import { ObservacionCliente } from "@/modules/cobranza/models/observacionCliente.model";
+import { getAuth } from "firebase/auth";
 
 // ErrorBoundary
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
@@ -49,8 +58,13 @@ export default function ValoresAgregadosTable() {
   const navigate = useNavigate();
   const { clienteId } = useParams<{ clienteId: string }>();
   const { can, roles = [], loading: aclLoading } = useAcl();
-  const canEdit = can(PERMS.Valores_Read) && !roles.includes("cliente"); // cliente solo lectura
+
   const canView = can(PERMS.Valores_Read);
+  const canEdit = canView && !roles.includes("cliente"); // cliente solo lectura
+
+  // Permisos para Observaciones del cliente (Valores Agregados)
+  const puedeVerObsCliente = can(PERMS.Valores_Read);
+  const puedeCrearObsCliente = can(PERMS.Valores_Obs_Create);
 
   const [items, setItems] = useState<ValorAgregado[]>([]);
   const [loading, setLoading] = useState(false);
@@ -83,6 +97,59 @@ export default function ValoresAgregadosTable() {
       setLoading(false);
     }
   };
+
+  // === Observaciones del cliente ===
+  const [openObs, setOpenObs] = useState(false);
+  const [valorObsActual, setValorObsActual] = useState<ValorAgregado | null>(null);
+  const [obsLoading, setObsLoading] = useState(false);
+  const [obsSaving, setObsSaving] = useState(false);
+  const [obsTexto, setObsTexto] = useState("");
+  const [obsItems, setObsItems] = useState<ObservacionCliente[]>([]);
+
+  async function openObsDialogFor(it: ValorAgregado) {
+    if (!clienteId) return;
+    setValorObsActual(it);
+    setObsTexto("");
+    setOpenObs(true);
+    setObsLoading(true);
+    try {
+      // ✅ service con scope + parentId
+      const data = await listarObservacionesCliente(clienteId, it.id!);
+      setObsItems(data);
+    } catch (e) {
+      console.error(e);
+      toast.error("No se pudieron cargar las observaciones");
+    } finally {
+      setObsLoading(false);
+    }
+  }
+
+  async function onSaveObs() {
+    if (!clienteId || !valorObsActual || !obsTexto.trim() || obsSaving) return;
+    if (!puedeCrearObsCliente) return; // 🔒 defensa extra
+    setObsSaving(true);
+    try {
+      // ✅ service con scope + parentId
+      await crearObservacionCliente(clienteId, valorObsActual.id!, {
+        texto: obsTexto,
+        creadoPorUid: getAuth().currentUser?.uid,
+        creadoPorNombre:
+          getAuth().currentUser?.displayName || getAuth().currentUser?.email || roles[0] || "Usuario",
+      });
+
+      toast.success("Observación guardada y notificada");
+      setObsTexto("");
+
+      // Refrescar listado local
+      const data = await listarObservacionesCliente(clienteId, valorObsActual.id!);
+      setObsItems(data);
+    } catch (e) {
+      console.error(e);
+      toast.error("Error al guardar o notificar la observación");
+    } finally {
+      setObsSaving(false);
+    }
+  }
 
   useEffect(() => {
     if (!canView) return;
@@ -233,7 +300,14 @@ export default function ValoresAgregadosTable() {
                   </div>
                   <div className="pt-6">
                     <Button type="submit" className="w-full" disabled={saving}>
-                      {saving ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />Guardando…</span> : "Guardar"}
+                      {saving ? (
+                        <span className="inline-flex items-center justify-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Guardando…
+                        </span>
+                      ) : (
+                        "Guardar"
+                      )}
                     </Button>
                   </div>
                 </form>
@@ -251,14 +325,29 @@ export default function ValoresAgregadosTable() {
                 <TableHead>Fecha</TableHead>
                 <TableHead>Tipo</TableHead>
                 <TableHead>Título</TableHead>
+                {/* ⬇️ Nueva columna */}
+                <TableHead className="w-[160px]">Obs. cliente</TableHead>
               </TableRow>
             </TableHeader>
+
             <TableBody>
               {paginated.map((it) => (
                 <TableRow key={it.id}>
                   <TableCell>{formatFechaCO(it.fecha as any) || "—"}</TableCell>
                   <TableCell>{TipoValorAgregadoLabels[it.tipo]}</TableCell>
                   <TableCell>{it.titulo}</TableCell>
+
+                  {/* ⬇️ Celda con botón para ver/crear observaciones */}
+                  <TableCell>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openObsDialogFor(it)}
+                      disabled={!puedeVerObsCliente}
+                    >
+                      {puedeCrearObsCliente ? "Ver / Agregar" : "Ver"}
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -275,6 +364,57 @@ export default function ValoresAgregadosTable() {
             <Button variant="outline" disabled={page === totalPages || saving} onClick={() => setPage((p) => p + 1)}>Siguiente</Button>
           </div>
         </div>
+
+        {/* Dialogo Observaciones del cliente */}
+        <Dialog open={openObs} onOpenChange={setOpenObs}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>
+                Observaciones del cliente {valorObsActual ? `— ${valorObsActual.titulo}` : ""}
+              </DialogTitle>
+            </DialogHeader>
+
+            {/* Historial */}
+            {obsLoading ? (
+              <p className="text-sm text-muted-foreground">Cargando…</p>
+            ) : obsItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Sin observaciones aún.</p>
+            ) : (
+              <div className="max-h-72 overflow-y-auto border rounded">
+                <ul className="divide-y">
+                  {obsItems.map((o) => (
+                    <li key={o.id} className="p-3">
+                      <p className="text-sm whitespace-pre-wrap">{o.texto}</p>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        {o.fecha?.toLocaleString("es-CO")} {o.creadoPorNombre ? `• ${o.creadoPorNombre}` : ""}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Form para crear (solo si tiene permiso) */}
+            {puedeCrearObsCliente && (
+              <div className="space-y-2 mt-4">
+                <Label>Escribir observación</Label>
+                <Textarea
+                  value={obsTexto}
+                  onChange={(e) => setObsTexto(e.target.value)}
+                  placeholder="Redacta tu observación…"
+                  className="min-h-32"
+                  maxLength={1000}
+                  disabled={obsSaving}
+                />
+                <div className="flex justify-end">
+                  <Button onClick={onSaveObs} disabled={obsSaving || !obsTexto.trim()}>
+                    {obsSaving ? "Guardando…" : "Guardar y notificar"}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </ErrorBoundary>
   );

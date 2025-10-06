@@ -18,6 +18,7 @@ import { ValorAgregado } from "../models/valorAgregado.model";
 import { TipoValorAgregado, TipoValorAgregadoLabels } from "../../../shared/constants/tipoValorAgregado";
 import { normalizeToE164 } from "@/shared/phoneUtils";
 import { enviarNotificacionValorAgregadoBasico } from "./notificacionValorAgregadoService";
+import { ObservacionCliente } from "@/modules/cobranza/models/observacionCliente.model";
 
 
 
@@ -270,4 +271,61 @@ export async function eliminarValorAgregado(
     }
   }
   await deleteDoc(docRef(clienteId, valorId));
+}
+
+export async function listarObservacionesCliente(
+  clienteId: string,
+  valorId: string
+): Promise<ObservacionCliente[]> {
+  const ref = collection(
+    db,
+    "clientes",
+    clienteId,
+    "valoresAgregados",
+    valorId,
+    "observacionesCliente"
+  );
+  const qy = query(ref, orderBy("fechaTs", "desc"));
+  const snap = await getDocs(qy);
+  return snap.docs.map((d) => {
+    const data = d.data() as any;
+    return {
+      id: d.id,
+      texto: data.texto ?? "",
+      fechaTs: data.fechaTs,
+      fecha: data.fechaTs?.toDate?.() ?? new Date(),
+      creadoPorUid: data.creadoPorUid,
+      creadoPorNombre: data.creadoPorNombre,
+    } as ObservacionCliente;
+  });
+}
+
+export async function crearObservacionCliente(
+  clienteId: string,
+  valorId: string,
+  payload: {
+    texto: string;
+    creadoPorUid?: string;
+    creadoPorNombre?: string;
+  }
+): Promise<ObservacionCliente> {
+  const ref = collection(
+    db,
+    "clientes",
+    clienteId,
+    "valoresAgregados",
+    valorId,
+    "observacionesCliente"
+  );
+  const docRef = await addDoc(ref, {
+    texto: payload.texto,
+    fechaTs: serverTimestamp(),
+    creadoPorUid: payload.creadoPorUid ?? null,
+    creadoPorNombre: payload.creadoPorNombre ?? null,
+  });
+  return {
+    id: docRef.id,
+    texto: payload.texto,
+    fecha: new Date(), // provisional para UI; el fetch posterior traerá la fecha real
+  };
 }

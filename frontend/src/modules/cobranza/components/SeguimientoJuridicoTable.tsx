@@ -5,16 +5,10 @@ import { toast } from "sonner";
 import { Button } from "@/shared/ui/button";
 import type { Deudor } from "../models/deudores.model";
 import {
-  Table,
-  TableHeader,
-  TableRow,
-  TableHead,
-  TableBody,
-  TableCell,
+  Table, TableHeader, TableRow, TableHead, TableBody, TableCell,
 } from "@/shared/ui/table";
 
-import SeguimientoForm from "./SeguimientoForm";
-import { DestinoColeccion } from "./SeguimientoForm";
+import SeguimientoForm, { DestinoColeccion } from "./SeguimientoForm";
 import { Seguimiento } from "../models/seguimiento.model";
 
 import {
@@ -24,32 +18,33 @@ import {
   deleteSeguimientoJuridico,
 } from "@/modules/cobranza/services/seguimientoService";
 
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogFooter,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogCancel,
-  AlertDialogAction,
-} from "@/shared/ui/alert-dialog";
+// ⬇️ RBAC
+import { useAcl } from "@/modules/auth/hooks/useAcl";
+import { PERMS } from "@/shared/constants/acl";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/shared/ui/alert-dialog";
 
 export default function SeguimientoJuridicoTable() {
   const { clienteId, deudorId } = useParams();
   const navigate = useNavigate();
-  const [deudor, setDeudor] = React.useState<Deudor | null>(null);
 
+  const [deudor, setDeudor] = React.useState<Deudor | null>(null);
   const [items, setItems] = React.useState<Seguimiento[]>([]);
   const [loading, setLoading] = React.useState(false);
-
   const [open, setOpen] = React.useState(false);
   const [seleccionado, setSeleccionado] = React.useState<Seguimiento | undefined>(undefined);
-
-  // estado para confirmación de eliminación
   const [deleteId, setDeleteId] = React.useState<string | null>(null);
 
-  // Cargar seguimientos jurídico
+  // RBAC
+  const { can, roles = [], loading: aclLoading } = useAcl();
+  const isCliente = roles.includes("cliente");
+
+  // 👉 Permisos: cliente SIEMPRE puede ver; editar solo si NO es cliente y tiene permiso
+  const canView =
+    isCliente || can(PERMS.Seguimientos_Read ?? PERMS.Abonos_Read); // fallback si aún no definiste los permisos
+  const canEdit =
+    !isCliente && can(PERMS.Seguimientos_Edit ?? PERMS.Abonos_Edit);
+  const canEditSafe = canEdit && !isCliente;
+
   React.useEffect(() => {
     if (!clienteId || !deudorId) return;
     setLoading(true);
@@ -59,9 +54,17 @@ export default function SeguimientoJuridicoTable() {
       .finally(() => setLoading(false));
   }, [clienteId, deudorId]);
 
-  // Guardar (crear/editar)
-  const onSave = async (data: Omit<Seguimiento, "id">, archivo?: File, reemplazar?: boolean) => {
+  // Guardar (crear/editar) — protegido por RBAC
+  const onSave = async (
+    data: Omit<Seguimiento, "id">,
+    archivo?: File,
+    reemplazar?: boolean
+  ) => {
     if (!clienteId || !deudorId) return;
+    if (!canEdit) {
+      toast.error("No tienes permiso para editar seguimientos jurídicos.");
+      return;
+    }
     try {
       if (seleccionado?.id) {
         await updateSeguimientoJuridico(clienteId, deudorId, seleccionado.id, data, archivo, reemplazar);
@@ -77,9 +80,14 @@ export default function SeguimientoJuridicoTable() {
     }
   };
 
-  // Ejecutar eliminación (confirmada en el diálogo)
+  // Eliminar — protegido por RBAC
   const handleConfirmDelete = async () => {
     if (!clienteId || !deudorId || !deleteId) return;
+    if (!canEdit) {
+      toast.error("No tienes permiso para eliminar seguimientos jurídicos.");
+      setDeleteId(null);
+      return;
+    }
     try {
       await deleteSeguimientoJuridico(clienteId, deudorId, deleteId);
       setItems((prev) => prev.filter((x) => x.id !== deleteId));
@@ -91,24 +99,37 @@ export default function SeguimientoJuridicoTable() {
     }
   };
 
-  function onSaveWithDestino(destino: DestinoColeccion, data: Omit<Seguimiento, "id">, archivo?: File | undefined, reemplazar?: boolean | undefined): Promise<void> {
-    throw new Error("Function not implemented.");
+  // API esperada por el form (con destino); en este caso, reusa onSave y respeta RBAC
+  async function onSaveWithDestino(
+    _destino: DestinoColeccion,
+    data: Omit<Seguimiento, "id">,
+    archivo?: File,
+    reemplazar?: boolean
+  ): Promise<void> {
+    // Si usaras distintos destinos (p. ej., mover a otra colección), condicional acá.
+    return onSave(data, archivo, reemplazar);
   }
+
+  // Estados de acceso
+  if (aclLoading) return <p className="text-sm text-muted-foreground">Cargando permisos…</p>;
+  if (!canView) return <p className="text-sm text-muted-foreground">No tienes acceso a Seguimiento Jurídico.</p>;
 
   return (
     <div className="space-y-4">
-      {/* Header limpio */}
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold">Seguimiento Jurídico</h2>
+        {/* Si tuvieras botón "Agregar", muéstralo solo si puede editar */}
+        {/* {canEdit && (
+          <Button size="sm" onClick={() => { setSeleccionado(undefined); setOpen(true); }}>
+            Agregar seguimiento
+          </Button>
+        )} */}
       </div>
 
-      {/* Tabla */}
       {loading ? (
         <p className="text-sm text-muted-foreground">Cargando...</p>
       ) : items.length === 0 ? (
-        <div className="text-sm text-muted-foreground">
-          No hay seguimientos jurídicos registrados.
-        </div>
+        <div className="text-sm text-muted-foreground">No hay seguimientos jurídicos registrados.</div>
       ) : (
         <Table>
           <TableHeader>
@@ -117,18 +138,16 @@ export default function SeguimientoJuridicoTable() {
               <TableHead className="w-[160px]">Tipo</TableHead>
               <TableHead>Descripción</TableHead>
               <TableHead className="w-[140px]">Archivo</TableHead>
-              <TableHead className="w-[160px] text-right">Acciones</TableHead>
+              {canEditSafe && (
+                <TableHead className="w-[160px] text-right">Acciones</TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
             {items.map((seg) => (
               <TableRow key={seg.id}>
-                <TableCell>
-                  {seg.fecha ? seg.fecha.toDate().toLocaleString() : "—"}
-                </TableCell>
-                <TableCell className="capitalize">
-                  {seg.tipoSeguimiento ?? "—"}
-                </TableCell>
+                <TableCell>{seg.fecha ? seg.fecha.toDate().toLocaleString() : "—"}</TableCell>
+                <TableCell className="capitalize">{seg.tipoSeguimiento ?? "—"}</TableCell>
                 <TableCell>
                   <div className="whitespace-pre-wrap leading-relaxed text-sm">
                     {seg.descripcion}
@@ -136,36 +155,36 @@ export default function SeguimientoJuridicoTable() {
                 </TableCell>
                 <TableCell>
                   {seg.archivoUrl ? (
-                    <a
-                      href={seg.archivoUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="underline text-sm"
-                    >
+                    <a href={seg.archivoUrl} target="_blank" rel="noreferrer" className="underline text-sm">
                       Ver archivo
                     </a>
                   ) : (
                     <span className="text-muted-foreground">—</span>
                   )}
                 </TableCell>
+
                 <TableCell className="text-right space-x-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setSeleccionado(seg);
-                      setOpen(true);
-                    }}
-                  >
-                    Editar
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => setDeleteId(seg.id!)}
-                  >
-                    Eliminar
-                  </Button>
+                  {canEdit ? (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setSeleccionado(seg);
+                          setOpen(true);
+                        }}
+                      >
+                        Editar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => setDeleteId(seg.id!)}
+                      >
+                        Eliminar
+                      </Button>
+                    </>
+                  ) : null}
                 </TableCell>
               </TableRow>
             ))}
@@ -176,17 +195,14 @@ export default function SeguimientoJuridicoTable() {
       {/* Modal de creación/edición */}
       <SeguimientoForm
         open={open}
-        onClose={() => {
-          setOpen(false);
-          setSeleccionado(undefined);
-        }}
+        onClose={() => { setOpen(false); setSeleccionado(undefined); }}
         seguimiento={seleccionado}
         tipificacionDeuda={deudor?.tipificacion}
-        onSaveWithDestino={onSaveWithDestino}  // 👈 usa esta en lugar de onSave
+        onSaveWithDestino={onSaveWithDestino}
       />
 
       {/* Diálogo de confirmación de eliminación */}
-      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+      <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar seguimiento jurídico?</AlertDialogTitle>
@@ -195,13 +211,8 @@ export default function SeguimientoJuridicoTable() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setDeleteId(null)}>
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700"
-              onClick={handleConfirmDelete}
-            >
+            <AlertDialogCancel onClick={() => setDeleteId(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={handleConfirmDelete}>
               Sí, eliminar
             </AlertDialogAction>
           </AlertDialogFooter>

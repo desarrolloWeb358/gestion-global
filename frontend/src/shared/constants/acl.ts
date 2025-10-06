@@ -1,6 +1,3 @@
-// src/shared/constants/acl.ts
-
-// --- ROLES (únicos y tipados) ---
 export const ROLES = [
   "admin",
   "ejecutivo",
@@ -19,7 +16,7 @@ export const ROL_PRIORITY: Rol[] = [
   "deudor",
 ];
 
-// Home por rol (ajusta más adelante si deudor tiene su propia pantalla)
+// Home por rol
 export const DEFAULT_HOME = "/dashboard/cliente" as const;
 
 export const ROLE_HOME: Record<Rol, string> = {
@@ -43,6 +40,7 @@ export const PERMS = {
   Deudores_Obs_Create: "deudores.observaciones.create",
 
   Valores_Read: "valores.read",
+  Valores_Obs_Create: "valores.observaciones.create", // 👈 crear observaciones en Valores
 
   // Seguimientos / Abonos
   Seguimientos_Read: "seguimientos.read",
@@ -52,7 +50,7 @@ export const PERMS = {
 } as const;
 export type Perm = (typeof PERMS)[keyof typeof PERMS];
 
-// Mapa rol → permisos (ajústalo a tu negocio)
+// Mapa rol → permisos
 export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
   admin: [
     PERMS.Usuarios_Read,
@@ -65,14 +63,14 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Deudores_Edit,
     PERMS.Deudores_Obs_Create,
 
-    PERMS.Valores_Read,
+    PERMS.Valores_Read,          // 👀 admin solo ve observaciones (NO crea)
 
-    // ✅ Admin puede todo en Seguimientos/Abonos
     PERMS.Seguimientos_Read,
     PERMS.Seguimientos_Edit,
     PERMS.Abonos_Read,
     PERMS.Abonos_Edit,
   ],
+
   ejecutivo: [
     PERMS.Clientes_Read,
     PERMS.Clientes_Edit,
@@ -81,37 +79,41 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Deudores_Edit,
     PERMS.Deudores_Obs_Create,
 
-    // ✅ Ejecutivo puede todo en Seguimientos/Abonos
     PERMS.Seguimientos_Read,
     PERMS.Seguimientos_Edit,
     PERMS.Abonos_Read,
     PERMS.Abonos_Edit,
+
+    PERMS.Valores_Read,          // 👀 solo ver en Valores
   ],
+
   cliente: [
     PERMS.Clientes_Read,
     PERMS.Deudores_Read,
-    PERMS.Deudores_Obs_Create, // si no debe crear obs, quítalo
+    PERMS.Deudores_Obs_Create,
 
-    // ✅ Cliente solo lectura en Seguimientos/Abonos
     PERMS.Seguimientos_Read,
     PERMS.Abonos_Read,
+
+    PERMS.Valores_Read,          // 👀 ver
+    PERMS.Valores_Obs_Create,    // ✍️ único rol que crea observaciones en Valores
   ],
+
   abogado: [
-    PERMS.Valores_Read,
+    PERMS.Valores_Read,          // 👀 solo ver en Valores
     PERMS.Clientes_Read,
     PERMS.Deudores_Read,
 
-    // 📎 Abogado: lectura (ajusta si necesita editar)
     PERMS.Seguimientos_Read,
     PERMS.Abonos_Read,
   ],
+
   deudor: [
-    PERMS.Deudores_Read, // amplía si aplica a tu portal de deudor
-    // p.ej. PERMS.Seguimientos_Read, PERMS.Abonos_Read si procede
+    PERMS.Deudores_Read,
   ],
 };
 
-// helper opcional (si no lo tienes ya)
+// helper opcional
 export type CanFn = (required: Perm | Perm[]) => boolean;
 export function crudMode(can: CanFn, p: { view: Perm; edit: Perm }) {
   if (can(p.edit)) return "rw" as const;
@@ -119,7 +121,6 @@ export function crudMode(can: CanFn, p: { view: Perm; edit: Perm }) {
   return "none" as const;
 }
 
-// (Opcional) runtime guard para limpiar roles que vengan de Firestore mal escritos
 export function sanitizeRoles(input: unknown): Rol[] {
   if (!Array.isArray(input)) return [];
   return input.filter((r): r is Rol => ROLES.includes(r as Rol));
