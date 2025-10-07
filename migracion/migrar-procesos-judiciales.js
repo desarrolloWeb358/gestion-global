@@ -21,6 +21,13 @@ const OUTPUT_MIGRADOS = "./ProcesosJudiciales_migrados.xlsx";
 const OUTPUT_NO_MIGRADOS = "./ProcesosJudiciales_no_migrados.xlsx";
 const DRY_RUN = false; // true = no escribe, solo simula
 
+// ⛳️ Arreglo de NITs a migrar (si está vacío, migra TODOS)
+// Acepta valores con o sin puntos/guiones/espacios; se normalizan.
+const NITS_FILTRAR = [
+  "900003261",
+  // "800123456",
+];
+
 // Mapeo ejecutivo -> UID (case-insensitive)
 const EJECUTIVOS_UID = {
   // claves en minúscula
@@ -37,6 +44,17 @@ const db = admin.firestore();
 /** Utils */
 const toStr = (v) => (v === undefined || v === null) ? "" : String(v).trim();
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+// Normaliza NIT: deja solo dígitos (quita puntos, guiones, espacios, prefijos tipo "NIT", etc.)
+const normalizeNit = (nitRaw) => {
+  if (!nitRaw) return "";
+  const s = String(nitRaw).toUpperCase();
+  // elimina palabras NIT/N.I.T, signos, espacios; conserva dígitos
+  return s.replace(/[^\d]/g, "");
+};
+
+// Set con NITs normalizados para filtrar rápido
+const NITS_FILTRAR_SET = new Set(NITS_FILTRAR.map((n) => normalizeNit(n)));
 
 // Busca el UID del cliente a partir del NIT en `usuarios`
 async function getClienteUidByNit(nit) {
@@ -74,10 +92,16 @@ function withMotivoNoMigrado(row, motivo) {
 function normalizeUbicacion(ubicacion) {
   if (!ubicacion) return ubicacion;
 
-  const trimmed = ubicacion.trim();
-  const firstChar = trimmed.charAt(0).toUpperCase();
+  // Trim inicial
+  let trimmed = ubicacion.trim();
+
+  // 1) Quitar una letra final si existe (con o sin espacio antes)
+  //    "2-11A"  -> "2-11"
+  //    "6-36 A" -> "6-36"
+  trimmed = trimmed.replace(/\s*[A-Za-z]$/, "");
 
   // Si empieza con letra de A-Z → la convierte a número y concatena lo que sigue
+  const firstChar = trimmed.charAt(0).toUpperCase(); 
   if (firstChar >= 'A' && firstChar <= 'Z') {
     const num = firstChar.charCodeAt(0) - 'A'.charCodeAt(0) + 1;
     return num + trimmed.slice(1);
@@ -139,6 +163,11 @@ async function main() {
   const rows = xlsx.utils.sheet_to_json(sheet, { defval: "" });
 
   console.log(`📄 ${rows.length} filas leídas de ${excelPath}`);
+  if (NITS_FILTRAR_SET.size > 0) {
+    console.log(`🎯 Filtrando por ${NITS_FILTRAR_SET.size} NIT(s) específicos...`);
+  } else {
+    console.log(`ℹ️  NITS_FILTRAR vacío → se migrarán TODOS los NIT del Excel.`);
+  }
 
   const okRows = [];      // para OUTPUT_MIGRADOS
   const badRows = [];     // para OUTPUT_NO_MIGRADOS
@@ -177,6 +206,14 @@ async function main() {
       raw["FECHA_ULTIMA_REVISION"]
     );
 
+    // 🎯 Filtro por NITs solicitados (si se configuró)
+    if (NITS_FILTRAR_SET.size > 0 && !NITS_FILTRAR_SET.has(nit)) {
+      //badRows.push(withMotivoNoMigrado(raw, `NIT '${nit}' omitido por filtro`));
+      //noMigrados++;
+      // No es un "error", es un "omitido"; si prefieres no contarlo como noMigrado, cambia esta parte.
+      continue;
+    }
+
     // Validaciones suaves (NO throw)
     if (!nit) {
       badRows.push(withMotivoNoMigrado(raw, "Falta NIT (columna 2)"));
@@ -190,6 +227,8 @@ async function main() {
       console.warn(`⚠️  [${i + 1}] Falta ubicacion para NIT=${nit}.`);
       continue;
     }
+
+    
 
     try {
       // 1) Mapear ejecutivo

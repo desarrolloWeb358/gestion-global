@@ -15,6 +15,12 @@ const OUTPUT_MIGRADOS = "./ProcesosJudicialesClientes_migrados.xlsx";
 const OUTPUT_NO_MIGRADOS = "./ProcesosJudicialesClientes_no_migrados.xlsx";
 const DRY_RUN = false; // true = simula sin escribir    
 
+// NEW: Lista opcional de NITs a migrar (dejar [] para migrar todo)
+const NITS_FILTRADOS = [
+  "900003261",
+  // "800123456"
+];
+
 // Firebase
 const serviceAccount = require("./serviceAccountKey.json");
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
@@ -23,6 +29,14 @@ const db = admin.firestore();
 // Utils
 const toStr = (v) => (v === undefined || v === null) ? "" : String(v).trim();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// NEW: normaliza un NIT a solo dígitos
+const digitsOnly = (s) => toStr(s).replace(/\D/g, "");
+
+// NEW: versión normalizada del filtro (solo dígitos)
+const NITS_FILTRADOS_NORM = (Array.isArray(NITS_FILTRADOS) ? NITS_FILTRADOS : [])
+  .map(digitsOnly)
+  .filter(Boolean);
 
 function parseNitFromTitleCell(valA1) {
   const s = toStr(valA1);
@@ -59,16 +73,16 @@ function withMotivo(row, motivo) {
   return { ...row, _motivo_no_migrado: motivo || "Motivo no especificado" };
 }
 
-// Convierte letra inicial a número (A=1, B=2, ... Z=26)
 function normalizeUbicacion(ubicacion) {
   if (!ubicacion) return ubicacion;
-  const s = String(ubicacion).trim();
-  const ch = s.charAt(0).toUpperCase();
-  if (ch >= 'A' && ch <= 'Z') {
-    const num = ch.charCodeAt(0) - 64; // 'A' => 65
-    return String(num) + s.slice(1);
+  let trimmed = ubicacion.trim();
+  trimmed = trimmed.replace(/\s*[A-Za-z]$/, "");
+  const firstChar = trimmed.charAt(0).toUpperCase(); 
+  if (firstChar >= 'A' && firstChar <= 'Z') {
+    const num = firstChar.charCodeAt(0) - 'A'.charCodeAt(0) + 1;
+    return num + trimmed.slice(1);
   }
-  return s;
+  return trimmed;
 }
 
 async function main() {
@@ -78,6 +92,10 @@ async function main() {
 
   let migrados = 0;
   let noMigrados = 0;
+  let saltadosPorFiltro = 0; // NEW
+
+  const usarFiltro = NITS_FILTRADOS_NORM.length > 0; // NEW
+
 
   for (const sheetName of wb.SheetNames) {
     const sh = wb.Sheets[sheetName];
@@ -88,6 +106,13 @@ async function main() {
     if (!nit) {
       badRows.push(withMotivo({ _sheet: sheetName }, "A1 no contiene NIT válido"));
       noMigrados++;
+      continue;
+    }
+
+    // NEW: aplicar filtro de NITs si corresponde
+    if (usarFiltro && !NITS_FILTRADOS_NORM.includes(digitsOnly(nit))) {
+      console.log(`⏭️  [${sheetName}] NIT=${nit} omitido por filtro`);
+      saltadosPorFiltro++;
       continue;
     }
 
@@ -187,6 +212,7 @@ async function main() {
   console.log("────────────────────────────────────────");
   console.log(`✅ Migrados:     ${migrados}`);
   console.log(`⚠️  No migrados:  ${noMigrados}`);
+  //console.log(`⏭️  Omitidos por filtro: ${saltadosPorFiltro}`); // NEW
   console.log(`📁 OK:           ${OUTPUT_MIGRADOS}`);
   console.log(`📁 Errores:      ${OUTPUT_NO_MIGRADOS}`);
   console.log("🚀 Proceso finalizado.");
