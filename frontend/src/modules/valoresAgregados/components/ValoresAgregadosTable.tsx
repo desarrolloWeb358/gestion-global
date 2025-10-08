@@ -106,23 +106,6 @@ export default function ValoresAgregadosTable() {
   const [obsTexto, setObsTexto] = useState("");
   const [obsItems, setObsItems] = useState<ObservacionCliente[]>([]);
 
-  async function openObsDialogFor(it: ValorAgregado) {
-    if (!clienteId) return;
-    setValorObsActual(it);
-    setObsTexto("");
-    setOpenObs(true);
-    setObsLoading(true);
-    try {
-      // ✅ service con scope + parentId
-      const data = await listarObservacionesCliente(clienteId, it.id!);
-      setObsItems(data);
-    } catch (e) {
-      console.error(e);
-      toast.error("No se pudieron cargar las observaciones");
-    } finally {
-      setObsLoading(false);
-    }
-  }
 
   async function onSaveObs() {
     if (!clienteId || !valorObsActual || !obsTexto.trim() || obsSaving) return;
@@ -156,6 +139,14 @@ export default function ValoresAgregadosTable() {
     fetchData();
   }, [clienteId, canView]);
 
+  const MAX_FILE_MB = 15;
+  function formatBytes(bytes: number) {
+    if (!bytes && bytes !== 0) return "";
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    const val = bytes / Math.pow(1024, i);
+    return `${val.toFixed(val > 10 ? 0 : 1)} ${sizes[i]}`;
+  }
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return items;
@@ -186,14 +177,23 @@ export default function ValoresAgregadosTable() {
     setArchivoFile(undefined);
     setOpen(true);
   };
-
+  const goDetalle = (it: ValorAgregado) => {
+    if (!clienteId || !it.id) return;
+    navigate(`/clientes/${clienteId}/valores-agregados/${it.id}`);
+  };
   const onSubmit = async () => {
     if (!clienteId || saving || !canEdit) return;
     setSaving(true);
     try {
       const fechaTs = fecha ? Timestamp.fromDate(fecha) : undefined;
+      // en onSubmit:
       if (editando) {
-        await actualizarValorAgregado(clienteId, editando.id!, { ...formData, fechaTs }, archivoFile);
+        await actualizarValorAgregado(
+          clienteId,
+          editando.id!,
+          { ...formData, fechaTs },
+          archivoFile // <-- importante
+        );
         toast.success("Valor agregado actualizado");
       } else {
         await crearValorAgregado(
@@ -204,12 +204,14 @@ export default function ValoresAgregadosTable() {
             descripcion: formData.descripcion ?? "",
             fechaTs,
           },
-          archivoFile
+          archivoFile // <-- importante
         );
         toast.success("Valor agregado creado");
       }
+
       setOpen(false);
       await fetchData();
+      setArchivoFile(undefined);
     } catch (e) {
       console.error(e);
       toast.error("Error guardando el valor agregado");
@@ -293,11 +295,86 @@ export default function ValoresAgregadosTable() {
                       value={formData.descripcion ?? ""}
                       onChange={(e) => setFormData((prev) => ({ ...prev, descripcion: e.target.value }))}
                       disabled={saving}
-                      placeholder="Anota contexto, acuerdos, radicados, notas internas…"
+                      placeholder="Anota
+                       contexto, acuerdos, radicados, notas internas…"
                       className="min-h-40 max-h-80 overflow-y-auto resize-y"
                       maxLength={1000}
                     />
                   </div>
+                  {/* Archivo adjunto */}
+                  <div className="space-y-2">
+                    <Label>Archivo adjunto</Label>
+
+                    {/* Info de archivo actual (cuando editas y hay uno existente) */}
+                    {editando && (editando.archivoNombre || editando.archivoPath || editando.archivoURL) && !archivoFile && (
+                      <div className="text-xs text-muted-foreground">
+                        {editando.archivoNombre
+                          ? <>Actual: <span className="font-medium">{editando.archivoNombre}</span></>
+                          : <>Hay un archivo adjunto guardado.</>}
+                        <br />
+                        <span>Si seleccionas un nuevo archivo, reemplazará al actual.</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        id="archivo-valor-agregado"
+                        type="file"
+                        className="hidden"
+                        // Ajusta tipos aceptados si quieres más/menos
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+                        disabled={saving}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (!f) {
+                            setArchivoFile(undefined);
+                            return;
+                          }
+                          const tooBig = f.size > MAX_FILE_MB * 1024 * 1024;
+                          if (tooBig) {
+                            toast.error(`El archivo supera ${MAX_FILE_MB} MB`);
+                            e.currentTarget.value = "";
+                            return;
+                          }
+                          setArchivoFile(f);
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={saving}
+                        onClick={() => document.getElementById("archivo-valor-agregado")?.click()}
+                      >
+                        Seleccionar archivo
+                      </Button>
+
+                      {archivoFile ? (
+                        <div className="text-sm">
+                          <span className="font-medium">{archivoFile.name}</span>{" "}
+                          <span className="text-muted-foreground">({formatBytes(archivoFile.size)})</span>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-muted-foreground">No hay archivo seleccionado</div>
+                      )}
+
+                      {archivoFile && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="text-red-600"
+                          onClick={() => setArchivoFile(undefined)}
+                          disabled={saving}
+                        >
+                          Quitar
+                        </Button>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-muted-foreground">
+                      Formatos permitidos: PDF, Word, Excel, JPG/PNG. Tamaño máximo: {MAX_FILE_MB} MB.
+                    </p>
+                  </div>
+
                   <div className="pt-6">
                     <Button type="submit" className="w-full" disabled={saving}>
                       {saving ? (
@@ -325,8 +402,7 @@ export default function ValoresAgregadosTable() {
                 <TableHead>Fecha</TableHead>
                 <TableHead>Tipo</TableHead>
                 <TableHead>Título</TableHead>
-                {/* ⬇️ Nueva columna */}
-                <TableHead className="w-[160px]">Obs. cliente</TableHead>
+                <TableHead className="w-[140px] text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
 
@@ -336,21 +412,15 @@ export default function ValoresAgregadosTable() {
                   <TableCell>{formatFechaCO(it.fecha as any) || "—"}</TableCell>
                   <TableCell>{TipoValorAgregadoLabels[it.tipo]}</TableCell>
                   <TableCell>{it.titulo}</TableCell>
-
-                  {/* ⬇️ Celda con botón para ver/crear observaciones */}
-                  <TableCell>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openObsDialogFor(it)}
-                      disabled={!puedeVerObsCliente}
-                    >
-                      {puedeCrearObsCliente ? "Ver / Agregar" : "Ver"}
+                  <TableCell className="text-right">
+                    <Button variant="outline" size="sm" onClick={() => goDetalle(it)}>
+                      Ver
                     </Button>
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
+
           </Table>
         )}
 
@@ -386,7 +456,6 @@ export default function ValoresAgregadosTable() {
                     <li key={o.id} className="p-3">
                       <p className="text-sm whitespace-pre-wrap">{o.texto}</p>
                       <div className="mt-1 text-xs text-muted-foreground">
-                        {o.fecha?.toLocaleString("es-CO")} {o.creadoPorNombre ? `• ${o.creadoPorNombre}` : ""}
                       </div>
                     </li>
                   ))}

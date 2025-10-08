@@ -4,6 +4,5 @@ export interface ObservacionCliente {
   texto: string;
   fecha: Date;        // para UI
   fechaTs?: any;      // Timestamp de Firestore (source of truth)
-  creadoPorUid?: string;
-  creadoPorNombre?: string;
+
 }

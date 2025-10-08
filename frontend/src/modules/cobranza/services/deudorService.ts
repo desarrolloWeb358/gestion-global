@@ -129,6 +129,7 @@ export async function getDeudorById(clienteId: string, deudorId: string): Promis
 export function mapDocToDeudor(id: string, data: DocumentData): Deudor {
   return {
     id,
+    uidUsuario: data.uidUsuario ?? "",
     ubicacion: data.ubicacion ?? "",
     nombre: data.nombre ?? "",
     cedula: data.cedula ?? "",
