@@ -33,8 +33,10 @@ export const NAV_ITEMS: NavItem[] = [
 
   // Cobranza
   { to: "/clientes-tables",   label: "Clientes", icon: IconUsers, roles: ["admin", "ejecutivo", "abogado"] },
+  
+  /*
   { to: "/consulta-personas", label: "Consulta personas", icon: IconSearch, roles: ["admin", "cliente"] },
 
-  // Utilidades (ejemplo)
   { to: "/probar-notificaciones", label: "Notificaciones", icon: IconBell, roles: ["admin"] },
+   */
 ];

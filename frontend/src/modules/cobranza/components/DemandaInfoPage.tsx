@@ -209,7 +209,7 @@ export function DemandaInfoPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Información de la demanda</h1>
         <div className="flex gap-2">
           <Button asChild variant="secondary">
-            <Link to={`/deudores/${clienteId}/${deudorId}`}>Volver</Link>
+            <Link to={`/clientes/${clienteId}/deudores/${deudorId}`}>Volver</Link>
           </Button>
           {puedeEditar && (
             <Button onClick={handleGuardar} disabled={saving}>

@@ -92,8 +92,7 @@ export const crearUsuario = async (
   // Si el usuario también es "cliente", crear el doc en "clientes"
   if (usuario.roles.includes("cliente" as any)) {
     const clienteData: Cliente = {
-      id: uid,                       // relaciona 1:1 con el usuario
-      nombre: usuario.nombre ?? "",
+      id: uid,                      // relaciona 1:1 con el usuario      
       direccion: "",
       banco: "",
       numeroCuenta: "",

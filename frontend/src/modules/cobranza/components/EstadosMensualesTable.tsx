@@ -74,8 +74,10 @@ export default function EstadosMensualesTable() {
         <h2 className="text-3xl font-bold">Estados Mensuales del Deudor</h2>
 
         {canEdit && (
+          
           <Dialog>
             <DialogTrigger asChild>
+              
               <Button>Agregar estado mensual</Button>
             </DialogTrigger>
             <DialogContent>

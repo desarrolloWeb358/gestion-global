@@ -180,7 +180,7 @@ export default function SeguimientoTable() {
 
     try {
       const uid = auth.currentUser?.uid ?? null;
-      await addObservacionCliente(clienteId, deudorId, texto, uid);
+      await addObservacionCliente(clienteId, deudorId, texto);
       setObsTexto("");
       setObsCliente(await getObservacionesCliente(clienteId, deudorId));
       toast.success("Observación agregada.");

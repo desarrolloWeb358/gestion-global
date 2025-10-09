@@ -17,6 +17,10 @@ import { Deudor } from "../models/deudores.model";
 import { Cuota, AcuerdoPago } from "../models/acuerdoPago.model";
 import { EstadoMensual } from "../models/estadoMensual.model";
 import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
+import type {
+  DocumentReference,
+  UpdateData,
+} from "firebase/firestore";
 
 // ------------ Tipos DTO para crear/actualizar Deudor ------------
 export type DeudorCreateInput = {
@@ -25,7 +29,7 @@ export type DeudorCreateInput = {
   ubicacion?: string;
   correos?: string[];
   telefonos?: string[];
-  porcentajeHonorarios?: number; 
+  porcentajeHonorarios?: number;
   tipificacion?: TipificacionDeuda;
 };
 export type DeudorPatch = Partial<DeudorCreateInput>;
@@ -174,16 +178,40 @@ export async function actualizarTipificacionDeudor(
   await updateDoc(doc(db, `clientes/${clienteId}/deudores/${deudorId}`), { tipificacion });
 }
 
+// Define el "shape" del documento en Firestore (lo que realmente guardas):
+type DeudorDoc = {
+  nombre: string;
+  cedula: string;
+  ubicacion: string;
+  correos: string[];
+  telefonos: string[];
+  porcentajeHonorarios: number;
+  tipificacion: TipificacionDeuda;
+  acuerdoActivoId?: string;
+  juzgadoId?: string;
+  numeroProceso?: string;
+  anoProceso?: string;
+};
+
+// Si tu DeudorCreateInput ya corresponde a estas claves, podrías usarla,
+// pero DeudorDoc te da claridad de lo que vive en Firestore.
+
 export async function actualizarDeudorDatos(
   clienteId: string,
   deudorId: string,
   patch: DeudorPatch
 ): Promise<void> {
-  const ref = doc(db, `clientes/${clienteId}/deudores/${deudorId}`);
-  const sanitized: Record<string, unknown> = { ...patch };
-  Object.keys(sanitized).forEach((k) => {
-    if ((sanitized as any)[k] === undefined) delete (sanitized as any)[k];
-  });
+  // Tipamos el ref al documento
+  const ref = doc(
+    db,
+    `clientes/${clienteId}/deudores/${deudorId}`
+  ) as DocumentReference<DeudorDoc>;
+
+  // Quitamos undefined, y lo tipamos a UpdateData<DeudorDoc>
+  const sanitized = Object.fromEntries(
+    Object.entries(patch).filter(([, v]) => v !== undefined)
+  ) as UpdateData<DeudorDoc>;
+
   await updateDoc(ref, sanitized);
 }
 
@@ -204,12 +232,12 @@ export function mapDocToAcuerdoPago(id: string, data: DocumentData): AcuerdoPago
     archivoUrl: data.archivoUrl,
     cuotas: Array.isArray(data.cuotas)
       ? data.cuotas.map((c: any) => ({
-          numero: c.numero,
-          fechaPago: c.fechaPago,
-          valor: Number(c.valor),
-          pagado: c.pagado,
-          observacion: c.observacion,
-        }))
+        numero: c.numero,
+        fechaPago: c.fechaPago,
+        valor: Number(c.valor),
+        pagado: c.pagado,
+        observacion: c.observacion,
+      }))
       : [],
   };
 }

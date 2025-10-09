@@ -100,6 +100,8 @@ export default function DeudorDetailPage() {
 
           {/* Acciones */}
           <div className="pt-4 flex gap-2">
+            
+            {/*  
             <Button
               variant="outline"
               onClick={() => navigate(`/deudores/${clienteId}/${deudor.id}/acuerdo`)}
@@ -107,6 +109,7 @@ export default function DeudorDetailPage() {
               <Eye className="w-4 h-4 mr-1" />
               Ver Acuerdo
             </Button>
+            */}
 
             <Button
               variant="outline"

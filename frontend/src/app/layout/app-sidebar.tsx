@@ -99,8 +99,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarContent>
 
       <SidebarFooter>
-        {/* puedes pasarle los datos del usuario real si tu NavUser los usa */}
+        {/*  
         <NavUser user={{ name: "Usuario", email: "", avatar: "" }} />
+        */}
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton onClick={onLogout}>
