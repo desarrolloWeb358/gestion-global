@@ -10,7 +10,7 @@
  *   - Ajusta LIMIT y DRY_RUN según necesites.
  *
  * Ejecutar:
- *   node revertir-migracion-clientes.js
+ *   node borrar-clientes.js
  */
 
 const admin = require('firebase-admin');
@@ -23,7 +23,7 @@ const path = require('path');
 const SERVICE_ACCOUNT_PATH = './serviceAccountKey.json';
 
 // Máximo de clientes a procesar (null o 0 = todos)
-const LIMIT = 6;
+const LIMIT = 5;
 
 // Simulación (no borra nada en Auth ni Firestore si true)
 const DRY_RUN = false;
