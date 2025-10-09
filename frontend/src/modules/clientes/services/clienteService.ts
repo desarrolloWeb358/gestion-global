@@ -38,8 +38,7 @@ export function crearClienteDesdeUsuario(usuario: UsuarioSistema): Omit<Cliente,
     ejecutivoPrejuridicoId: null,
     ejecutivoJuridicoId: null,
     activo: usuario.activo ?? true,
-    // referencia al usuario dueño (de aquí sale el nombre/telefono/email)
-    usuarioUid: usuario.uid ?? null,
+    
   };
 }
 
@@ -123,7 +122,7 @@ export type ClienteView = Cliente & {
 
 export function hidratarClientesConUsuarios(clientes: Cliente[], usuarios: UsuarioSistema[]): ClienteView[] {
   return clientes.map((c) => {
-    const uid = c.usuarioUid ?? c.id; // fallback si el doc clientes usa el mismo id que el uid
+    const uid = c.id; // fallback si el doc clientes usa el mismo id que el uid
     const usuario = usuarios.find((u) => u.uid === uid);
     return usuario
       ? {
