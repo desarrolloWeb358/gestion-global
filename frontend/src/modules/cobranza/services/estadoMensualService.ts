@@ -23,14 +23,18 @@ export function normalizeEstado(input: Partial<EstadoMensual>): Record<string, a
     mes: input.mes ?? null,
     deuda: input.deuda,
     recaudo: input.recaudo,
-    honorarios: input.honorarios,
+    porcentajeHonorarios: input.porcentajeHonorarios,
+    honorariosDeuda: input.honorariosDeuda,
+    honorariosRecaudo: input.honorariosRecaudo,
     recibo: input.recibo ?? "",
     observaciones: input.observaciones ?? "",
   };
 
   n.deuda = toNullableNumber(n.deuda);
   n.recaudo = toNullableNumber(n.recaudo);
-  n.honorarios = toNullableNumber(n.honorarios);
+  n.porcentajeHonorarios = toNullableNumber(n.porcentajeHonorarios);
+  n.honorariosDeuda = toNullableNumber(n.honorariosDeuda);
+  n.honorariosRecaudo = toNullableNumber(n.honorariosRecaudo);
 
   // mes "YYYY-MM"
   if (typeof n.mes === "string") n.mes = n.mes.slice(0, 7);
@@ -56,7 +60,7 @@ export async function obtenerEstadosMensuales(
   deudorId: string
 ): Promise<EstadoMensual[]> {
   const ref = collection(db, `clientes/${clienteId}/deudores/${deudorId}/estadosMensuales`);
-  const q = query(ref, orderBy("mes", "desc"));
+  const q = query(ref, orderBy("mes", "asc"));
   const snapshot = await getDocs(q);
   return snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as EstadoMensual));
 }

@@ -50,7 +50,7 @@ export default function EstadosMensualesInputMasivo() {
       const nuevasFilas: FilaEstadoBase[] = deudores.map((d) => ({
         deudorId: d.id!,
         nombre: d.nombre || "Sin nombre",
-        porcentajeHonorarios: d.porcentajeHonorarios || 0,
+        porcentajeHonorarios: 15,
         deuda: "",    // 👈 string vacío: controlled
         recaudo: "",  // 👈 string vacío: controlled
       }));
@@ -82,16 +82,22 @@ export default function EstadosMensualesInputMasivo() {
         filas.map(async (fila) => {
           const deudaNum = toNumOrUndefined(fila.deuda);
           const recaudoNum = toNumOrUndefined(fila.recaudo);
-          const honorariosNum =
+          const honorariosDeudaNum =
             deudaNum === undefined
               ? undefined
               : Number(((deudaNum || 0) * (fila.porcentajeHonorarios || 0)) / 100);
+
+              const honorariosRecaudoNum =
+            recaudoNum === undefined
+              ? undefined
+              : Number(((recaudoNum || 0) * (fila.porcentajeHonorarios || 0)) / 100);
 
             await upsertEstadoMensualPorMes(clienteId, fila.deudorId, {
               mes: mesGlobal,
               deuda: deudaNum,
               recaudo: recaudoNum,
-              honorarios: honorariosNum,
+              honorariosRecaudo: honorariosRecaudoNum,
+              honorariosDeuda: honorariosDeudaNum,
               recibo: "",          // ajusta si necesitas otro valor
               observaciones: "",   // ajusta si necesitas otro valor
             });

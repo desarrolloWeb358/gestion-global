@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import {
   obtenerEstadosMensuales,
-  upsertEstadoMensualPorMes,   // 👈 nuevo
+  upsertEstadoMensualPorMes,
 } from "../services/estadoMensualService";
 import { EstadoMensual } from "../models/estadoMensual.model";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/shared/ui/dialog";
@@ -19,15 +19,34 @@ export default function EstadosMensualesTable() {
   const [estadosMensuales, setEstadosMensuales] = useState<EstadoMensual[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // NEW: control del modal y del guardado
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+
   const hoyYYYYMM = new Date().toISOString().slice(0, 7);
+  const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
+  const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+
   const [nuevoEstadoMensual, setNuevoEstadoMensual] = useState<Partial<EstadoMensual>>({
     mes: hoyYYYYMM,
     deuda: undefined,
     recaudo: undefined,
-    honorarios: undefined,
+    porcentajeHonorarios: 15,
+    honorariosDeuda: undefined,
+    honorariosRecaudo: undefined,
     recibo: "",
     observaciones: "",
   });
+
+  useEffect(() => {
+    setNuevoEstadoMensual((s) => {
+      const pct = (s.porcentajeHonorarios ?? 15) / 100;
+      const hd = s.deuda != null ? round2((s.deuda as number) * pct) : undefined;
+      const hr = s.recaudo != null ? round2((s.recaudo as number) * pct) : undefined;
+      if (hd === s.honorariosDeuda && hr === s.honorariosRecaudo) return s;
+      return { ...s, honorariosDeuda: hd, honorariosRecaudo: hr };
+    });
+  }, [nuevoEstadoMensual.deuda, nuevoEstadoMensual.recaudo, nuevoEstadoMensual.porcentajeHonorarios]);
 
   const { can, roles = [], loading: aclLoading } = useAcl();
   const canView = can(PERMS.Abonos_Read);
@@ -41,26 +60,36 @@ export default function EstadosMensualesTable() {
   };
   useEffect(() => { cargarEstadosMensuales(); /* eslint-disable-next-line */ }, [clienteId, deudorId]);
 
+  const resetForm = () =>
+    setNuevoEstadoMensual({
+      mes: new Date().toISOString().slice(0, 7),
+      deuda: undefined,
+      recaudo: undefined,
+      porcentajeHonorarios: 15,
+      honorariosDeuda: undefined,
+      honorariosRecaudo: undefined,
+      recibo: "",
+      observaciones: "",
+    });
+
   const handleCrearEstadoMensual = async () => {
     if (!canEdit) return toast.error("Sin permiso para crear.");
     if (!clienteId || !deudorId || !nuevoEstadoMensual.mes) {
       return toast.error("Debe seleccionar el mes.");
     }
+
     try {
+      setSaving(true); // NEW: bloquea y muestra “Guardando…”
       await upsertEstadoMensualPorMes(clienteId, deudorId, nuevoEstadoMensual);
       toast.success("Estado mensual guardado");
-      setNuevoEstadoMensual({
-        mes: new Date().toISOString().slice(0, 7),
-        deuda: undefined,
-        recaudo: undefined,
-        honorarios: undefined,
-        recibo: "",
-        observaciones: "",
-      });
+      resetForm();
       await cargarEstadosMensuales();
+      setOpen(false); // NEW: cierra el modal
     } catch (e) {
       console.error(e);
       toast.error("Error al guardar el estado mensual");
+    } finally {
+      setSaving(false); // NEW: desbloquea
     }
   };
 
@@ -74,88 +103,114 @@ export default function EstadosMensualesTable() {
         <h2 className="text-3xl font-bold">Estados Mensuales del Deudor</h2>
 
         {canEdit && (
-          
-          <Dialog>
+          <Dialog open={open} onOpenChange={setOpen}> {/* NEW: controlado */}
             <DialogTrigger asChild>
-              
-              <Button>Agregar estado mensual</Button>
+              <Button onClick={() => setOpen(true)}>Agregar estado mensual</Button>
             </DialogTrigger>
+
             <DialogContent>
-              <DialogHeader><DialogTitle>Nuevo Estado Mensual</DialogTitle></DialogHeader>
+              <DialogHeader>
+                <DialogTitle>Nuevo Estado Mensual</DialogTitle>
+              </DialogHeader>
 
-              <div className="grid grid-cols-2 gap-4 py-4">
-                <div>
-                  <Label>Mes *</Label>
-                  <Input
-                    type="month"
-                    value={nuevoEstadoMensual.mes ?? ""}
-                    onChange={(e) =>
-                      setNuevoEstadoMensual((s) => ({ ...s, mes: e.target.value.slice(0, 7) }))
-                    }
-                  />
-                </div>
+              {/* NEW: contenedor relativo para overlay */}
+              <div className="relative">
+                {/* NEW: deshabilita todo el formulario durante guardado */}
+                <fieldset disabled={saving} className="grid grid-cols-2 gap-4 py-4">
+                  <div>
+                    <Label>Mes *</Label>
+                    <Input
+                      type="month"
+                      value={nuevoEstadoMensual.mes ?? ""}
+                      onChange={(e) =>
+                        setNuevoEstadoMensual((s) => ({ ...s, mes: e.target.value.slice(0, 7) }))
+                      }
+                    />
+                  </div>
 
-                <div>
-                  <Label>Deuda</Label>
-                  <Input
-                    type="number"
-                    value={nuevoEstadoMensual.deuda ?? ""}
-                    onChange={(e) =>
-                      setNuevoEstadoMensual((s) => ({
-                        ...s,
-                        deuda: e.target.value === "" ? undefined : Number(e.target.value),
-                      }))
-                    }
-                  />
-                </div>
+                  <div>
+                    <Label>Porcentaje Honorarios</Label>
+                    <Input
+                      type="number"
+                      min={10}
+                      max={20}
+                      step={1}
+                      value={nuevoEstadoMensual.porcentajeHonorarios ?? 15}
+                      onChange={(e) => {
+                        const raw = e.target.value === "" ? 15 : Number(e.target.value);
+                        const clamped = clamp(isNaN(raw) ? 15 : raw, 10, 20);
+                        setNuevoEstadoMensual((s) => ({ ...s, porcentajeHonorarios: clamped }));
+                      }}
+                    />
+                  </div>
 
-                <div>
-                  <Label>Recaudo</Label>
-                  <Input
-                    type="number"
-                    value={nuevoEstadoMensual.recaudo ?? ""}
-                    onChange={(e) =>
-                      setNuevoEstadoMensual((s) => ({
-                        ...s,
-                        recaudo: e.target.value === "" ? undefined : Number(e.target.value),
-                      }))
-                    }
-                  />
-                </div>
+                  <div>
+                    <Label>Deuda</Label>
+                    <Input
+                      type="number"
+                      value={nuevoEstadoMensual.deuda ?? ""}
+                      onChange={(e) =>
+                        setNuevoEstadoMensual((s) => ({
+                          ...s,
+                          deuda: e.target.value === "" ? undefined : Number(e.target.value),
+                        }))
+                      }
+                    />
+                  </div>
 
-                <div>
-                  <Label>Honorarios</Label>
-                  <Input
-                    type="number"
-                    value={nuevoEstadoMensual.honorarios ?? ""}
-                    onChange={(e) =>
-                      setNuevoEstadoMensual((s) => ({
-                        ...s,
-                        honorarios: e.target.value === "" ? undefined : Number(e.target.value),
-                      }))
-                    }
-                  />
-                </div>
+                  <div>
+                    <Label>Recaudo</Label>
+                    <Input
+                      type="number"
+                      value={nuevoEstadoMensual.recaudo ?? ""}
+                      onChange={(e) =>
+                        setNuevoEstadoMensual((s) => ({
+                          ...s,
+                          recaudo: e.target.value === "" ? undefined : Number(e.target.value),
+                        }))
+                      }
+                    />
+                  </div>
 
-                <div>
-                  <Label>Recibo</Label>
-                  <Input
-                    value={nuevoEstadoMensual.recibo ?? ""}
-                    onChange={(e) => setNuevoEstadoMensual((s) => ({ ...s, recibo: e.target.value }))}
-                  />
-                </div>
+                  <div>
+                    <Label>Honorarios Deuda</Label>
+                    <Input type="number" value={nuevoEstadoMensual.honorariosDeuda ?? ""} readOnly disabled />
+                  </div>
 
-                <div className="col-span-2">
-                  <Label>Observaciones</Label>
-                  <Input
-                    value={nuevoEstadoMensual.observaciones ?? ""}
-                    onChange={(e) => setNuevoEstadoMensual((s) => ({ ...s, observaciones: e.target.value }))}
-                  />
-                </div>
+                  <div>
+                    <Label>Honorarios Recaudo</Label>
+                    <Input type="number" value={nuevoEstadoMensual.honorariosRecaudo ?? ""} readOnly disabled />
+                  </div>
+
+                  <div>
+                    <Label>Recibo</Label>
+                    <Input
+                      value={nuevoEstadoMensual.recibo ?? ""}
+                      onChange={(e) => setNuevoEstadoMensual((s) => ({ ...s, recibo: e.target.value }))}
+                    />
+                  </div>
+
+                  <div className="col-span-2">
+                    <Label>Observaciones</Label>
+                    <Input
+                      value={nuevoEstadoMensual.observaciones ?? ""}
+                      onChange={(e) => setNuevoEstadoMensual((s) => ({ ...s, observaciones: e.target.value }))}
+                    />
+                  </div>
+                </fieldset>
+
+                {/* NEW: overlay de bloqueo */}
+                {saving && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-white/60 backdrop-blur-sm rounded-md">
+                    <span className="text-sm font-medium">Guardando…</span>
+                  </div>
+                )}
               </div>
 
               <DialogFooter>
-                <Button onClick={handleCrearEstadoMensual}>Guardar</Button>
+                <Button onClick={handleCrearEstadoMensual} disabled={saving}>
+                  {saving ? "Guardando…" : "Guardar"}
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -168,9 +223,9 @@ export default function EstadosMensualesTable() {
             <th className="text-left p-2">Mes</th>
             <th className="text-left p-2">Deuda</th>
             <th className="text-left p-2">Recaudo</th>
-            <th className="text-left p-2">Honorarios</th>
-            <th className="text-left p-2">Recibo</th>
-            <th className="text-left p-2">Observaciones</th>
+            <th className="text-left p-2">% Honorarios</th>
+            <th className="text-left p-2">Hon. Deuda</th>
+            <th className="text-left p-2">Hon. Recaudo</th>
           </tr>
         </thead>
         <tbody>
@@ -179,9 +234,9 @@ export default function EstadosMensualesTable() {
               <td className="p-2">{estado.mes}</td>
               <td className="p-2">${Number(estado.deuda ?? 0).toLocaleString()}</td>
               <td className="p-2">${Number(estado.recaudo ?? 0).toLocaleString()}</td>
-              <td className="p-2">${Number(estado.honorarios ?? 0).toLocaleString()}</td>
-              <td className="p-2">{estado.recibo || "-"}</td>
-              <td className="p-2">{estado.observaciones || "-"}</td>
+              <td className="p-2">{Number(estado.porcentajeHonorarios ?? 0).toLocaleString()}%</td>
+              <td className="p-2">${Number(estado.honorariosDeuda ?? 0).toLocaleString()}</td>
+              <td className="p-2">${Number(estado.honorariosRecaudo ?? 0).toLocaleString()}</td>
             </tr>
           ))}
         </tbody>
