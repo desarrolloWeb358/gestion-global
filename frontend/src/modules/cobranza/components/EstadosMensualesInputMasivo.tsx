@@ -12,7 +12,7 @@ import { doc, getDoc } from "firebase/firestore";
 interface FilaEstadoBase {
   deudorId: string;
   nombre: string;
-  porcentajeHonorarios: number;
+  porcentajeHonorarios: string;
   deuda: string;    // 👈 strings para inputs controlados
   recaudo: string;  // 👈 strings para inputs controlados
 }
@@ -27,6 +27,8 @@ export default function EstadosMensualesInputMasivo() {
   );
   const [filas, setFilas] = useState<FilaEstadoBase[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [saving, setSaving] = useState(false);
 
   // Cargar nombre del cliente
   useEffect(() => {
@@ -50,7 +52,7 @@ export default function EstadosMensualesInputMasivo() {
       const nuevasFilas: FilaEstadoBase[] = deudores.map((d) => ({
         deudorId: d.id!,
         nombre: d.nombre || "Sin nombre",
-        porcentajeHonorarios: 15,
+        porcentajeHonorarios: "15",
         deuda: "",    // 👈 string vacío: controlled
         recaudo: "",  // 👈 string vacío: controlled
       }));
@@ -69,6 +71,11 @@ export default function EstadosMensualesInputMasivo() {
 
   const toNumOrUndefined = (v: string) => (v === "" ? undefined : Number(v));
 
+  const filaCompleta = (f: FilaEstadoBase) =>
+    f.deuda.trim() !== "" && f.recaudo.trim() !== "";
+
+
+
   const guardarTodos = async () => {
     if (!clienteId) return;
     if (!mesGlobal) {
@@ -76,38 +83,46 @@ export default function EstadosMensualesInputMasivo() {
       return;
     }
 
+    const porGuardar = filas.filter((f) => f.deuda.trim() !== "" && f.recaudo.trim() !== "");
+    const omitidas = filas.length - porGuardar.length;
+
+    if (porGuardar.length === 0) {
+      toast.error("No hay filas completas (deuda y recaudo) para guardar.");
+      return;
+    }
+
     try {
-      // Upsert paralelo por cada deudor (id = "YYYY-MM" en la subcolección)
+      setSaving(true);                       // 🔒 bloquear y mostrar overlay
       await Promise.all(
-        filas.map(async (fila) => {
-          const deudaNum = toNumOrUndefined(fila.deuda);
-          const recaudoNum = toNumOrUndefined(fila.recaudo);
-          const honorariosDeudaNum =
-            deudaNum === undefined
-              ? undefined
-              : Number(((deudaNum || 0) * (fila.porcentajeHonorarios || 0)) / 100);
+        porGuardar.map(async (fila) => {
+          const deudaNum = Number(fila.deuda);
+          const recaudoNum = Number(fila.recaudo);
+          const porcentaje = Number(fila.porcentajeHonorarios || "15");
+          const honorariosDeuda = (deudaNum * porcentaje) / 100;
+          const honorariosRecaudo = (recaudoNum * porcentaje) / 100;
 
-              const honorariosRecaudoNum =
-            recaudoNum === undefined
-              ? undefined
-              : Number(((recaudoNum || 0) * (fila.porcentajeHonorarios || 0)) / 100);
-
-            await upsertEstadoMensualPorMes(clienteId, fila.deudorId, {
-              mes: mesGlobal,
-              deuda: deudaNum,
-              recaudo: recaudoNum,
-              honorariosRecaudo: honorariosRecaudoNum,
-              honorariosDeuda: honorariosDeudaNum,
-              recibo: "",          // ajusta si necesitas otro valor
-              observaciones: "",   // ajusta si necesitas otro valor
-            });
+          await upsertEstadoMensualPorMes(clienteId, fila.deudorId, {
+            mes: mesGlobal,
+            deuda: deudaNum,
+            recaudo: recaudoNum,
+            porcentajeHonorarios: porcentaje,
+            honorariosDeuda,
+            honorariosRecaudo,
+            recibo: "",
+            observaciones: "",
+          });
         })
       );
 
-      toast.success("Todos los estados fueron guardados/actualizados correctamente.");
+      toast.success(
+        `Se guardaron ${porGuardar.length} fila(s).` +
+        (omitidas > 0 ? ` Omitidas ${omitidas} sin deuda y/o recaudo.` : "")
+      );
     } catch (err: any) {
       console.error(err);
       toast.error(err?.message || "Error al guardar algunos estados.");
+    } finally {
+      setSaving(false);                      // 🔓 quitar bloqueo
     }
   };
 
@@ -143,47 +158,60 @@ export default function EstadosMensualesInputMasivo() {
         />
       </div>
 
-      {/* Tabla: Deudor | Deuda | Recaudo */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm border">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="p-2 text-left">Deudor</th>
-              <th className="p-2 text-right">Deuda</th>
-              <th className="p-2 text-right">Recaudo</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filas.map((fila, i) => (
-              <tr key={fila.deudorId} className="border-t">
-                <td className="p-2">{fila.nombre}</td>
-                <td className="p-2">
-                  <Input
-                    type="number"
-                    inputMode="decimal"
-                    value={fila.deuda ?? ""} 
-                    onChange={(e) => handleChange(i, "deuda", e.target.value)}
-                    className="text-right"
-                  />
-                </td>
-                <td className="p-2">
-                  <Input
-                    type="number"
-                    inputMode="decimal"
-                    value={fila.recaudo ?? ""}        
-                    onChange={(e) => handleChange(i, "recaudo", e.target.value)}
-                    className="text-right"
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
 
-      <Button onClick={guardarTodos} className="mt-4">
-        Guardar todos los estados
-      </Button>
+      <div className="relative">
+        {/* Deshabilita todo mientras guarda */}
+        <fieldset disabled={saving} className="space-y-4">
+          {/* Tabla: Deudor | Deuda | Recaudo */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="p-2 text-left">Deudor</th>
+                  <th className="p-2 text-right">Deuda</th>
+                  <th className="p-2 text-right">Recaudo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filas.map((fila, i) => (
+                  <tr key={fila.deudorId} className="border-t">
+                    <td className="p-2">{fila.nombre}</td>
+                    <td className="p-2">
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        value={fila.deuda ?? ""}
+                        onChange={(e) => handleChange(i, "deuda", e.target.value)}
+                        className="text-right"
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        value={fila.recaudo ?? ""}
+                        onChange={(e) => handleChange(i, "recaudo", e.target.value)}
+                        className="text-right"
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <Button onClick={guardarTodos} className="mt-4" disabled={saving}>
+            {saving ? "Guardando…" : "Guardar todos los estados"}
+          </Button>
+        </fieldset>
+
+        {/* Overlay centrado mientras saving */}
+        {saving && (
+          <div className="absolute inset-0 flex items-center justify-center bg-white/60 backdrop-blur-sm rounded-md">
+            <span className="text-sm font-medium">Guardando…</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
