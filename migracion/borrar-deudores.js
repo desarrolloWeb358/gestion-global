@@ -1,17 +1,8 @@
 /* eslint-disable no-console */
 /**
- * Borrado focalizado de "deudores" por cliente:
- * - Recibe un arreglo de UIDs de clientes en el código (CLIENT_UIDS).
- * - Para cada uid:
- *    - Intenta borrar recursivamente TODOS los docs en clientes/{uid}/deudores
- *      (cada doc + todas sus subcolecciones).
- * - NO toca Auth, NO borra usuarios/{uid}, NO borra clientes/{uid}.
- *
- * Requisitos:
- *   - Coloca serviceAccountKey.json junto a este archivo.
- *
+ * Borrado focalizado de "deudores" por cliente
  * Ejecutar:
- *   node borrar-deudores-por-clientes.js
+ *   node borrar-deudores.js
  */
 
 const admin = require('firebase-admin');
@@ -22,21 +13,20 @@ const path = require('path');
 // ===================
 const SERVICE_ACCOUNT_PATH = './serviceAccountKey.json';
 
-// UIDs de clientes a procesar (agrega uno o varios)
+// UIDs de clientes a procesar
 const CLIENT_UIDS = [
-'3zTvYdP34DT0BJWIQnCMD1xRN3l1',
-'HeHR9dGI2APFSaAVmmR1y2BsPAn2',
-'bs19MoVq6lZjmLyNbswQDuABI3x2',
-'j2ptFkqVbVbGRe6SVhrEzzSNNck2',
-'jejrRcVQ1WOG1wXOxcNgPSLzpZX2',
-'noR18twdH1S5WSpBJTu4A2vQNgZ2',
-
+  '3zTvYdP34DT0BJWIQnCMD1xRN3l1',
+  'HeHR9dGI2APFSaAVmmR1y2BsPAn2',
+  'bs19MoVq6lZjmLyNbswQDuABI3x2',
+  'j2ptFkqVbVbGRe6SVhrEzzSNNck2',
+  'jejrRcVQ1WOG1wXOxcNgPSLzpZX2',
+  'noR18twdH1S5WSpBJTu4A2vQNgZ2',
 ];
 
-// Nombre principal de la subcolección y fallback opcional
+// Nombre de la subcolección
 const MAIN_SUBCOLLECTION = 'deudores';
 
-// Límite de concurrencia para no saturar (borrado por cliente se hace secuencial)
+// Pausa entre clientes
 const SLEEP_MS_BETWEEN_CLIENTS = 50;
 
 // ===================
@@ -69,7 +59,7 @@ async function deleteEntireSubcollection(clientUid, subcollectionName) {
     const ref = doc.ref;
     await admin.firestore().recursiveDelete(ref);
     count += 1;
-    // (Opcional) puedes pausar un poco entre docs si tu dataset es grande:
+    // Si tu dataset es MUY grande, puedes pausar:
     // await sleep(10);
   }
 
@@ -77,23 +67,46 @@ async function deleteEntireSubcollection(clientUid, subcollectionName) {
 }
 
 /**
- * Intenta borrar primero MAIN_SUBCOLLECTION.
+ * Intenta borrar MAIN_SUBCOLLECTION y SIEMPRE retorna un resultado.
  */
 async function deleteClientDebtors(clientUid) {
   console.log(`\n--- Cliente: ${clientUid} ---`);
   try {
-    // 1) Intento principal
     const mainRes = await deleteEntireSubcollection(clientUid, MAIN_SUBCOLLECTION);
+
     if (mainRes.existed) {
       console.log(
         `✅ Borrados ${mainRes.deletedDocs} documento(s) en clientes/${clientUid}/${MAIN_SUBCOLLECTION} (con todas sus subcolecciones).`
       );
-      return { uid: clientUid, subcollection: MAIN_SUBCOLLECTION, deleted: mainRes.deletedDocs, fallbackUsed: false, error: '' };
-    }       
-    
+      return {
+        uid: clientUid,
+        subcollection: MAIN_SUBCOLLECTION,
+        deleted: mainRes.deletedDocs,
+        fallbackUsed: false,
+        error: '',
+      };
+    } else {
+      console.log(
+        `ℹ️ No hay documentos en clientes/${clientUid}/${MAIN_SUBCOLLECTION}.`
+      );
+      return {
+        uid: clientUid,
+        subcollection: '',
+        deleted: 0,
+        fallbackUsed: false,
+        error: '',
+      };
+    }
   } catch (e) {
-    console.error(`❌ Error procesando cliente ${clientUid}:`, e?.message || e);
-    return { uid: clientUid, subcollection: '', deleted: 0, fallbackUsed: false, error: e?.message || String(e) };
+    const msg = e?.message || String(e);
+    console.error(`❌ Error procesando cliente ${clientUid}:`, msg);
+    return {
+      uid: clientUid,
+      subcollection: '',
+      deleted: 0,
+      fallbackUsed: false,
+      error: msg,
+    };
   }
 }
 
@@ -111,7 +124,14 @@ async function deleteClientDebtors(clientUid) {
   const results = [];
   for (const uid of CLIENT_UIDS) {
     const res = await deleteClientDebtors(uid);
-    results.push(res);
+    // Siempre debería venir un objeto por el fix; aún así, blindamos:
+    results.push(res || {
+      uid,
+      subcollection: '',
+      deleted: 0,
+      fallbackUsed: false,
+      error: 'Resultado indefinido',
+    });
     await sleep(SLEEP_MS_BETWEEN_CLIENTS);
   }
 
