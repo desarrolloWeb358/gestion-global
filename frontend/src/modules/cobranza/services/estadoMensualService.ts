@@ -23,9 +23,10 @@ export function normalizeEstado(input: Partial<EstadoMensual>): Record<string, a
     mes: input.mes ?? null,
     deuda: input.deuda,
     recaudo: input.recaudo,
+    acuerdo: input.acuerdo,
     porcentajeHonorarios: input.porcentajeHonorarios,
     honorariosDeuda: input.honorariosDeuda,
-    honorariosRecaudo: input.honorariosRecaudo,
+    honorariosAcuerdo: input.honorariosAcuerdo,
     recibo: input.recibo ?? "",
     observaciones: input.observaciones ?? "",
   };

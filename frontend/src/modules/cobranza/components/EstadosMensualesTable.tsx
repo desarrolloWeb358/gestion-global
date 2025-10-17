@@ -19,9 +19,12 @@ export default function EstadosMensualesTable() {
   const [estadosMensuales, setEstadosMensuales] = useState<EstadoMensual[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // NEW: control del modal y del guardado
+  // Modal & guardado
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // NUEVO: modo edición
+  const [editing, setEditing] = useState(false);
 
   const hoyYYYYMM = new Date().toISOString().slice(0, 7);
   const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
@@ -31,22 +34,28 @@ export default function EstadosMensualesTable() {
     mes: hoyYYYYMM,
     deuda: undefined,
     recaudo: undefined,
+    acuerdo: undefined,
     porcentajeHonorarios: 15,
     honorariosDeuda: undefined,
-    honorariosRecaudo: undefined,
+    honorariosAcuerdo: undefined,
     recibo: "",
     observaciones: "",
   });
 
+  // Recalcular honorarios cuando cambien deuda/acuerdo/% (migrado a acuerdo)
   useEffect(() => {
     setNuevoEstadoMensual((s) => {
       const pct = (s.porcentajeHonorarios ?? 15) / 100;
-      const hd = s.deuda != null ? round2((s.deuda as number) * pct) : undefined;
-      const hr = s.recaudo != null ? round2((s.recaudo as number) * pct) : undefined;
-      if (hd === s.honorariosDeuda && hr === s.honorariosRecaudo) return s;
-      return { ...s, honorariosDeuda: hd, honorariosRecaudo: hr };
+      const hd = s.deuda   != null ? round2((s.deuda   as number) * pct) : undefined;
+      const ha = s.acuerdo != null ? round2((s.acuerdo as number) * pct) : undefined;
+      if (hd === s.honorariosDeuda && ha === s.honorariosAcuerdo) return s;
+      return { ...s, honorariosDeuda: hd, honorariosAcuerdo: ha };
     });
-  }, [nuevoEstadoMensual.deuda, nuevoEstadoMensual.recaudo, nuevoEstadoMensual.porcentajeHonorarios]);
+  }, [
+    nuevoEstadoMensual.deuda,
+    nuevoEstadoMensual.acuerdo,
+    nuevoEstadoMensual.porcentajeHonorarios
+  ]);
 
   const { can, roles = [], loading: aclLoading } = useAcl();
   const canView = can(PERMS.Abonos_Read);
@@ -60,36 +69,59 @@ export default function EstadosMensualesTable() {
   };
   useEffect(() => { cargarEstadosMensuales(); /* eslint-disable-next-line */ }, [clienteId, deudorId]);
 
-  const resetForm = () =>
+  const resetForm = () => {
     setNuevoEstadoMensual({
       mes: new Date().toISOString().slice(0, 7),
       deuda: undefined,
       recaudo: undefined,
+      acuerdo: undefined,
       porcentajeHonorarios: 15,
       honorariosDeuda: undefined,
-      honorariosRecaudo: undefined,
+      honorariosAcuerdo: undefined,
       recibo: "",
       observaciones: "",
     });
+    setEditing(false);
+  };
 
-  const handleCrearEstadoMensual = async () => {
-    if (!canEdit) return toast.error("Sin permiso para crear.");
+  // NUEVO: abrir modal en modo edición con datos precargados
+  const openEdit = (estado: EstadoMensual) => {
+    if (!canEdit) return;
+    setNuevoEstadoMensual({
+      // si tu modelo trae id y tu servicio lo utiliza, lo pasamos; si no, no afecta
+      id: estado.id,
+      mes: estado.mes, // clave lógica; lo dejamos bloqueado en edición
+      deuda: estado.deuda ?? undefined,
+      recaudo: estado.recaudo ?? undefined,
+      acuerdo: estado.acuerdo ?? undefined,
+      porcentajeHonorarios: estado.porcentajeHonorarios ?? 15,
+      honorariosDeuda: estado.honorariosDeuda ?? undefined,
+      honorariosAcuerdo: estado.honorariosAcuerdo ?? undefined,
+      recibo: estado.recibo ?? "",
+      observaciones: estado.observaciones ?? "",
+    });
+    setEditing(true);
+    setOpen(true);
+  };
+
+  const handleCrearOEditar = async () => {
+    if (!canEdit) return toast.error("Sin permiso para guardar.");
     if (!clienteId || !deudorId || !nuevoEstadoMensual.mes) {
       return toast.error("Debe seleccionar el mes.");
     }
-
     try {
-      setSaving(true); // NEW: bloquea y muestra “Guardando…”
+      setSaving(true);
+      // upsert por mes (y/o id si tu servicio lo contempla)
       await upsertEstadoMensualPorMes(clienteId, deudorId, nuevoEstadoMensual);
-      toast.success("Estado mensual guardado");
-      resetForm();
+      toast.success(editing ? "Estado mensual actualizado" : "Estado mensual guardado");
       await cargarEstadosMensuales();
-      setOpen(false); // NEW: cierra el modal
+      setOpen(false);
+      resetForm();
     } catch (e) {
       console.error(e);
       toast.error("Error al guardar el estado mensual");
     } finally {
-      setSaving(false); // NEW: desbloquea
+      setSaving(false);
     }
   };
 
@@ -103,21 +135,21 @@ export default function EstadosMensualesTable() {
         <h2 className="text-3xl font-bold">Estados Mensuales del Deudor</h2>
 
         {canEdit && (
-          <Dialog open={open} onOpenChange={setOpen}> {/* NEW: controlado */}
+          <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
             <DialogTrigger asChild>
-              <Button onClick={() => setOpen(true)}>Agregar estado mensual</Button>
+              <Button onClick={() => { resetForm(); setOpen(true); }}>Agregar estado mensual</Button>
             </DialogTrigger>
 
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Nuevo Estado Mensual</DialogTitle>
+                <DialogTitle>
+                  {editing ? `Editar Estado (${nuevoEstadoMensual.mes})` : "Nuevo Estado Mensual"}
+                </DialogTitle>
               </DialogHeader>
 
-              {/* NEW: contenedor relativo para overlay */}
               <div className="relative">
-                {/* NEW: deshabilita todo el formulario durante guardado */}
                 <fieldset disabled={saving} className="grid grid-cols-2 gap-4 py-4">
-                  <div>
+                  <div className="col-span-2">
                     <Label>Mes *</Label>
                     <Input
                       type="month"
@@ -125,6 +157,7 @@ export default function EstadosMensualesTable() {
                       onChange={(e) =>
                         setNuevoEstadoMensual((s) => ({ ...s, mes: e.target.value.slice(0, 7) }))
                       }
+                      disabled={editing} // bloqueado en edición
                     />
                   </div>
 
@@ -173,13 +206,27 @@ export default function EstadosMensualesTable() {
                   </div>
 
                   <div>
+                    <Label>Acuerdo</Label>
+                    <Input
+                      type="number"
+                      value={nuevoEstadoMensual.acuerdo ?? ""}
+                      onChange={(e) =>
+                        setNuevoEstadoMensual((s) => ({
+                          ...s,
+                          acuerdo: e.target.value === "" ? undefined : Number(e.target.value),
+                        }))
+                      }
+                    />
+                  </div>
+
+                  <div>
                     <Label>Honorarios Deuda</Label>
                     <Input type="number" value={nuevoEstadoMensual.honorariosDeuda ?? ""} readOnly disabled />
                   </div>
 
                   <div>
-                    <Label>Honorarios Recaudo</Label>
-                    <Input type="number" value={nuevoEstadoMensual.honorariosRecaudo ?? ""} readOnly disabled />
+                    <Label>Honorarios Acuerdo</Label>
+                    <Input type="number" value={nuevoEstadoMensual.honorariosAcuerdo ?? ""} readOnly disabled />
                   </div>
 
                   <div>
@@ -199,7 +246,6 @@ export default function EstadosMensualesTable() {
                   </div>
                 </fieldset>
 
-                {/* NEW: overlay de bloqueo */}
                 {saving && (
                   <div className="absolute inset-0 flex items-center justify-center bg-white/60 backdrop-blur-sm rounded-md">
                     <span className="text-sm font-medium">Guardando…</span>
@@ -208,8 +254,8 @@ export default function EstadosMensualesTable() {
               </div>
 
               <DialogFooter>
-                <Button onClick={handleCrearEstadoMensual} disabled={saving}>
-                  {saving ? "Guardando…" : "Guardar"}
+                <Button onClick={handleCrearOEditar} disabled={saving}>
+                  {saving ? "Guardando…" : editing ? "Guardar cambios" : "Guardar"}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -223,9 +269,11 @@ export default function EstadosMensualesTable() {
             <th className="text-left p-2">Mes</th>
             <th className="text-left p-2">Deuda</th>
             <th className="text-left p-2">Recaudo</th>
+            <th className="text-left p-2">Acuerdo</th>
             <th className="text-left p-2">% Honorarios</th>
             <th className="text-left p-2">Hon. Deuda</th>
-            <th className="text-left p-2">Hon. Recaudo</th>
+            <th className="text-left p-2">Hon. Acuerdo</th>
+            {canEdit && <th className="text-left p-2">Acciones</th>}
           </tr>
         </thead>
         <tbody>
@@ -234,9 +282,22 @@ export default function EstadosMensualesTable() {
               <td className="p-2">{estado.mes}</td>
               <td className="p-2">${Number(estado.deuda ?? 0).toLocaleString()}</td>
               <td className="p-2">${Number(estado.recaudo ?? 0).toLocaleString()}</td>
+              <td className="p-2">${Number(estado.acuerdo ?? 0).toLocaleString()}</td>
               <td className="p-2">{Number(estado.porcentajeHonorarios ?? 0).toLocaleString()}%</td>
               <td className="p-2">${Number(estado.honorariosDeuda ?? 0).toLocaleString()}</td>
-              <td className="p-2">${Number(estado.honorariosRecaudo ?? 0).toLocaleString()}</td>
+              <td className="p-2">${Number(estado.honorariosAcuerdo ?? 0).toLocaleString()}</td>
+
+              {canEdit && (
+                <td className="p-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => openEdit(estado)}
+                  >
+                    Editar
+                  </Button>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

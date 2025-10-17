@@ -4,9 +4,10 @@ export interface EstadoMensual {
   
   deuda: number;    
   recaudo?: number;
+  acuerdo?: number;
   porcentajeHonorarios?: number; 
   honorariosDeuda?: number;
-  honorariosRecaudo?: number;
+  honorariosAcuerdo?: number;
 
   recibo?: string | null;
   observaciones?: string | null;

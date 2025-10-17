@@ -514,7 +514,7 @@ async function main() {
 
                 const porcentajeHonorarios = porcentajeHonorariosEstados; // 20% si Demanda; 15% caso contrario
                 const honorariosDeuda = Math.round(((Number(deudaTotal) || 0) * porcentajeHonorarios) / 100);
-                const honorariosRecaudo = Math.round(((Number(sumaRecaudo) || 0) * porcentajeHonorarios) / 100);
+                const honorariosRecaudo = 0;
 
                 const estadoDoc = {
                   mes,                                   // "YYYY-MM"

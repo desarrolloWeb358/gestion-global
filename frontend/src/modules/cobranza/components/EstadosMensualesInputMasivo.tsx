@@ -15,6 +15,7 @@ interface FilaEstadoBase {
   porcentajeHonorarios: string;
   deuda: string;    // 👈 strings para inputs controlados
   recaudo: string;  // 👈 strings para inputs controlados
+  acuerdo?: string;
 }
 
 export default function EstadosMensualesInputMasivo() {
@@ -55,6 +56,7 @@ export default function EstadosMensualesInputMasivo() {
         porcentajeHonorarios: "15",
         deuda: "",    // 👈 string vacío: controlled
         recaudo: "",  // 👈 string vacío: controlled
+        acuerdo: "",
       }));
       setFilas(nuevasFilas);
       setLoading(false);
@@ -97,17 +99,19 @@ export default function EstadosMensualesInputMasivo() {
         porGuardar.map(async (fila) => {
           const deudaNum = Number(fila.deuda);
           const recaudoNum = Number(fila.recaudo);
+          const acuerdoNum = Number(fila.acuerdo);
           const porcentaje = Number(fila.porcentajeHonorarios || "15");
           const honorariosDeuda = (deudaNum * porcentaje) / 100;
-          const honorariosRecaudo = (recaudoNum * porcentaje) / 100;
+          const honorariosAcuerdo = (acuerdoNum * porcentaje) / 100;
 
           await upsertEstadoMensualPorMes(clienteId, fila.deudorId, {
             mes: mesGlobal,
             deuda: deudaNum,
             recaudo: recaudoNum,
+            acuerdo: acuerdoNum,
             porcentajeHonorarios: porcentaje,
             honorariosDeuda,
-            honorariosRecaudo,
+            honorariosAcuerdo,
             recibo: "",
             observaciones: "",
           });
@@ -170,6 +174,7 @@ export default function EstadosMensualesInputMasivo() {
                   <th className="p-2 text-left">Deudor</th>
                   <th className="p-2 text-right">Deuda</th>
                   <th className="p-2 text-right">Recaudo</th>
+                  <th className="p-2 text-right">Acuerdo</th>
                 </tr>
               </thead>
               <tbody>
@@ -191,6 +196,15 @@ export default function EstadosMensualesInputMasivo() {
                         inputMode="decimal"
                         value={fila.recaudo ?? ""}
                         onChange={(e) => handleChange(i, "recaudo", e.target.value)}
+                        className="text-right"
+                      />
+                    </td>
+                    <td className="p-2">
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        value={fila.acuerdo ?? ""}
+                        onChange={(e) => handleChange(i, "acuerdo", e.target.value)}
                         className="text-right"
                       />
                     </td>
