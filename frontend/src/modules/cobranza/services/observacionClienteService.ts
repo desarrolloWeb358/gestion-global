@@ -25,8 +25,6 @@ type ObservacionClienteDoc = {
   texto: string;
   creadoTs: Timestamp | FieldValue;
   fechaTs?: Timestamp | FieldValue; // alias opcional para compatibilidad
-  creadoPorUid?: string | null;
-  creadoPorNombre?: string | null;
 };
 
 type Scope = "deudor" | "valor";
@@ -70,8 +68,6 @@ export async function getObservacionesClienteGeneric(
       // campos que tu UI podría leer:
       creadoTs: finalTs,
       fechaTs: finalTs,
-      creadoPorUid: (data.creadoPorUid as string | null) ?? null,
-      creadoPorNombre: (data.creadoPorNombre as string | null) ?? null,
       // Atajos útiles (por si tu modelo lo tiene):
       fecha: finalTs ? finalTs.toDate() : undefined,
     } as ObservacionCliente;
@@ -86,14 +82,11 @@ export async function addObservacionClienteGeneric(
   parentId: string,
   texto: string,
   scope: Scope,
-  meta?: { creadoPorUid?: string | null; creadoPorNombre?: string | null }
 ): Promise<string> {
   const ref = await addDoc(colRef(clienteId, parentId, scope), {
     texto,
     creadoTs: serverTimestamp(),
     fechaTs: serverTimestamp(), // alias para compatibilidad con UIs antiguas
-    creadoPorUid: meta?.creadoPorUid ?? null,
-    creadoPorNombre: meta?.creadoPorNombre ?? null,
   });
   return ref.id;
 }
@@ -140,9 +133,8 @@ export async function addObservacionCliente(
   clienteId: string,
   deudorId: string,
   texto: string,
-  meta?: { creadoPorUid?: string | null; creadoPorNombre?: string | null }
 ): Promise<string> {
-  return addObservacionClienteGeneric(clienteId, deudorId, texto, "deudor", meta);
+  return addObservacionClienteGeneric(clienteId, deudorId, texto, "deudor");
 }
 
 /* ===========================================================
@@ -160,9 +152,8 @@ export async function addObservacionClienteValor(
   clienteId: string,
   valorId: string,
   texto: string,
-  meta?: { creadoPorUid?: string | null; creadoPorNombre?: string | null }
 ): Promise<string> {
-  return addObservacionClienteGeneric(clienteId, valorId, texto, "valor", meta);
+  return addObservacionClienteGeneric(clienteId, valorId, texto, "valor");
 }
 
 /* ===========================================================
