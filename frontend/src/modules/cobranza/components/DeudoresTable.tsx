@@ -23,6 +23,9 @@ import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { PERMS } from "@/shared/constants/acl";
 
+// Sentinela para Select ("Todos")
+const ALL = "__ALL__";
+
 export default function DeudoresTable() {
   const navigate = useNavigate();
   const { clienteId } = useParams<{ clienteId: string }>();
@@ -49,8 +52,9 @@ export default function DeudoresTable() {
   const formatCOP = (n: number) =>
     new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(n || 0);
 
-  // Búsqueda y paginación
+  // Filtros y paginación
   const [search, setSearch] = useState("");
+  const [tipFilter, setTipFilter] = useState<string>(ALL); // ✅ filtro tipificación
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 300;
 
@@ -75,7 +79,20 @@ export default function DeudoresTable() {
   }, [clienteId, aclLoading, canView]);
 
   // Filtrado y paginación
-  const filteredDeudores = deudores.filter((d) => (d.ubicacion ?? "").toLowerCase().includes(search.toLowerCase()));
+  const normalizedQ = search.trim().toLowerCase();
+  const filteredDeudores = deudores.filter((d) => {
+    // 🔎 Texto: nombre/cedula/ubicacion
+    if (normalizedQ) {
+      const hay = `${d.nombre ?? ""} ${d.cedula ?? ""} ${d.ubicacion ?? ""}`.toLowerCase();
+      if (!hay.includes(normalizedQ)) return false;
+    }
+    // 🎯 Tipificación
+    if (tipFilter !== ALL) {
+      if ((d.tipificacion as string) !== tipFilter) return false;
+    }
+    return true;
+  });
+
   const totalPages = Math.ceil(filteredDeudores.length / itemsPerPage) || 1;
   const paginatedDeudores = filteredDeudores.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
@@ -181,130 +198,169 @@ export default function DeudoresTable() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center gap-2">
-        <h2 className="text-xl font-semibold">Deudores</h2>
-        <Input
-          type="text"
-          placeholder="Buscar"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setCurrentPage(1);
-          }}
-          className="max-w-md"
-        />
+      {/* Encabezado + Filtros */}
+      <div className="flex flex-col gap-3">
+        <div className="flex justify-between items-center gap-2">
+          <h2 className="text-xl font-semibold">Deudores</h2>
 
-        <Dialog open={open} onOpenChange={setOpen}>
-          {/* 🔐 3) Botón “Crear deudor” solo si puede editar */}
-          {canEdit && (
-            <DialogTrigger asChild>
-              <Button onClick={iniciarCrear}>Crear deudor</Button>
-            </DialogTrigger>
-          )}
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              {/* 🔐 Título opcional dinámico según modo */}
-              <DialogTitle>{deudorEditando ? (readOnly ? "Ver deudor" : "Editar deudor") : (readOnly ? "Ver deudor" : "Crear deudor")}</DialogTitle>
-            </DialogHeader>
+          <Dialog open={open} onOpenChange={setOpen}>
+            {/* 🔐 3) Botón “Crear deudor” solo si puede editar */}
+            {canEdit && (
+              <DialogTrigger asChild>
+                <Button onClick={iniciarCrear}>Crear deudor</Button>
+              </DialogTrigger>
+            )}
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                {/* 🔐 Título opcional dinámico según modo */}
+                <DialogTitle>{deudorEditando ? (readOnly ? "Ver deudor" : "Editar deudor") : (readOnly ? "Ver deudor" : "Crear deudor")}</DialogTitle>
+              </DialogHeader>
 
-            <form
-              className="space-y-4"
-              onSubmit={(e) => {
-                e.preventDefault();
-                // 🔐 4) En RO no se envía
-                if (!readOnly) guardarDeudor();
-              }}
-            >
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t mt-4">
-                <div>
-                  <Label htmlFor="nombre">Nombre</Label>
-                  <Input name="nombre" value={formData.nombre ?? ""} onChange={handleChange} readOnly={readOnly} />
+              <form
+                className="space-y-4"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  // 🔐 4) En RO no se envía
+                  if (!readOnly) guardarDeudor();
+                }}
+              >
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t mt-4">
+                  <div>
+                    <Label htmlFor="nombre">Nombre</Label>
+                    <Input name="nombre" value={formData.nombre ?? ""} onChange={handleChange} readOnly={readOnly} />
+                  </div>
+                  <div>
+                    <Label htmlFor="cedula">Cédula</Label>
+                    <Input name="cedula" value={formData.cedula ?? ""} onChange={handleChange} readOnly={readOnly} />
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="cedula">Cédula</Label>
-                  <Input name="cedula" value={formData.cedula ?? ""} onChange={handleChange} readOnly={readOnly} />
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="ubicacion">Ubicación</Label>
+                    <Input name="ubicacion" value={formData.ubicacion ?? ""} onChange={handleChange} readOnly={readOnly} />
+                  </div>
+                  <div>
+                    <Label>Tipificación</Label>
+                    <Select
+                      // 🔐 Select deshabilitado en RO
+                      disabled={readOnly}
+                      value={(formData.tipificacion as TipificacionDeuda) ?? TipificacionDeuda.GESTIONANDO}
+                      onValueChange={onChangeTipificacion}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.values(TipificacionDeuda).map((t) => (
+                          <SelectItem key={t} value={t}>
+                            {t}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="ubicacion">Ubicación</Label>
-                  <Input name="ubicacion" value={formData.ubicacion ?? ""} onChange={handleChange} readOnly={readOnly} />
-                </div>
-                <div>
-                  <Label>Tipificación</Label>
-                  <Select
-                    // 🔐 Select deshabilitado en RO
-                    disabled={readOnly}
-                    value={(formData.tipificacion as TipificacionDeuda) ?? TipificacionDeuda.GESTIONANDO}
-                    onValueChange={onChangeTipificacion}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecciona" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.values(TipificacionDeuda).map((t) => (
-                        <SelectItem key={t} value={t}>
-                          {t}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="pt-4 space-y-2">
-                <Label>Correos</Label>
-                <Input
-                  placeholder="correo1@example.com, correo2@example.com"
-                  value={formData.correos?.join(", ") ?? ""}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      correos: e.target.value.split(",").map((c) => c.trim()).filter(Boolean),
-                    }))
-                  }
-                  readOnly={readOnly}
-                />
-
-                <Label>Teléfonos</Label>
-                <Input
-                  placeholder="3001234567, 3012345678"
-                  value={formData.telefonos?.join(", ") ?? ""}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      telefonos: e.target.value.split(",").map((t) => t.trim()).filter(Boolean),
-                    }))
-                  }
-                  readOnly={readOnly}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t mt-4">
-                <div>
-                  <Label htmlFor="porcentajeHonorarios">Porcentaje de honorarios</Label>
+                <div className="pt-4 space-y-2">
+                  <Label>Correos</Label>
                   <Input
-                    type="number"
-                    name="porcentajeHonorarios"
-                    value={formData.porcentajeHonorarios ?? 15}
-                    onChange={handleChange}
+                    placeholder="correo1@example.com, correo2@example.com"
+                    value={formData.correos?.join(", ") ?? ""}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        correos: e.target.value.split(",").map((c) => c.trim()).filter(Boolean),
+                      }))
+                    }
+                    readOnly={readOnly}
+                  />
+
+                  <Label>Teléfonos</Label>
+                  <Input
+                    placeholder="3001234567, 3012345678"
+                    value={formData.telefonos?.join(", ") ?? ""}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        telefonos: e.target.value.split(",").map((t) => t.trim()).filter(Boolean),
+                      }))
+                    }
                     readOnly={readOnly}
                   />
                 </div>
-              </div>
 
-              {/* 🔐 5) Ocultar botón Guardar en RO */}
-              {!readOnly && (
-                <div className="pt-6">
-                  <Button type="submit" className="w-full">
-                    Guardar
-                  </Button>
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t mt-4">
+                  <div>
+                    <Label htmlFor="porcentajeHonorarios">Porcentaje de honorarios</Label>
+                    <Input
+                      type="number"
+                      name="porcentajeHonorarios"
+                      value={formData.porcentajeHonorarios ?? 15}
+                      onChange={handleChange}
+                      readOnly={readOnly}
+                    />
+                  </div>
                 </div>
-              )}
-            </form>
-          </DialogContent>
-        </Dialog>
+
+                {/* 🔐 5) Ocultar botón Guardar en RO */}
+                {!readOnly && (
+                  <div className="pt-6">
+                    <Button type="submit" className="w-full">
+                      Guardar
+                    </Button>
+                  </div>
+                )}
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        {/* 🔎 Filtros de tabla */}
+        <div className="grid gap-3 md:grid-cols-4">
+          <div className="md:col-span-2">
+            <Label>Búsqueda</Label>
+            <Input
+              type="text"
+              placeholder="Buscar por nombre, cédula o ubicación…"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setCurrentPage(1);
+              }}
+            />
+          </div>
+
+          <div>
+            <Label>Tipificación</Label>
+            <Select value={tipFilter} onValueChange={(v) => { setTipFilter(v); setCurrentPage(1); }}>
+              <SelectTrigger>
+                <SelectValue placeholder="Todos" />
+              </SelectTrigger>
+              <SelectContent>
+                {/* ✅ NO usar value="" */}
+                <SelectItem value={ALL}>Todos</SelectItem>
+                {Object.values(TipificacionDeuda).map((t) => (
+                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-end">
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => {
+                setSearch("");
+                setTipFilter(ALL);
+                setCurrentPage(1);
+              }}
+            >
+              Limpiar filtros
+            </Button>
+          </div>
+        </div>
       </div>
 
       {loading ? (
