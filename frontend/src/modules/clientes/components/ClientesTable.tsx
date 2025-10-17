@@ -41,6 +41,7 @@ import {
 } from "@/modules/clientes/services/clienteService";
 import { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 import { obtenerUsuarios } from "@/modules/usuarios/services/usuarioService";
+import { Timestamp } from "firebase/firestore";
 
 export default function ClientesCrud() {
   const navigate = useNavigate();
@@ -50,18 +51,20 @@ export default function ClientesCrud() {
 
   // Todos los usuarios (para resolver nombre/teléfono/email del cliente vía usuarioUid)
   const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([]);
-  // Solo ejecutivos para los selects de ejecutivos
+  // Solo ejecutivos para los selects del diálogo (se mantiene tu edición)
   const [ejecutivos, setEjecutivos] = useState<UsuarioSistema[]>([]);
 
   const [clienteEditando, setClienteEditando] = useState<Cliente | null>(null);
   const [mostrarDialogo, setMostrarDialogo] = useState(false);
 
-  // Selects controlados del formulario
+  // Selects controlados del formulario (del diálogo)
   const [tipoCuentaSel, setTipoCuentaSel] = useState<"" | "ahorros" | "corriente" | "convenio">("");
   const [ejecutivoPreSel, setEjecutivoPreSel] = useState<string>("");
   const [ejecutivoJurSel, setEjecutivoJurSel] = useState<string>("");
- 
   const [activoSel, setActivoSel] = useState<boolean>(true);
+
+  // 🔎 SOLO filtro por nombre
+  const [q, setQ] = useState("");
 
   // Mapa rápido de usuarios por uid
   const usuariosMap = useMemo(() => {
@@ -72,26 +75,23 @@ export default function ClientesCrud() {
 
   // Resolver de nombre robusto: usuarioUid → nombre | displayName | email
   function resolverNombreCliente(c: Cliente) {
-    // 1) por usuarioUid
-    let u;
-    // 2) fallback: si el doc clientes usa el mismo id que el uid del usuario
-    if (!u && c.id) u = usuariosMap[c.id];
-    // 3) display final
-    if (u) return (u as any).nombre ?? (u as any).displayName ?? u.email ?? "(Sin usuario)";
+    const usuarioUid = (c as any).usuarioUid;
+    let u: any = usuarioUid ? usuariosMap[usuarioUid] : undefined;
+    if (!u && c.id) u = usuariosMap[c.id]; // fallback por id
+    if (u) return u.nombre ?? u.displayName ?? u.email ?? "(Sin usuario)";
     return "(Sin usuario)";
   }
 
   const fetchClientes = async () => {
     setLoading(true);
     const data = await obtenerClientes();
-    setClientes(data);
+    setClientes(Array.isArray(data) ? data : []);
     setLoading(false);
   };
 
   const fetchUsuarios = async () => {
     const todos = await obtenerUsuarios();
     setUsuarios(todos);
-
     const execs = todos.filter((u) => Array.isArray(u.roles) && u.roles.includes("ejecutivo"));
     setEjecutivos(execs);
   };
@@ -115,11 +115,43 @@ export default function ClientesCrud() {
     setMostrarDialogo(false);
   };
 
+  // 🧠 Aplicar ÚNICO filtro por nombre (o email de respaldo si existiera)
+  const clientesFiltrados = useMemo(() => {
+    const qn = q.trim().toLowerCase();
+    if (!qn) return clientes;
+    return clientes.filter((c) => {
+      const nombre = resolverNombreCliente(c).toLowerCase();
+      const email = (c as any).email?.toLowerCase?.() ?? "";
+      return (`${nombre} ${email}`).includes(qn);
+    });
+  }, [clientes, q, usuariosMap]);
+
   return (
     <div className="space-y-4">
       {/* Encabezado */}
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Clientes</h2>
+      </div>
+
+      {/* 🔎 Filtro SOLO por nombre */}
+      <div className="grid gap-3 md:grid-cols-4">
+        <div className="md:col-span-2">
+          <Label>Búsqueda</Label>
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Buscar por nombre…"
+          />
+        </div>
+        <div className="flex items-end">
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => setQ("")}
+          >
+            Limpiar
+          </Button>
+        </div>
       </div>
 
       {loading ? (
@@ -133,11 +165,9 @@ export default function ClientesCrud() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {clientes.map((cliente) => (
+            {clientesFiltrados.map((cliente) => (
               <TableRow key={cliente.id}>
-                <TableCell>
-                  {resolverNombreCliente(cliente)}                  
-                </TableCell>
+                <TableCell>{resolverNombreCliente(cliente)}</TableCell>
                 <TableCell>
                   <div className="flex justify-center gap-2">
                     <TooltipProvider>
@@ -222,12 +252,6 @@ export default function ClientesCrud() {
               const ejecutivoJuridicoId = ejecutivoJurSel || null;
               const activo = activoSel;
 
-              // Si quieres forzar que siempre haya usuario:
-              // if (!usuarioUid) {
-              //   alert("Debes asociar un Usuario al cliente.");
-              //   return;
-              // }
-
               const payload: Partial<Cliente> = {
                 direccion: direccion || "",
                 banco: banco || "",
@@ -255,7 +279,6 @@ export default function ClientesCrud() {
                   Para editar el nombre, hazlo en el módulo <b>Usuarios</b>.
                 </p>
               </div>
-
 
               {/* Ejecutivos */}
               <div>
@@ -326,7 +349,7 @@ export default function ClientesCrud() {
               <div>
                 <Label>Activo</Label>
                 <div className="flex items-center space-x-2 mt-2">
-                  <input
+                  <Input
                     type="checkbox"
                     checked={activoSel}
                     onChange={(e) => setActivoSel(e.target.checked)}

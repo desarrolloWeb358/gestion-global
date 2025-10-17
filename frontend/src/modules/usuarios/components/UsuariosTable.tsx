@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Check, ChevronDown, Pencil, Trash2 } from "lucide-react";
+import { useEffect, useState, useMemo } from "react";
+import { Check, ChevronDown, Pencil } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 
 import {
@@ -11,15 +11,13 @@ import {
   TableCell,
 } from "@/shared/ui/table";
 import { Button } from "@/shared/ui/button";
-import { toast } from "sonner"
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-  DialogDescription,
-  DialogTrigger,
 } from "@/shared/ui/dialog";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
@@ -40,6 +38,10 @@ import {
 import { cn } from "@/shared/lib/cn";
 import { Rol, ROLES } from "@/shared/constants/acl";
 
+// Sentinelas para selects (evitar value="")
+const ALL = "__ALL__";
+const ALL_BOOL = "__ALL_BOOL__";
+
 export default function UsuariosCrud() {
   const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,7 +50,23 @@ export default function UsuariosCrud() {
   const [password, setPassword] = useState("");
   const [fecha, setFecha] = useState<Date | undefined>();
   const [rolesSeleccionados, setRolesSeleccionados] = useState<Rol[]>([]);
-  const rolesDisponibles = ROLES; // ← una sola fuente de verdad
+  const rolesDisponibles = ROLES;
+
+  // ====== FILTROS ======
+  const [q, setQ] = useState("");                 // búsqueda en nombre/email
+  const [rolFilter, setRolFilter] = useState<string>(ALL); // Todos o un rol
+  const [activoFilter, setActivoFilter] = useState<string>(ALL_BOOL); // Todos/Sí/No
+  const [desde, setDesde] = useState<Date | undefined>();
+  const [hasta, setHasta] = useState<Date | undefined>();
+
+  const normalizarInicio = (d?: Date) => {
+    if (!d) return undefined;
+    const x = new Date(d); x.setHours(0,0,0,0); return x;
+  };
+  const normalizarFin = (d?: Date) => {
+    if (!d) return undefined;
+    const x = new Date(d); x.setHours(23,59,59,999); return x;
+  };
 
   function MultiSelectRoles({
     selectedRoles,
@@ -94,11 +112,10 @@ export default function UsuariosCrud() {
     );
   }
 
-
   const fetchUsuarios = async () => {
     setLoading(true);
     const data = await obtenerUsuarios();
-    setUsuarios(data);
+    setUsuarios(Array.isArray(data) ? data : []);
     setLoading(false);
   };
 
@@ -137,11 +154,158 @@ export default function UsuariosCrud() {
     fetchUsuarios();
   };
 
+  // ====== APLICAR FILTROS ======
+  const usuariosFiltrados = useMemo(() => {
+    const qn = q.trim().toLowerCase();
+    const fDesde = normalizarInicio(desde);
+    const fHasta = normalizarFin(hasta);
+
+    return usuarios.filter((u) => {
+      // texto: nombre o email
+      if (qn) {
+        const texto = `${u.nombre ?? ""} ${u.email ?? ""}`.toLowerCase();
+        if (!texto.includes(qn)) return false;
+      }
+
+      // rol
+      if (rolFilter !== ALL) {
+        const rolesU = (u.roles ?? []) as string[];
+        if (!rolesU.includes(rolFilter)) return false;
+      }
+
+      // activo
+      if (activoFilter !== ALL_BOOL) {
+        const want = activoFilter === "true";
+        if (Boolean(u.activo) !== want) return false;
+      }
+
+      // fecha_registro (Timestamp)
+      if (fDesde || fHasta) {
+        const ts = u.fecha_registro;
+        const d = ts instanceof Timestamp ? ts.toDate() : undefined;
+        if (!d) return false;
+        if (fDesde && d < fDesde) return false;
+        if (fHasta && d > fHasta) return false;
+      }
+
+      return true;
+    });
+  }, [usuarios, q, rolFilter, activoFilter, desde, hasta]);
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold">Usuarios</h2>
         <Button onClick={abrirCrear}>Crear Usuario</Button>
+      </div>
+
+      {/* ====== FILTROS ====== */}
+      <div className="grid gap-3 md:grid-cols-4 lg:grid-cols-6">
+        <div className="md:col-span-2">
+          <Label>Búsqueda</Label>
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Buscar por nombre o email…"
+          />
+        </div>
+
+        <div>
+          <Label>Rol</Label>
+          <Select value={rolFilter} onValueChange={setRolFilter}>
+            <SelectTrigger>
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Todos</SelectItem>
+              {rolesDisponibles.map((r) => (
+                <SelectItem key={r} value={r}>
+                  {r}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <Label>Activo</Label>
+          <Select value={activoFilter} onValueChange={setActivoFilter}>
+            <SelectTrigger>
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_BOOL}>Todos</SelectItem>
+              <SelectItem value="true">Sí</SelectItem>
+              <SelectItem value="false">No</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <Label>Desde</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="justify-start">
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {desde ? desde.toLocaleDateString("es-CO") : "—"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-2" align="start">
+              <Calendar mode="single" selected={desde} onSelect={setDesde} initialFocus />
+            </PopoverContent>
+          </Popover>
+          {desde && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="justify-start px-2"
+              onClick={() => setDesde(undefined)}
+            >
+              Limpiar
+            </Button>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <Label>Hasta</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="justify-start">
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {hasta ? hasta.toLocaleDateString("es-CO") : "—"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-2" align="start">
+              <Calendar mode="single" selected={hasta} onSelect={setHasta} />
+            </PopoverContent>
+          </Popover>
+          {hasta && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="justify-start px-2"
+              onClick={() => setHasta(undefined)}
+            >
+              Limpiar
+            </Button>
+          )}
+        </div>
+
+        <div className="flex items-end">
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => {
+              setQ("");
+              setRolFilter(ALL);
+              setActivoFilter(ALL_BOOL);
+              setDesde(undefined);
+              setHasta(undefined);
+            }}
+          >
+            Limpiar filtros
+          </Button>
+        </div>
       </div>
 
       {loading ? (
@@ -159,38 +323,38 @@ export default function UsuariosCrud() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {usuarios.map((usuario) => (
+            {usuariosFiltrados.map((usuario) => (
               <TableRow key={usuario.uid}>
                 <TableCell>{usuario.email}</TableCell>
                 <TableCell>{usuario.nombre}</TableCell>
                 <TableCell>{usuario.roles?.join(", ")}</TableCell>
                 <TableCell>
-                  <Switch checked={usuario.activo}
+                  <Switch
+                    checked={!!usuario.activo}
                     onCheckedChange={async (checked) => {
                       const actualizado = { ...usuario, activo: checked };
                       await actualizarUsuario(actualizado);
                       setUsuarios((prev) =>
                         prev.map((u) => (u.uid === actualizado.uid ? actualizado : u))
                       );
-                    }} />
+                    }}
+                  />
                 </TableCell>
                 <TableCell>
                   {usuario.fecha_registro instanceof Timestamp
                     ? (() => {
-                      const d = usuario.fecha_registro.toDate();
-                      const dia = String(d.getDate()).padStart(2, "0");
-                      const mes = String(d.getMonth() + 1).padStart(2, "0");
-                      const anio = d.getFullYear();
-                      return `${dia}/${mes}/${anio}`;
-                    })()
-                    : ""}
+                        const d = usuario.fecha_registro.toDate();
+                        const dia = String(d.getDate()).padStart(2, "0");
+                        const mes = String(d.getMonth() + 1).padStart(2, "0");
+                        const anio = d.getFullYear();
+                        return `${dia}/${mes}/${anio}`;
+                      })()
+                    : "—"}
                 </TableCell>
-
 
                 <TableCell>
                   <div className="flex justify-center gap-2">
                     <TooltipProvider>
-                      {/* Botón Editar */}
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
@@ -203,12 +367,10 @@ export default function UsuariosCrud() {
                         </TooltipTrigger>
                         <TooltipContent>Editar</TooltipContent>
                       </Tooltip>
-
-                      {/* Botón Eliminar con Dialog pantalla completa */}
+                      {/* Si vas a reactivar Eliminar, puedes agregar aquí tu Dialog/Confirm */}
                     </TooltipProvider>
                   </div>
                 </TableCell>
-
               </TableRow>
             ))}
           </TableBody>
@@ -242,10 +404,8 @@ export default function UsuariosCrud() {
               }
 
               if (!nombre || !tipoDocumento || !numeroDocumento) {
-                if (!email || !/\S+@\S+\.\S+/.test(email)) {
-                  toast("Todos los campos personales son obligatorios.");
-                  return;
-                }
+                toast("Todos los campos personales son obligatorios.");
+                return;
               }
 
               if (rolesSeleccionados.length === 0) {
@@ -254,7 +414,7 @@ export default function UsuariosCrud() {
               }
 
               if (usuarioEditando) {
-                // 🟡 Modo edición
+                // Editar
                 const actualizado: UsuarioSistema = {
                   ...usuarioEditando,
                   email,
@@ -273,12 +433,11 @@ export default function UsuariosCrud() {
                 );
                 cerrarDialogo();
               } else {
-                // 🟢 Modo creación
+                // Crear
                 if (!password) {
                   toast("La contraseña es obligatoria para nuevos usuarios.");
                   return;
                 }
-
                 if (password.length < 6) {
                   toast("⚠️ La contraseña debe tener al menos 6 caracteres.");
                   return;
@@ -299,12 +458,7 @@ export default function UsuariosCrud() {
                   };
 
                   const uid = await crearUsuario(usuarioSinUid);
-
-                  const nuevo: UsuarioSistema = {
-                    ...usuarioSinUid,
-                    uid,
-                  };
-
+                  const nuevo: UsuarioSistema = { ...usuarioSinUid, uid };
                   setUsuarios((prev) => [...prev, nuevo]);
                   cerrarDialogo();
                 } catch (error: any) {
@@ -316,7 +470,6 @@ export default function UsuariosCrud() {
                 }
               }
             }}
-
           >
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -332,7 +485,6 @@ export default function UsuariosCrud() {
                 <Label>Teléfono</Label>
                 <Input name="telefono" defaultValue={usuarioEditando?.telefonoUsuario} />
               </div>
-
 
               <div>
                 <Label>Tipo de documento</Label>
@@ -358,7 +510,6 @@ export default function UsuariosCrud() {
                 />
               </div>
 
-
               <div className="col-span-2">
                 <Label>Roles</Label>
                 <MultiSelectRoles
@@ -366,6 +517,7 @@ export default function UsuariosCrud() {
                   setSelectedRoles={setRolesSeleccionados}
                 />
               </div>
+
               <div className="flex items-center space-x-2">
                 <Switch
                   name="activo"
@@ -374,6 +526,7 @@ export default function UsuariosCrud() {
                 />
                 <Label htmlFor="activo">Activo</Label>
               </div>
+
               <div className="col-span-2">
                 <Label>Fecha de Registro</Label>
                 <Popover>
@@ -415,7 +568,6 @@ export default function UsuariosCrud() {
               <Button type="submit">Guardar</Button>
             </DialogFooter>
           </form>
-
         </DialogContent>
       </Dialog>
     </div>

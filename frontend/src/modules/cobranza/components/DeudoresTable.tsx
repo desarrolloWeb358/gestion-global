@@ -40,7 +40,7 @@ export default function DeudoresTable() {
   // Diálogo crear/editar
   const [open, setOpen] = useState(false);
   const [deudorEditando, setDeudorEditando] = useState<Deudor | null>(null);
-  const [formData, setFormData] = useState<Partial<Deudor>>({});
+  const [formData, setFormData] = useState<Partial<Deudor> & { porcentajeHonorarios?: number }>({});
 
   // Eliminar
   const [dialogoEliminar, setDialogoEliminar] = useState(false);
