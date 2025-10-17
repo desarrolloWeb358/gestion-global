@@ -15,7 +15,7 @@ const argv = process.argv.slice(2).reduce((acc, cur) => {
   return acc;
 }, {});
 
-const LIMIT = Number(process.env.LIMIT || argv.LIMIT || argv.limit || argv[0] || 5);
+const LIMIT = Number(process.env.LIMIT || argv.LIMIT || argv.limit || argv[0] || 1);
 const OUT_FILE =
   process.env.OUTFILE ||
   `reporte_migracion_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.xlsx`;
@@ -56,6 +56,36 @@ function computeTipificacion(rows) {
   const allGestionando = ids.length > 0 && ids.every(v => v === 1);
   if (allGestionando) return 'Gestionando';
   return 'Gestionando';
+}
+
+function toMesYYYYMM(value) {
+  if (!value) return null;
+
+  let d = null;
+
+  // Caso 1: ya es un Date
+  if (value instanceof Date) {
+    if (!isNaN(value.valueOf())) d = value;
+  }
+  // Caso 2: string (por ejemplo "2025-05-21" o cualquier fecha compatible)
+  else if (typeof value === "string") {
+    const s = value.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      d = new Date(`${s}T00:00:00`);
+    } else {
+      d = new Date(s);
+    }
+  }
+  // Caso 3: timestamp numérico
+  else if (typeof value === "number") {
+    d = new Date(value);
+  }
+
+  if (!d || isNaN(d.valueOf())) return null;
+
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${yyyy}-${mm}`;
 }
 
 // ====== RECOLECCION DE REPORTE ======
@@ -205,10 +235,8 @@ function extractUbicacion(idStrRaw, nitRaw) {
   const nit = String(nitRaw || '').trim();
 
   if (!idStr) return '';
-  // Normaliza espacios múltiples
   const compact = idStr.replace(/\s+/g, ' ');
 
-  // ¿idStr inicia exactamente con el NIT?
   let rest = compact;
   let joinedNoSep = false;
 
@@ -216,60 +244,48 @@ function extractUbicacion(idStrRaw, nitRaw) {
     const nextChar = rest.charAt(nit.length) || '';
     rest = rest.slice(nit.length);
 
-    // Si NO hay separador (espacio o guion) justo después del NIT → venía pegado (ej: 9003346807-604)
     if (nextChar && !/[\s-]/.test(nextChar)) {
       joinedNoSep = true;
     }
 
-    // Limpia separadores iniciales (espacios/guiones)
     rest = rest.replace(/^[\s-]+/, '');
   } else {
     rest = rest.trim();
   }
 
-  // Si hay espacios, busca el ÚLTIMO token con forma d+-d+ (permitiendo guion sobrante al final)
   const tokens = rest.split(' ').filter(Boolean);
   if (tokens.length > 1) {
     for (let i = tokens.length - 1; i >= 0; i--) {
       const t = tokens[i];
       if (/^\d+-\d+-?$/.test(t)) {
-        return t.replace(/-+$/, ''); // quita guion final si sobra
+        return t.replace(/-+$/, '');
       }
     }
-    // Fallback: todo lo posterior al primer guion
     const idx = rest.indexOf('-');
     return idx >= 0 ? rest.slice(idx + 1).replace(/[^\d]+$/, '') : rest.replace(/[^\d]+$/, '');
   }
 
-  // Un solo token (sin espacios relevantes)
   rest = tokens.length === 1 ? tokens[0] : rest;
-
   if (!rest) return '';
 
-  // Normaliza: quitar guiones/ruido al final (p. ej. "4-304-" → "4-304")
   rest = rest.replace(/[^\d]+$/, '');
 
-  // Si venía pegado al NIT y luce como X-YYY → descarta el primer bloque antes del primer guion
   if (joinedNoSep && /^\d+-\d+$/.test(rest)) {
     const p = rest.indexOf('-');
     return p >= 0 ? rest.slice(p + 1) : rest;
   }
 
-  // Si arranca con "-" (ej. "-1-304"), quitarlo
   if (rest.startsWith('-')) {
     rest = rest.slice(1);
   }
 
-  // Si ya cumple d+-d+, devolver
   if (/^\d+-\d+$/.test(rest)) {
     return rest;
   }
 
-  // Fallback general: lo que esté tras el primer guion, limpiando colas
   const p = rest.indexOf('-');
   if (p >= 0) return rest.slice(p + 1).replace(/[^\d]+$/, '');
 
-  // Sin guiones: devolver tal cual (último recurso)
   return rest;
 }
 
@@ -392,12 +408,27 @@ async function main() {
               algoMigrado = true;
               clienteRow.totalDeudores += 1;
 
-              // 5) Deuda total (suma títulos)
-              const [titulos] = await connection.execute(
-                'SELECT tit_valor_de_entrega FROM scc_titulo WHERE pro_id = ?',
+              // 5) Título (un solo registro) → valor y fecha
+              const [tituloRows] = await connection.execute(
+                `SELECT tit_valor_de_entrega, tit_fecha_de_expedicion
+                    FROM scc_titulo
+                    WHERE pro_id = ?
+                ORDER BY tit_fecha_de_expedicion ASC
+                    LIMIT 1`,
                 [proceso.pro_id]
               );
-              const deudaTotal = (titulos || []).reduce((sum, t) => sum + Number(t.tit_valor_de_entrega || 0), 0);
+
+              // Un solo título (o null si no hay)
+              const titulo = tituloRows?.[0] || null;
+
+              // Valor de la deuda: SOLO el del primer título
+              const deudaTitulo = titulo ? Number(titulo.tit_valor_de_entrega || 0) : 0;
+
+              // === deudaTotal disponible para reporte y estados
+              const deudaTotal = deudaTitulo;
+
+              // Fecha del título → "YYYY-MM"
+              const mesDeuda = toMesYYYYMM(titulo?.tit_fecha_de_expedicion);
 
               // 6) Abonos por mes
               const [abonos] = await connection.execute(
@@ -408,29 +439,91 @@ async function main() {
               const porMes = new Map();
               for (const a of (abonos || [])) {
                 if (!a.abn_fecha) continue;
-                const d = new Date(a.abn_fecha);
-                const mes = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+                const mes = toMesYYYYMM(a.abn_fecha);
+                if (!mes) continue;
                 if (!porMes.has(mes)) porMes.set(mes, []);
                 porMes.get(mes).push(a);
               }
 
+              // 7) Seguimientos + tipificación (una sola vez, sirve para % y para guardar seguimientos)
+              const [seguimientos] = await connection.execute(
+                'SELECT obp_observacion, tip_id, obp_fecha_observacion FROM scc_observacion_proceso WHERE pro_id = ?',
+                [proceso.pro_id]
+              );
+
+              const tipificacion = computeTipificacion(seguimientos);
+              const porcentajeHonorariosEstados = (tipificacion === 'Demanda') ? 20 : 15;
+
+              if (tipificacion) {
+                try {
+                  await deudorRef.update({ tipificacion });
+                } catch (e) {
+                  logError('DEUDOR', { clienteId, nit, pro_id: proceso.pro_id, deudorIdFS: deudorRef.id, note: 'update tipificacion' }, e);
+                }
+              }
+
+              // Declarar antes de cualquier incremento
               let mesesCreados = 0;
 
+              // 👉 SOLO-DEUDA: si NO hay abonos y SÍ hay deuda del título,
+              // crea un estado mensual con % 15 en el mes del título (tal como acordado).
+              if (porMes.size === 0 && deudaTitulo > 0) {
+                const porcentajeHonorarios = 15; // prejurídico por defecto para solo-deuda
+                const honorariosDeuda = Math.round((deudaTitulo * porcentajeHonorarios) / 100);
+
+                const mesSoloDeuda =
+                  mesDeuda ||
+                  `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+
+                const estadoSoloDeuda = {
+                  mes: mesSoloDeuda,
+                  deuda: deudaTitulo,
+                  recaudo: 0,
+                  porcentajeHonorarios,
+                  honorariosDeuda,
+                  honorariosRecaudo: 0,
+                };
+
+                try {
+                  await deudorRef
+                    .collection("estadosMensuales")
+                    .doc(mesSoloDeuda)
+                    .set(estadoSoloDeuda, { merge: true });
+                  mesesCreados += 1;
+                  clienteRow.totalEstadosMensuales += 1;
+                } catch (e) {
+                  logError(
+                    "ESTADOS",
+                    { clienteId, nit, pro_id: proceso.pro_id, deudorIdFS: deudorRef.id, mes: mesSoloDeuda },
+                    e
+                  );
+                }
+              }
+
+              // 👉 Estados por cada mes con abonos (deuda + recaudo) — aquí entra el % por tipificación
               for (const [mes, lista] of porMes.entries()) {
                 const sumaRecaudo = (lista || []).reduce((s, it) => s + Number(it.abn_monto || 0), 0);
 
-                let comprobante = '';
+                // 1er registro como fuente de recibo/observación
+                let recibo = '';
                 let observaciones = '';
                 if (lista.length > 0) {
-                  comprobante = lista[0].abn_comprobante_num ? String(lista[0].abn_comprobante_num) : '';
+                  recibo = lista[0].abn_comprobante_num ? String(lista[0].abn_comprobante_num) : '';
                   observaciones = lista[0].abn_observaciones || '';
                 }
 
+                const porcentajeHonorarios = porcentajeHonorariosEstados; // 20% si Demanda; 15% caso contrario
+                const honorariosDeuda = Math.round(((Number(deudaTotal) || 0) * porcentajeHonorarios) / 100);
+                const honorariosRecaudo = Math.round(((Number(sumaRecaudo) || 0) * porcentajeHonorarios) / 100);
+
                 const estadoDoc = {
-                  mes, // "AAAA-MM"
+                  mes,                                   // "YYYY-MM"
                   deuda: Number(deudaTotal) || 0,
                   recaudo: Number(sumaRecaudo) || 0,
-                  ...(comprobante ? { comprobante } : {}),
+                  porcentajeHonorarios,
+                  honorariosDeuda,
+                  honorariosRecaudo,
+                  ...(recibo ? { recibo } : {}),
                   ...(observaciones ? { observaciones } : {}),
                 };
 
@@ -443,21 +536,7 @@ async function main() {
                 }
               }
 
-              // 8) Seguimientos + tipificación
-              const [seguimientos] = await connection.execute(
-                'SELECT obp_observacion, tip_id, obp_fecha_observacion FROM scc_observacion_proceso WHERE pro_id = ?',
-                [proceso.pro_id]
-              );
-
-              const tipificacion = computeTipificacion(seguimientos);
-              if (tipificacion) {
-                try {
-                  await deudorRef.update({ tipificacion });
-                } catch (e) {
-                  logError('DEUDOR', { clienteId, nit, pro_id: proceso.pro_id, deudorIdFS: deudorRef.id, note: 'update tipificacion' }, e);
-                }
-              }
-
+              // 8) Guardar seguimientos (reutilizando la consulta anterior; no se duplica)
               let segCount = 0;
               for (const s of (seguimientos || [])) {
                 try {
