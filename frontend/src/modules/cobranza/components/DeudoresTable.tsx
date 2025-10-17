@@ -52,7 +52,7 @@ export default function DeudoresTable() {
   // Búsqueda y paginación
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 50;
+  const itemsPerPage = 300;
 
   // Cargar deudores
   const fetchDeudores = async () => {
