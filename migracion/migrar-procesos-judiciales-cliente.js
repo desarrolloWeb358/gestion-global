@@ -17,8 +17,12 @@ const DRY_RUN = false; // true = simula sin escribir
 
 // NEW: Lista opcional de NITs a migrar (dejar [] para migrar todo)
 const NITS_FILTRADOS = [
-  "900003261",
-  // "800123456"
+  "901001861",
+"900658412",
+"900643491",
+"900387627",
+"830073688",
+"830125131",
 ];
 
 // Firebase

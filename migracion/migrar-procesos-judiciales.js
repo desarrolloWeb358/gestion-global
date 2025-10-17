@@ -24,8 +24,12 @@ const DRY_RUN = false; // true = no escribe, solo simula
 // ⛳️ Arreglo de NITs a migrar (si está vacío, migra TODOS)
 // Acepta valores con o sin puntos/guiones/espacios; se normalizan.
 const NITS_FILTRAR = [
-  "900003261",
-  // "800123456",
+"901001861",
+"900658412",
+"900643491",
+"900387627",
+"830073688",
+"830125131",
 ];
 
 // Mapeo ejecutivo -> UID (case-insensitive)
