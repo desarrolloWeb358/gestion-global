@@ -32,11 +32,19 @@ import {
 
 type Scope = "deudor" | "valor";
 
+/** Formatea Timestamp/FieldValue/Date a string local es-CO */
 function formatObsDate(input: any): string {
   try {
-    if (input && typeof input.toDate === "function") return input.toDate().toLocaleString("es-CO", { hour12: false });
-    if (input && typeof input.seconds === "number") return new Date(input.seconds * 1000).toLocaleString("es-CO", { hour12: false });
-    if (input instanceof Date) return input.toLocaleString("es-CO", { hour12: false });
+    if (!input) return "—";
+    if (typeof input?.toDate === "function") {
+      return input.toDate().toLocaleString("es-CO", { hour12: false });
+    }
+    if (typeof input?.seconds === "number") {
+      return new Date(input.seconds * 1000).toLocaleString("es-CO", { hour12: false });
+    }
+    if (input instanceof Date) {
+      return input.toLocaleString("es-CO", { hour12: false });
+    }
   } catch {}
   return "—";
 }
@@ -49,8 +57,7 @@ export interface ObservacionesClientePanelProps {
 
   /** Permisos/rol resueltos desde afuera */
   isCliente?: boolean;
-  canModerate?: boolean; // si puede gestionar TODAS (editar/eliminar)
-  currentUid?: string | null;
+  canModerate?: boolean;
 
   /** Título visual del card (opcional) */
   title?: string;
@@ -65,7 +72,6 @@ export default function ObservacionesClientePanel({
   scope,
   isCliente = false,
   canModerate = false,
-  currentUid = null,
   title = "Observaciones del cliente",
   allowCreate,
 }: ObservacionesClientePanelProps) {
@@ -80,6 +86,7 @@ export default function ObservacionesClientePanel({
   const [editingTexto, setEditingTexto] = React.useState("");
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
 
+  // Crear permitido si es cliente o moderador (puedes pasar allowCreate para forzar)
   const canCreate = allowCreate ?? (isCliente || canModerate);
 
   const fetch = React.useCallback(async () => {
@@ -103,8 +110,8 @@ export default function ObservacionesClientePanel({
     fetch();
   }, [fetch]);
 
-  const canEditObs = (o: ObservacionCliente) =>
-    canModerate || (isCliente && !!currentUid && (o as any).creadoPorUid === currentUid);
+  // Ahora los permisos no dependen del autor, porque ya no guardamos creadoPor*
+  const canEditObs = (o: ObservacionCliente) => isCliente || canModerate;
   const canDeleteObs = canEditObs;
 
   async function onCreate() {
@@ -116,9 +123,9 @@ export default function ObservacionesClientePanel({
     setSaving(true);
     try {
       if (scope === "deudor") {
-        await addObservacionCliente(clienteId, parentId, val, { creadoPorUid: currentUid, creadoPorNombre: undefined });
+        await addObservacionCliente(clienteId, parentId, val); // ← sin metadatos
       } else {
-        await addObservacionClienteValor(clienteId, parentId, val, { creadoPorUid: currentUid, creadoPorNombre: undefined });
+        await addObservacionClienteValor(clienteId, parentId, val); // ← sin metadatos
       }
       setTexto("");
       await fetch();
@@ -192,7 +199,7 @@ export default function ObservacionesClientePanel({
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {/* Lista */}
+        {/* Lista: solo FECHA + TEXTO */}
         {loading ? (
           <p className="text-sm text-muted-foreground">Cargando…</p>
         ) : items.length === 0 ? (
@@ -200,14 +207,13 @@ export default function ObservacionesClientePanel({
         ) : (
           <div className="space-y-3">
             {items.map((o) => {
-              const fecha = formatObsDate((o as any).fecha || (o as any).creadoTs || (o as any).creadoEn);
-              const editable = canEditObs(o);
+              // intenta usar o.fecha || o.fechaTs || creadoTs/creadoEn por retrocompatibilidad
+              const fecha =
+                formatObsDate((o as any).fecha ?? (o as any).fechaTs ?? (o as any).creadoTs ?? (o as any).creadoEn);
 
               return (
                 <div key={o.id} className="rounded-md border p-3">
-                  <div className="text-xs text-muted-foreground mb-1 flex items-center justify-between gap-2">
-                    <span>{fecha}</span>
-                  </div>
+                  <div className="text-xs text-muted-foreground mb-1">{fecha}</div>
 
                   {editingId === o.id ? (
                     <div className="space-y-2">
@@ -230,7 +236,7 @@ export default function ObservacionesClientePanel({
                   ) : (
                     <>
                       <div className="text-sm whitespace-pre-wrap">{o.texto}</div>
-                      {editable && (
+                      {(isCliente || canModerate) && (
                         <div className="mt-2 flex items-center gap-2 justify-end">
                           <Button size="sm" variant="outline" onClick={() => startEdit(o)} disabled={working}>
                             Editar
@@ -249,14 +255,14 @@ export default function ObservacionesClientePanel({
         )}
 
         {/* Form crear */}
-        {(canCreate) && (
+        {canCreate && (
           <div className="pt-2 space-y-2">
             <Separator />
             <Label>Nueva observación</Label>
             <Textarea
               value={texto}
               onChange={(e) => setTexto(e.target.value)}
-              placeholder="Escribe tu observación para el ejecutivo…"
+              placeholder="Escribe tu observación…"
               className="min-h-24"
               maxLength={1000}
               disabled={saving || working}
