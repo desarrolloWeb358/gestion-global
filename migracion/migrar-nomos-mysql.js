@@ -551,7 +551,7 @@ async function main() {
                   const seguimientoDoc = {
                     descripcion: desc,
                     fecha: admin.firestore.Timestamp.fromDate(new Date(fechaRaw)),
-                    tipoSeguimiento: 'OTRO',
+                    tipoSeguimiento: 'otro',
                     archivoUrl: '',
                   };
 

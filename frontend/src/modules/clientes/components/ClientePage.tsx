@@ -64,8 +64,7 @@ export default function ClientePage() {
                 <Button onClick={() => navigate(`/valores-agregados/${cliente.id}`)}>
                     Valores Agregados
                 </Button>
-                {/* <Button onClick={() => navigate("envio-masivo")}>Enviar Mensaje Masivo</Button>   
-                    
+
                 <Button                    
                     onClick={() =>
                         navigate(`/clientes/${cliente.id}/reporte`)
@@ -73,6 +72,9 @@ export default function ClientePage() {
                 >
                     📊 Ver Reporte
                 </Button>
+                {/* <Button onClick={() => navigate("envio-masivo")}>Enviar Mensaje Masivo</Button>   
+                    
+                
                 */}
             </div>
         </div>

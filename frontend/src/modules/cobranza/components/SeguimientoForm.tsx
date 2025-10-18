@@ -24,7 +24,9 @@ import { Loader2, Calendar as CalendarIcon } from "lucide-react";
 import { Calendar } from "@/shared/ui/calendar";
 import { Popover, PopoverTrigger, PopoverContent } from "@/shared/ui/popover";
 
-import { Seguimiento, TipoSeguimiento } from "../models/seguimiento.model";
+import { Seguimiento } from "../models/seguimiento.model";
+// imports nuevos:
+import { TIPO_SEGUIMIENTO, TipoSeguimientoCode, codeToLabel } from "@/shared/constants/tipoSeguimiento";
 import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 
 // locale español para el calendario (react-day-picker via date-fns)
@@ -51,7 +53,7 @@ type Props = {
 };
 
 // === Helpers & Consts ===
-const TIPO_OPTIONS = Object.values(TipoSeguimiento) as TipoSeguimiento[];
+const TIPO_OPTIONS = TIPO_SEGUIMIENTO;
 
 function humanize(val?: string) {
   if (!val) return "—";
@@ -152,7 +154,7 @@ function FechaPicker({
         <Calendar
           mode="single"
           selected={date}
-           onSelect={(d) => onChange(d ? toLocalISODateString(d) : "")}
+          onSelect={(d) => onChange(d ? toLocalISODateString(d) : "")}
           locale={es}
           initialFocus
           disabled={disabled}
@@ -179,9 +181,12 @@ export default function SeguimientoForm({
   const [destino, setDestino] = React.useState<DestinoColeccion>(
     destinoInicial ?? defaultDestinoFromTipificacion(tipificacionDeuda)
   );
-  const [tipoSeguimiento, setTipoSeguimiento] = React.useState<TipoSeguimiento>(
-    seguimiento?.tipoSeguimiento ?? TipoSeguimiento.OTRO
+
+
+  const [tipoSeguimiento, setTipoSeguimiento] = React.useState<TipoSeguimientoCode>(
+    seguimiento?.tipoSeguimiento ?? "otro"
   );
+
   const [descripcion, setDescripcion] = React.useState<string>(
     seguimiento?.descripcion ?? ""
   );
@@ -192,7 +197,7 @@ export default function SeguimientoForm({
   React.useEffect(() => {
     const d = seguimiento?.fecha?.toDate?.() ?? new Date();
     setFecha(toLocalISODateString(d));
-    setTipoSeguimiento(seguimiento?.tipoSeguimiento ?? TipoSeguimiento.OTRO);
+    setTipoSeguimiento(seguimiento?.tipoSeguimiento ?? "otro");
     setDescripcion(seguimiento?.descripcion ?? "");
     setArchivo(undefined);
     setReemplazarArchivo(false);
@@ -282,7 +287,7 @@ export default function SeguimientoForm({
                     <Select
                       value={tipoSeguimiento}
                       onValueChange={(v: string) =>
-                        setTipoSeguimiento(v as TipoSeguimiento)
+                        setTipoSeguimiento(v as TipoSeguimientoCode)
                       }
                       disabled={saving}
                     >
@@ -290,9 +295,9 @@ export default function SeguimientoForm({
                         <SelectValue placeholder="Selecciona un tipo" />
                       </SelectTrigger>
                       <SelectContent>
-                        {TIPO_OPTIONS.map((val) => (
-                          <SelectItem key={val} value={val}>
-                            {humanize(val)}
+                        {TIPO_OPTIONS.map((o) => (
+                          <SelectItem key={o.code} value={o.code}>
+                            {o.label}
                           </SelectItem>
                         ))}
                       </SelectContent>

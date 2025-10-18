@@ -11,6 +11,9 @@ import {
   TableBody,
   TableCell,
 } from "@/shared/ui/table";
+import {
+  codeToLabel
+} from "@/shared/constants/tipoSeguimiento";
 
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { PERMS } from "@/shared/constants/acl";
@@ -46,6 +49,10 @@ import {
 
 import { getAuth } from "firebase/auth";
 import SeguimientoJuridicoTable from "./SeguimientoJuridicoTable";
+
+function renderTipoSeguimiento(code?: string) {
+  return codeToLabel[code as keyof typeof codeToLabel] ?? code ?? "—";
+}
 
 export default function SeguimientoTable() {
   const { clienteId, deudorId } = useParams();
@@ -266,7 +273,7 @@ export default function SeguimientoTable() {
                       : "—"}
                   </TableCell>
                   <TableCell className="capitalize">
-                    {seg.tipoSeguimiento ?? "—"}
+                    {renderTipoSeguimiento(seg.tipoSeguimiento)}
                   </TableCell>
                   <TableCell>
                     <div className="whitespace-pre-wrap leading-relaxed text-sm">
@@ -354,7 +361,7 @@ export default function SeguimientoTable() {
       </div>
 
       {/* === Observaciones del Cliente === */}
-      
+
 
 
       {/* Bloque Jurídico (se recarga cuando cambia refreshJuridicoKey) */}

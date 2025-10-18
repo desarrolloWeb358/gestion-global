@@ -18,10 +18,17 @@ import {
   deleteSeguimientoJuridico,
 } from "@/modules/cobranza/services/seguimientoService";
 
+import { codeToLabel } from "@/shared/constants/tipoSeguimiento";
+
 // ⬇️ RBAC
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { PERMS } from "@/shared/constants/acl";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/shared/ui/alert-dialog";
+
+function renderTipoSeguimiento(code?: string) {
+  // Si el code existe en el mapa, devuelve el label; si no, muestra el code o '—'
+  return codeToLabel[code as keyof typeof codeToLabel] ?? code ?? "—";
+}
 
 export default function SeguimientoJuridicoTable() {
   const { clienteId, deudorId } = useParams();
@@ -146,8 +153,15 @@ export default function SeguimientoJuridicoTable() {
           <TableBody>
             {items.map((seg) => (
               <TableRow key={seg.id}>
-                <TableCell>{seg.fecha ? seg.fecha.toDate().toLocaleString() : "—"}</TableCell>
-                <TableCell className="capitalize">{seg.tipoSeguimiento ?? "—"}</TableCell>
+                
+                <TableCell>
+                  {seg.fecha && typeof (seg.fecha as any).toDate === "function"
+                    ? (seg.fecha as any).toDate().toLocaleDateString("es-CO")
+                    : "—"}
+                </TableCell>
+                <TableCell className="capitalize">
+                  {renderTipoSeguimiento(seg.tipoSeguimiento)}
+                </TableCell>
                 <TableCell>
                   <div className="whitespace-pre-wrap leading-relaxed text-sm">
                     {seg.descripcion}
