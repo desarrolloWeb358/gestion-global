@@ -11,6 +11,7 @@ import type { Payload as LegendPayload } from "recharts/types/component/DefaultL
 import { Card, CardHeader, CardContent, CardTitle } from "@/shared/ui/card";
 import { Separator } from "@/shared/ui/separator";
 import { Loader2 } from "lucide-react";
+import TablaDeudoresReporte from "./TablaDeudoresReporte";
 
 // services
 import { contarTipificacionPorCliente, PieItem } from "../../services/reportes/tipificacionService";
@@ -200,6 +201,14 @@ export default function ReporteClientePage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Sección de tabla de deudores */}
+      {clienteId && (
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold">Tabla de deudores (año)</h3>
+          <TablaDeudoresReporte clienteId={clienteId} />
+        </div>
+      )}
     </div>
   );
 }
