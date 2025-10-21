@@ -41,7 +41,7 @@ import {
 } from "@/modules/clientes/services/clienteService";
 import { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 import { obtenerUsuarios } from "@/modules/usuarios/services/usuarioService";
-import { Timestamp } from "firebase/firestore";
+
 
 export default function ClientesCrud() {
   const navigate = useNavigate();

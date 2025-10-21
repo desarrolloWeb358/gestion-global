@@ -208,12 +208,9 @@ export default function ObservacionesClientePanel({
           <div className="space-y-3">
             {items.map((o) => {
               // intenta usar o.fecha || o.fechaTs || creadoTs/creadoEn por retrocompatibilidad
-              const fecha =
-                formatObsDate((o as any).fecha ?? (o as any).fechaTs ?? (o as any).creadoTs ?? (o as any).creadoEn);
-
               return (
                 <div key={o.id} className="rounded-md border p-3">
-                  <div className="text-xs text-muted-foreground mb-1">{fecha}</div>
+
 
                   {editingId === o.id ? (
                     <div className="space-y-2">
