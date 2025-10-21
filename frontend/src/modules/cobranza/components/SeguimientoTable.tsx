@@ -56,6 +56,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/shared/ui/tabs";
 import FiltersBar from "@/shared/table-filters/FiltersBar";
 import type { DateRange, FilterField } from "@/shared/table-filters/types";
 
+import { codeToLabel } from "@/shared/constants/tipoSeguimiento";
+
 // Select inline (orden)
 import {
   Select,
@@ -67,6 +69,11 @@ import {
 
 // ==== helpers de fechas/orden ====
 type SortDir = "desc" | "asc";
+
+function renderTipoSeguimiento(code?: string) {
+  // Si el code existe en el mapa, devuelve el label; si no, muestra el code o '—'
+  return codeToLabel[code as keyof typeof codeToLabel] ?? code ?? "—";
+}
 
 function toDate(v: any): Date | undefined {
   try {
@@ -387,7 +394,7 @@ export default function SeguimientoTable() {
                         : "—"}
                     </TableCell>
                     <TableCell className="capitalize">
-                      {seg.tipoSeguimiento ?? "—"}
+                      {renderTipoSeguimiento(seg.tipoSeguimiento)}
                     </TableCell>
                     <TableCell>
                       <div className="whitespace-pre-wrap leading-relaxed text-sm">
