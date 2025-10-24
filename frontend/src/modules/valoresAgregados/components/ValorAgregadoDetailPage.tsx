@@ -123,10 +123,7 @@ export default function ValorAgregadoDetailPage() {
     if (!val) return toast.error("Escribe la observación.");
     setObsSaving(true);
     try {
-      await addObservacionClienteValor(clienteId, valorId, val, {
-        creadoPorUid: currentUid,
-        creadoPorNombre: currentName,
-      });
+      await addObservacionClienteValor(clienteId, valorId, val);
       setTexto("");
       await fetchObs();
       toast.success("Observación agregada.");
