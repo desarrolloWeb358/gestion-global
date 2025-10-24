@@ -32,7 +32,7 @@ import {
 
 type Scope = "deudor" | "valor";
 
-/** Formatea Timestamp/FieldValue/Date a string local es-CO */
+/** Formatea Timestamp/Date a string local es-CO (solo `fecha`) */
 function formatObsDate(input: any): string {
   try {
     if (!input) return "—";
@@ -97,7 +97,9 @@ export default function ObservacionesClientePanel({
         scope === "deudor"
           ? await getObservacionesCliente(clienteId, parentId)
           : await getObservacionesClienteValor(clienteId, parentId);
-      setItems(data);
+
+      // ✅ Sin normalizaciones: UI asume que service ya retorna { id, texto, fecha }
+      setItems(data ?? []);
     } catch (e) {
       console.error(e);
       toast.error("No se pudieron cargar las observaciones del cliente.");
@@ -110,8 +112,8 @@ export default function ObservacionesClientePanel({
     fetch();
   }, [fetch]);
 
-  // Ahora los permisos no dependen del autor, porque ya no guardamos creadoPor*
-  const canEditObs = (o: ObservacionCliente) => isCliente || canModerate;
+  // Permisos: ya no dependen del autor
+  const canEditObs = (_o: ObservacionCliente) => isCliente || canModerate;
   const canDeleteObs = canEditObs;
 
   async function onCreate() {
@@ -123,9 +125,9 @@ export default function ObservacionesClientePanel({
     setSaving(true);
     try {
       if (scope === "deudor") {
-        await addObservacionCliente(clienteId, parentId, val); // ← sin metadatos
+        await addObservacionCliente(clienteId, parentId, val); // service setea `fecha`
       } else {
-        await addObservacionClienteValor(clienteId, parentId, val); // ← sin metadatos
+        await addObservacionClienteValor(clienteId, parentId, val); // service setea `fecha`
       }
       setTexto("");
       await fetch();
@@ -156,6 +158,7 @@ export default function ObservacionesClientePanel({
 
     setWorking(true);
     try {
+      // NO tocar `fecha` en actualizaciones; solo se modifica `texto`
       await updateObservacionCliente(clienteId, parentId, editingId, nuevo, scope);
       toast.success("Observación actualizada.");
       setEditingId(null);
@@ -199,55 +202,53 @@ export default function ObservacionesClientePanel({
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {/* Lista: solo FECHA + TEXTO */}
+        {/* Lista: FECHA + TEXTO (solo `fecha`) */}
         {loading ? (
           <p className="text-sm text-muted-foreground">Cargando…</p>
         ) : items.length === 0 ? (
           <p className="text-sm text-muted-foreground">Sin observaciones aún.</p>
         ) : (
           <div className="space-y-3">
-            {items.map((o) => {
-              // intenta usar o.fecha || o.fechaTs || creadoTs/creadoEn por retrocompatibilidad
-              return (
-                <div key={o.id} className="rounded-md border p-3">
-
-
-                  {editingId === o.id ? (
-                    <div className="space-y-2">
-                      <Textarea
-                        value={editingTexto}
-                        onChange={(e) => setEditingTexto(e.target.value)}
-                        className="min-h-24"
-                        maxLength={1000}
-                        disabled={working}
-                      />
-                      <div className="flex items-center justify-end gap-2">
-                        <Button variant="outline" onClick={cancelEdit} disabled={working}>
-                          Cancelar
+            {items.map((o) => (
+              <div key={o.id} className="rounded-md border p-3">
+                {editingId === o.id ? (
+                  <div className="space-y-2">
+                    <Textarea
+                      value={editingTexto}
+                      onChange={(e) => setEditingTexto(e.target.value)}
+                      className="min-h-24"
+                      maxLength={1000}
+                      disabled={working}
+                    />
+                    <div className="flex items-center justify-end gap-2">
+                      <Button variant="outline" onClick={cancelEdit} disabled={working}>
+                        Cancelar
+                      </Button>
+                      <Button onClick={confirmEdit} disabled={working || !editingTexto.trim()}>
+                        Guardar cambios
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="text-xs text-muted-foreground mb-1">
+                      {formatObsDate(o.fecha)}
+                    </div>
+                    <div className="text-sm whitespace-pre-wrap">{o.texto}</div>
+                    {(isCliente || canModerate) && (
+                      <div className="mt-2 flex items-center gap-2 justify-end">
+                        <Button size="sm" variant="outline" onClick={() => startEdit(o)} disabled={working}>
+                          Editar
                         </Button>
-                        <Button onClick={confirmEdit} disabled={working || !editingTexto.trim()}>
-                          Guardar cambios
+                        <Button size="sm" variant="destructive" onClick={() => askDelete(o)} disabled={working}>
+                          Eliminar
                         </Button>
                       </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="text-sm whitespace-pre-wrap">{o.texto}</div>
-                      {(isCliente || canModerate) && (
-                        <div className="mt-2 flex items-center gap-2 justify-end">
-                          <Button size="sm" variant="outline" onClick={() => startEdit(o)} disabled={working}>
-                            Editar
-                          </Button>
-                          <Button size="sm" variant="destructive" onClick={() => askDelete(o)} disabled={working}>
-                            Eliminar
-                          </Button>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              );
-            })}
+                    )}
+                  </>
+                )}
+              </div>
+            ))}
           </div>
         )}
 
