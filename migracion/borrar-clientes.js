@@ -23,7 +23,7 @@ const path = require('path');
 const SERVICE_ACCOUNT_PATH = './serviceAccountKey.json';
 
 // Máximo de clientes a procesar (null o 0 = todos)
-const LIMIT = 5;
+const LIMIT = 6;
 
 // Simulación (no borra nada en Auth ni Firestore si true)
 const DRY_RUN = false;

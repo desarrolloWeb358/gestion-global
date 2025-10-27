@@ -15,22 +15,18 @@
 const admin = require("firebase-admin");
 const xlsx = require("xlsx");
 
+const fs = require("fs");
+
+// --- Config ---
+
+// 👇 Nuevo: un solo archivo de reporte
+const OUTPUT_REPORTE = "./Reporte_ProcesosJudiciales.xlsx";
 // --- Config ---
 const excelPath = "./ProcesosJudiciales.xlsx";                // <-- cambia si es necesario
-const OUTPUT_MIGRADOS = "./ProcesosJudiciales_migrados.xlsx";
-const OUTPUT_NO_MIGRADOS = "./ProcesosJudiciales_no_migrados.xlsx";
 const DRY_RUN = false; // true = no escribe, solo simula
 
-// ⛳️ Arreglo de NITs a migrar (si está vacío, migra TODOS)
-// Acepta valores con o sin puntos/guiones/espacios; se normalizan.
-const NITS_FILTRAR = [
-"901001861",
-"900658412",
-"900643491",
-"900387627",
-"830073688",
-"830125131",
-];
+// 📂 Archivo externo con NITs a migrar (si está vacío o no existe → migra TODOS)
+const NITS_EXCEL_PATH = "./migracionXnit.xlsx";
 
 // Mapeo ejecutivo -> UID (case-insensitive)
 const EJECUTIVOS_UID = {
@@ -53,12 +49,82 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const normalizeNit = (nitRaw) => {
   if (!nitRaw) return "";
   const s = String(nitRaw).toUpperCase();
-  // elimina palabras NIT/N.I.T, signos, espacios; conserva dígitos
   return s.replace(/[^\d]/g, "");
 };
 
-// Set con NITs normalizados para filtrar rápido
-const NITS_FILTRAR_SET = new Set(NITS_FILTRAR.map((n) => normalizeNit(n)));
+
+function appendOrCreateReport(filePath, okRows, badRows) {
+  // Abrir si existe, o crear nuevo
+  const wb = fs.existsSync(filePath) ? xlsx.readFile(filePath) : xlsx.utils.book_new();
+
+  // Asegurar nombres de hojas
+  const OK_SHEET = "Migrados";
+  const BAD_SHEET = "NoMigrados";
+
+  // Leer filas existentes (si las hojas existen)
+  const okSheetExisting = wb.Sheets[OK_SHEET];
+  const badSheetExisting = wb.Sheets[BAD_SHEET];
+
+  const existingOkRows = okSheetExisting
+    ? xlsx.utils.sheet_to_json(okSheetExisting, { defval: "" })
+    : [];
+  const existingBadRows = badSheetExisting
+    ? xlsx.utils.sheet_to_json(badSheetExisting, { defval: "" })
+    : [];
+
+  // Concatenar (append)
+  const mergedOk = existingOkRows.concat(okRows);
+  const mergedBad = existingBadRows.concat(badRows);
+
+  // Re-crear hojas desde el merge
+  const okSheetNew = xlsx.utils.json_to_sheet(mergedOk);
+  const badSheetNew = xlsx.utils.json_to_sheet(mergedBad);
+
+  // Reemplazar/crear en el workbook
+  wb.Sheets[OK_SHEET] = okSheetNew;
+  wb.Sheets[BAD_SHEET] = badSheetNew;
+
+  // Asegurar orden de pestañas: Migrados primero, NoMigrados segundo
+  const desiredOrder = [OK_SHEET, BAD_SHEET];
+  wb.SheetNames = desiredOrder;
+
+  // Guardar
+  xlsx.writeFile(wb, filePath);
+}
+
+// 📥 Carga Set de NITs desde migracionXnit.xls (primera hoja).
+// Acepta encabezados comunes (nit/NIT/cliente/numeroDocumento). Si no hay, toma el primer campo de la fila.
+function loadNitFilterSet(filePath) {
+  try {
+    const wb = xlsx.readFile(filePath);
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    // leemos como objetos para intentar por nombre de columna
+    const rows = xlsx.utils.sheet_to_json(sheet, { defval: "" });
+    const set = new Set();
+
+    for (const r of rows) {
+      // candidatos por nombre de encabezado
+      const candidatesByName = [
+        r.nit, r.Nit, r.NIT,
+        r.numeroDocumento, r.NUMERODOCUMENTO, r.NumeroDocumento,
+        r.cliente, r.CLIENTE, r.Cliente,
+      ];
+      let picked = candidatesByName.find(v => toStr(v));
+      if (!picked) {
+        // como fallback: primera celda de la fila (por si vino sin encabezados)
+        const firstValue = Object.values(r)[0];
+        picked = toStr(firstValue);
+      }
+      const norm = normalizeNit(picked);
+      if (norm) set.add(norm);
+    }
+
+    return set;
+  } catch (e) {
+    console.warn(`ℹ️  No se pudo cargar '${filePath}' (${e.message}). Se migrarán TODOS los NIT del Excel principal.`);
+    return new Set(); // vacío = sin filtro → migra todos
+  }
+}
 
 // Busca el UID del cliente a partir del NIT en `usuarios`
 async function getClienteUidByNit(nit) {
@@ -100,18 +166,15 @@ function normalizeUbicacion(ubicacion) {
   let trimmed = ubicacion.trim();
 
   // 1) Quitar una letra final si existe (con o sin espacio antes)
-  //    "2-11A"  -> "2-11"
-  //    "6-36 A" -> "6-36"
   trimmed = trimmed.replace(/\s*[A-Za-z]$/, "");
 
   // Si empieza con letra de A-Z → la convierte a número y concatena lo que sigue
-  const firstChar = trimmed.charAt(0).toUpperCase(); 
+  const firstChar = trimmed.charAt(0).toUpperCase();
   if (firstChar >= 'A' && firstChar <= 'Z') {
     const num = firstChar.charCodeAt(0) - 'A'.charCodeAt(0) + 1;
     return num + trimmed.slice(1);
   }
 
-  // Si no empieza con letra, devuelve igual
   return trimmed;
 }
 
@@ -123,7 +186,6 @@ function toBogotaMidnight(dateUTCOrLocal) {
   const y = dateUTCOrLocal.getUTCFullYear();
   const m = dateUTCOrLocal.getUTCMonth();
   const d = dateUTCOrLocal.getUTCDate();
-  // 00:00 local -05 equivale a 05:00 UTC
   return new Date(Date.UTC(y, m, d, -TIMEZONE_OFFSET_HOURS, 0, 0));
 }
 
@@ -154,7 +216,6 @@ function parseFechaUltimaRevision(value) {
   const year = parseInt(m[3], 10);
   if (year < 1900 || month < 1 || month > 12 || day < 1 || day > 31) return null;
 
-  // Creamos una Date a medianoche Bogotá directamente
   return new Date(Date.UTC(year, month - 1, day, -TIMEZONE_OFFSET_HOURS, 0, 0));
 }
 
@@ -162,15 +223,18 @@ async function main() {
   let migrados = 0;
   let noMigrados = 0;
 
+  // 📥 Cargar filtro de NITs desde migracionXnit.xls
+  const NITS_FILTRAR_SET = loadNitFilterSet(NITS_EXCEL_PATH);
+
   const wb = xlsx.readFile(excelPath);
   const sheet = wb.Sheets[wb.SheetNames[0]];
   const rows = xlsx.utils.sheet_to_json(sheet, { defval: "" });
 
   console.log(`📄 ${rows.length} filas leídas de ${excelPath}`);
   if (NITS_FILTRAR_SET.size > 0) {
-    console.log(`🎯 Filtrando por ${NITS_FILTRAR_SET.size} NIT(s) específicos...`);
+    console.log(`🎯 Filtrando por ${NITS_FILTRAR_SET.size} NIT(s) específicos (desde ${NITS_EXCEL_PATH})...`);
   } else {
-    console.log(`ℹ️  NITS_FILTRAR vacío → se migrarán TODOS los NIT del Excel.`);
+    console.log(`ℹ️  No se cargó filtro de NIT (o está vacío) → se migrarán TODOS los NIT del Excel principal.`);
   }
 
   const okRows = [];      // para OUTPUT_MIGRADOS
@@ -181,7 +245,7 @@ async function main() {
 
     // Lectura tolerante de encabezados
     const ejecutivoRaw = toStr(raw.ejecutivo || raw.Ejecutivo || raw.EJECUTIVO);
-    const nit = toStr(raw.nit || raw.Nit || raw.NIT || raw.CLIENTE || raw.cliente);
+    const nit = normalizeNit(toStr(raw.nit || raw.Nit || raw.NIT || raw.CLIENTE || raw.cliente));
     let ubicacion = toStr(raw.ubicacion || raw.UBICACIÓN || raw.UBICACION);
     // Normalizar ubicación si empieza con letra
     ubicacion = normalizeUbicacion(ubicacion);
@@ -199,7 +263,6 @@ async function main() {
     const localidad = toStr(raw.localidad || raw.Localidad || raw.LOCALIDAD);
     const observaciones = toStr(raw.observaciones || raw.Observaciones || raw.OBSERVACIONES);
 
-    // Puede venir con distintas variantes de encabezado; si es la última, igual la toma por nombre
     const fechaUltRevRaw = toStr(
       raw["FECHA DE ULTIMA REVISION"] ||
       raw["FECHA DE LA ULTIMA REVISION"] ||
@@ -210,11 +273,9 @@ async function main() {
       raw["FECHA_ULTIMA_REVISION"]
     );
 
-    // 🎯 Filtro por NITs solicitados (si se configuró)
+    // 🎯 Filtro por NITs solicitados (si se cargó alguno)
     if (NITS_FILTRAR_SET.size > 0 && !NITS_FILTRAR_SET.has(nit)) {
-      //badRows.push(withMotivoNoMigrado(raw, `NIT '${nit}' omitido por filtro`));
-      //noMigrados++;
-      // No es un "error", es un "omitido"; si prefieres no contarlo como noMigrado, cambia esta parte.
+      // omitido por filtro → no lo contamos como error
       continue;
     }
 
@@ -231,8 +292,6 @@ async function main() {
       console.warn(`⚠️  [${i + 1}] Falta ubicacion para NIT=${nit}.`);
       continue;
     }
-
-    
 
     try {
       // 1) Mapear ejecutivo
@@ -285,9 +344,9 @@ async function main() {
       // 5) Actualizar campos judiciales del deudor
       const updateDeudor = { demandados, juzgado, numeroRadicado, localidad, observacionesDemanda: observaciones };
       // Parseo y agregado de la fecha de última revisión si viene válida
-      console.log(`    → Parseando fecha última revisión: '${fechaUltRevRaw}'`);
+      //console.log(`    → Parseando fecha última revisión: '${fechaUltRevRaw}'`);
       const parsedDate = parseFechaUltimaRevision(fechaUltRevRaw);
-      console.log(`    → Fecha última revisión raw='${fechaUltRevRaw}' parsed=${parsedDate}`);
+      //console.log(`    → Fecha última revisión raw='${fechaUltRevRaw}' parsed=${parsedDate}`);
       if (parsedDate) {
         updateDeudor.fechaUltimaRevision = admin.firestore.Timestamp.fromDate(parsedDate);
       } else {
@@ -311,7 +370,6 @@ async function main() {
       // Evitar picos de cuota
       await sleep(15);
     } catch (err) {
-      // Cualquier error inesperado también va a "no migrados"
       const motivo = err?.message || String(err);
       badRows.push(withMotivoNoMigrado(raw, `Error inesperado: ${motivo}`));
       noMigrados++;
@@ -323,19 +381,21 @@ async function main() {
   const okSheet = xlsx.utils.json_to_sheet(okRows);
   const okWb = xlsx.utils.book_new();
   xlsx.utils.book_append_sheet(okWb, okSheet, "Migrados");
-  xlsx.writeFile(okWb, OUTPUT_MIGRADOS);
+  //xlsx.writeFile(okWb, OUTPUT_MIGRADOS);
 
   // Escribir NO MIGRADOS
   const badSheet = xlsx.utils.json_to_sheet(badRows);
   const badWb = xlsx.utils.book_new();
   xlsx.utils.book_append_sheet(badWb, badSheet, "NoMigrados");
-  xlsx.writeFile(badWb, OUTPUT_NO_MIGRADOS);
+  //xlsx.writeFile(badWb, OUTPUT_NO_MIGRADOS);
+
+  // 🧾 Único archivo de reporte con 2 pestañas y APPEND si ya existe
+  appendOrCreateReport(OUTPUT_REPORTE, okRows, badRows);
 
   console.log("────────────────────────────────────────");
   console.log(`✅ Migrados:     ${migrados}`);
   console.log(`⚠️  No migrados:  ${noMigrados}`);
-  console.log(`📁 OK:           ${OUTPUT_MIGRADOS}`);
-  console.log(`📁 Errores:      ${OUTPUT_NO_MIGRADOS}`);
+  console.log(`📁 Reporte:      ${OUTPUT_REPORTE}`);
   console.log("🚀 Proceso finalizado.");
 }
 

@@ -15,12 +15,13 @@ const SERVICE_ACCOUNT_PATH = './serviceAccountKey.json';
 
 // UIDs de clientes a procesar
 const CLIENT_UIDS = [
-  '3zTvYdP34DT0BJWIQnCMD1xRN3l1',
-  'HeHR9dGI2APFSaAVmmR1y2BsPAn2',
-  'bs19MoVq6lZjmLyNbswQDuABI3x2',
-  'j2ptFkqVbVbGRe6SVhrEzzSNNck2',
-  'jejrRcVQ1WOG1wXOxcNgPSLzpZX2',
-  'noR18twdH1S5WSpBJTu4A2vQNgZ2',
+  'HxNd96oYp0SOg2pkeby4FyyYODE3',
+'BzUVQowDgdY3Aoufc7PwFwC3Gkm1',
+'0BZRb2c80xW8LBsLW97kIomfwwI3',
+'DnbYBfwRO1cSRCPsyWResfR3sW43',
+'WRhnFbc28HTGcSvMgVMjIndR6pH2',
+'KHvsULT8c3YJbUYgNCJhdMq4apV2',
+'ppnhXpKDAfUyAV9YDyvtPYCjxV22',
 ];
 
 // Nombre de la subcolección
