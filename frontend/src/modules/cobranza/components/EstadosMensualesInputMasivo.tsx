@@ -5,17 +5,19 @@ import { Button } from "@/shared/ui/button";
 import { toast } from "sonner";
 import { Deudor } from "../models/deudores.model";
 import { obtenerDeudorPorCliente } from "../services/deudorService";
-import { upsertEstadoMensualPorMes } from "../services/estadoMensualService"; // 👈 usa upsert (no crear)
+import { upsertEstadoMensualPorMes } from "../services/estadoMensualService";
 import { db } from "@/firebase";
 import { doc, getDoc } from "firebase/firestore";
+import { Loader2 } from "lucide-react";
+import { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 
 interface FilaEstadoBase {
   deudorId: string;
   nombre: string;
-  porcentajeHonorarios: string;
-  deuda: string;    // 👈 strings para inputs controlados
-  recaudo: string;  // 👈 strings para inputs controlados
-  acuerdo?: string;
+  porcentajeHonorarios: string; // string por input controlado (ej. "15")
+  deuda: string;                // string por input controlado
+  recaudo: string;              // string por input controlado
+  acuerdo?: string;             // string por input controlado (opcional)
 }
 
 export default function EstadosMensualesInputMasivo() {
@@ -28,39 +30,86 @@ export default function EstadosMensualesInputMasivo() {
   );
   const [filas, setFilas] = useState<FilaEstadoBase[]>([]);
   const [loading, setLoading] = useState(true);
-
   const [saving, setSaving] = useState(false);
 
-  // Cargar nombre del cliente
-  useEffect(() => {
-    if (!clienteId) return;
-    (async () => {
-      try {
-        const ref = doc(db, "clientes", clienteId);
-        const snap = await getDoc(ref);
-        const nombre = snap.exists() ? (snap.data().nombre as string) : "Cliente";
-        setClienteNombre(nombre || "Cliente");
-      } catch {
-        setClienteNombre("Cliente");
-      }
-    })();
-  }, [clienteId]);
+  // Traer nombre solo desde clientes/{clienteId}
+ useEffect(() => {
+  if (!clienteId) return;
+  let cancel = false;
 
+  (async () => {
+    try {
+      // 1) Intentar como UsuarioSistema
+      const tryUserCollections = async (): Promise<string | null> => {
+        const usersCollections = ["usuariosSistema", "usuarios"]; // por si usas otro nombre
+        for (const col of usersCollections) {
+          const ref = doc(db, col, String(clienteId));
+          const snap = await getDoc(ref);
+          if (snap.exists()) {
+            const u = snap.data() as Partial<UsuarioSistema>;
+            const nombre = (u?.nombre ?? "").toString().trim();
+            if (nombre) return nombre;
+          }
+        }
+        return null;
+      };
+
+      // 2) Fallback a clientes/{clienteId}
+      const tryClienteCollection = async (): Promise<string | null> => {
+        const ref = doc(db, "clientes", String(clienteId));
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          const d = snap.data() as any;
+          const nombre =
+            (d?.nombre && String(d.nombre).trim()) ||
+            (d?.razonSocial && String(d.razonSocial).trim());
+          if (nombre) return nombre;
+        }
+        return null;
+      };
+
+      // Resolver nombre
+      const nombreUsuario = await tryUserCollections();
+      const resolved =
+        nombreUsuario ??
+        (await tryClienteCollection()) ??
+        "Cliente";
+
+      if (!cancel) setClienteNombre(resolved);
+    } catch (e) {
+      console.error(e);
+      if (!cancel) setClienteNombre("Cliente");
+    }
+  })();
+
+  return () => {
+    cancel = true;
+  };
+}, [clienteId, db]);
   // Cargar deudores y preparar filas
   useEffect(() => {
     if (!clienteId) return;
-    obtenerDeudorPorCliente(clienteId).then((deudores: Deudor[]) => {
-      const nuevasFilas: FilaEstadoBase[] = deudores.map((d) => ({
-        deudorId: d.id!,
-        nombre: d.nombre || "Sin nombre",
-        porcentajeHonorarios: "15",
-        deuda: "",    // 👈 string vacío: controlled
-        recaudo: "",  // 👈 string vacío: controlled
-        acuerdo: "",
-      }));
-      setFilas(nuevasFilas);
-      setLoading(false);
-    });
+    (async () => {
+      setLoading(true);
+      try {
+        const deudores: Deudor[] = await obtenerDeudorPorCliente(clienteId);
+        const nuevasFilas: FilaEstadoBase[] = deudores.map((d) => ({
+          deudorId: d.id!,
+          nombre: d.nombre || "Sin nombre",
+          porcentajeHonorarios: "15",
+          deuda: "",
+          recaudo: "",
+          acuerdo: "",
+        }));
+        setFilas(nuevasFilas);
+      } catch (e: any) {
+        console.error(e);
+        toast.error("No se pudieron cargar los deudores del cliente.");
+        setFilas([]);
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [clienteId]);
 
   const handleChange = (index: number, field: keyof FilaEstadoBase, value: string) => {
@@ -71,17 +120,11 @@ export default function EstadosMensualesInputMasivo() {
     });
   };
 
-  const toNumOrUndefined = (v: string) => (v === "" ? undefined : Number(v));
-
-  const filaCompleta = (f: FilaEstadoBase) =>
-    f.deuda.trim() !== "" && f.recaudo.trim() !== "";
-
-
-
   const guardarTodos = async () => {
     if (!clienteId) return;
-    if (!mesGlobal) {
-      toast.error("Selecciona un mes válido.");
+
+    if (!/^\d{4}-\d{2}$/.test(mesGlobal)) {
+      toast.error("Selecciona un mes válido (YYYY-MM).");
       return;
     }
 
@@ -94,22 +137,31 @@ export default function EstadosMensualesInputMasivo() {
     }
 
     try {
-      setSaving(true);                       // 🔒 bloquear y mostrar overlay
+      setSaving(true);
+
       await Promise.all(
         porGuardar.map(async (fila) => {
-          const deudaNum = Number(fila.deuda);
-          const recaudoNum = Number(fila.recaudo);
-          const acuerdoNum = Number(fila.acuerdo);
-          const porcentaje = Number(fila.porcentajeHonorarios || "15");
-          const honorariosDeuda = (deudaNum * porcentaje) / 100;
-          const honorariosAcuerdo = (acuerdoNum * porcentaje) / 100;
+          const deudaNum = Number.parseFloat(fila.deuda);
+          const recaudoNum = Number.parseFloat(fila.recaudo);
+          const acuerdoNum = fila.acuerdo?.trim() ? Number.parseFloat(fila.acuerdo) : 0;
+          const porcentaje = fila.porcentajeHonorarios?.trim()
+            ? Number.parseFloat(fila.porcentajeHonorarios)
+            : 15;
+
+          const deuda = Number.isNaN(deudaNum) ? 0 : deudaNum;
+          const recaudo = Number.isNaN(recaudoNum) ? 0 : recaudoNum;
+          const acuerdo = Number.isNaN(acuerdoNum) ? 0 : acuerdoNum;
+          const porc = Number.isNaN(porcentaje) ? 15 : porcentaje;
+
+          const honorariosDeuda = (deuda * porc) / 100;
+          const honorariosAcuerdo = (acuerdo * porc) / 100;
 
           await upsertEstadoMensualPorMes(clienteId, fila.deudorId, {
             mes: mesGlobal,
-            deuda: deudaNum,
-            recaudo: recaudoNum,
-            acuerdo: acuerdoNum,
-            porcentajeHonorarios: porcentaje,
+            deuda,
+            recaudo,
+            acuerdo,
+            porcentajeHonorarios: porc,
             honorariosDeuda,
             honorariosAcuerdo,
             recibo: "",
@@ -120,13 +172,13 @@ export default function EstadosMensualesInputMasivo() {
 
       toast.success(
         `Se guardaron ${porGuardar.length} fila(s).` +
-        (omitidas > 0 ? ` Omitidas ${omitidas} sin deuda y/o recaudo.` : "")
+          (omitidas > 0 ? ` Omitidas ${omitidas} sin deuda y/o recaudo.` : "")
       );
     } catch (err: any) {
       console.error(err);
       toast.error(err?.message || "Error al guardar algunos estados.");
     } finally {
-      setSaving(false);                      // 🔓 quitar bloqueo
+      setSaving(false);
     }
   };
 
@@ -134,8 +186,19 @@ export default function EstadosMensualesInputMasivo() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Encabezado */}
-      <div className="flex flex-col gap-1">
+      {saving && (
+        <div className="fixed inset-0 z-[1000] bg-black/30 backdrop-blur-[1px] flex items-center justify-center">
+          <div className="rounded-xl bg-white dark:bg-neutral-900 shadow-lg px-6 py-5 flex items-center gap-3">
+            <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+            <div className="text-sm">
+              <div className="font-medium">Guardando…</div>
+              <div className="text-muted-foreground">Por favor espera un momento.</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-1" {...(saving ? { inert: "" as unknown as boolean } : {})}>
         <div className="flex items-center justify-between">
           <Button variant="outline" onClick={() => navigate(-1)}>
             ← Volver
@@ -146,12 +209,11 @@ export default function EstadosMensualesInputMasivo() {
           <div className="w-[85px]" />
         </div>
 
-        <p className="text-lg text-muted-foreground text-center">
-          Conjunto: <span className="font-semibold text-gray-900">{clienteNombre}</span>
-        </p>
+      <p className="text-lg text-muted-foreground text-center">
+  Conjunto: <span className="font-semibold text-gray-900">{clienteNombre}</span>
+</p>
       </div>
 
-      {/* Selector de mes */}
       <div className="flex items-center gap-3">
         <label className="font-medium">Mes:</label>
         <Input
@@ -159,14 +221,12 @@ export default function EstadosMensualesInputMasivo() {
           value={mesGlobal ?? ""}
           onChange={(e) => setMesGlobal(e.target.value.slice(0, 7))}
           className="max-w-[200px]"
+          disabled={saving}
         />
       </div>
 
-
       <div className="relative">
-        {/* Deshabilita todo mientras guarda */}
         <fieldset disabled={saving} className="space-y-4">
-          {/* Tabla: Deudor | Deuda | Recaudo */}
           <div className="overflow-x-auto">
             <table className="w-full text-sm border">
               <thead className="bg-gray-100">
@@ -215,16 +275,16 @@ export default function EstadosMensualesInputMasivo() {
           </div>
 
           <Button onClick={guardarTodos} className="mt-4" disabled={saving}>
-            {saving ? "Guardando…" : "Guardar todos los estados"}
+            {saving ? (
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                Guardando…
+              </span>
+            ) : (
+              "Guardar todos los estados"
+            )}
           </Button>
         </fieldset>
-
-        {/* Overlay centrado mientras saving */}
-        {saving && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white/60 backdrop-blur-sm rounded-md">
-            <span className="text-sm font-medium">Guardando…</span>
-          </div>
-        )}
       </div>
     </div>
   );

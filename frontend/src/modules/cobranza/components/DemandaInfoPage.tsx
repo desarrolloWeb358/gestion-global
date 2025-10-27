@@ -1,7 +1,7 @@
 // src/modules/deudores/pages/DemandaInfoPage.tsx
 import * as React from "react";
 import { useParams, Link } from "react-router-dom";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 import { Label } from "@/shared/ui/label";
@@ -24,6 +24,7 @@ import {
   type Perm,
 } from "@/shared/constants/acl";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
+import { Loader2 } from "lucide-react";
 
 /** Helpers de fecha */
 function toDateInputValue(anyDate: any): string {
@@ -134,14 +135,14 @@ export function DemandaInfoPage() {
 
   const onChange =
     (key: keyof typeof form) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-      setForm((s) => ({ ...s, [key]: e.target.value }));
+      (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+        setForm((s) => ({ ...s, [key]: e.target.value }));
 
   /** setea YYYY-MM-DD desde un Date del Calendar */
- const onChangeDate = (key: keyof typeof form) => (date?: Date) => {
-  const val = date ? date.toISOString().slice(0, 10) : "";
-  setForm((s) => ({ ...s, [key]: val }));
-};
+  const onChangeDate = (key: keyof typeof form) => (date?: Date) => {
+    const val = date ? date.toISOString().slice(0, 10) : "";
+    setForm((s) => ({ ...s, [key]: val }));
+  };
 
   const handleGuardar = async () => {
     if (!puedeEditar || !clienteId || !deudorId) return;
@@ -158,10 +159,16 @@ export function DemandaInfoPage() {
         observacionesDemandaCliente: form.observacionesDemandaCliente || "",
       };
 
+      // Marca de tiempo si cambió la observación del cliente
+      const prevObsCliente = (deudor as any)?.observacionesDemandaCliente ?? "";
+      if ((form.observacionesDemandaCliente || "") !== (prevObsCliente || "")) {
+        (payload as any).observacionesDemandaClienteFecha = serverTimestamp();
+      }
+
       if (form.fechaUltimaRevision) {
         payload.fechaUltimaRevision = new Date(form.fechaUltimaRevision);
       } else {
-        payload.fechaUltimaRevision = null;
+        payload.fechaUltimaRevision = null as any;
       }
 
       await updateDoc(ref, payload as any);
@@ -193,7 +200,7 @@ export function DemandaInfoPage() {
           <p className="text-sm text-red-600">{error}</p>
           <div className="flex gap-2">
             <Button asChild variant="secondary">
-              <Link to={`/deudores/${clienteId}/${deudorId}`}>Volver</Link>
+              <Link to={`/clientes/${clienteId}/deudores/${deudorId}`}>Volver</Link>
             </Button>
           </div>
         </CardContent>
@@ -204,99 +211,130 @@ export function DemandaInfoPage() {
   const ro = !puedeEditar;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Información de la demanda</h1>
-        <div className="flex gap-2">
-          <Button asChild variant="secondary">
-            <Link to={`/clientes/${clienteId}/deudores/${deudorId}`}>Volver</Link>
-          </Button>
-          {puedeEditar && (
-            <Button onClick={handleGuardar} disabled={saving}>
-              {saving ? "Guardando…" : "Guardar cambios"}
-            </Button>
-          )}
+    <>
+      {/* 🔒 Overlay de bloqueo mientras saving === true */}
+      {saving && (
+        <div
+          className="fixed inset-0 z-[1000] bg-black/40 backdrop-blur-[1px] flex items-center justify-center"
+          role="alert"
+          aria-live="assertive"
+        >
+          <div className="rounded-xl bg-white dark:bg-neutral-900 shadow-lg px-6 py-5 flex items-center gap-3">
+            <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+            <div className="text-sm">
+              <div className="font-medium">Guardando…</div>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Datos principales</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Field
-            label="Demandados"
-            readOnly={roDatosPrincipales}
-            value={form.demandados}
-            onChange={onChange("demandados")}
-          />
-          <Field
-            label="Juzgado"
-            readOnly={roDatosPrincipales}
-            value={form.juzgado}
-            onChange={onChange("juzgado")}
-          />
-          <Field
-            label="Número de radicado"
-            readOnly={roDatosPrincipales}
-            value={form.numeroRadicado}
-            onChange={onChange("numeroRadicado")}
-          />
-          <Field
-            label="Localidad"
-            readOnly={roDatosPrincipales}
-            value={form.localidad}
-            onChange={onChange("localidad")}
-          />
+      <div className="space-y-6"  {...(saving ? { inert: "" as unknown as boolean } : {})}>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-semibold tracking-tight">Información de la demanda</h1>
+          <div className="flex gap-2">
+            <Button asChild variant="secondary">
+              <Link to={`/clientes/${clienteId}/deudores/${deudorId}`}>Volver</Link>
+            </Button>
 
-          {/* ✅ Calendar en vez de <input type="date" /> */}
-          <DateField
-            label="Fecha última revisión"
-            readOnly={roDatosPrincipales}
-            value={form.fechaUltimaRevision}         // YYYY-MM-DD
-            onChangeDate={onChangeDate("fechaUltimaRevision")}
-          />
-        </CardContent>
-      </Card>
+            {puedeEditar && (
+              <Button
+                type="button"
+                onClick={handleGuardar}
+                disabled={saving}
+                aria-busy={saving}
+              >
+                {saving ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                    <span>Guardando…</span>
+                  </span>
+                ) : (
+                  "Guardar cambios"
+                )}
+              </Button>
+            )}
+          </div>
+        </div>
 
-      {!isCliente && (
         <Card>
           <CardHeader>
-            <CardTitle>Observaciones (internas)</CardTitle>
+            <CardTitle>Datos principales</CardTitle>
           </CardHeader>
-          <CardContent>
-            <Textarea
-              value={form.observacionesDemanda}
-              onChange={onChange("observacionesDemanda")}
-              readOnly={roObsInternas}
-              className="min-h-36"
+          <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Field
+              label="Demandados"
+              readOnly={roDatosPrincipales}
+              value={form.demandados}
+              onChange={onChange("demandados")}
+            />
+            <Field
+              label="Juzgado"
+              readOnly={roDatosPrincipales}
+              value={form.juzgado}
+              onChange={onChange("juzgado")}
+            />
+            <Field
+              label="Número de radicado"
+              readOnly={roDatosPrincipales}
+              value={form.numeroRadicado}
+              onChange={onChange("numeroRadicado")}
+            />
+            <Field
+              label="Localidad"
+              readOnly={roDatosPrincipales}
+              value={form.localidad}
+              onChange={onChange("localidad")}
+            />
+
+            {/* ✅ Calendar en vez de <input type="date" /> */}
+            <DateField
+              label="Fecha última revisión"
+              readOnly={roDatosPrincipales}
+              value={form.fechaUltimaRevision}         // YYYY-MM-DD
+              onChangeDate={onChangeDate("fechaUltimaRevision")}
             />
           </CardContent>
         </Card>
-      )}
 
-      <Card>
-        <CardHeader><CardTitle>Observaciones del Conjunto</CardTitle></CardHeader>
-        <CardContent className="space-y-2">
-          <Textarea
-            value={form.observacionesDemandaCliente}
-            onChange={onChange("observacionesDemandaCliente")}
-            readOnly={roObsConjunto}
-            className="min-h-36"
-            placeholder={isCliente ? "Escribe tu observación para el ejecutivo…" : ""}
-          />
-          {!isCliente && (
-            <small className="text-muted-foreground block text-right">
-              {(() => {
-                const ts = (deudor as any)?.observacionesDemandaClienteFecha;
-                const d = ts && typeof ts.toDate === "function" ? ts.toDate() : null;
-                return d ? `Última actualización: ${d.toLocaleString("es-CO", { hour12: false })}` : "";
-              })()}
-            </small>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+        {!isCliente && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Observaciones (internas)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Textarea
+                value={form.observacionesDemanda}
+                onChange={onChange("observacionesDemanda")}
+                readOnly={roObsInternas}
+                className="min-h-36"
+              />
+            </CardContent>
+          </Card>
+        )}
+
+        <Card>
+          <CardHeader><CardTitle>Observaciones del Conjunto</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            <Textarea
+              value={form.observacionesDemandaCliente}
+              onChange={onChange("observacionesDemandaCliente")}
+              readOnly={roObsConjunto}
+              className="min-h-36"
+              placeholder={isCliente ? "Escribe tu observación para el ejecutivo…" : ""}
+            />
+            {!isCliente && (
+              <small className="text-muted-foreground block text-right">
+                {(() => {
+                  const ts = (deudor as any)?.observacionesDemandaClienteFecha;
+                  const d = ts && typeof ts.toDate === "function" ? ts.toDate() : null;
+                  return d ? `Última actualización: ${d.toLocaleString("es-CO", { hour12: false })}` : "";
+                })()}
+              </small>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </>
   );
 }
 

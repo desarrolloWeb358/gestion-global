@@ -7,8 +7,6 @@ import {
   query,
   serverTimestamp,
   Timestamp,
-  type DocumentData,
-  type FieldValue,
   type CollectionReference,
   doc,
   updateDoc,
@@ -17,83 +15,59 @@ import {
 import { db } from "@/firebase";
 import type { ObservacionCliente } from "../models/observacionCliente.model";
 
-/**
- * Documento en Firestore para Observaciones del Cliente.
- * Usamos creadoTs para ordenar/mostrar (y dejamos fechaTs como alias para compat).
- */
-type ObservacionClienteDoc = {
-  texto: string;
-  creadoTs: Timestamp | FieldValue;
-  fechaTs?: Timestamp | FieldValue; // alias opcional para compatibilidad
-};
-
 type Scope = "deudor" | "valor";
 
-/** Build path según el scope (parent) */
+// Estructura exacta que se guarda en Firestore
+type ObservacionClienteDoc = {
+  texto: string;
+  fecha: Timestamp; // único campo temporal
+};
+
 function colPath(clienteId: string, parentId: string, scope: Scope): string {
-  if (scope === "deudor") {
-    // Ruta histórica usada por Seguimiento
-    return `clientes/${clienteId}/deudores/${parentId}/observacionesCliente`;
-  }
-  // Ruta para Valor Agregado
-  return `clientes/${clienteId}/valoresAgregados/${parentId}/observacionesCliente`;
+  return scope === "deudor"
+    ? `clientes/${clienteId}/deudores/${parentId}/observacionesCliente`
+    : `clientes/${clienteId}/valoresAgregados/${parentId}/observacionesCliente`;
 }
 
-/** Colección tipada */
 function colRef(clienteId: string, parentId: string, scope: Scope) {
   return collection(db, colPath(clienteId, parentId, scope)) as CollectionReference<ObservacionClienteDoc>;
 }
 
-/** =========================
- *  LECTURA (lista) - GENÉRICO
- *  ========================= */
+/* ========== READ (lista) ========== */
 export async function getObservacionesClienteGeneric(
   clienteId: string,
   parentId: string,
   scope: Scope
 ): Promise<ObservacionCliente[]> {
-  const q = query(colRef(clienteId, parentId, scope), orderBy("creadoTs", "desc"));
+  const q = query(colRef(clienteId, parentId, scope), orderBy("fecha", "desc"));
   const snap = await getDocs(q);
 
   return snap.docs.map((d) => {
-    const data = d.data() as DocumentData;
-    const ts = (data.creadoTs as Timestamp | undefined) ?? null;
-    // compat: si solo tuviera fechaTs
-    const legacyTs = (data.fechaTs as Timestamp | undefined) ?? null;
-    const finalTs = ts || legacyTs || null;
-
-    return {
+    const data = d.data(); // { texto, fecha }
+    const item: ObservacionCliente = {
       id: d.id,
-      texto: (data.texto as string) ?? "",
-      // campos que tu UI podría leer:
-      creadoTs: finalTs,
-      fechaTs: finalTs,
-      // Atajos útiles (por si tu modelo lo tiene):
-      fecha: finalTs ? finalTs.toDate() : undefined,
-    } as ObservacionCliente;
+      texto: data.texto ?? "",
+      fecha: data.fecha ?? null,
+    };
+    return item;
   });
 }
 
-/** =========================
- *  CREACIÓN - GENÉRICO
- *  ========================= */
+/* ========== CREATE ========== */
 export async function addObservacionClienteGeneric(
   clienteId: string,
   parentId: string,
   texto: string,
-  scope: Scope,
+  scope: Scope
 ): Promise<string> {
   const ref = await addDoc(colRef(clienteId, parentId, scope), {
     texto,
-    creadoTs: serverTimestamp(),
-    fechaTs: serverTimestamp(), // alias para compatibilidad con UIs antiguas
+    fecha: serverTimestamp() as unknown as Timestamp, // único timestamp
   });
   return ref.id;
 }
 
-/** =========================
- *  UPDATE / DELETE - GENÉRICOS
- *  ========================= */
+/* ========== UPDATE ========== */
 export async function updateObservacionClienteGeneric(
   clienteId: string,
   parentId: string,
@@ -102,13 +76,10 @@ export async function updateObservacionClienteGeneric(
   scope: Scope
 ): Promise<void> {
   const ref = doc(db, `${colPath(clienteId, parentId, scope)}/${obsId}`);
-  await updateDoc(ref, {
-    texto: nuevoTexto,
-    // Podríamos actualizar un updatedTs si quieres auditar ediciones:
-    // updatedTs: serverTimestamp(),
-  });
+  await updateDoc(ref, { texto: nuevoTexto }); // no tocamos `fecha`
 }
 
+/* ========== DELETE ========== */
 export async function deleteObservacionClienteGeneric(
   clienteId: string,
   parentId: string,
@@ -119,9 +90,7 @@ export async function deleteObservacionClienteGeneric(
   await deleteDoc(ref);
 }
 
-/* ===========================================================
- *  API COMPATIBLE CON SEGUIMIENTO (PARENT = DEUDOR)
- * =========================================================== */
+/* ===== Facades por scope (deudor / valor) ===== */
 export async function getObservacionesCliente(
   clienteId: string,
   deudorId: string
@@ -132,15 +101,11 @@ export async function getObservacionesCliente(
 export async function addObservacionCliente(
   clienteId: string,
   deudorId: string,
-  texto: string,
+  texto: string
 ): Promise<string> {
   return addObservacionClienteGeneric(clienteId, deudorId, texto, "deudor");
 }
 
-/* ===========================================================
- *  API PARA VALOR AGREGADO (PARENT = VALOR)
- *  Estas son las DOS que dijiste que “toca agregar”.
- * =========================================================== */
 export async function getObservacionesClienteValor(
   clienteId: string,
   valorId: string
@@ -151,15 +116,11 @@ export async function getObservacionesClienteValor(
 export async function addObservacionClienteValor(
   clienteId: string,
   valorId: string,
-  texto: string,
+  texto: string
 ): Promise<string> {
   return addObservacionClienteGeneric(clienteId, valorId, texto, "valor");
 }
 
-/* ===========================================================
- *  UPDATE / DELETE con soporte para ambos scopes
- *  (útil si tu UI de Valor Agregado permite editar/eliminar)
- * =========================================================== */
 export async function updateObservacionCliente(
   clienteId: string,
   parentId: string,
