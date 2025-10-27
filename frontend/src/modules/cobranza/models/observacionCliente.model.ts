@@ -4,5 +4,5 @@ import type { Timestamp } from "firebase/firestore";
 export interface ObservacionCliente {
   id?: string;
   texto: string;                
-  fecha?: Timestamp | null;   // guardado en Firestore
+  fecha?: Timestamp;   // guardado en Firestore
 }

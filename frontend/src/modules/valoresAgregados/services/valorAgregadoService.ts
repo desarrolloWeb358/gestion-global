@@ -8,7 +8,6 @@ import {
   orderBy,
   query,
   serverTimestamp,
-  setDoc,
   Timestamp,
   updateDoc,
 } from "firebase/firestore";
@@ -22,42 +21,38 @@ import { ObservacionCliente } from "@/modules/cobranza/models/observacionCliente
 
 
 
-/*
-// 👇 Helper para formatear el teléfono del cliente a E.164 Colombia (+57)
-function toE164Co(input?: string): string | undefined {
-  if (!input) return undefined;
-  const digits = input.replace(/\D/g, "");
-  if (!digits) return undefined;
-  if (input.startsWith("+")) return input;
-  if (digits.startsWith("57")) return "+" + digits;
-  return "+57" + digits;
-}
-  */
-
 async function obtenerContactoCliente(clienteId: string): Promise<{
   nombre?: string;
   correo?: string;
   whatsapp?: string;
 }> {
-  // 1) usuarios/{clienteId}
-  const uSnap = await getDoc(doc(db, `usuarios/${clienteId}`));
   let nombre: string | undefined;
   let correo: string | undefined;
   let whatsapp: string | undefined;
 
+  const uSnap = await getDoc(doc(db, `usuariosSistema/${clienteId}`));
   if (uSnap.exists()) {
     const uData: any = uSnap.data() || {};
     nombre = uData.nombre || nombre;
     correo = uData.email || correo;
-    //whatsapp = toE164Co(uData.telefonoUsuario) || whatsapp;
     whatsapp = normalizeToE164(uData.telefonoUsuario, { defaultCountry: "CO" }) || whatsapp;
+  } else {
+    // 2️⃣ Fallback: clientes/{clienteId}
+    const cSnap = await getDoc(doc(db, `clientes/${clienteId}`));
+    if (cSnap.exists()) {
+      const cData: any = cSnap.data() || {};
+      nombre = (cData.nombre || cData.razonSocial || nombre)?.toString();
+      correo = cData.correo || cData.email || correo;
+      whatsapp = normalizeToE164(cData.telefono, { defaultCountry: "CO" }) || whatsapp;
+    }
   }
 
   return { nombre, correo, whatsapp };
 }
 
-
-/** Normaliza el campo 'tipo' a uno de los valores del enum */
+// =====================================================
+// 🧩 Tipos y mapeos
+// =====================================================
 function normalizarTipo(input: unknown): TipoValorAgregado {
   const v = String(input ?? "").trim().toLowerCase();
   const map: Record<string, TipoValorAgregado> = {
@@ -69,7 +64,6 @@ function normalizarTipo(input: unknown): TipoValorAgregado {
   return map[v] ?? TipoValorAgregado.DERECHO_DE_PETICION;
 }
 
-/** Mapea un doc de Firestore al modelo */
 function mapDocToValorAgregado(id: string, data: any): ValorAgregado {
   return {
     id,
@@ -83,7 +77,9 @@ function mapDocToValorAgregado(id: string, data: any): ValorAgregado {
   };
 }
 
-/** Helpers de ruta */
+// =====================================================
+// 🗂️ Helpers de Firestore y Storage
+// =====================================================
 function colRef(clienteId: string) {
   return collection(db, `clientes/${clienteId}/valoresAgregados`);
 }
@@ -94,7 +90,9 @@ function storagePath(clienteId: string, valorId: string, fileName: string) {
   return `clientes/${clienteId}/valoresAgregados/${valorId}/${fileName}`;
 }
 
-/** Formateo de fecha para UI */
+// =====================================================
+// 📅 Helpers de fecha
+// =====================================================
 export function formatFechaCO(
   ts?: Timestamp | { seconds: number; nanoseconds: number }
 ): string {
@@ -106,7 +104,6 @@ export function formatFechaCO(
   return d.toLocaleDateString("es-CO");
 }
 
-/** Convierte Timestamp a YYYY-MM-DD (por si lo necesitas en otros componentes) */
 export function timestampToDateInput(
   ts?: Timestamp | { seconds: number; nanoseconds: number }
 ): string {
@@ -121,7 +118,9 @@ export function timestampToDateInput(
   return `${yyyy}-${mm}-${dd}`;
 }
 
-/** Listado (ordenado por fecha desc) */
+// =====================================================
+// 📋 CRUD Valor Agregado
+// =====================================================
 export async function listarValoresAgregados(
   clienteId: string
 ): Promise<ValorAgregado[]> {
@@ -130,7 +129,6 @@ export async function listarValoresAgregados(
   return snap.docs.map((d) => mapDocToValorAgregado(d.id, d.data()));
 }
 
-/** Obtener uno */
 export async function obtenerValorAgregado(
   clienteId: string,
   valorId: string
@@ -140,12 +138,10 @@ export async function obtenerValorAgregado(
   return mapDocToValorAgregado(snap.id, snap.data());
 }
 
-/** Tipos para crear/actualizar con Timestamp directo */
 type CrearValorInput = {
   tipo: TipoValorAgregado;
   titulo: string;
   descripcion?: string;
-  /** Fecha como Timestamp para guardar directamente en Firestore */
   fechaTs?: Timestamp;
 };
 
@@ -153,33 +149,26 @@ type ActualizarValorPatch = Partial<{
   tipo: TipoValorAgregado;
   titulo: string;
   descripcion: string;
-  /** Fecha como Timestamp para guardar directamente */
   fechaTs: Timestamp;
 }>;
 
-/** Crear (con subida opcional de archivo a Storage) */
 export async function crearValorAgregado(
   clienteId: string,
-  data: {
-    tipo: TipoValorAgregado;
-    titulo: string;
-    descripcion?: string;
-    fechaTs?: Timestamp;
-  },
+  data: CrearValorInput,
   archivo?: File
 ): Promise<string> {
   const payload: Partial<ValorAgregado> = {
     tipo: data.tipo,
     titulo: data.titulo,
     descripcion: data.descripcion ?? "",
-    fecha: data.fechaTs ?? serverTimestamp(), // ⬅️ Timestamp
+    fecha: data.fechaTs ?? serverTimestamp(),
   };
 
-  // 1) Guardar doc base
+  // 1️⃣ Crear doc base
   const created = await addDoc(colRef(clienteId), payload);
   const valorId = created.id;
 
-  // 2) Subir archivo si viene
+  // 2️⃣ Subir archivo si viene
   if (archivo) {
     const path = storagePath(clienteId, valorId, archivo.name);
     const rf = ref(storage, path);
@@ -193,48 +182,47 @@ export async function crearValorAgregado(
     });
   }
 
+  // 3️⃣ Enviar notificación (si aplica)
   try {
-  const contacto = await obtenerContactoCliente(clienteId); // ← ahora trae de `usuarios/{clienteId}`
-  const tipoLabel   = TipoValorAgregadoLabels[data.tipo];
-  const nombreValor = data.titulo || "Documento";
-  const nombreCliente = contacto.nombre || "Cliente";
+    const contacto = await obtenerContactoCliente(clienteId);
+    const tipoLabel = TipoValorAgregadoLabels[data.tipo];
+    const nombreValor = data.titulo || "Documento";
+    const nombreCliente = contacto.nombre || "Cliente";
 
-  if (contacto.correo || contacto.whatsapp) {
-    await enviarNotificacionValorAgregadoBasico(
-      {
-        correoCliente:  contacto.correo,
-        whatsappCliente: contacto.whatsapp,
-      },
-      {
-        nombreCliente,   // {{1}}
-        tipoLabel,       // {{2}}
-        nombreValor,     // {{3}}
-      }
-    );
-  } else {
-    console.warn(`[crearValorAgregado] Cliente ${clienteId} sin correo/whatsapp; no se envía notificación.`);
+    if (contacto.correo || contacto.whatsapp) {
+      await enviarNotificacionValorAgregadoBasico(
+        {
+          correoCliente: contacto.correo,
+          whatsappCliente: contacto.whatsapp,
+        },
+        {
+          nombreCliente,
+          tipoLabel,
+          nombreValor,
+        }
+      );
+    } else {
+      console.warn(`[crearValorAgregado] Cliente ${clienteId} sin correo/whatsapp; no se envía notificación.`);
+    }
+  } catch (err) {
+    console.error("[crearValorAgregado] Error al enviar notificación:", err);
   }
-} catch (err) {
-  console.error("[crearValorAgregado] Error al enviar notificación:", err);
-}
 
   return valorId;
 }
 
-/** Actualizar (con reemplazo opcional de archivo) */
 export async function actualizarValorAgregado(
   clienteId: string,
   valorId: string,
   patch: ActualizarValorPatch,
   nuevoArchivo?: File
 ): Promise<void> {
-  const basePatch: any = { };
+  const basePatch: any = {};
   if (patch.tipo !== undefined) basePatch.tipo = patch.tipo;
   if (patch.titulo !== undefined) basePatch.titulo = patch.titulo;
   if (patch.descripcion !== undefined) basePatch.descripcion = patch.descripcion;
-  if (patch.fechaTs !== undefined) basePatch.fecha = patch.fechaTs; // ⬅️ Timestamp
+  if (patch.fechaTs !== undefined) basePatch.fecha = patch.fechaTs;
 
-  // Reemplazo de archivo (si viene)
   if (nuevoArchivo) {
     const prev = await obtenerValorAgregado(clienteId, valorId);
     if (prev?.archivoPath) {
@@ -257,7 +245,6 @@ export async function actualizarValorAgregado(
   await updateDoc(docRef(clienteId, valorId), basePatch);
 }
 
-/** Eliminar (borra también el archivo si existe) */
 export async function eliminarValorAgregado(
   clienteId: string,
   valorId: string
@@ -273,11 +260,14 @@ export async function eliminarValorAgregado(
   await deleteDoc(docRef(clienteId, valorId));
 }
 
+// =====================================================
+// 💬 Observaciones Cliente
+// =====================================================
 export async function listarObservacionesCliente(
   clienteId: string,
   valorId: string
 ): Promise<ObservacionCliente[]> {
-  const ref = collection(
+  const refCol = collection(
     db,
     "clientes",
     clienteId,
@@ -285,17 +275,14 @@ export async function listarObservacionesCliente(
     valorId,
     "observacionesCliente"
   );
-  const qy = query(ref, orderBy("fechaTs", "desc"));
+  const qy = query(refCol, orderBy("fecha", "desc"));
   const snap = await getDocs(qy);
   return snap.docs.map((d) => {
     const data = d.data() as any;
     return {
       id: d.id,
       texto: data.texto ?? "",
-      fechaTs: data.fechaTs,
-      fecha: data.fechaTs?.toDate?.() ?? new Date(),
-      creadoPorUid: data.creadoPorUid,
-      creadoPorNombre: data.creadoPorNombre,
+      fecha: data.fecha?.toDate?.() ?? new Date(),
     } as ObservacionCliente;
   });
 }
@@ -303,13 +290,9 @@ export async function listarObservacionesCliente(
 export async function crearObservacionCliente(
   clienteId: string,
   valorId: string,
-  payload: {
-    texto: string;
-    creadoPorUid?: string;
-    creadoPorNombre?: string;
-  }
+  payload: { texto: string }
 ): Promise<ObservacionCliente> {
-  const ref = collection(
+  const refCol = collection(
     db,
     "clientes",
     clienteId,
@@ -317,15 +300,21 @@ export async function crearObservacionCliente(
     valorId,
     "observacionesCliente"
   );
-  const docRef = await addDoc(ref, {
-    texto: payload.texto,
-    fechaTs: serverTimestamp(),
-    creadoPorUid: payload.creadoPorUid ?? null,
-    creadoPorNombre: payload.creadoPorNombre ?? null,
+
+  const texto = (payload.texto ?? "").trim();
+  if (!texto) throw new Error("El texto de la observación es obligatorio.");
+
+  const fecha = Timestamp.fromDate(new Date());
+
+  // 🕒 Guardar solo texto y fecha
+  const created = await addDoc(refCol, {
+    texto,
+    fecha: new Date(),
   });
+
   return {
-    id: docRef.id,
-    texto: payload.texto,
-    fecha: new Date(), // provisional para UI; el fetch posterior traerá la fecha real
-  };
+    id: created.id,
+    texto,
+    fecha,
+  } as ObservacionCliente;
 }
