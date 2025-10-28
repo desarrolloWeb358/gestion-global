@@ -5,13 +5,11 @@
  * - Actualiza en: clientes/{uidCliente}/deudores/{deudorId}
  *                  campo: observacionesDemandaCliente
  *
- * Ajustes:
- * 1) Filtro de NITs desde Excel (NITsMigracion.xlsx).
- * 2) Reporte único (./ProcesosJudicialesClientes_reporte.xlsx) con hojas "Migrados" y "NoMigrados",
- *    agregando filas si el archivo ya existe.
- * 3) Cuando hay NITs de filtro, SOLO se procesa cada NIT del filtro:
- *    - Si no existe hoja para ese NIT, se registra "Hoja no encontrada para el NIT".
- *    - No se itera por todas las hojas, por lo que no aparecerán “A1 no contiene NIT válido” de otras pestañas.
+ * Ajustes solicitados:
+ * 1) Siempre ejecutar (se elimina DRY_RUN).
+ * 2) Con NITs desde Excel (migracionXnit.xlsx), si un NIT no tiene hoja en el libro origen:
+ *    registrar "NIT no tiene procesos judiciales".
+ * 3) El reporte agrega filas al final, sin borrar las existentes.
  */
 
 const admin = require("firebase-admin");
@@ -22,7 +20,6 @@ const fs = require("fs");
 const excelPath = "./ProcesosJudicialesClientes.xlsx"; // libro origen (varias hojas, una por cliente)
 const NITS_EXCEL_PATH = "./migracionXnit.xlsx";        // archivo con NITs a migrar
 const OUTPUT_REPORTE = "./Reporte_ProcesosJudicialesClientes.xlsx";
-const DRY_RUN = false; // true = simula sin escribir
 
 // Firebase
 const serviceAccount = require("./serviceAccountKey.json");
@@ -42,12 +39,11 @@ function parseNitFromTitleCell(valA1) {
   return m ? m[1] : "";
 }
 
-// --- NUEVO: Helper que escribe con columnas ordenadas ---
+// --- Helper: escribe con columnas ordenadas ---
 function writeOrderedSheetFromJson(rows, order) {
   if (!rows || rows.length === 0) {
     return xlsx.utils.aoa_to_sheet([order]); // solo encabezado
   }
-  // Forzar el orden de columnas
   const formatted = rows.map(row => {
     const obj = {};
     for (const key of order) obj[key] = row[key] ?? "";
@@ -56,7 +52,8 @@ function writeOrderedSheetFromJson(rows, order) {
   return xlsx.utils.json_to_sheet(formatted, { header: order });
 }
 
-function appendOrderedJsonToSheet(wb, sheetName, rows) {
+// (AJUSTE) Recibe "order" como parámetro para evitar scope issues
+function appendOrderedJsonToSheet(wb, sheetName, rows, order) {
   if (!rows || rows.length === 0) return;
   const existing = wb.Sheets[sheetName]
     ? xlsx.utils.sheet_to_json(wb.Sheets[sheetName], { defval: "" })
@@ -69,8 +66,9 @@ function appendOrderedJsonToSheet(wb, sheetName, rows) {
   });
 
   if (existing.length === 0) {
-    wb.Sheets[sheetName] = writeOrderedSheetFromJson(formatted, order);
-    xlsx.utils.book_append_sheet(wb, wb.Sheets[sheetName], sheetName);
+    const sh = writeOrderedSheetFromJson(formatted, order);
+    wb.Sheets[sheetName] = sh;
+    xlsx.utils.book_append_sheet(wb, sh, sheetName);
   } else {
     xlsx.utils.sheet_add_json(wb.Sheets[sheetName], formatted, { origin: -1, skipHeader: true });
   }
@@ -196,7 +194,6 @@ async function main() {
     if (!sheetsByNit.has(nit)) {
       sheetsByNit.set(nit, { sheetName, sh });
     } else {
-      // Si hubiera duplicados, dejamos la primera y avisamos
       console.warn(`⚠️  NIT ${nit} duplicado en hojas. Usando primera: ${sheetsByNit.get(nit).sheetName}, ignorando: ${sheetName}`);
     }
   }
@@ -216,8 +213,8 @@ async function main() {
   for (const nit of nitsAProcesar) {
     const entry = sheetsByNit.get(nit);
     if (!entry) {
-      // No existe hoja para este NIT: registrar NO migrado a nivel NIT
-      badRows.push(withMotivo({ _sheet: null, _nit: nit }, `Hoja no encontrada para NIT='${nit}'`));
+      // (AJUSTE) Si no hay hoja para este NIT (con filtro activo o no), mensaje solicitado:
+      badRows.push(withMotivo({ _sheet: null, _nit: nit }, `NIT no tiene procesos judiciales`));
       nitSinHoja++;
       continue;
     }
@@ -274,12 +271,11 @@ async function main() {
           continue;
         }
 
-        if (!DRY_RUN) {
-          await deudorRef.set(
-            { observacionesDemandaCliente: observacion },
-            { merge: true }
-          );
-        }
+        // (AJUSTE) Siempre escribe (se elimina DRY_RUN)
+        await deudorRef.set(
+          { observacionesDemandaCliente: observacion },
+          { merge: true }
+        );
 
         okRows.push({
           _sheet: sheetName,
@@ -304,9 +300,7 @@ async function main() {
     }
   }
 
-
-
-  // --- REEMPLAZA EL BLOQUE DE REPORTE FINAL CON ESTO ---
+  // --- REPORTE FINAL (append) ---
   let reportWb;
   if (fs.existsSync(OUTPUT_REPORTE)) {
     reportWb = xlsx.readFile(OUTPUT_REPORTE);
@@ -314,22 +308,20 @@ async function main() {
     reportWb = xlsx.utils.book_new();
   }
 
-  // columnas en el orden que tú deseas
-  const order = ["_sheet", "_nit", "ubicacion", "observacion", "_motivo_no_migrado"];
+  // columnas en el orden deseado (AJUSTE: definido en alcance superior al helper)
+  const order = ["_sheet", "_nit", "ubicacion", "observacion", "_motivo_no_migrado", "_deudorPath", "_status"];
 
-
-
-  // aplicar el helper
-  appendOrderedJsonToSheet(reportWb, "Migrados", okRows);
-  appendOrderedJsonToSheet(reportWb, "NoMigrados", badRows);
+  // aplicar helper con 'order'
+  appendOrderedJsonToSheet(reportWb, "Migrados", okRows, order);
+  appendOrderedJsonToSheet(reportWb, "NoMigrados", badRows, order);
 
   xlsx.writeFile(reportWb, OUTPUT_REPORTE);
 
-  // 5) Resumen
+  // Resumen
   console.log("────────────────────────────────────────");
   console.log(`✅ Migrados (filas): ${migrados}`);
   console.log(`⚠️  No migrados:     ${noMigrados}`);
-  if (usarFiltro) console.log(`🔎 NITs del filtro sin hoja: ${nitSinHoja}`);
+  if (usarFiltro) console.log(`🔎 NITs del filtro sin hoja (no tienen procesos): ${nitSinHoja}`);
   console.log(`📁 Reporte:         ${OUTPUT_REPORTE}`);
   console.log("🚀 Proceso finalizado.");
 }
