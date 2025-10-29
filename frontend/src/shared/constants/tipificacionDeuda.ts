@@ -1,8 +1,9 @@
 export enum TipificacionDeuda {
-   DEVUELTO= "Devuelto",
-   TERMINADO = "Terminado",
+  DEVUELTO = "Devuelto",
+  TERMINADO = "Terminado",
   ACUERDO = "Acuerdo",
   GESTIONANDO = "Gestionando",
   DEMANDA = "Demanda",
   DEMANDAACUERDO = "Demanda/Acuerdo",
+  INACTIVO = "Inactivo",
 }

@@ -80,14 +80,21 @@ export default function DeudoresTable() {
 
   // Filtrado y paginación
   const normalizedQ = search.trim().toLowerCase();
+
+  const isInactivo = (t?: string) =>
+    t === (TipificacionDeuda as any).INACTIVO || t === "INACTIVO"; // por si tu enum/string varía en mayúsculas
+
   const filteredDeudores = deudores.filter((d) => {
     // 🔎 Texto: nombre/cedula/ubicacion
     if (normalizedQ) {
       const hay = `${d.nombre ?? ""} ${d.cedula ?? ""} ${d.ubicacion ?? ""}`.toLowerCase();
       if (!hay.includes(normalizedQ)) return false;
     }
-    // 🎯 Tipificación
-    if (tipFilter !== ALL) {
+    if (tipFilter === ALL) {
+      // ✅ "Todos" => mostrar todos EXCEPTO inactivos
+      if (isInactivo(d.tipificacion as string)) return false;
+    } else {
+      // ✅ Modo filtrado por tipificación exacta (incluye inactivos solo si así se elige)
       if ((d.tipificacion as string) !== tipFilter) return false;
     }
     return true;
@@ -339,7 +346,7 @@ export default function DeudoresTable() {
               </SelectTrigger>
               <SelectContent>
                 {/* ✅ NO usar value="" */}
-                <SelectItem value={ALL}>Todos</SelectItem>
+                <SelectItem value={ALL}>Todos (sin inactivos)</SelectItem>
                 {Object.values(TipificacionDeuda).map((t) => (
                   <SelectItem key={t} value={t}>{t}</SelectItem>
                 ))}
