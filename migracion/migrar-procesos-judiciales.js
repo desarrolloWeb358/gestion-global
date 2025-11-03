@@ -23,7 +23,6 @@ const fs = require("fs");
 const OUTPUT_REPORTE = "./Reporte_ProcesosJudiciales.xlsx";
 // --- Config ---
 const excelPath = "./ProcesosJudiciales.xlsx";                // <-- cambia si es necesario
-const DRY_RUN = false; // true = no escribe, solo simula
 
 // 📂 Archivo externo con NITs a migrar (si está vacío o no existe → migra TODOS)
 const NITS_EXCEL_PATH = "./migracionXnit.xlsx";
@@ -52,6 +51,53 @@ const normalizeNit = (nitRaw) => {
   return s.replace(/[^\d]/g, "");
 };
 
+// Construye la fila "limpia" que irá a la hoja Migrados
+function buildOkRow(raw, { deudorCreado }) {
+  const ejecutivo = toStr(raw.ejecutivo || raw.Ejecutivo || raw.EJECUTIVO);
+  const nit = normalizeNit(toStr(raw.nit || raw.Nit || raw.NIT || raw.CLIENTE || raw.cliente));
+  const ubicacion = toStr(raw.ubicacion || raw.UBICACIÓN || raw.UBICACION);
+
+  return {
+    EJECUTIVO: ejecutivo,
+    CLIENTE: nit,          // NIT
+    UBICACION: ubicacion,
+    _status: deudorCreado ? "CREADO" : "ACTUALIZADO",
+  };
+}
+
+// Funcionalidad para cuando no tengo deudores el cliente
+// Set en memoria para NITs cuyo cliente NO tiene deudores (colección vacía al primer chequeo)
+const NITS_SIN_DEUDORES = new Set();
+
+// ¿El cliente tiene al menos un deudor?
+async function hasAnyDeudores(uidCliente) {
+  const snap = await db
+    .collection("clientes").doc(uidCliente)
+    .collection("deudores")
+    .limit(1)
+    .get();
+  return !snap.empty;
+}
+
+// Crea deudor con datos judiciales
+async function createDeudor(uidCliente, ubicacion, payload) {
+
+  // Agregar campos adicionales: tipificación y nombre
+  const data = {
+    ...payload,
+    ubicacion,
+    tipificacion: "Demanda",              // NUEVO campo fijo
+    nombre: payload.demandados || "",     // NUEVO: copia de demandados
+  };
+
+  const ref = db
+    .collection("clientes").doc(uidCliente)
+    .collection("deudores")
+    .doc(); // si prefieres usar la ubicacion como ID: .doc(String(ubicacion))
+  await ref.set(data, { merge: true });
+  return ref;
+}
+// fin de utils cuando no tengo deudores
 
 function appendOrCreateReport(filePath, okRows, badRows) {
   // Abrir si existe, o crear nuevo
@@ -321,48 +367,74 @@ async function main() {
         continue;
       }
 
-      // 3) Actualizar cliente con ejecutivoJuridicoId
-      if (!DRY_RUN) {
-        await db.collection("clientes").doc(uidCliente).set(
-          { ejecutivoJuridicoId: uidEjecutivo },
-          { merge: true }
-        );
+      // 3) Actualizar cliente con ejecutivoJuridicoId     
+      await db.collection("clientes").doc(uidCliente).set(
+        { ejecutivoDependienteId: uidEjecutivo },
+        { merge: true }
+      );
+
+      // --- NUEVO: marcar si el cliente no tiene deudores (solo la primera vez que lo vemos)
+      if (!NITS_SIN_DEUDORES.has(nit)) {
+        const tieneDeudores = await hasAnyDeudores(uidCliente);
+        if (!tieneDeudores) {
+          NITS_SIN_DEUDORES.add(nit);
+          console.warn(`ℹ️  Cliente NIT=${nit} marcado como SIN deudores (colección vacía).`);
+        }
       }
 
-      // 4) Localizar deudor por 'ubicacion'
-      const deudorRef = await getDeudorDocRefByUbicacion(uidCliente, ubicacion);
+      // 4) Localizar deudor por 'ubicacion'    
+      let deudorRef = null;
+      let deudorCreado = false; // NUEVO: flag para el reporte
+      deudorRef = await getDeudorDocRefByUbicacion(uidCliente, ubicacion);
+
       if (!deudorRef) {
-        badRows.push(withMotivoNoMigrado(
-          raw,
-          `Deudor no encontrado en clientes/${uidCliente}/deudores con ubicacion='${ubicacion}'`
-        ));
-        noMigrados++;
-        console.warn(`⚠️  [${i + 1}] Deudor no encontrado (NIT=${nit}, ubicacion='${ubicacion}').`);
-        continue;
+        // --- NUEVO: si este cliente fue marcado como "sin deudores", crea el deudor
+        if (NITS_SIN_DEUDORES.has(nit)) {
+          const updateDeudor = { demandados, juzgado, numeroRadicado, localidad, observacionesDemanda: observaciones };
+
+          // Parse y agregado de fecha de última revisión (igual que más abajo)
+          const parsedDateForCreate = parseFechaUltimaRevision(fechaUltRevRaw);
+          if (parsedDateForCreate) {
+            updateDeudor.fechaUltimaRevision = admin.firestore.Timestamp.fromDate(parsedDateForCreate);
+          } else {
+            console.warn(`    ⚠️ Fecha última revisión inválida/ausente para NIT=${nit}, ubicacion='${ubicacion}' (creación)`);
+          }
+
+          // Crear el deudor con los datos judiciales
+          deudorRef = await createDeudor(uidCliente, ubicacion, updateDeudor);
+          deudorCreado = true; // NUEVO: marcar para el reporte
+
+          console.log(`🆕 [${i + 1}/${rows.length}] NIT=${nit} | ubicacion='${ubicacion}' → deudor creado (${deudorRef.path})`);
+        } else {
+          // Comportamiento anterior si NO fue marcado como “sin deudores”
+          badRows.push(withMotivoNoMigrado(
+            raw,
+            `Deudor no encontrado en clientes/${uidCliente}/deudores con ubicacion='${ubicacion}'`
+          ));
+          noMigrados++;
+          console.warn(`⚠️  [${i + 1}] Deudor no encontrado (NIT=${nit}, ubicacion='${ubicacion}').`);
+          continue;
+        }
       }
 
       // 5) Actualizar campos judiciales del deudor
       const updateDeudor = { demandados, juzgado, numeroRadicado, localidad, observacionesDemanda: observaciones };
       // Parseo y agregado de la fecha de última revisión si viene válida
-      //console.log(`    → Parseando fecha última revisión: '${fechaUltRevRaw}'`);
       const parsedDate = parseFechaUltimaRevision(fechaUltRevRaw);
-      //console.log(`    → Fecha última revisión raw='${fechaUltRevRaw}' parsed=${parsedDate}`);
       if (parsedDate) {
         updateDeudor.fechaUltimaRevision = admin.firestore.Timestamp.fromDate(parsedDate);
       } else {
         console.warn(`    ⚠️ Fecha última revisión inválida/ausente para NIT=${nit}, ubicacion='${ubicacion}'`);
       }
 
-      if (!DRY_RUN) await deudorRef.set(updateDeudor, { merge: true });
+      await deudorRef.set(updateDeudor, { merge: true });
 
       // éxito → empuja la misma fila original + metadatos opcionales
-      okRows.push({
-        ...raw,
-        _uidCliente: uidCliente,
-        _ejecutivo_uid: uidEjecutivo,
-        _deudorPath: deudorRef.path,
-        _status: "OK",
-      });
+      okRows.push(
+        buildOkRow(raw, {
+          deudorCreado,
+        })
+      );
       migrados++;
 
       console.log(`✅ [${i + 1}/${rows.length}] NIT=${nit} | ubicacion='${ubicacion}' → actualizado (${deudorRef.path})`);

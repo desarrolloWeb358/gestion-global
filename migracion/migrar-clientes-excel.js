@@ -55,6 +55,8 @@ const toStrOrEmpty = (v) => (v === null || v === undefined ? '' : String(v));
 
     const idxEjPreUID = hIndex(['ejecutivoPrejuridicoUID']);
     const idxEjJurUID = hIndex(['ejecutivoJuridicoUID']);
+    const idxEjDepUID = hIndex(['ejecutivoDependienteUID']);
+    const idxAbogUID = hIndex(['abogadoUID']);
 
 
     // Asegurar columnas finales: UID y ERROR
@@ -95,7 +97,8 @@ const toStrOrEmpty = (v) => (v === null || v === undefined ? '' : String(v));
 
         const ejecutivoPrejuridicoUID = toStrOrEmpty(idxEjPreUID >= 0 ? rowArr[idxEjPreUID] : '');
         const ejecutivoJuridicoUID = toStrOrEmpty(idxEjJurUID >= 0 ? rowArr[idxEjJurUID] : '');
-
+        const ejecutivoDependienteUID = toStrOrEmpty(idxEjDepUID >= 0 ? rowArr[idxEjDepUID] : '');
+        const abogadoUID = toStrOrEmpty(idxAbogUID >= 0 ? rowArr[idxAbogUID] : '');
 
 
         // ---- Validaciones previas
@@ -193,9 +196,11 @@ const toStrOrEmpty = (v) => (v === null || v === undefined ? '' : String(v));
               banco,
               numeroCuenta: numero_cuenta,
               tipoCuenta: tipo_cuenta,
-              // Usa UID si viene, si no, cae al nombre:
-              ejecutivoPrejuridicoId: ejecutivoPrejuridicoUID || ejecutivoPrejuridico,
-              ejecutivoJuridicoId: ejecutivoJuridicoUID || ejecutivoJuridico,
+              // Usa UID
+              ejecutivoPrejuridicoId: ejecutivoPrejuridicoUID,
+              ejecutivoJuridicoId: ejecutivoJuridicoUID,
+              ejecutivoDependienteId: ejecutivoDependienteUID,
+              abogadoId: abogadoUID,
 
               // Trazabilidad
               fechaActualizacion: timestampNow,
