@@ -52,7 +52,7 @@ import SeguimientoJuridicoTable from "./SeguimientoJuridicoTable";
 // Tabs
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/shared/ui/tabs";
 
-// 🔎 Filtros reutilizables
+// Filtros reutilizables
 import FiltersBar from "@/shared/table-filters/FiltersBar";
 import type { DateRange, FilterField } from "@/shared/table-filters/types";
 
@@ -66,19 +66,18 @@ import {
   SelectItem,
   SelectValue,
 } from "@/shared/ui/select";
+import SeguimientoDemandaTable from "./SeguimientoDemandaTable";
 
-// ==== helpers de fechas/orden ====
 type SortDir = "desc" | "asc";
 
 function renderTipoSeguimiento(code?: string) {
-  // Si el code existe en el mapa, devuelve el label; si no, muestra el code o '—'
   return codeToLabel[code as keyof typeof codeToLabel] ?? code ?? "—";
 }
 
 function toDate(v: any): Date | undefined {
   try {
     if (!v) return undefined;
-    if (typeof v?.toDate === "function") return v.toDate(); // Firestore Timestamp
+    if (typeof v?.toDate === "function") return v.toDate();
     if (v instanceof Date) return v;
     if (typeof v === "number") return new Date(v);
     if (typeof v === "string") {
@@ -90,11 +89,10 @@ function toDate(v: any): Date | undefined {
     return undefined;
   }
 }
-
 function tsToMillis(v: any): number {
   try {
     if (!v) return 0;
-    if (typeof v?.toDate === "function") return v.toDate().getTime(); // Firestore Timestamp
+    if (typeof v?.toDate === "function") return v.toDate().getTime();
     if (v instanceof Date) return v.getTime();
     if (typeof v === "number") return v;
     if (typeof v === "string") {
@@ -106,7 +104,6 @@ function tsToMillis(v: any): number {
     return 0;
   }
 }
-
 function inRange(millis: number, range?: DateRange): boolean {
   if (!range || (!range.from && !range.to)) return true;
   const from = range.from ? new Date(range.from.setHours(0, 0, 0, 0)).getTime() : undefined;
@@ -120,65 +117,52 @@ export default function SeguimientoTable() {
   const { clienteId, deudorId } = useParams();
   const navigate = useNavigate();
 
-  // ===== estado (pre-jurídico) =====
+  // estado (pre-jurídico)
   const [items, setItems] = React.useState<Seguimiento[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [open, setOpen] = React.useState(false);
   const [seleccionado, setSeleccionado] = React.useState<Seguimiento | undefined>(undefined);
   const [deleteId, setDeleteId] = React.useState<string | null>(null);
 
-  // ===== refresco jurídico =====
+  // refresco jurídico
   const [refreshJuridicoKey, setRefreshJuridicoKey] = React.useState(0);
 
-  // ===== RBAC =====
+  // RBAC
   const { can, loading: aclLoading, roles = [] } = useAcl();
   const canView = can(PERMS.Seguimientos_Read);
   const canEdit = can(PERMS.Seguimientos_Edit);
   const isCliente = Array.isArray(roles) && roles.includes("cliente");
   const canEditSafe = canEdit && !isCliente;
 
-  // ===== observaciones cliente =====
+  // observaciones
   const [obsCliente, setObsCliente] = React.useState<ObservacionCliente[]>([]);
   const [obsLoading, setObsLoading] = React.useState(false);
   const [obsTexto, setObsTexto] = React.useState("");
   const auth = getAuth();
 
-  // ===== pestaña activa =====
-  const [tab, setTab] = React.useState<"pre" | "juridico" | "obs">("pre");
+  // pestaña activa
+  const [tab, setTab] = React.useState<"pre" | "juridico" | "demanda" | "obs">("pre");
 
-  // ===== filtros: PRE-JURÍDICO =====
+  // filtros
   type PreFilters = { fecha?: DateRange; order: SortDir };
   const [preFilters, setPreFilters] = React.useState<PreFilters>({ order: "desc" });
   const setPreFilter = (key: keyof PreFilters, value: any) =>
     setPreFilters((s) => ({ ...s, [key]: value }));
 
-  // solo daterange en FiltersBar (sacamos "order")
   const preFields: FilterField<Seguimiento>[] = [
-    {
-      key: "fecha",
-      label: "Rango de fechas",
-      kind: "daterange",
-      getDate: (it) => toDate(it.fecha),
-    },
+    { key: "fecha", label: "Rango de fechas", kind: "daterange", getDate: (it) => toDate(it.fecha) },
   ];
 
-  // ===== filtros: OBSERVACIONES =====
   type ObsFilters = { fecha?: DateRange; order: SortDir };
   const [obsFilters, setObsFilters] = React.useState<ObsFilters>({ order: "desc" });
   const setObsFilter = (key: keyof ObsFilters, value: any) =>
     setObsFilters((s) => ({ ...s, [key]: value }));
 
-  // solo daterange en FiltersBar (sacamos "order")
   const obsFields: FilterField<ObservacionCliente>[] = [
-    {
-      key: "fecha",
-      label: "Rango de fechas",
-      kind: "daterange",
-      getDate: (o) => toDate(o.fecha),
-    },
+    { key: "fecha", label: "Rango de fechas", kind: "daterange", getDate: (o) => toDate(o.fecha) },
   ];
 
-  // ===== efectos =====
+  // efectos
   React.useEffect(() => {
     if (!clienteId || !deudorId) return;
     setLoading(true);
@@ -197,7 +181,7 @@ export default function SeguimientoTable() {
       .finally(() => setObsLoading(false));
   }, [clienteId, deudorId]);
 
-  // ===== colecciones filtradas + ordenadas (memo) =====
+  // colecciones filtradas + ordenadas
   const itemsFilteredSorted = React.useMemo(() => {
     const arr = items.filter((it) => inRange(tsToMillis(it.fecha), preFilters.fecha));
     const dir = preFilters.order === "desc" ? -1 : 1;
@@ -210,7 +194,7 @@ export default function SeguimientoTable() {
     return arr.sort((a, b) => (tsToMillis(a.fecha) - tsToMillis(b.fecha)) * dir);
   }, [obsCliente, obsFilters]);
 
-  // ===== handlers =====
+  // handlers
   const onSaveWithDestino = async (
     destino: DestinoColeccion,
     data: Omit<Seguimiento, "id">,
@@ -222,10 +206,8 @@ export default function SeguimientoTable() {
       toast.error("No tienes permiso para crear/editar seguimientos.");
       return;
     }
-
     try {
       if (seleccionado?.id) {
-        // Editar (pre-jurídico)
         if (destino === "seguimientoJuridico") {
           await addSeguimientoJuridico(clienteId, deudorId, data, archivo);
           await deleteSeguimiento(clienteId, deudorId, seleccionado.id);
@@ -241,7 +223,6 @@ export default function SeguimientoTable() {
           );
         }
       } else {
-        // Crear
         if (destino === "seguimientoJuridico") {
           await addSeguimientoJuridico(clienteId, deudorId, data, archivo);
           setRefreshJuridicoKey((k) => k + 1);
@@ -249,12 +230,9 @@ export default function SeguimientoTable() {
           await addSeguimiento(clienteId, deudorId, data, archivo);
         }
       }
-
       toast.success("Seguimiento guardado.");
       setOpen(false);
       setSeleccionado(undefined);
-
-      // refrescar pre-jurídico (el memo aplica filtros/orden)
       setItems(await getSeguimientos(clienteId, deudorId));
     } catch (e) {
       console.error(e);
@@ -264,13 +242,11 @@ export default function SeguimientoTable() {
 
   const handleConfirmDelete = async () => {
     if (!clienteId || !deudorId || !deleteId) return;
-
     if (!canEditSafe) {
       toast.error("No tienes permiso para eliminar seguimientos.");
       setDeleteId(null);
       return;
     }
-
     try {
       await deleteSeguimiento(clienteId, deudorId, deleteId);
       setItems((prev) => prev.filter((x) => x.id !== deleteId));
@@ -293,9 +269,7 @@ export default function SeguimientoTable() {
       toast.error("Escribe la observación.");
       return;
     }
-
     try {
-      const uid = auth.currentUser?.uid ?? null;
       await addObservacionCliente(clienteId, deudorId, texto);
       setObsTexto("");
       setObsCliente(await getObservacionesCliente(clienteId, deudorId));
@@ -306,13 +280,10 @@ export default function SeguimientoTable() {
     }
   };
 
-  // ===== guard UI =====
+  // guard UI
   let guard: React.ReactNode | null = null;
-  if (aclLoading) {
-    guard = <p className="p-4 text-sm">Cargando permisos…</p>;
-  } else if (!canView) {
-    guard = <p className="p-4 text-sm">No tienes acceso a Seguimientos.</p>;
-  }
+  if (aclLoading) guard = <p className="p-4 text-sm">Cargando permisos…</p>;
+  else if (!canView) guard = <p className="p-4 text-sm">No tienes acceso a Seguimientos.</p>;
   if (guard) {
     return (
       <div className="space-y-2">
@@ -324,40 +295,39 @@ export default function SeguimientoTable() {
     );
   }
 
-  // ===== render con Tabs + Filters (orden inline) =====
   return (
     <div className="space-y-6">
-      <Button variant="ghost" onClick={() => navigate(-1)}>
-        ← Volver
-      </Button>
+      {/* ===== Barra superior con Volver + botón NUEVO arriba de los tabs ===== */}
+      <div className="flex items-center justify-between">
+        <Button variant="ghost" onClick={() => navigate(-1)}>
+          ← Volver
+        </Button>
+
+        {canEditSafe && (tab === "pre" || tab === "juridico") && (
+          <Button
+            onClick={() => {
+              setSeleccionado(undefined);
+              setOpen(true);
+            }}
+          >
+            {tab === "juridico" ? "Nuevo seguimiento jurídico" : "Nuevo seguimiento"}
+          </Button>
+        )}
+      </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="w-full">
-        <TabsList className="grid grid-cols-3 w-full">
+        <TabsList className="grid grid-cols-4 w-full">
           <TabsTrigger value="pre">Pre-jurídico</TabsTrigger>
           <TabsTrigger value="juridico">Jurídico</TabsTrigger>
+          <TabsTrigger value="demanda">Demanda</TabsTrigger>
           <TabsTrigger value="obs">Observaciones del cliente</TabsTrigger>
         </TabsList>
 
-        {/* ====== TAB: PRE-JURÍDICO ====== */}
+        {/* ====== PRE-JURÍDICO ====== */}
         <TabsContent value="pre" className="mt-6 space-y-4">
           <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-xl font-semibold">Seguimiento Pre-Jurídico</h2>
+            <h2 className="text-xl font-semibold">Seguimiento Pre-Jurídico</h2>
 
-              {/* Orden inline – controlado y seguro */}
-              {canEditSafe && (
-                <Button
-                  onClick={() => {
-                    setSeleccionado(undefined);
-                    setOpen(true);
-                  }}
-                >
-                  Nuevo seguimiento
-                </Button>
-              )}
-            </div>
-
-            {/* Filtros Pre-jurídico (solo rango de fechas) */}
             <FiltersBar
               fields={preFields}
               filtersState={preFilters as Record<string, any>}
@@ -442,7 +412,6 @@ export default function SeguimientoTable() {
             </Table>
           )}
 
-          {/* Modal creación/edición */}
           <SeguimientoForm
             open={open}
             onClose={() => {
@@ -452,10 +421,9 @@ export default function SeguimientoTable() {
             seguimiento={seleccionado}
             tipificacionDeuda={undefined}
             onSaveWithDestino={onSaveWithDestino}
-            destinoInicial="seguimiento"
+            destinoInicial={tab === "juridico" ? "seguimientoJuridico" : "seguimiento"}  // ← clave
           />
 
-          {/* Confirmación eliminación */}
           <AlertDialog open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)}>
             <AlertDialogContent>
               <AlertDialogHeader>
@@ -479,17 +447,20 @@ export default function SeguimientoTable() {
           </AlertDialog>
         </TabsContent>
 
-        {/* ====== TAB: JURÍDICO ====== */}
+        {/* ====== JURÍDICO ====== */}
         <TabsContent value="juridico" className="mt-6">
           <SeguimientoJuridicoTable key={refreshJuridicoKey} />
         </TabsContent>
 
-        {/* ====== TAB: OBSERVACIONES DEL CLIENTE ====== */}
+        {/* ====== DEMANDA ====== */}
+        <TabsContent value="demanda" className="mt-6">
+          <SeguimientoDemandaTable />
+        </TabsContent>
+
+        {/* ====== OBSERVACIONES ====== */}
         <TabsContent value="obs" className="mt-6 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="text-lg font-semibold">Observaciones</h3>
-
-            {/* Orden inline – controlado y seguro */}
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">Ordenar:</span>
               <Select
@@ -507,7 +478,6 @@ export default function SeguimientoTable() {
             </div>
           </div>
 
-          {/* Filtros Observaciones (solo rango de fechas) */}
           <FiltersBar
             fields={obsFields}
             filtersState={obsFilters as Record<string, any>}

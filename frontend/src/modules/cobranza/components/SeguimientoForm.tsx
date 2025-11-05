@@ -368,6 +368,8 @@ export default function SeguimientoForm({
                         checked={reemplazarArchivo}
                         onChange={(e) => setReemplazarArchivo(e.target.checked)}
                         disabled={saving}
+                        title="Reemplazar archivo existente"
+                        aria-label="Reemplazar archivo existente"
                       />
                       <Label htmlFor="reemplazar" className="text-sm">
                         Reemplazar archivo existente
