@@ -421,24 +421,7 @@ export default function DeudoresTable() {
                           </Tooltip>
                         )}
 
-                        {/* 🔐 Eliminar: solo si canEdit */}
-                        {canEdit && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="destructive"
-                                size="icon"
-                                onClick={() => {
-                                  setDeudorSeleccionado(deudor);
-                                  setDialogoEliminar(true);
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Eliminar</TooltipContent>
-                          </Tooltip>
-                        )}
+                       
                       </div>
                     </TooltipProvider>
                   </TableCell>
