@@ -20,7 +20,7 @@ const MYSQL_CONFIG = {
   host: process.env.MYSQL_HOST || 'localhost',
   user: process.env.MYSQL_USER || 'root',
   password: process.env.MYSQL_PASS || 'gestion_2025',
-  database: process.env.MYSQL_DB || 'gestion_octubre',
+  database: process.env.MYSQL_DB || 'gestion_nov_4',
 };
 
 // ====== TIPIFICACION ======
@@ -240,10 +240,10 @@ async function main() {
     const clienteNombre = cliente.nombre || '';
 
     const clienteRow = {
-      clienteId,
+      //clienteId,
       clienteNombre,
       nit,
-      totalProcesos: 0,
+      //totalProcesos: 0,
       totalDeudores: 0,
       totalEstadosMensuales: 0,
       totalSeguimientos: 0,
@@ -279,10 +279,10 @@ async function main() {
         'SELECT * FROM scc_proceso WHERE esp_id = 1 AND usr_afiliado_id = ?',
         [afiliadoId]
       );
-      clienteRow.totalProcesos = procesos.length;
+      //clienteRow.totalProcesos = procesos.length;
 
       // LIMPIEZA PREVIA DE DEUDORES
-      await wipeDeudores(clienteId);
+      //await wipeDeudores(clienteId);
 
       let algoMigrado = false;
 
