@@ -212,15 +212,16 @@ function normalizeUbicacion(ubicacion) {
   // Trim inicial
   let trimmed = ubicacion.trim();
 
+  /*
   // 1) Quitar una letra final si existe (con o sin espacio antes)
   trimmed = trimmed.replace(/\s*[A-Za-z]$/, "");
-
   // Si empieza con letra de A-Z → la convierte a número y concatena lo que sigue
   const firstChar = trimmed.charAt(0).toUpperCase();
   if (firstChar >= 'A' && firstChar <= 'Z') {
     const num = firstChar.charCodeAt(0) - 'A'.charCodeAt(0) + 1;
     return num + trimmed.slice(1);
   }
+  */
 
   return trimmed;
 }
@@ -368,7 +369,7 @@ async function main() {
         continue;
       }
 
-      // 3) Actualizar cliente con ejecutivoJuridicoId     
+      // 3) Actualizar cliente con ejecutivoDependienteId     
       await db.collection("clientes").doc(uidCliente).set(
         { ejecutivoDependienteId: uidEjecutivo },
         { merge: true }
@@ -398,22 +399,22 @@ async function main() {
           if (parsedDateForCreate) {
             updateDeudor.fechaUltimaRevision = admin.firestore.Timestamp.fromDate(parsedDateForCreate);
           } else {
-            console.warn(`    ⚠️ Fecha última revisión inválida/ausente para NIT=${nit}, ubicacion='${ubicacion}' (creación)`);
+            //console.warn(`    ⚠️ Fecha última revisión inválida/ausente para NIT=${nit}, ubicacion='${ubicacion}' (creación)`);
           }
 
           // Crear el deudor con los datos judiciales
           deudorRef = await createDeudor(uidCliente, ubicacion, updateDeudor);
           deudorCreado = true; // NUEVO: marcar para el reporte
 
-          console.log(`🆕 [${i + 1}/${rows.length}] NIT=${nit} | ubicacion='${ubicacion}' → deudor creado (${deudorRef.path})`);
+          //console.log(`🆕 [${i + 1}/${rows.length}] NIT=${nit} | ubicacion='${ubicacion}' → deudor creado (${deudorRef.path})`);
         } else {
           // Comportamiento anterior si NO fue marcado como “sin deudores”
           badRows.push(withMotivoNoMigrado(
             raw,
-            `Deudor no encontrado en clientes/${uidCliente}/deudores con ubicacion='${ubicacion}'`
+            `Deudor no encontrado'`
           ));
           noMigrados++;
-          console.warn(`⚠️  [${i + 1}] Deudor no encontrado (NIT=${nit}, ubicacion='${ubicacion}').`);
+          //console.warn(`⚠️  [${i + 1}] Deudor no encontrado (NIT=${nit}, ubicacion='${ubicacion}').`);
           continue;
         }
       }
@@ -425,7 +426,7 @@ async function main() {
       if (parsedDate) {
         updateDeudor.fechaUltimaRevision = admin.firestore.Timestamp.fromDate(parsedDate);
       } else {
-        console.warn(`    ⚠️ Fecha última revisión inválida/ausente para NIT=${nit}, ubicacion='${ubicacion}'`);
+        //console.warn(`    ⚠️ Fecha última revisión inválida/ausente para NIT=${nit}, ubicacion='${ubicacion}'`);
       }
 
       await deudorRef.set(updateDeudor, { merge: true });

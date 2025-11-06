@@ -146,13 +146,16 @@ function withMotivo(row, motivo) {
 
 function normalizeUbicacion(ubicacion) {
   if (!ubicacion) return ubicacion;
+  // utiliza .trim() para limpiar espacios al inicio y final
   let trimmed = ubicacion.trim();
+  /*
   trimmed = trimmed.replace(/\s*[A-Za-z]$/, ""); // quita posibles letras sueltas al final (ej. “1A” → “1”)
   const firstChar = trimmed.charAt(0).toUpperCase();
   if (firstChar >= 'A' && firstChar <= 'Z') {
     const num = firstChar.charCodeAt(0) - 'A'.charCodeAt(0) + 1;
     return num + trimmed.slice(1);
   }
+  */
   return trimmed;
 }
 
