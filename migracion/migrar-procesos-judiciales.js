@@ -32,7 +32,7 @@ const EJECUTIVOS_UID = {
   // claves en minúscula
   nicoll: "FWn2ELTvlSSDxnrvoAkBGewzBr43",
   laura: "TkBWDCsUzjNCwdu5q8cXciSQqmQ2",
-  diego: "ZdHbDZk1iAfs537M8kSEwls6b8K2",
+  diego: "WgnPyseUC0WygnBkAL9loZwpYmv2",
   // agrega más si aparecen en tu Excel...
 };
 

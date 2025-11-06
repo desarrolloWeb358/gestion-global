@@ -20,7 +20,7 @@ const MYSQL_CONFIG = {
   host: process.env.MYSQL_HOST || 'localhost',
   user: process.env.MYSQL_USER || 'root',
   password: process.env.MYSQL_PASS || 'gestion_2025',
-  database: process.env.MYSQL_DB || 'gestion_nov_4',
+  database: process.env.MYSQL_DB || 'gestion_nov_5',
 };
 
 // ====== TIPIFICACION ======
@@ -179,46 +179,14 @@ function readNeedsExcel(filePath) {
 function extractUbicacion(idStrRaw, nitRaw) {
   const idStr = String(idStrRaw || '').trim();
   const nit = String(nitRaw || '').trim();
-  if (!idStr) return '';
-  const compact = idStr.replace(/\s+/g, ' ');
+  if (!idStr || !nit) return idStr;
 
-  let rest = compact;
-  let joinedNoSep = false;
+  // Si comienza con el NIT, elimínalo junto con un guion o espacio siguiente
+  let rest = idStr.startsWith(nit)
+    ? idStr.slice(nit.length).replace(/^[-\s]+/, '')
+    : idStr;
 
-  if (nit && rest.startsWith(nit)) {
-    const nextChar = rest.charAt(nit.length) || '';
-    rest = rest.slice(nit.length);
-    if (nextChar && !/[\s-]/.test(nextChar)) joinedNoSep = true;
-    rest = rest.replace(/^[\s-]+/, '');
-  } else {
-    rest = rest.trim();
-  }
-
-  const tokens = rest.split(' ').filter(Boolean);
-  if (tokens.length > 1) {
-    for (let i = tokens.length - 1; i >= 0; i--) {
-      const t = tokens[i];
-      if (/^\d+-\d+-?$/.test(t)) return t.replace(/-+$/, '');
-    }
-    const idx = rest.indexOf('-');
-    return idx >= 0 ? rest.slice(idx + 1).replace(/[^\d]+$/, '') : rest.replace(/[^\d]+$/, '');
-  }
-
-  rest = tokens.length === 1 ? tokens[0] : rest;
-  if (!rest) return '';
-  rest = rest.replace(/[^\d]+$/, '');
-
-  if (joinedNoSep && /^\d+-\d+$/.test(rest)) {
-    const p = rest.indexOf('-');
-    return p >= 0 ? rest.slice(p + 1) : rest;
-  }
-
-  if (rest.startsWith('-')) rest = rest.slice(1);
-  if (/^\d+-\d+$/.test(rest)) return rest;
-
-  const p = rest.indexOf('-');
-  if (p >= 0) return rest.slice(p + 1).replace(/[^\d]+$/, '');
-  return rest;
+  return rest.trim(); // limpia espacios finales o iniciales
 }
 
 // ====================== MAIN ======================
@@ -236,14 +204,13 @@ async function main() {
   for (const doc of docs) {
     const clienteId = doc.id;
     const cliente = typeof doc.data === 'function' ? doc.data() : doc.data;
-    const nit = cliente.numeroDocumento;
+    const nit = cliente.numeroDocumento;    
     const clienteNombre = cliente.nombre || '';
 
     const clienteRow = {
       //clienteId,
       clienteNombre,
-      nit,
-      //totalProcesos: 0,
+      nit,      
       totalDeudores: 0,
       totalEstadosMensuales: 0,
       totalSeguimientos: 0,
@@ -273,13 +240,12 @@ async function main() {
       }
 
       const afiliadoId = clientesSQL[0].usr_id;
-
+      
       // 2) Procesos del afiliado (ejemplo: activos esp_id = 1)
       const [procesos] = await connection.execute(
         'SELECT * FROM scc_proceso WHERE esp_id = 1 AND usr_afiliado_id = ?',
         [afiliadoId]
-      );
-      //clienteRow.totalProcesos = procesos.length;
+      );      
 
       // LIMPIEZA PREVIA DE DEUDORES
       //await wipeDeudores(clienteId);
@@ -308,7 +274,9 @@ async function main() {
               }
 
               const usuario = usuarios[0];
+              //console.log(' ubicacion raw:', usuario.usr_identificacion);
               const ubicacion = extractUbicacion(usuario.usr_identificacion, nit);
+              //console.log('  ubicacion limpia:', ubicacion);
 
               // Teléfonos
               const [telefonosRows] = await connection.execute(
