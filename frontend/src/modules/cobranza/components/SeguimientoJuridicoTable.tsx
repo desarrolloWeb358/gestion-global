@@ -1,6 +1,6 @@
 // modules/cobranza/components/SeguimientoJuridicoTable.tsx
 import * as React from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams} from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/shared/ui/button";
 import type { Deudor } from "../models/deudores.model";
@@ -24,26 +24,41 @@ import { codeToLabel } from "@/shared/constants/tipoSeguimiento";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { PERMS } from "@/shared/constants/acl";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/shared/ui/alert-dialog";
+import SeguimientoDemandaTableHandle from "./SeguimientoDemandaTable";
+import { SeguimientoDemanda } from "../services/seguimientoDemandaService";
+
+
 
 function renderTipoSeguimiento(code?: string) {
   // Si el code existe en el mapa, devuelve el label; si no, muestra el code o '—'
   return codeToLabel[code as keyof typeof codeToLabel] ?? code ?? "—";
 }
 
-export default function SeguimientoJuridicoTable() {
+const SeguimientoDemandaTable = React.forwardRef<SeguimientoDemanda, {}>(function SeguimientoDemandaTable(_, ref) {
   const { clienteId, deudorId } = useParams();
-  const navigate = useNavigate();
-
   const [deudor, setDeudor] = React.useState<Deudor | null>(null);
   const [items, setItems] = React.useState<Seguimiento[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [open, setOpen] = React.useState(false);
   const [seleccionado, setSeleccionado] = React.useState<Seguimiento | undefined>(undefined);
   const [deleteId, setDeleteId] = React.useState<string | null>(null);
+  const [form, setForm] = React.useState({
+    demandados: "",
+    juzgado: "",
+    numeroRadicado: "",
+    localidad: "",
+    observacionesDemanda: "",
+    observacionesDemandaCliente: "",
+    fechaUltimaRevision: "", // YYYY-MM-DD
+  });
+
 
   // RBAC
   const { can, roles = [], loading: aclLoading } = useAcl();
+
   const isCliente = roles.includes("cliente");
+  
+  
 
   // 👉 Permisos: cliente SIEMPRE puede ver; editar solo si NO es cliente y tiene permiso
   const canView =
@@ -51,6 +66,10 @@ export default function SeguimientoJuridicoTable() {
   const canEdit =
     !isCliente && can(PERMS.Seguimientos_Edit ?? PERMS.Abonos_Edit);
   const canEditSafe = canEdit && !isCliente;
+
+  
+
+  
 
   React.useEffect(() => {
     if (!clienteId || !deudorId) return;
@@ -123,9 +142,11 @@ export default function SeguimientoJuridicoTable() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      {/* Header limpio, sin el Card adentro */}
+      <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Seguimiento Jurídico</h2>
-        {/* Si tuvieras botón "Agregar", muéstralo solo si puede editar */}
+
+        {/* Si quieres un botón aquí (ej. "Nuevo seguimiento"), va bien al lado del título */}
         {/* {canEdit && (
           <Button size="sm" onClick={() => { setSeleccionado(undefined); setOpen(true); }}>
             Agregar seguimiento
@@ -136,7 +157,9 @@ export default function SeguimientoJuridicoTable() {
       {loading ? (
         <p className="text-sm text-muted-foreground">Cargando...</p>
       ) : items.length === 0 ? (
-        <div className="text-sm text-muted-foreground">No hay seguimientos jurídicos registrados.</div>
+        <div className="text-sm text-muted-foreground">
+          No hay seguimientos jurídicos registrados.
+        </div>
       ) : (
         <Table>
           <TableHeader>
@@ -153,7 +176,6 @@ export default function SeguimientoJuridicoTable() {
           <TableBody>
             {items.map((seg) => (
               <TableRow key={seg.id}>
-                
                 <TableCell>
                   {seg.fecha && typeof (seg.fecha as any).toDate === "function"
                     ? (seg.fecha as any).toDate().toLocaleDateString("es-CO")
@@ -169,7 +191,12 @@ export default function SeguimientoJuridicoTable() {
                 </TableCell>
                 <TableCell>
                   {seg.archivoUrl ? (
-                    <a href={seg.archivoUrl} target="_blank" rel="noreferrer" className="underline text-sm">
+                    <a
+                      href={seg.archivoUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline text-sm"
+                    >
                       Ver archivo
                     </a>
                   ) : (
@@ -226,7 +253,10 @@ export default function SeguimientoJuridicoTable() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setDeleteId(null)}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={handleConfirmDelete}>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={handleConfirmDelete}
+            >
               Sí, eliminar
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -234,4 +264,5 @@ export default function SeguimientoJuridicoTable() {
       </AlertDialog>
     </div>
   );
-}
+});
+export default SeguimientoDemandaTable;

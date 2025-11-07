@@ -66,6 +66,8 @@ import {
   SelectItem,
   SelectValue,
 } from "@/shared/ui/select";
+import SeguimientoDemandaHandle from "./SeguimientoDemandaTable"
+import { SeguimientoDemanda } from "../services/seguimientoDemandaService";
 import SeguimientoDemandaTable from "./SeguimientoDemandaTable";
 
 type SortDir = "desc" | "asc";
@@ -139,6 +141,8 @@ export default function SeguimientoTable() {
   const [obsLoading, setObsLoading] = React.useState(false);
   const [obsTexto, setObsTexto] = React.useState("");
   const auth = getAuth();
+  // ref to the Demanda table component instance (may expose an openForm method)
+  const demandaRef = React.useRef<{ openForm?: () => void } | null>(null);
 
   // pestaña activa
   const [tab, setTab] = React.useState<"pre" | "juridico" | "demanda" | "obs">("pre");
@@ -303,17 +307,26 @@ export default function SeguimientoTable() {
           ← Volver
         </Button>
 
-        {canEditSafe && (tab === "pre" || tab === "juridico") && (
-          <Button
-            onClick={() => {
-              setSeleccionado(undefined);
-              setOpen(true);
-            }}
-          >
-            {tab === "juridico" ? "Nuevo seguimiento jurídico" : "Nuevo seguimiento"}
-          </Button>
+        {canEditSafe && (
+          tab === "pre" || tab === "juridico" ? (
+            <Button
+              onClick={() => {
+                setSeleccionado(undefined);
+                setOpen(true);
+              }}
+            >
+              {tab === "juridico" ? "Nuevo seguimiento jurídico" : "Nuevo seguimiento"}
+            </Button>
+          ) : tab === "demanda" ? (
+            // 👇 aquí aparece el botón de Demanda
+            <Button onClick={() => demandaRef.current?.openForm?.()}>
+              Nuevo seguimiento (Demanda)
+            </Button>
+          ) : null
         )}
       </div>
+
+      
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="w-full">
         <TabsList className="grid grid-cols-4 w-full">
@@ -454,7 +467,7 @@ export default function SeguimientoTable() {
 
         {/* ====== DEMANDA ====== */}
         <TabsContent value="demanda" className="mt-6">
-          <SeguimientoDemandaTable />
+          <SeguimientoDemandaTable  />
         </TabsContent>
 
         {/* ====== OBSERVACIONES ====== */}

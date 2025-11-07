@@ -25,6 +25,7 @@ import {
 } from "@/shared/constants/acl";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { Loader2 } from "lucide-react";
+import DemandaDatosPrincipalesCard from "./DemandaDatosPrincipalesCard";
 
 /** Helpers de fecha */
 function toDateInputValue(anyDate: any): string {
@@ -256,45 +257,18 @@ export function DemandaInfoPage() {
           </div>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Datos principales</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Field
-              label="Demandados"
-              readOnly={roDatosPrincipales}
-              value={form.demandados}
-              onChange={onChange("demandados")}
-            />
-            <Field
-              label="Juzgado"
-              readOnly={roDatosPrincipales}
-              value={form.juzgado}
-              onChange={onChange("juzgado")}
-            />
-            <Field
-              label="Número de radicado"
-              readOnly={roDatosPrincipales}
-              value={form.numeroRadicado}
-              onChange={onChange("numeroRadicado")}
-            />
-            <Field
-              label="Localidad"
-              readOnly={roDatosPrincipales}
-              value={form.localidad}
-              onChange={onChange("localidad")}
-            />
-
-            {/* ✅ Calendar en vez de <input type="date" /> */}
-            <DateField
-              label="Fecha última revisión"
-              readOnly={roDatosPrincipales}
-              value={form.fechaUltimaRevision}         // YYYY-MM-DD
-              onChangeDate={onChangeDate("fechaUltimaRevision")}
-            />
-          </CardContent>
-        </Card>
+        <DemandaDatosPrincipalesCard
+          readOnly={roDatosPrincipales}
+          values={{
+            demandados: form.demandados,
+            juzgado: form.juzgado,
+            numeroRadicado: form.numeroRadicado,
+            localidad: form.localidad,
+            fechaUltimaRevision: form.fechaUltimaRevision,
+          }}
+          onChange={onChange}
+          onChangeDate={onChangeDate}
+        />
 
         {!isCliente && (
           <Card>

@@ -1,23 +1,30 @@
-"use client";
-
+// modules/cobranza/components/SeguimientoTable.tsx
 import * as React from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
-import { Button } from "@/shared/ui/button";
-import { Textarea } from "@/shared/ui/textarea";
-import { Label } from "@/shared/ui/label";
-import { Separator } from "@/shared/ui/separator";
+import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
-import type { ObservacionCliente } from "@/modules/cobranza/models/observacionCliente.model";
-
+import { Button } from "@/shared/ui/button";
 import {
-  getObservacionesCliente,
-  addObservacionCliente,
-  getObservacionesClienteValor,
-  addObservacionClienteValor,
-  updateObservacionCliente,
-  deleteObservacionCliente,
-} from "@/modules/cobranza/services/observacionClienteService";
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
+} from "@/shared/ui/table";
+
+import { useAcl } from "@/modules/auth/hooks/useAcl";
+import { PERMS } from "@/shared/constants/acl";
+
+import SeguimientoForm, { DestinoColeccion } from "./SeguimientoForm";
+import { Seguimiento } from "../models/seguimiento.model";
+import {
+  getSeguimientos,
+  addSeguimiento,
+  updateSeguimiento,
+  deleteSeguimiento,
+  addSeguimientoJuridico,
+} from "@/modules/cobranza/services/seguimientoService";
 
 import {
   AlertDialog,
@@ -30,269 +37,379 @@ import {
   AlertDialogAction,
 } from "@/shared/ui/alert-dialog";
 
-type Scope = "deudor" | "valor";
+import SeguimientoJuridicoTable from "./SeguimientoJuridicoTable";
 
-/** Formatea Timestamp/Date a string local es-CO (solo `fecha`) */
-function formatObsDate(input: any): string {
+// Tabs
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/shared/ui/tabs";
+
+// 🔎 Filtros reutilizables
+import FiltersBar from "@/shared/table-filters/FiltersBar";
+import type { DateRange, FilterField } from "@/shared/table-filters/types";
+
+import { codeToLabel } from "@/shared/constants/tipoSeguimiento";
+
+// ➕ Panel reutilizable de Observaciones
+import ObservacionesClientePanel from "@/modules/cobranza/components/ObservacionesClientePanel";
+
+// ==== helpers de fechas/orden ====
+type SortDir = "desc" | "asc";
+
+function renderTipoSeguimiento(code?: string) {
+  return codeToLabel[code as keyof typeof codeToLabel] ?? code ?? "—";
+}
+
+function toDate(v: any): Date | undefined {
   try {
-    if (!input) return "—";
-    if (typeof input?.toDate === "function") {
-      return input.toDate().toLocaleString("es-CO", { hour12: false });
+    if (!v) return undefined;
+    if (typeof v?.toDate === "function") return v.toDate(); // Firestore Timestamp
+    if (v instanceof Date) return v;
+    if (typeof v === "number") return new Date(v);
+    if (typeof v === "string") {
+      const t = Date.parse(v);
+      return Number.isNaN(t) ? undefined : new Date(t);
     }
-    if (typeof input?.seconds === "number") {
-      return new Date(input.seconds * 1000).toLocaleString("es-CO", { hour12: false });
-    }
-    if (input instanceof Date) {
-      return input.toLocaleString("es-CO", { hour12: false });
-    }
-  } catch {}
-  return "—";
+    return undefined;
+  } catch {
+    return undefined;
+  }
 }
 
-export interface ObservacionesClientePanelProps {
-  clienteId: string;
-  /** parentId: deudorId (scope="deudor") o valorId (scope="valor") */
-  parentId: string;
-  scope: Scope;
-
-  /** Permisos/rol resueltos desde afuera */
-  isCliente?: boolean;
-  canModerate?: boolean;
-
-  /** Título visual del card (opcional) */
-  title?: string;
-
-  /** Mostrar formulario de crear (por defecto true si es cliente o moderador) */
-  allowCreate?: boolean;
+function tsToMillis(v: any): number {
+  try {
+    if (!v) return 0;
+    if (typeof v?.toDate === "function") return v.toDate().getTime();
+    if (v instanceof Date) return v.getTime();
+    if (typeof v === "number") return v;
+    if (typeof v === "string") {
+      const t = Date.parse(v);
+      return Number.isNaN(t) ? 0 : t;
+    }
+    return 0;
+  } catch {
+    return 0;
+  }
 }
 
-export default function ObservacionesClientePanel({
-  clienteId,
-  parentId,
-  scope,
-  isCliente = false,
-  canModerate = false,
-  title = "Observaciones del cliente",
-  allowCreate,
-}: ObservacionesClientePanelProps) {
-  const [items, setItems] = React.useState<ObservacionCliente[]>([]);
+function inRange(millis: number, range?: DateRange): boolean {
+  if (!range || (!range.from && !range.to)) return true;
+  const from = range.from ? new Date(range.from.setHours(0, 0, 0, 0)).getTime() : undefined;
+  const to = range.to ? new Date(range.to.setHours(23, 59, 59, 999)).getTime() : undefined;
+  if (from !== undefined && millis < from) return false;
+  if (to !== undefined && millis > to) return false;
+  return true;
+}
+
+export default function SeguimientoTable() {
+  const { clienteId, deudorId } = useParams();
+  const navigate = useNavigate();
+
+  // ===== estado (pre-jurídico) =====
+  const [items, setItems] = React.useState<Seguimiento[]>([]);
   const [loading, setLoading] = React.useState(false);
-  const [saving, setSaving] = React.useState(false);
-  const [working, setWorking] = React.useState(false);
+  const [open, setOpen] = React.useState(false);
+  const [seleccionado, setSeleccionado] = React.useState<Seguimiento | undefined>(undefined);
+  const [deleteId, setDeleteId] = React.useState<string | null>(null);
 
-  const [texto, setTexto] = React.useState("");
+  // ===== refresco jurídico =====
+  const [refreshJuridicoKey, setRefreshJuridicoKey] = React.useState(0);
 
-  const [editingId, setEditingId] = React.useState<string | null>(null);
-  const [editingTexto, setEditingTexto] = React.useState("");
-  const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  // ===== RBAC =====
+  const { can, loading: aclLoading, roles = [] } = useAcl();
+  const canView = can(PERMS.Seguimientos_Read);
+  const canEdit = can(PERMS.Seguimientos_Edit);
+  const isCliente = Array.isArray(roles) && roles.includes("cliente");
+  const canEditSafe = canEdit && !isCliente;
 
-  // Crear permitido si es cliente o moderador (puedes pasar allowCreate para forzar)
-  const canCreate = allowCreate ?? (isCliente || canModerate);
+  // ===== pestaña activa =====
+  const [tab, setTab] = React.useState<"pre" | "juridico" | "obs">("pre");
 
-  const fetch = React.useCallback(async () => {
-    if (!clienteId || !parentId) return;
-    setLoading(true);
-    try {
-      const data =
-        scope === "deudor"
-          ? await getObservacionesCliente(clienteId, parentId)
-          : await getObservacionesClienteValor(clienteId, parentId);
+  // ===== filtros: PRE-JURÍDICO =====
+  type PreFilters = { fecha?: DateRange; order: SortDir };
+  const [preFilters, setPreFilters] = React.useState<PreFilters>({ order: "desc" });
+  const setPreFilter = (key: keyof PreFilters, value: any) =>
+    setPreFilters((s) => ({ ...s, [key]: value }));
 
-      // ✅ Sin normalizaciones: UI asume que service ya retorna { id, texto, fecha }
-      setItems(data ?? []);
-    } catch (e) {
-      console.error(e);
-      toast.error("No se pudieron cargar las observaciones del cliente.");
-    } finally {
-      setLoading(false);
-    }
-  }, [clienteId, parentId, scope]);
+  const preFields: FilterField<Seguimiento>[] = [
+    {
+      key: "fecha",
+      label: "Rango de fechas",
+      kind: "daterange",
+      getDate: (it) => toDate(it.fecha),
+    },
+  ];
 
+  // ===== efectos =====
   React.useEffect(() => {
-    fetch();
-  }, [fetch]);
+    if (!clienteId || !deudorId) return;
+    setLoading(true);
+    getSeguimientos(clienteId, deudorId)
+      .then(setItems)
+      .catch(() => toast.error("No se pudo cargar el listado de seguimientos."))
+      .finally(() => setLoading(false));
+  }, [clienteId, deudorId]);
 
-  // Permisos: ya no dependen del autor
-  const canEditObs = (_o: ObservacionCliente) => isCliente || canModerate;
-  const canDeleteObs = canEditObs;
+  // ===== colecciones filtradas + ordenadas (memo) =====
+  const itemsFilteredSorted = React.useMemo(() => {
+    const arr = items.filter((it) => inRange(tsToMillis(it.fecha), preFilters.fecha));
+    const dir = preFilters.order === "desc" ? -1 : 1;
+    return arr.sort((a, b) => (tsToMillis(a.fecha) - tsToMillis(b.fecha)) * dir);
+  }, [items, preFilters]);
 
-  async function onCreate() {
-    if (!clienteId || !parentId) return;
-    if (!canCreate) return toast.error("No tienes permiso para agregar observaciones.");
-    const val = texto.trim();
-    if (!val) return toast.error("Escribe la observación.");
+  // ===== handlers =====
+  const onSaveWithDestino = async (
+    destino: DestinoColeccion,
+    data: Omit<Seguimiento, "id">,
+    archivo?: File,
+    reemplazar?: boolean
+  ) => {
+    if (!clienteId || !deudorId) return;
+    if (!canEditSafe) {
+      toast.error("No tienes permiso para crear/editar seguimientos.");
+      return;
+    }
 
-    setSaving(true);
     try {
-      if (scope === "deudor") {
-        await addObservacionCliente(clienteId, parentId, val); // service setea `fecha`
+      if (seleccionado?.id) {
+        if (destino === "seguimientoJuridico") {
+          await addSeguimientoJuridico(clienteId, deudorId, data, archivo);
+          await deleteSeguimiento(clienteId, deudorId, seleccionado.id);
+          setRefreshJuridicoKey((k) => k + 1);
+        } else {
+          await updateSeguimiento(
+            clienteId,
+            deudorId,
+            seleccionado.id,
+            data,
+            archivo,
+            reemplazar
+          );
+        }
       } else {
-        await addObservacionClienteValor(clienteId, parentId, val); // service setea `fecha`
+        if (destino === "seguimientoJuridico") {
+          await addSeguimientoJuridico(clienteId, deudorId, data, archivo);
+          setRefreshJuridicoKey((k) => k + 1);
+        } else {
+          await addSeguimiento(clienteId, deudorId, data, archivo);
+        }
       }
-      setTexto("");
-      await fetch();
-      toast.success("Observación agregada.");
+
+      toast.success("Seguimiento guardado.");
+      setOpen(false);
+      setSeleccionado(undefined);
+      setItems(await getSeguimientos(clienteId, deudorId));
     } catch (e) {
       console.error(e);
-      toast.error("No se pudo agregar la observación.");
-    } finally {
-      setSaving(false);
+      toast.error("No se pudo guardar el seguimiento.");
     }
-  }
+  };
 
-  function startEdit(o: ObservacionCliente) {
-    if (!canEditObs(o)) return;
-    setEditingId(o.id!);
-    setEditingTexto(o.texto);
-  }
+  const handleConfirmDelete = async () => {
+    if (!clienteId || !deudorId || !deleteId) return;
 
-  function cancelEdit() {
-    setEditingId(null);
-    setEditingTexto("");
-  }
+    if (!canEditSafe) {
+      toast.error("No tienes permiso para eliminar seguimientos.");
+      setDeleteId(null);
+      return;
+    }
 
-  async function confirmEdit() {
-    if (!clienteId || !parentId || !editingId) return;
-    const nuevo = editingTexto.trim();
-    if (!nuevo) return toast.error("El texto no puede estar vacío.");
-
-    setWorking(true);
     try {
-      // NO tocar `fecha` en actualizaciones; solo se modifica `texto`
-      await updateObservacionCliente(clienteId, parentId, editingId, nuevo, scope);
-      toast.success("Observación actualizada.");
-      setEditingId(null);
-      setEditingTexto("");
-      await fetch();
-    } catch (e) {
-      console.error(e);
-      toast.error("No se pudo actualizar la observación.");
+      await deleteSeguimiento(clienteId, deudorId, deleteId);
+      setItems((prev) => prev.filter((x) => x.id !== deleteId));
+      toast.success("Seguimiento eliminado.");
+    } catch {
+      toast.error("No se pudo eliminar el seguimiento.");
     } finally {
-      setWorking(false);
+      setDeleteId(null);
     }
+  };
+
+  // ===== guard UI =====
+  let guard: React.ReactNode | null = null;
+  if (aclLoading) {
+    guard = <p className="p-4 text-sm">Cargando permisos…</p>;
+  } else if (!canView) {
+    guard = <p className="p-4 text-sm">No tienes acceso a Seguimientos.</p>;
+  }
+  if (guard) {
+    return (
+      <div className="space-y-2">
+        <Button variant="ghost" className="mb-2" onClick={() => navigate(-1)}>
+          ← Volver
+        </Button>
+        {guard}
+      </div>
+    );
   }
 
-  function askDelete(o: ObservacionCliente) {
-    if (!canDeleteObs(o)) return;
-    setDeletingId(o.id!);
-  }
-
-  async function doDelete() {
-    if (!clienteId || !parentId || !deletingId) return;
-    setWorking(true);
-    try {
-      await deleteObservacionCliente(clienteId, parentId, deletingId, scope);
-      toast.success("Observación eliminada.");
-      setDeletingId(null);
-      await fetch();
-    } catch (e) {
-      console.error(e);
-      toast.error("No se pudo eliminar la observación.");
-    } finally {
-      setWorking(false);
-    }
-  }
+  const ObservacionesClienteAny = ObservacionesClientePanel as any;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <span>{title}</span>
-        </CardTitle>
-      </CardHeader>
+    <div className="space-y-6">
+      <Button variant="ghost" onClick={() => navigate(-1)}>
+        ← Volver
+      </Button>
 
-      <CardContent className="space-y-4">
-        {/* Lista: FECHA + TEXTO (solo `fecha`) */}
-        {loading ? (
-          <p className="text-sm text-muted-foreground">Cargando…</p>
-        ) : items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Sin observaciones aún.</p>
-        ) : (
-          <div className="space-y-3">
-            {items.map((o) => (
-              <div key={o.id} className="rounded-md border p-3">
-                {editingId === o.id ? (
-                  <div className="space-y-2">
-                    <Textarea
-                      value={editingTexto}
-                      onChange={(e) => setEditingTexto(e.target.value)}
-                      className="min-h-24"
-                      maxLength={1000}
-                      disabled={working}
-                    />
-                    <div className="flex items-center justify-end gap-2">
-                      <Button variant="outline" onClick={cancelEdit} disabled={working}>
-                        Cancelar
-                      </Button>
-                      <Button onClick={confirmEdit} disabled={working || !editingTexto.trim()}>
-                        Guardar cambios
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="text-xs text-muted-foreground mb-1">
-                      {formatObsDate(o.fecha)}
-                    </div>
-                    <div className="text-sm whitespace-pre-wrap">{o.texto}</div>
-                    {(isCliente || canModerate) && (
-                      <div className="mt-2 flex items-center gap-2 justify-end">
-                        <Button size="sm" variant="outline" onClick={() => startEdit(o)} disabled={working}>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="w-full">
+        <TabsList className="grid grid-cols-3 w-full">
+          <TabsTrigger value="pre">Pre-jurídico</TabsTrigger>
+          <TabsTrigger value="juridico">Jurídico</TabsTrigger>
+          <TabsTrigger value="obs">Observaciones del cliente</TabsTrigger>
+        </TabsList>
+
+        {/* ====== TAB: PRE-JURÍDICO ====== */}
+        <TabsContent value="pre" className="mt-6 space-y-4">
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-xl font-semibold">Seguimiento Pre-Jurídico</h2>
+
+              {canEditSafe && (
+                <Button
+                  onClick={() => {
+                    setSeleccionado(undefined);
+                    setOpen(true);
+                  }}
+                >
+                  Nuevo seguimiento
+                </Button>
+              )}
+            </div>
+
+            <FiltersBar
+              fields={preFields}
+              filtersState={preFilters as Record<string, any>}
+              setFilter={(k, v) => setPreFilter(k as keyof typeof preFilters, v)}
+              onReset={() => setPreFilters({ order: "desc", fecha: undefined })}
+            />
+          </div>
+
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Cargando...</p>
+          ) : itemsFilteredSorted.length === 0 ? (
+            <div className="text-sm text-muted-foreground">
+              No hay seguimientos pre-jurídicos registrados.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[160px]">Fecha</TableHead>
+                  <TableHead className="w-[160px]">Tipo</TableHead>
+                  <TableHead>Descripción</TableHead>
+                  <TableHead className="w-[140px]">Archivo</TableHead>
+                  {canEditSafe && (
+                    <TableHead className="w-[160px] text-right">Acciones</TableHead>
+                  )}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {itemsFilteredSorted.map((seg) => (
+                  <TableRow key={seg.id}>
+                    <TableCell>
+                      {seg.fecha && typeof (seg.fecha as any).toDate === "function"
+                        ? (seg.fecha as any).toDate().toLocaleDateString("es-CO")
+                        : "—"}
+                    </TableCell>
+                    <TableCell className="capitalize">
+                      {renderTipoSeguimiento(seg.tipoSeguimiento)}
+                    </TableCell>
+                    <TableCell>
+                      <div className="whitespace-pre-wrap leading-relaxed text-sm">
+                        {seg.descripcion}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {seg.archivoUrl ? (
+                        <a
+                          href={seg.archivoUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="underline text-sm"
+                        >
+                          Ver archivo
+                        </a>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    {canEditSafe && (
+                      <TableCell className="text-right space-x-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setSeleccionado(seg);
+                            setOpen(true);
+                          }}
+                        >
                           Editar
                         </Button>
-                        <Button size="sm" variant="destructive" onClick={() => askDelete(o)} disabled={working}>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => setDeleteId(seg.id!)}
+                        >
                           Eliminar
                         </Button>
-                      </div>
+                      </TableCell>
                     )}
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
 
-        {/* Form crear */}
-        {canCreate && (
-          <div className="pt-2 space-y-2">
-            <Separator />
-            <Label>Nueva observación</Label>
-            <Textarea
-              value={texto}
-              onChange={(e) => setTexto(e.target.value)}
-              placeholder="Escribe tu observación…"
-              className="min-h-24"
-              maxLength={1000}
-              disabled={saving || working}
-            />
-            <div className="flex justify-end">
-              <Button onClick={onCreate} disabled={saving || working || !texto.trim()}>
-                {saving ? "Guardando…" : "Agregar observación"}
-              </Button>
-            </div>
-          </div>
-        )}
-      </CardContent>
+          {/* Modal creación/edición */}
+          <SeguimientoForm
+            open={open}
+            onClose={() => {
+              setOpen(false);
+              setSeleccionado(undefined);
+            }}
+            seguimiento={seleccionado}
+            tipificacionDeuda={undefined}
+            onSaveWithDestino={onSaveWithDestino}
+            destinoInicial="seguimiento"
+          />
 
-      {/* Confirmación eliminar */}
-      <AlertDialog open={!!deletingId} onOpenChange={(v) => !v && setDeletingId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar observación?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta acción no se puede deshacer. La observación se eliminará permanentemente.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setDeletingId(null)} disabled={working}>
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={doDelete} disabled={working}>
-              Sí, eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </Card>
+          {/* Confirmación eliminación */}
+          <AlertDialog open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Eliminar seguimiento pre-jurídico?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esta acción no se puede deshacer. El seguimiento se eliminará permanentemente.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setDeleteId(null)}>
+                  Cancelar
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-red-600 hover:bg-red-700"
+                  onClick={handleConfirmDelete}
+                >
+                  Sí, eliminar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </TabsContent>
+
+        {/* ====== TAB: JURÍDICO ====== */}
+        <TabsContent value="juridico" className="mt-6">
+          <SeguimientoJuridicoTable key={refreshJuridicoKey} />
+        </TabsContent>
+        <TabsContent value="obs" className="mt-6">
+          <ObservacionesClienteAny
+            clienteId={clienteId!}
+            deudorId={deudorId!}
+            allowAdd={isCliente}
+            defaultOrder="desc"
+            showDate
+            onAfterAdd={() => toast.success("Observación agregada.")}
+          />
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }
