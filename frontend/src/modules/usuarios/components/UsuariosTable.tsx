@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { Check, ChevronDown, Pencil } from "lucide-react";
+import { Check, ChevronDown, Filter, Pencil, Search, X } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 
 import {
@@ -37,6 +37,7 @@ import {
 } from "../services/usuarioService";
 import { cn } from "@/shared/lib/cn";
 import { Rol, ROLES } from "@/shared/constants/acl";
+import { Typography } from "@/shared/design-system/components/Typography";
 
 // Sentinelas para selects (evitar value="")
 const ALL = "__ALL__";
@@ -44,6 +45,9 @@ const ALL_BOOL = "__ALL_BOOL__";
 
 export default function UsuariosCrud() {
   const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([]);
+  const [tipoDocControl, setTipoDocControl] = useState<"CC" | "CE" | "TI" | "NIT" | undefined>(
+    undefined
+  );
   const [loading, setLoading] = useState(true);
   const [usuarioEditando, setUsuarioEditando] = useState<UsuarioSistema | null>(null);
   const [mostrarDialogo, setMostrarDialogo] = useState(false);
@@ -61,12 +65,25 @@ export default function UsuariosCrud() {
 
   const normalizarInicio = (d?: Date) => {
     if (!d) return undefined;
-    const x = new Date(d); x.setHours(0,0,0,0); return x;
+    const x = new Date(d); x.setHours(0, 0, 0, 0); return x;
   };
   const normalizarFin = (d?: Date) => {
     if (!d) return undefined;
-    const x = new Date(d); x.setHours(23,59,59,999); return x;
+    const x = new Date(d); x.setHours(23, 59, 59, 999); return x;
   };
+
+  const fmt = (d?: Date) => (d ? d.toLocaleDateString("es-CO") : "—");
+  const chips = useMemo(() => {
+    const arr: { label: string; onClear: () => void }[] = [];
+    if (q) arr.push({ label: `Búsqueda: “${q}”`, onClear: () => setQ("") });
+    if (rolFilter !== ALL) arr.push({ label: `Rol: ${rolFilter}`, onClear: () => setRolFilter(ALL) });
+    if (activoFilter !== ALL_BOOL) {
+      arr.push({ label: `Activo: ${activoFilter === "true" ? "Sí" : "No"}`, onClear: () => setActivoFilter(ALL_BOOL) });
+    }
+    if (desde) arr.push({ label: `Desde: ${fmt(desde)}`, onClear: () => setDesde(undefined) });
+    if (hasta) arr.push({ label: `Hasta: ${fmt(hasta)}`, onClear: () => setHasta(undefined) });
+    return arr;
+  }, [q, rolFilter, activoFilter, desde, hasta, ALL, ALL_BOOL, setQ, setRolFilter, setActivoFilter, setDesde, setHasta]);
 
   function MultiSelectRoles({
     selectedRoles,
@@ -82,6 +99,7 @@ export default function UsuariosCrud() {
         setSelectedRoles([...selectedRoles, rol]);
       }
     };
+
     return (
       <Popover>
         <PopoverTrigger asChild>
@@ -129,6 +147,7 @@ export default function UsuariosCrud() {
     setFecha(undefined);
     setRolesSeleccionados([]);
     setMostrarDialogo(true);
+    setTipoDocControl(undefined);
   };
 
   const abrirEditar = (usuario: UsuarioSistema) => {
@@ -137,6 +156,7 @@ export default function UsuariosCrud() {
     setFecha(usuario.fecha_registro instanceof Timestamp ? usuario.fecha_registro.toDate() : undefined);
     setRolesSeleccionados((usuario.roles ?? []) as Rol[]);
     setMostrarDialogo(true);
+    setTipoDocControl(usuario.tipoDocumento as any);
   };
   const cerrarDialogo = () => {
     setUsuarioEditando(null);
@@ -195,187 +215,242 @@ export default function UsuariosCrud() {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold">Usuarios</h2>
-        <Button onClick={abrirCrear}>Crear Usuario</Button>
+        <Typography variant="h2" className="!text-brand-primary font-bold">
+          Usuarios
+        </Typography>
+
+        <Button variant="brand" onClick={abrirCrear}>
+          Crear Usuario
+        </Button>
       </div>
 
       {/* ====== FILTROS ====== */}
-      <div className="grid gap-3 md:grid-cols-4 lg:grid-cols-6">
-        <div className="md:col-span-2">
-          <Label>Búsqueda</Label>
-          <Input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Buscar por nombre o email…"
-          />
-        </div>
+      <section className="rounded-2xl border border-brand-secondary/30 bg-white/60 p-4 md:p-5 shadow-sm">
+        {/* Encabezado + chips + limpiar todo */}
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-muted" />
+            <Typography variant="h3" className="!text-brand-secondary">Filtros
+            </Typography>
+          </div>
 
-        <div>
-          <Label>Rol</Label>
-          <Select value={rolFilter} onValueChange={setRolFilter}>
-            <SelectTrigger>
-              <SelectValue placeholder="Todos" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Todos</SelectItem>
-              {rolesDisponibles.map((r) => (
-                <SelectItem key={r} value={r}>
-                  {r}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Label>Activo</Label>
-          <Select value={activoFilter} onValueChange={setActivoFilter}>
-            <SelectTrigger>
-              <SelectValue placeholder="Todos" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_BOOL}>Todos</SelectItem>
-              <SelectItem value="true">Sí</SelectItem>
-              <SelectItem value="false">No</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <Label>Desde</Label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="justify-start">
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {desde ? desde.toLocaleDateString("es-CO") : "—"}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-2" align="start">
-              <Calendar mode="single" selected={desde} onSelect={setDesde} initialFocus />
-            </PopoverContent>
-          </Popover>
-          {desde && (
+          <div className="flex flex-wrap items-center gap-2">
+            {chips.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {chips.map((c, i) => (
+                  <span
+                    key={i}
+                    className="inline-flex items-center gap-1 rounded-full border border-border bg-bg px-2 py-1 text-xs text-fg"
+                  >
+                    {c.label}
+                    <button
+                      type="button"
+                      onClick={c.onClear}
+                      className="rounded p-0.5 hover:bg-gray-100"
+                      aria-label={`Quitar ${c.label}`}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
-              className="justify-start px-2"
-              onClick={() => setDesde(undefined)}
+              className={chips.length === 0 ? "opacity-60 pointer-events-none" : ""}
+              onClick={() => {
+                setQ("");
+                setRolFilter(ALL);
+                setActivoFilter(ALL_BOOL);
+                setDesde(undefined);
+                setHasta(undefined);
+              }}
             >
-              Limpiar
+              Limpiar todo
             </Button>
-          )}
+          </div>
         </div>
 
-        <div className="flex flex-col gap-1">
-          <Label>Hasta</Label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="justify-start">
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {hasta ? hasta.toLocaleDateString("es-CO") : "—"}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-2" align="start">
-              <Calendar mode="single" selected={hasta} onSelect={setHasta} />
-            </PopoverContent>
-          </Popover>
-          {hasta && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="justify-start px-2"
-              onClick={() => setHasta(undefined)}
-            >
-              Limpiar
-            </Button>
-          )}
-        </div>
+        {/* Grid de controles */}
+        <div className="grid gap-3 md:grid-cols-4 lg:grid-cols-6">
+          {/* Búsqueda ancho */}
+          <div className="md:col-span-2 lg:col-span-3">
+            <Label className="mb-1 block">Búsqueda</Label>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+              <Input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Nombre o email…"
+                className="pl-9  border border-brand-secondary/30 bg-white/60"
+                aria-label="Buscar por nombre o email"
+              />
+              {q && (
+                <button
+                  type="button"
+                  onClick={() => setQ("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted hover:bg-gray-100"
+                  aria-label="Limpiar búsqueda"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
 
-        <div className="flex items-end">
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => {
-              setQ("");
-              setRolFilter(ALL);
-              setActivoFilter(ALL_BOOL);
-              setDesde(undefined);
-              setHasta(undefined);
-            }}
-          >
-            Limpiar filtros
-          </Button>
+          {/* Rol */}
+          <div>
+            <Label className="mb-1 block ">Rol</Label>
+            <Select value={rolFilter} onValueChange={setRolFilter}>
+              <SelectTrigger className="border border-brand-secondary/30 bg-white/60"><SelectValue  placeholder="Todos" /></SelectTrigger>
+              <SelectContent className="max-h-64 border border-brand-secondary/30 bg-white/60 ">
+                <SelectItem className="border border-brand-secondary/30 bg-white/60" value={ALL}>Todos</SelectItem>
+                {rolesDisponibles.map((r) => (
+                  <SelectItem key={r} value={r}>{r}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Activo */}
+          <div>
+            <Label className="mb-1 block t">Activo</Label>
+            <Select value={activoFilter} onValueChange={setActivoFilter}>
+              <SelectTrigger className="border border-brand-secondary/30 bg-white/60"><SelectValue placeholder="Todos" /></SelectTrigger>
+              <SelectContent className="border border-brand-secondary/30 bg-white/60">
+                <SelectItem value={ALL_BOOL}>Todos</SelectItem>
+                <SelectItem value="true">Sí</SelectItem>
+                <SelectItem value="false">No</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Rango de fechas unificado */}
+          <div className="lg:col-span-2">
+            <Label className="mb-1 block">Rango de fechas</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-start border border-brand-secondary/30 bg-white/60">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {desde || hasta ? `${fmt(desde)} → ${fmt(hasta)}` : "Seleccionar rango"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-2" align="start">
+                <div className="flex flex-col gap-3 ">
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" onClick={() => {
+                      const hoy = new Date(); setDesde(hoy); setHasta(hoy);
+                    }}>Hoy</Button>
+                    <Button size="sm" variant="outline" onClick={() => {
+                      const hoy = new Date(); const d7 = new Date(); d7.setDate(hoy.getDate() - 7);
+                      setDesde(d7); setHasta(hoy);
+                    }}>Últimos 7 días</Button>
+                    <Button size="sm" variant="outline" onClick={() => {
+                      const hoy = new Date(); const d30 = new Date(); d30.setDate(hoy.getDate() - 30);
+                      setDesde(d30); setHasta(hoy);
+                    }}>Últimos 30 días</Button>
+                    <Button size="sm" variant="ghost" onClick={() => { setDesde(undefined); setHasta(undefined); }}>
+                      Limpiar
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <div>
+                      <Label className="mb-1 block text-xs text-muted">Desde</Label>
+                      <Calendar mode="single" selected={desde} onSelect={setDesde} initialFocus />
+                    </div>
+                    <div>
+                      <Label className="mb-1 block text-xs text-muted">Hasta</Label>
+                      <Calendar mode="single" selected={hasta} onSelect={setHasta} />
+                    </div>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
-      </div>
+      </section>
 
       {loading ? (
-        <p className="text-center py-6 text-muted-foreground">Cargando usuarios...</p>
+        <p className="text-center py-6 text-muted">Cargando usuarios...</p>
+      ) : usuariosFiltrados.length === 0 ? (
+        <div className="rounded-xl border border-border p-10 text-center text-muted">
+          No hay resultados con los filtros actuales.
+        </div>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Email</TableHead>
-              <TableHead>Nombre</TableHead>
-              <TableHead>Rol</TableHead>
-              <TableHead>Activo</TableHead>
-              <TableHead>Fecha de registro</TableHead>
-              <TableHead className="text-center">Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {usuariosFiltrados.map((usuario) => (
-              <TableRow key={usuario.uid}>
-                <TableCell>{usuario.email}</TableCell>
-                <TableCell>{usuario.nombre}</TableCell>
-                <TableCell>{usuario.roles?.join(", ")}</TableCell>
-                <TableCell>
-                  <Switch
-                    checked={!!usuario.activo}
-                    onCheckedChange={async (checked) => {
-                      const actualizado = { ...usuario, activo: checked };
-                      await actualizarUsuario(actualizado);
-                      setUsuarios((prev) =>
-                        prev.map((u) => (u.uid === actualizado.uid ? actualizado : u))
-                      );
-                    }}
-                  />
-                </TableCell>
-                <TableCell>
-                  {usuario.fecha_registro instanceof Timestamp
-                    ? (() => {
-                        const d = usuario.fecha_registro.toDate();
-                        const dia = String(d.getDate()).padStart(2, "0");
-                        const mes = String(d.getMonth() + 1).padStart(2, "0");
-                        const anio = d.getFullYear();
-                        return `${dia}/${mes}/${anio}`;
-                      })()
-                    : "—"}
-                </TableCell>
-
-                <TableCell>
-                  <div className="flex justify-center gap-2">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => abrirEditar(usuario)}
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Editar</TooltipContent>
-                      </Tooltip>
-                      {/* Si vas a reactivar Eliminar, puedes agregar aquí tu Dialog/Confirm */}
-                    </TooltipProvider>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <div >
+          <div className=" rounded-xl overflow-x-auto border border-brand-secondary/30 bg-white/60">
+            <Table className="min-w-[900px]">
+              <TableHeader className="sticky top-0 bg-bg z-10 ">
+                <TableRow >
+                  <TableHead>Email</TableHead>
+                  <TableHead>Nombre</TableHead>
+                  <TableHead>Rol</TableHead>
+                  <TableHead>Activo</TableHead>
+                  <TableHead>Fecha de registro</TableHead>
+                  <TableHead className="text-center">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody >
+                {usuariosFiltrados.map((usuario) => (
+                  <TableRow key={usuario.uid} className="even:bg-gray-50 hover:bg-gray-100/60">
+                    <TableCell className="font-medium">{usuario.email}</TableCell>
+                    <TableCell>{usuario.nombre}</TableCell>
+                    <TableCell className="text-sm">
+                      {usuario.roles?.map((r) => (
+                        <span
+                          key={r}
+                          className="mr-1 inline-flex items-center rounded-full px-2 py-0.5 text-xs"
+                        >
+                          {r}
+                        </span>
+                      ))}
+                    </TableCell>
+                    <TableCell>
+                      <Switch
+                        checked={!!usuario.activo}
+                        onCheckedChange={async (checked) => {
+                          const actualizado = { ...usuario, activo: checked };
+                          await actualizarUsuario(actualizado);
+                          setUsuarios((prev) =>
+                            prev.map((u) => (u.uid === actualizado.uid ? actualizado : u))
+                          );
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {usuario.fecha_registro instanceof Timestamp
+                        ? (() => {
+                          const d = usuario.fecha_registro.toDate();
+                          const dia = String(d.getDate()).padStart(2, "0");
+                          const mes = String(d.getMonth() + 1).padStart(2, "0");
+                          const anio = d.getFullYear();
+                          return `${dia}/${mes}/${anio}`;
+                        })()
+                        : "—"}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex justify-center gap-2">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button size="icon" variant="ghost" onClick={() => abrirEditar(usuario)}>
+                                <Pencil className="w-4 h-4 text-brand-primary" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent >Editar</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
       )}
+
 
       <Dialog open={mostrarDialogo} onOpenChange={setMostrarDialogo}>
         <DialogContent className="max-w-xl">
@@ -488,7 +563,7 @@ export default function UsuariosCrud() {
 
               <div>
                 <Label>Tipo de documento</Label>
-                <Select name="tipoDocumento" defaultValue={usuarioEditando?.tipoDocumento}>
+                <Select value={tipoDocControl} onValueChange={(v) => setTipoDocControl(v as any)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecciona" />
                   </SelectTrigger>
@@ -499,6 +574,8 @@ export default function UsuariosCrud() {
                     <SelectItem value="NIT">NIT</SelectItem>
                   </SelectContent>
                 </Select>
+                {/* ¡Clave! esto hace que llegue al FormData */}
+                <input type="hidden" name="tipoDocumento" value={tipoDocControl ?? ""} />
               </div>
 
               <div>
@@ -518,13 +595,18 @@ export default function UsuariosCrud() {
                 />
               </div>
 
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center gap-2">
                 <Switch
                   name="activo"
                   id="activo"
                   defaultChecked={usuarioEditando?.activo ?? true}
+                  className="
+      data-[state=checked]:bg-brand-primary
+      data-[state=unchecked]:bg-gray-300
+      focus-visible:ring-2 focus-visible:ring-brand-primary/30
+    "
                 />
-                <Label htmlFor="activo">Activo</Label>
+                <Label htmlFor="activo" className="text-fg">Activo</Label>
               </div>
 
               <div className="col-span-2">

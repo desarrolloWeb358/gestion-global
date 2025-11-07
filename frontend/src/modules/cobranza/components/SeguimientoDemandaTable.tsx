@@ -294,7 +294,7 @@ export default function SeguimientoDemandaTableHandle() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold">Seguimiento de la Demanda</h2>
+        <h2 className="font-secondary  text-xl ">Seguimiento de la Demanda</h2>
       </div>
 
       {/* Acordeón con DOS items: Datos principales + Registros */}

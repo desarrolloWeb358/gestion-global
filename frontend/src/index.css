@@ -1,16 +1,23 @@
-@import "tailwindcss";
-@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap")
-layer(base);
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap");
 @import 'ag-grid-community/styles/ag-grid.css';
 @import 'ag-grid-community/styles/ag-theme-alpine.css';
 @import "tailwindcss";
-@import 'jspreadsheet-ce/dist/jspreadsheet.css';
-@import "tw-animate-css";
+@config "../../tailwind.config.js";
 @custom-variant dark (&:is(.dark *));
 
 @theme {
   --font-*: initial;
   --font-outfit: Outfit, sans-serif;
+   --color-brand-primary: var(--color-brand-500);
+  --color-brand-secondary: var(--color-brand-700);
+  --color-brand-accent: var(--color-brand-300);
+  --color-fg: var(--color-gray-900);
+  --color-bg: var(--color-white);
+  --color-muted: var(--color-gray-500);
+  --color-border: var(--color-gray-200);
+  --color-success: var(--color-success-500);
+  --color-warning: var(--color-warning-500);
+  --color-error: var(--color-error-500);
 
   --breakpoint-*: initial;
   --breakpoint-2xsm: 375px;
@@ -177,19 +184,23 @@ layer(base);
   color utility to any element that depends on these defaults.
 */
 @layer base {
+  /* Estilos base globales */
   *,
   ::after,
   ::before,
   ::backdrop,
   ::file-selector-button {
     border-color: var(--color-gray-200, currentColor);
+    @apply border-border outline-ring/50;
   }
+
   button:not(:disabled),
   [role="button"]:not(:disabled) {
     cursor: pointer;
   }
+
   body {
-    @apply relative font-normal font-outfit z-1 bg-gray-50;
+    @apply relative font-normal font-outfit z-1 bg-background text-foreground;
   }
 }
 
@@ -902,12 +913,3 @@ span.flatpickr-weekday,
 /*
   ---break---
 */
-
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-}

@@ -13,7 +13,10 @@ import ProbarNotificacionesPage from './modules/cobranza/components/ProbarNotifi
 import AppLayout from "@/app/layout/AppLayout";
 import ScrollToTop from "@/app/layout/ScrollToTop";
 import DeudorDetailPage from "./modules/cobranza/components/DeudorDetailPage";
-
+import "@/shared/design-system/css/fonts.css";
+import "@/shared/design-system/css/variables.css";
+import "@/shared/design-system/css/themes.css";
+import "./index.css";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
 import EstadosMensualesTable from "./modules/cobranza/components/EstadosMensualesTable";
@@ -31,13 +34,16 @@ import AbogadoDashboardPage from "@/modules/dashboard/pages/AbogadoDashboardPage
 import ClienteDashboardPage from "@/modules/dashboard/pages/ClienteDashboardPage";
 import DeudorDashboardPage from "@/modules/dashboard/pages/DeudorDashboardPage";
 import { DemandaInfoPage } from "./modules/cobranza/components/DemandaInfoPage";
+import { ThemeProvider } from "./app/providers/ThemeContext";
 
 
 export default function App() {
   return (
     <>
       <ScrollToTop />
+      <ThemeProvider>
       <Routes>
+         
         {/* Redirección inicial a SignIn */}
         <Route path="/" element={<Navigate to="/signin" replace />} />
 
@@ -75,8 +81,9 @@ export default function App() {
 
         </Route>
         {/* 404 */}
-
+      
       </Routes>
+      </ThemeProvider>
     </>
   );
 }

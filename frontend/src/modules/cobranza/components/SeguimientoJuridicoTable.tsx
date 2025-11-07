@@ -24,7 +24,6 @@ import { codeToLabel } from "@/shared/constants/tipoSeguimiento";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { PERMS } from "@/shared/constants/acl";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/shared/ui/alert-dialog";
-import SeguimientoDemandaTableHandle from "./SeguimientoDemandaTable";
 import { SeguimientoDemanda } from "../services/seguimientoDemandaService";
 
 
@@ -39,9 +38,24 @@ const SeguimientoDemandaTable = React.forwardRef<SeguimientoDemanda, {}>(functio
   const [deudor, setDeudor] = React.useState<Deudor | null>(null);
   const [items, setItems] = React.useState<Seguimiento[]>([]);
   const [loading, setLoading] = React.useState(false);
-  const [open, setOpen] = React.useState(false);
   const [seleccionado, setSeleccionado] = React.useState<Seguimiento | undefined>(undefined);
   const [deleteId, setDeleteId] = React.useState<string | null>(null);
+    const [open, setOpen] = React.useState(false);
+    const [edit, setEdit] = React.useState<SeguimientoDemanda | null>(null);
+    const [consecutivo, setConsecutivo] = React.useState("");
+    const [fecha, setFecha] = React.useState<Date | undefined>(undefined);
+    const [descripcion, setDescripcion] = React.useState("");
+    const [archivo, setArchivo] = React.useState<File | undefined>(undefined);
+    const [saving, setSaving] = React.useState(false);
+  const resetForm = () => {
+    setEdit(null);
+    setConsecutivo("");
+    setFecha(undefined);
+    setDescripcion("");
+    setArchivo(undefined);
+    setSaving(false);
+  };
+  const openNew = () => { resetForm(); setOpen(true); };
   const [form, setForm] = React.useState({
     demandados: "",
     juzgado: "",
@@ -49,7 +63,7 @@ const SeguimientoDemandaTable = React.forwardRef<SeguimientoDemanda, {}>(functio
     localidad: "",
     observacionesDemanda: "",
     observacionesDemandaCliente: "",
-    fechaUltimaRevision: "", // YYYY-MM-DD
+    fechaUltimaRevision: "", 
   });
 
 

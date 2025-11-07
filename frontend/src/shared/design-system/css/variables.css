@@ -1,0 +1,20 @@
+:root {
+  /* Tipografías */
+  --font-primary: 'Montserrat', sans-serif;
+  --font-secondary: 'Poppins', sans-serif;
+
+  /* Paleta base (LIGHT) */
+  --color-brand-primary: #005BBB;   /* azul vivo */
+  --color-brand-secondary: #002855; /* azul oscuro */
+  --color-brand-accent: #00A8E8;    /* acento */
+
+  --color-bg: #FFFFFF;
+  --color-fg: #0F172A;
+  --color-border: #E5E7EB;
+  --color-muted: #6B7280;
+
+  /* Estados */
+  --color-success: #22C55E;
+  --color-warning: #EAB308;
+  --color-error: #DC2626;
+}
