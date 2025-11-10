@@ -176,6 +176,29 @@ function readNeedsExcel(filePath) {
   return clean;
 }
 
+// funcion para traer los ejecutivos de la collecio de clientes
+async function fetchEjecutivosCliente(clienteId) {
+  try {
+    const snap = await db.collection('clientes').doc(clienteId).get();
+
+    if (!snap.exists) {
+      logError('CLIENTE_EJECUTIVOS', { clienteId, note: 'clientes/{clienteId} no existe' }, new Error('not found'));
+      return {};
+    }
+
+    const data = snap.data() || {};
+
+    // Ajusta estos nombres según EXACTAMENTE como están en tu documento de clientes
+    return {
+      ejecutivoPrejuridicoId: data.ejecutivoPrejuridicoId  || null,
+      ejecutivoJuridicoId: data.ejecutivoJuridicoId || null,      
+    };
+  } catch (e) {
+    logError('CLIENTE_EJECUTIVOS', { clienteId }, e);
+    return {};
+  }
+}
+
 function extractUbicacion(idStrRaw, nitRaw) {
   const idStr = String(idStrRaw || '').trim();
   const nit = String(nitRaw || '').trim();
@@ -206,6 +229,12 @@ async function main() {
     const cliente = typeof doc.data === 'function' ? doc.data() : doc.data;
     const nit = cliente.numeroDocumento;    
     const clienteNombre = cliente.nombre || '';
+
+    // Obtener ejecutivos configurados en clientes/{clienteId}
+  const {
+    ejecutivoPrejuridicoId,
+    ejecutivoJuridicoId,    
+  } = await fetchEjecutivosCliente(clienteId);
 
     const clienteRow = {
       //clienteId,
@@ -431,12 +460,16 @@ async function main() {
                   const tipNum = s.tip_id === null ? null : Number(s.tip_id);
                   const esJuridico = (tipNum === null) || TIP_IDS_DEMANDA.has(tipNum);
                   const collectionName = esJuridico ? 'seguimientoJuridico' : 'seguimiento';
+                  const ejecutivoID = esJuridico ? ejecutivoJuridicoId : ejecutivoPrejuridicoId;
 
                   const seguimientoDoc = {
                     descripcion: desc,
                     fecha: admin.firestore.Timestamp.fromDate(new Date(fechaRaw)),
+                    fechaCreacion: admin.firestore.Timestamp.fromDate(new Date(fechaRaw)),
                     tipoSeguimiento: 'Otro',
                     archivoUrl: '',
+                    clienteUID: clienteId,
+                    ejecutivoUID: ejecutivoID || '',
                   };
 
                   await deudorRef.collection(collectionName).add(seguimientoDoc);
