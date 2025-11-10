@@ -29,6 +29,7 @@ import {
 import { Calendar } from "@/shared/ui/calendar";
 import { Popover, PopoverTrigger, PopoverContent } from "@/shared/ui/popover";
 import { Loader2 } from "lucide-react";
+import { getAuth } from "firebase/auth";
 
 type SortDir = "desc" | "asc";
 
@@ -81,6 +82,8 @@ export default function SeguimientoDemandaTable() {
   const [descripcion, setDescripcion] = React.useState("");
   const [archivo, setArchivo] = React.useState<File | undefined>(undefined);
   const [saving, setSaving] = React.useState(false);
+
+  const auth = getAuth();
 
   const resetForm = () => {
     setEdit(null);
@@ -141,7 +144,12 @@ export default function SeguimientoDemandaTable() {
         await updateSeguimientoDemanda(clienteId, deudorId, edit.id, payload, archivo);
         toast.success("Seguimiento de demanda actualizado.");
       } else {
-        await addSeguimientoDemanda(clienteId, deudorId, payload, archivo);
+        const uidUsuario = auth.currentUser?.uid;
+        if (!uidUsuario) {
+          toast.error("No se pudo obtener el usuario autenticado.");
+          return;
+        }
+        await addSeguimientoDemanda(uidUsuario, clienteId, deudorId, payload, archivo);
         toast.success("Seguimiento de demanda creado.");
       }
       setOpen(false);
