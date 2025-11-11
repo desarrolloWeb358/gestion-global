@@ -2,7 +2,7 @@
 export interface Cliente {
   id?: string;
 
-  // ⚠️ Se elimina 'nombre' del cliente: ahora se toma del documento de UsuarioSistema
+  nombre?: string;
   direccion?: string;
   banco?: string;
   numeroCuenta?: string;
@@ -11,6 +11,8 @@ export interface Cliente {
   // referencias (uids) a usuarios del sistema
   ejecutivoPrejuridicoId?: string | null;
   ejecutivoJuridicoId?: string | null;
+  ejecutivoDependienteId?: string | null;
+  abogadoId?: string | null;
 
   activo?: boolean;
 }
