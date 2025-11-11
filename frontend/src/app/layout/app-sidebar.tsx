@@ -24,6 +24,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/shared/ui/sidebar";
+import logo from "@/assets/brand/logo.png";
 
 function useFilteredNav(items: NavItem[]) {
   const { roles, can, loading } = useAcl();
@@ -82,14 +83,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild className="data-[slot=sidebar-menu-button]:!p-1.5">
-              <a href="#">
-                <IconInnerShadowTop className="!size-5" />
-                <span className="text-base font-semibold whitespace-nowrap">
-                  Gestión Global ACG SAS
-                </span>
-              </a>
-            </SidebarMenuButton>
+            <img
+              src={logo}
+              alt="Gestión Global ACG SAS"
+              className="h-20 w-full object-contain data-[state=collapsed]:h-6"
+            />
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>

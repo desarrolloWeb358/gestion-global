@@ -303,7 +303,7 @@ export default function UsuariosCrud() {
           <div>
             <Label className="mb-1 block ">Rol</Label>
             <Select value={rolFilter} onValueChange={setRolFilter}>
-              <SelectTrigger className="border border-brand-secondary/30 bg-white/60"><SelectValue  placeholder="Todos" /></SelectTrigger>
+              <SelectTrigger className="border border-brand-secondary/30 bg-white/60"><SelectValue placeholder="Todos" /></SelectTrigger>
               <SelectContent className="max-h-64 border border-brand-secondary/30 bg-white/60 ">
                 <SelectItem className="border border-brand-secondary/30 bg-white/60" value={ALL}>Todos</SelectItem>
                 {rolesDisponibles.map((r) => (
@@ -416,6 +416,12 @@ export default function UsuariosCrud() {
                             prev.map((u) => (u.uid === actualizado.uid ? actualizado : u))
                           );
                         }}
+                        className="
+    data-[state=checked]:bg-brand-secondary
+    hover:data-[state=checked]:bg-brand-700
+    data-[state=unchecked]:bg-gray-300
+    focus-visible:ring-2 focus-visible:ring-brand-secondary/30
+  "
                       />
                     </TableCell>
                     <TableCell>

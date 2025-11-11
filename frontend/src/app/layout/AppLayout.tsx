@@ -4,6 +4,7 @@ import { SidebarProvider, SidebarTrigger, useSidebar } from "@/shared/ui/sidebar
 import { AppSidebar } from "@/app/layout/app-sidebar"; // Tu componente lateral
 import { Toaster } from "sonner";
 
+
 const LayoutContent: React.FC = () => {
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
 
