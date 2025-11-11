@@ -1,3 +1,5 @@
+import AdminDashboardPage from "@/modules/dashboard/pages/AdminDashboardPage";
+
 export const ROLES = [
   "admin",
   "ejecutivo",
@@ -29,6 +31,9 @@ export const ROLE_HOME: Record<Rol, string> = {
 
 // --- PERMISOS (scopes) ---
 export const PERMS = {
+
+  Admin_Read: "admin.read",
+
   Usuarios_Read: "usuarios.read",
   Usuarios_Create: "usuarios.create",
 
@@ -53,6 +58,7 @@ export type Perm = (typeof PERMS)[keyof typeof PERMS];
 // Mapa rol → permisos
 export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
   admin: [
+    PERMS.Admin_Read,
     PERMS.Usuarios_Read,
     PERMS.Usuarios_Create,
 

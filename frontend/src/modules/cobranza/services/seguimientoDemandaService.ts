@@ -48,7 +48,7 @@ async function uploadArchivoDemanda(
   deudorId: string,
   archivo: File
 ): Promise<{ path: string; url: string }> {
-  const path = `clientes/${clienteId}/deudores/${deudorId}/seguimiento_demanda/${Date.now()}_${archivo.name}`;
+  const path = `clientes/${clienteId}/deudores/${deudorId}/seguimientoDemanda/${Date.now()}_${archivo.name}`;
   const sref = ref(storage, path);
   await uploadBytes(sref, archivo);
   const url = await getDownloadURL(sref);
@@ -67,7 +67,7 @@ async function safeDeleteByPath(path?: string) {
 
 /* ======================================================
    CRUD Seguimiento Demanda
-   Ruta: clientes/{clienteId}/deudores/{deudorId}/seguimiento_demanda
+   Ruta: clientes/{clienteId}/deudores/{deudorId}/seguimientoDemanda
    ====================================================== */
 
 export async function getSeguimientosDemanda(
@@ -76,13 +76,14 @@ export async function getSeguimientosDemanda(
 ): Promise<SeguimientoDemanda[]> {
   const refCol = collection(
     db,
-    `clientes/${clienteId}/deudores/${deudorId}/seguimiento_demanda`
+    `clientes/${clienteId}/deudores/${deudorId}/seguimientoDemanda`
   );
   const snap = await getDocs(query(refCol, orderBy("fecha", "desc")));
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as SeguimientoDemanda) }));
 }
 
 export async function addSeguimientoDemanda(
+  ejecutivoUID: string,
   clienteId: string,
   deudorId: string,
   data: Omit<SeguimientoDemanda, "id">,
@@ -99,11 +100,14 @@ export async function addSeguimientoDemanda(
 
   const refCol = collection(
     db,
-    `clientes/${clienteId}/deudores/${deudorId}/seguimiento_demanda`
+    `clientes/${clienteId}/deudores/${deudorId}/seguimientoDemanda`
   );
 
   const payload = stripUndefined({
     consecutivo: data.consecutivo,
+    fechaCreacion: Timestamp.fromDate(new Date()),
+    ejecutivoUID: ejecutivoUID,
+    clienteUID: clienteId,
     fecha: (data.fecha as any) ?? Timestamp.fromDate(new Date()),
     descripcion: data.descripcion,
     ...(archivoPath ? { archivoPath } : {}),
@@ -123,7 +127,7 @@ export async function updateSeguimientoDemanda(
 ) {
   const refDocu = doc(
     db,
-    `clientes/${clienteId}/deudores/${deudorId}/seguimiento_demanda/${demandaId}`
+    `clientes/${clienteId}/deudores/${deudorId}/seguimientoDemanda/${demandaId}`
   );
 
   let newPath: string | undefined;
@@ -162,7 +166,7 @@ export async function deleteSeguimientoDemanda(
 ) {
   const refDocu = doc(
     db,
-    `clientes/${clienteId}/deudores/${deudorId}/seguimiento_demanda/${demandaId}`
+    `clientes/${clienteId}/deudores/${deudorId}/seguimientoDemanda/${demandaId}`
   );
   const snap = await getDoc(refDocu);
   if (snap.exists()) {

@@ -31,18 +31,7 @@ import {
 import { Calendar } from "@/shared/ui/calendar";
 import { Popover, PopoverTrigger, PopoverContent } from "@/shared/ui/popover";
 import { Loader2 } from "lucide-react";
-import DemandaDatosPrincipalesCard from "./DemandaDatosPrincipalesCard";
-
-import { useAcl } from "@/modules/auth/hooks/useAcl";
-import { PERMS } from "@/shared/constants/acl";
-
-import { db } from "@/firebase";
-import { doc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
-import type { Deudor } from "../models/deudores.model";
-import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@radix-ui/react-accordion";
-
-// Acordeón (ajusta la ruta si tu DS la tiene distinta)
-
+import { getAuth } from "firebase/auth";
 
 type SortDir = "desc" | "asc";
 
@@ -115,61 +104,18 @@ export default function SeguimientoDemandaTableHandle() {
   const [archivo, setArchivo] = React.useState<File | undefined>(undefined);
   const [saving, setSaving] = React.useState(false);
 
-  /* ===== Handlers (card) ===== */
-  const onChange =
-    (key: keyof typeof form) =>
-      (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-        setForm((s) => ({ ...s, [key]: e.target.value }));
+  const auth = getAuth();
 
-  const onChangeDate = (key: keyof typeof form) => (date?: Date) => {
-    const val = date ? date.toISOString().slice(0, 10) : "";
-    setForm((s) => ({ ...s, [key]: val }));
+  const resetForm = () => {
+    setEdit(null);
+    setConsecutivo("");
+    setFecha(undefined);
+    setDescripcion("");
+    setArchivo(undefined);
+    setSaving(false);
   };
 
-  /* ===== Cargar deudor y setear form ===== */
-  React.useEffect(() => {
-    (async () => {
-      try {
-        if (!clienteId || !deudorId) return;
-        const ref = doc(db, `clientes/${clienteId}/deudores/${deudorId}`);
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
-          const d = snap.data() as Deudor;
-          setDeudor(d);
-          setForm({
-            demandados: (d as any).demandados ?? "",
-            juzgado: (d as any).juzgado ?? (d as any).juzgadoId ?? "",
-            numeroRadicado: (d as any).numeroRadicado ?? (d as any).numeroProceso ?? "",
-            localidad: (d as any).localidad ?? "",
-            observacionesDemanda: (d as any).observacionesDemanda ?? "",
-            observacionesDemandaCliente: (d as any).observacionesDemandaCliente ?? "",
-            fechaUltimaRevision: (() => {
-              try {
-                if ((d as any).fechaUltimaRevision?.toDate) {
-                  return (d as any).fechaUltimaRevision.toDate().toISOString().slice(0, 10);
-                }
-                if ((d as any).fechaUltimaRevision instanceof Date) {
-                  return (d as any).fechaUltimaRevision.toISOString().slice(0, 10);
-                }
-                if (typeof (d as any).fechaUltimaRevision === "string") {
-                  const t = Date.parse((d as any).fechaUltimaRevision);
-                  return Number.isNaN(t) ? "" : new Date(t).toISOString().slice(0, 10);
-                }
-                return "";
-              } catch {
-                return "";
-              }
-            })(),
-          });
-        }
-      } catch (e: any) {
-        setError(e.message ?? "Error cargando el deudor");
-      }
-    })();
-  }, [clienteId, deudorId]);
-
-  /* ===== Cargar registros ===== */
-  const loadRows = React.useCallback(async () => {
+  const load = async () => {
     if (!clienteId || !deudorId) return;
     try {
       setLoading(true);
@@ -266,7 +212,12 @@ export default function SeguimientoDemandaTableHandle() {
         await updateSeguimientoDemanda(clienteId, deudorId, edit.id, payload, archivo);
         toast.success("Seguimiento de demanda actualizado.");
       } else {
-        await addSeguimientoDemanda(clienteId, deudorId, payload, archivo);
+        const uidUsuario = auth.currentUser?.uid;
+        if (!uidUsuario) {
+          toast.error("No se pudo obtener el usuario autenticado.");
+          return;
+        }
+        await addSeguimientoDemanda(uidUsuario, clienteId, deudorId, payload, archivo);
         toast.success("Seguimiento de demanda creado.");
       }
       setOpen(false);

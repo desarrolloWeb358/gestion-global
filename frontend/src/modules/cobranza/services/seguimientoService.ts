@@ -67,6 +67,7 @@ export async function getSeguimientos(
 }
 
 export async function addSeguimiento(
+  ejecutivoUID: string,
   clienteId: string,
   deudorId: string,
   data: Omit<Seguimiento, "id">,
@@ -78,9 +79,13 @@ export async function addSeguimiento(
   }
 
   const refCol = collection(db, `clientes/${clienteId}/deudores/${deudorId}/seguimiento`);
+  console.log("se adiciona seguimiento con data:", data);
 
   const payload = stripUndefined({
     fecha: data.fecha ?? Timestamp.fromDate(new Date()),
+    fechaCreacion: Timestamp.fromDate(new Date()),
+    clienteUID: clienteId,
+    ejecutivoUID: ejecutivoUID,
     tipoSeguimiento: data.tipoSeguimiento,
     descripcion: data.descripcion,
     ...(archivoUrl ? { archivoUrl } : {}),
@@ -162,6 +167,7 @@ export async function getSeguimientosJuridico(
 }
 
 export async function addSeguimientoJuridico(
+  ejecutivoUID: string,
   clienteId: string,
   deudorId: string,
   data: Omit<Seguimiento, "id">,
@@ -176,6 +182,9 @@ export async function addSeguimientoJuridico(
 
   const payload = stripUndefined({
     fecha: data.fecha ?? Timestamp.fromDate(new Date()),
+    fechaCreacion: Timestamp.fromDate(new Date()),
+    ejecutivoUID: ejecutivoUID,
+    clienteUID: clienteId,
     tipoSeguimiento: data.tipoSeguimiento,
     descripcion: data.descripcion,
     ...(archivoUrl ? { archivoUrl } : {}),

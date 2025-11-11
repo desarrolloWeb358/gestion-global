@@ -194,6 +194,7 @@ const toStrOrEmpty = (v) => (v === null || v === undefined ? '' : String(v));
             {
               direccion,
               banco,
+              nombre,
               numeroCuenta: numero_cuenta,
               tipoCuenta: tipo_cuenta,
               // Usa UID
@@ -246,3 +247,6 @@ const toStrOrEmpty = (v) => (v === null || v === undefined ? '' : String(v));
 })().catch((e) => {
   console.error('❌ Error no controlado:', e);
 });
+
+
+// node .\migrar-clientes-excel.js

@@ -15,7 +15,7 @@ const SERVICE_ACCOUNT_PATH = './serviceAccountKey.json';
 
 // UIDs de clientes a procesar
 const CLIENT_UIDS = [
-'oQ4PyKlP6tasGUcCcbrFbwYlmIu2',
+'0lmddIL9FuUxcV7m86WQiOxwnbE3',
 ];
 
 // Pausa entre clientes (ms)

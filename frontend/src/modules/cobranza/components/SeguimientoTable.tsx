@@ -211,10 +211,16 @@ export default function SeguimientoTable() {
       return;
     }
     try {
+      const uidUsuario = auth.currentUser?.uid;
+      if (!uidUsuario) {
+        toast.error("No se pudo obtener el usuario autenticado.");
+        return;
+      }
       if (seleccionado?.id) {
         if (destino === "seguimientoJuridico") {
-          await addSeguimientoJuridico(clienteId, deudorId, data, archivo);
-          await deleteSeguimiento(clienteId, deudorId, seleccionado.id);
+          await addSeguimientoJuridico(uidUsuario, clienteId, deudorId, data, archivo);
+          // que es esto por que elimina???
+          //await deleteSeguimiento(clienteId, deudorId, seleccionado.id);
           setRefreshJuridicoKey((k) => k + 1);
         } else {
           await updateSeguimiento(
@@ -227,11 +233,12 @@ export default function SeguimientoTable() {
           );
         }
       } else {
+
         if (destino === "seguimientoJuridico") {
-          await addSeguimientoJuridico(clienteId, deudorId, data, archivo);
+          await addSeguimientoJuridico(uidUsuario, clienteId, deudorId, data, archivo);
           setRefreshJuridicoKey((k) => k + 1);
         } else {
-          await addSeguimiento(clienteId, deudorId, data, archivo);
+          await addSeguimiento(uidUsuario, clienteId, deudorId, data, archivo);
         }
       }
       toast.success("Seguimiento guardado.");

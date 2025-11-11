@@ -7,7 +7,7 @@ import {
   deleteDoc,
   doc,
   setDoc,
-  getDoc,
+  getDoc, orderBy, query
 } from "firebase/firestore";
 import { Cliente } from "@/modules/clientes/models/cliente.model";
 import { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
@@ -22,6 +22,12 @@ const clientesRef = collection(db, "clientes");
 // ===============================
 const sanitize = <T extends Record<string, any>>(obj: T) =>
   Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined)) as Partial<T>;
+
+
+export interface ClienteOption {
+  id: string;
+  nombre: string;
+}
 
 // ===============================
 // Crear Cliente desde UsuarioSistema (sin duplicar datos de usuario)
@@ -63,6 +69,30 @@ export const setUsuarioClinte = async (clienteId: string, uid: string | null) =>
 export const obtenerClientes = async (): Promise<Cliente[]> => {
   const snapshot = await getDocs(clientesRef);
   return snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Cliente, "id">) }));
+};
+
+export const listarClientesBasico = async (): Promise<ClienteOption[]> => {
+  // Si todos los clientes tienen `nombre`, usamos orderBy directo
+  const qy = query(clientesRef, orderBy("nombre", "asc"));
+  const snap = await getDocs(qy);
+
+  const items: ClienteOption[] = snap.docs.map((d) => {
+    const data = d.data() as any;
+    const nombre =
+      data.nombre ||
+      d.id;
+
+    return {
+      id: d.id,
+      nombre: String(nombre),
+    };
+  });
+
+  // Si no puedes hacer orderBy("nombre") porque algunos no lo tienen,
+  // puedes quitar el `orderBy` de la query y dejar este sort:
+  // items.sort((a, b) => a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" }));
+
+  return items;
 };
 
 // ===============================
