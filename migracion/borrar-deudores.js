@@ -15,7 +15,16 @@ const SERVICE_ACCOUNT_PATH = './serviceAccountKey.json';
 
 // UIDs de clientes a procesar
 const CLIENT_UIDS = [
-'0lmddIL9FuUxcV7m86WQiOxwnbE3',
+'bcj6EPTZqhb6drwCcAOHxlPWH6E3',
+'RU2wbouzQ2TaC6UJjrGn8lWYV4I2',
+'HLpR8m79wagEgKbtUMemjfYAnVG3',
+'kXZDjJ9JBdcScge8Fngz38GdLvH3',
+'Bgb0xYPeM8dZ6cs0OhrEhsp7xx83',
+'VeENLdaaqOZP6O7Xp4EVO7tSem02',
+'8vTwYoR491NXDekdft8lIvjO6Je2',
+'mIWGCub1WhgHhyaKg1eB9tBZ3HJ2',
+'Xaz4mJX7CWNi7LuCBncyQH0T5Tw2',
+'Y2KkR3oALsRb71sNggZO4ITruF73',
 ];
 
 // Pausa entre clientes (ms)

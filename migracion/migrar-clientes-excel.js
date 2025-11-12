@@ -40,7 +40,7 @@ function nameToUid(v) {
   const key = firstNameKey(v);
   // Si viene vacío o alguna variante de "no tiene", retorna vacío
   if (!key || ['no', 'notiene', 'no_tiene', 'sin', 'ninguno', 'ninguna'].includes(key)) {
-    return '';
+    return 'e00pkYVc2SZESu3Kt4OB7xiEs6N2'; // Iveth por defecto cuando no se especifica
   }
   return NAME_TO_UID[key] || "";
 }
