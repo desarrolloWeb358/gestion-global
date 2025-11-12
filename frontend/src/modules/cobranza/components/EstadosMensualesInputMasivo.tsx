@@ -2,22 +2,27 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Input } from "@/shared/ui/input";
 import { Button } from "@/shared/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
+import { Label } from "@/shared/ui/label";
 import { toast } from "sonner";
 import { Deudor } from "../models/deudores.model";
 import { obtenerDeudorPorCliente } from "../services/deudorService";
 import { upsertEstadoMensualPorMes } from "../services/estadoMensualService";
 import { db } from "@/firebase";
 import { doc, getDoc } from "firebase/firestore";
-import { Loader2 } from "lucide-react";
+import { Loader2, Calendar, DollarSign, Save, TrendingUp, Users } from "lucide-react";
 import { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
+import { Typography } from "@/shared/design-system/components/Typography";
+import { cn } from "@/shared/lib/cn";
+import { BackButton } from "@/shared/design-system/components/BackButton";
 
 interface FilaEstadoBase {
   deudorId: string;
   nombre: string;
-  porcentajeHonorarios: string; // string por input controlado (ej. "15")
-  deuda: string;                // string por input controlado
-  recaudo: string;              // string por input controlado
-  acuerdo?: string;             // string por input controlado (opcional)
+  porcentajeHonorarios: string;
+  deuda: string;
+  recaudo: string;
+  acuerdo?: string;
 }
 
 export default function EstadosMensualesInputMasivo() {
@@ -32,61 +37,56 @@ export default function EstadosMensualesInputMasivo() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Traer nombre solo desde clientes/{clienteId}
- useEffect(() => {
-  if (!clienteId) return;
-  let cancel = false;
+  // Traer nombre del cliente
+  useEffect(() => {
+    if (!clienteId) return;
+    let cancel = false;
 
-  (async () => {
-    try {
-      // 1) Intentar como UsuarioSistema
-      const tryUserCollections = async (): Promise<string | null> => {
-        const usersCollections = ["usuariosSistema", "usuarios"]; // por si usas otro nombre
-        for (const col of usersCollections) {
-          const ref = doc(db, col, String(clienteId));
+    (async () => {
+      try {
+        const tryUserCollections = async (): Promise<string | null> => {
+          const usersCollections = ["usuariosSistema", "usuarios"];
+          for (const col of usersCollections) {
+            const ref = doc(db, col, String(clienteId));
+            const snap = await getDoc(ref);
+            if (snap.exists()) {
+              const u = snap.data() as Partial<UsuarioSistema>;
+              const nombre = (u?.nombre ?? "").toString().trim();
+              if (nombre) return nombre;
+            }
+          }
+          return null;
+        };
+
+        const tryClienteCollection = async (): Promise<string | null> => {
+          const ref = doc(db, "clientes", String(clienteId));
           const snap = await getDoc(ref);
           if (snap.exists()) {
-            const u = snap.data() as Partial<UsuarioSistema>;
-            const nombre = (u?.nombre ?? "").toString().trim();
+            const d = snap.data() as any;
+            const nombre =
+              (d?.nombre && String(d.nombre).trim()) ||
+              (d?.razonSocial && String(d.razonSocial).trim());
             if (nombre) return nombre;
           }
-        }
-        return null;
-      };
+          return null;
+        };
 
-      // 2) Fallback a clientes/{clienteId}
-      const tryClienteCollection = async (): Promise<string | null> => {
-        const ref = doc(db, "clientes", String(clienteId));
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
-          const d = snap.data() as any;
-          const nombre =
-            (d?.nombre && String(d.nombre).trim()) ||
-            (d?.razonSocial && String(d.razonSocial).trim());
-          if (nombre) return nombre;
-        }
-        return null;
-      };
+        const nombreUsuario = await tryUserCollections();
+        const resolved = nombreUsuario ?? (await tryClienteCollection()) ?? "Cliente";
 
-      // Resolver nombre
-      const nombreUsuario = await tryUserCollections();
-      const resolved =
-        nombreUsuario ??
-        (await tryClienteCollection()) ??
-        "Cliente";
+        if (!cancel) setClienteNombre(resolved);
+      } catch (e) {
+        console.error(e);
+        if (!cancel) setClienteNombre("Cliente");
+      }
+    })();
 
-      if (!cancel) setClienteNombre(resolved);
-    } catch (e) {
-      console.error(e);
-      if (!cancel) setClienteNombre("Cliente");
-    }
-  })();
+    return () => {
+      cancel = true;
+    };
+  }, [clienteId]);
 
-  return () => {
-    cancel = true;
-  };
-}, [clienteId, db]);
-  // Cargar deudores y preparar filas
+  // Cargar deudores
   useEffect(() => {
     if (!clienteId) return;
     (async () => {
@@ -104,7 +104,7 @@ export default function EstadosMensualesInputMasivo() {
         setFilas(nuevasFilas);
       } catch (e: any) {
         console.error(e);
-        toast.error("No se pudieron cargar los deudores del cliente.");
+        toast.error("⚠️ No se pudieron cargar los deudores del cliente.");
         setFilas([]);
       } finally {
         setLoading(false);
@@ -171,120 +171,231 @@ export default function EstadosMensualesInputMasivo() {
       );
 
       toast.success(
-        `Se guardaron ${porGuardar.length} fila(s).` +
+        `✓ Se guardaron ${porGuardar.length} fila(s).` +
           (omitidas > 0 ? ` Omitidas ${omitidas} sin deuda y/o recaudo.` : "")
       );
     } catch (err: any) {
       console.error(err);
-      toast.error(err?.message || "Error al guardar algunos estados.");
+      toast.error(err?.message || "⚠️ Error al guardar algunos estados.");
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading) return <div className="p-6">Cargando…</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30 flex items-center justify-center">
+        <div className="text-center">
+          <div className="h-12 w-12 mx-auto animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary mb-4" />
+          <Typography variant="body" className="text-muted">
+            Cargando deudores...
+          </Typography>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-6 space-y-6">
-      {saving && (
-        <div className="fixed inset-0 z-[1000] bg-black/30 backdrop-blur-[1px] flex items-center justify-center">
-          <div className="rounded-xl bg-white dark:bg-neutral-900 shadow-lg px-6 py-5 flex items-center gap-3">
-            <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
-            <div className="text-sm">
-              <div className="font-medium">Guardando…</div>
-              <div className="text-muted-foreground">Por favor espera un momento.</div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30">
+      <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
+        {/* Overlay guardando */}
+        {saving && (
+          <div className="fixed inset-0 z-[1000] bg-black/40 backdrop-blur-sm flex items-center justify-center">
+            <div className="rounded-xl bg-white shadow-lg px-6 py-5 flex items-center gap-3">
+              <div className="h-5 w-5 animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary" />
+              <div className="text-sm">
+                <Typography variant="body" className="font-medium">
+                  Guardando estados mensuales...
+                </Typography>
+                <Typography variant="small" className="text-muted-foreground">
+                  Por favor espera un momento.
+                </Typography>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      <div className="flex flex-col gap-1" {...(saving ? { inert: "" as unknown as boolean } : {})}>
-        <div className="flex items-center justify-between">
-          <Button variant="outline" onClick={() => navigate(-1)}>
-            ← Volver
-          </Button>
-          <h1 className="text-2xl font-bold text-center flex-1">
-            Ingreso Masivo de Estados Mensuales
-          </h1>
-          <div className="w-[85px]" />
-        </div>
+        {/* Back Button */}
+        <BackButton />
 
-      <p className="text-lg text-muted-foreground text-center">
-  Conjunto: <span className="font-semibold text-gray-900">{clienteNombre}</span>
-</p>
-      </div>
-
-      <div className="flex items-center gap-3">
-        <label className="font-medium">Mes:</label>
-        <Input
-          type="month"
-          value={mesGlobal ?? ""}
-          onChange={(e) => setMesGlobal(e.target.value.slice(0, 7))}
-          className="max-w-[200px]"
-          disabled={saving}
-        />
-      </div>
-
-      <div className="relative">
-        <fieldset disabled={saving} className="space-y-4">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="p-2 text-left">Deudor</th>
-                  <th className="p-2 text-right">Deuda</th>
-                  <th className="p-2 text-right">Recaudo</th>
-                  <th className="p-2 text-right">Acuerdo</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filas.map((fila, i) => (
-                  <tr key={fila.deudorId} className="border-t">
-                    <td className="p-2">{fila.nombre}</td>
-                    <td className="p-2">
-                      <Input
-                        type="number"
-                        inputMode="decimal"
-                        value={fila.deuda ?? ""}
-                        onChange={(e) => handleChange(i, "deuda", e.target.value)}
-                        className="text-right"
-                      />
-                    </td>
-                    <td className="p-2">
-                      <Input
-                        type="number"
-                        inputMode="decimal"
-                        value={fila.recaudo ?? ""}
-                        onChange={(e) => handleChange(i, "recaudo", e.target.value)}
-                        className="text-right"
-                      />
-                    </td>
-                    <td className="p-2">
-                      <Input
-                        type="number"
-                        inputMode="decimal"
-                        value={fila.acuerdo ?? ""}
-                        onChange={(e) => handleChange(i, "acuerdo", e.target.value)}
-                        className="text-right"
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {/* Header */}
+        <header className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="p-3 rounded-xl bg-gradient-to-br from-brand-primary to-brand-secondary shadow-lg">
+              <TrendingUp className="h-7 w-7 text-white" />
+            </div>
+            <div>
+              <Typography variant="h1" className="!text-brand-primary font-bold">
+                Ingreso Masivo de Estados Mensuales
+              </Typography>
+              <Typography variant="body" className="text-muted-foreground">
+                Registra los estados de todos los deudores a la vez
+              </Typography>
+            </div>
           </div>
 
-          <Button onClick={guardarTodos} className="mt-4" disabled={saving}>
-            {saving ? (
-              <span className="inline-flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                Guardando…
-              </span>
-            ) : (
-              "Guardar todos los estados"
-            )}
-          </Button>
-        </fieldset>
+          {/* Info del cliente */}
+          <div className="rounded-2xl border border-brand-primary/20 bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-5 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-white shadow-sm">
+                <Users className="h-5 w-5 text-brand-primary" />
+              </div>
+              <div>
+                <Typography variant="small" className="text-muted-foreground">
+                  Conjunto
+                </Typography>
+                <Typography variant="h3" className="!text-brand-secondary font-semibold">
+                  {clienteNombre}
+                </Typography>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* Selector de mes */}
+        <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
+          <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5 border-b border-brand-secondary/10">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-brand-primary" />
+              <Typography variant="h3" className="!text-brand-secondary font-semibold">
+                Seleccionar mes
+              </Typography>
+            </div>
+          </div>
+
+          <div className="p-4 md:p-5">
+            <div className="max-w-xs">
+              <Label className="text-brand-secondary font-medium flex items-center gap-2 mb-2">
+                <Calendar className="h-4 w-4" />
+                Mes *
+              </Label>
+              <Input
+                type="month"
+                value={mesGlobal ?? ""}
+                onChange={(e) => setMesGlobal(e.target.value.slice(0, 7))}
+                disabled={saving}
+                className="border-brand-secondary/30"
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Tabla de ingreso */}
+        <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
+          <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5 border-b border-brand-secondary/10">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <DollarSign className="h-5 w-5 text-brand-primary" />
+                <Typography variant="h3" className="!text-brand-secondary font-semibold">
+                  Datos de deudores
+                </Typography>
+              </div>
+              <Typography variant="small" className="text-muted-foreground">
+                {filas.length} deudor{filas.length !== 1 ? "es" : ""}
+              </Typography>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <fieldset disabled={saving}>
+              <Table className="min-w-[800px]">
+                <TableHeader className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5">
+                  <TableRow className="border-brand-secondary/10 hover:bg-transparent">
+                    <TableHead className="text-brand-secondary font-semibold">Deudor</TableHead>
+                    <TableHead className="text-right text-brand-secondary font-semibold w-[180px]">
+                      Deuda
+                    </TableHead>
+                    <TableHead className="text-right text-brand-secondary font-semibold w-[180px]">
+                      Recaudo
+                    </TableHead>
+                    <TableHead className="text-right text-brand-secondary font-semibold w-[180px]">
+                      Acuerdo
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+
+                <TableBody>
+                  {filas.map((fila, i) => (
+                    <TableRow
+                      key={fila.deudorId}
+                      className={cn(
+                        "border-brand-secondary/5 transition-colors",
+                        i % 2 === 0 ? "bg-white" : "bg-brand-primary/[0.02]",
+                        "hover:bg-brand-primary/5"
+                      )}
+                    >
+                      <TableCell className="font-medium text-gray-700">
+                        {fila.nombre}
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          value={fila.deuda ?? ""}
+                          onChange={(e) => handleChange(i, "deuda", e.target.value)}
+                          className="text-right border-brand-secondary/30"
+                          placeholder="0.00"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          value={fila.recaudo ?? ""}
+                          onChange={(e) => handleChange(i, "recaudo", e.target.value)}
+                          className="text-right border-brand-secondary/30"
+                          placeholder="0.00"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          value={fila.acuerdo ?? ""}
+                          onChange={(e) => handleChange(i, "acuerdo", e.target.value)}
+                          className="text-right border-brand-secondary/30"
+                          placeholder="0.00"
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </fieldset>
+          </div>
+
+          {/* Footer con botón guardar */}
+          <div className="border-t border-brand-secondary/10 bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5">
+            <div className="flex justify-end">
+              <Button
+                onClick={guardarTodos}
+                disabled={saving}
+                variant="brand"
+                className="gap-2 shadow-md hover:shadow-lg transition-all"
+              >
+                {saving ? (
+                  <>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4" />
+                    Guardar todos los estados
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </section>
+
+        {/* Nota informativa */}
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+          <Typography variant="small" className="text-blue-800">
+            <strong>Nota:</strong> Solo se guardarán las filas que tengan al menos Deuda y Recaudo completados.
+            Las filas vacías serán omitidas automáticamente.
+          </Typography>
+        </div>
       </div>
     </div>
   );

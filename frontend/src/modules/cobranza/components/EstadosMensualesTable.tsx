@@ -10,9 +10,23 @@ import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, Dialog
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
 import { Button } from "@/shared/ui/button";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/shared/ui/table";
 import { toast } from "sonner";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { PERMS } from "@/shared/constants/acl";
+import { Typography } from "@/shared/design-system/components/Typography";
+import { cn } from "@/shared/lib/cn";
+import {
+  Calendar,
+  DollarSign,
+  Edit,
+  FileText,
+  Percent,
+  Plus,
+  TrendingUp,
+  Save,
+} from "lucide-react";
+import { BackButton } from "@/shared/design-system/components/BackButton";
 
 export default function EstadosMensualesTable() {
   const { clienteId, deudorId } = useParams();
@@ -23,7 +37,7 @@ export default function EstadosMensualesTable() {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // NUEVO: modo edición
+  // Modo edición
   const [editing, setEditing] = useState(false);
 
   const hoyYYYYMM = new Date().toISOString().slice(0, 7);
@@ -42,11 +56,11 @@ export default function EstadosMensualesTable() {
     observaciones: "",
   });
 
-  // Recalcular honorarios cuando cambien deuda/acuerdo/% (migrado a acuerdo)
+  // Recalcular honorarios cuando cambien deuda/acuerdo/%
   useEffect(() => {
     setNuevoEstadoMensual((s) => {
       const pct = (s.porcentajeHonorarios ?? 15) / 100;
-      const hd = s.deuda   != null ? round2((s.deuda   as number) * pct) : undefined;
+      const hd = s.deuda != null ? round2((s.deuda as number) * pct) : undefined;
       const ha = s.acuerdo != null ? round2((s.acuerdo as number) * pct) : undefined;
       if (hd === s.honorariosDeuda && ha === s.honorariosAcuerdo) return s;
       return { ...s, honorariosDeuda: hd, honorariosAcuerdo: ha };
@@ -67,7 +81,11 @@ export default function EstadosMensualesTable() {
     setEstadosMensuales(data);
     setLoading(false);
   };
-  useEffect(() => { cargarEstadosMensuales(); /* eslint-disable-next-line */ }, [clienteId, deudorId]);
+
+  useEffect(() => {
+    cargarEstadosMensuales();
+    // eslint-disable-next-line
+  }, [clienteId, deudorId]);
 
   const resetForm = () => {
     setNuevoEstadoMensual({
@@ -84,13 +102,11 @@ export default function EstadosMensualesTable() {
     setEditing(false);
   };
 
-  // NUEVO: abrir modal en modo edición con datos precargados
   const openEdit = (estado: EstadoMensual) => {
     if (!canEdit) return;
     setNuevoEstadoMensual({
-      // si tu modelo trae id y tu servicio lo utiliza, lo pasamos; si no, no afecta
       id: estado.id,
-      mes: estado.mes, // clave lógica; lo dejamos bloqueado en edición
+      mes: estado.mes,
       deuda: estado.deuda ?? undefined,
       recaudo: estado.recaudo ?? undefined,
       acuerdo: estado.acuerdo ?? undefined,
@@ -111,58 +127,123 @@ export default function EstadosMensualesTable() {
     }
     try {
       setSaving(true);
-      // upsert por mes (y/o id si tu servicio lo contempla)
       await upsertEstadoMensualPorMes(clienteId, deudorId, nuevoEstadoMensual);
-      toast.success(editing ? "Estado mensual actualizado" : "Estado mensual guardado");
+      toast.success(editing ? "✓ Estado mensual actualizado" : "✓ Estado mensual guardado");
       await cargarEstadosMensuales();
       setOpen(false);
       resetForm();
     } catch (e) {
       console.error(e);
-      toast.error("Error al guardar el estado mensual");
+      toast.error("⚠️ Error al guardar el estado mensual");
     } finally {
       setSaving(false);
     }
   };
 
-  if (aclLoading) return <p className="text-center mt-10 text-sm text-muted-foreground">Cargando permisos…</p>;
-  if (!canView) return <p className="text-center mt-10 text-sm text-muted-foreground">No tienes acceso a Abonos.</p>;
-  if (loading) return <p className="text-center mt-10">Cargando estados mensuales...</p>;
+  if (aclLoading) {
+    return (
+      <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
+        <div className="h-8 w-8 mx-auto animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary mb-3" />
+        <Typography variant="small" className="text-muted">
+          Cargando permisos...
+        </Typography>
+      </div>
+    );
+  }
+
+  if (!canView) {
+    return (
+      <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
+        <Typography variant="body" className="text-muted">
+          No tienes acceso a Abonos.
+        </Typography>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
+        <div className="h-8 w-8 mx-auto animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary mb-3" />
+        <Typography variant="small" className="text-muted">
+          Cargando estados mensuales...
+        </Typography>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-5xl mx-auto p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-3xl font-bold">Estados Mensuales del Deudor</h2>
+    <div className="space-y-4">
+      {/* Back Button */}
+      <BackButton />
+
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-brand-primary/10">
+            <TrendingUp className="h-6 w-6 text-brand-primary" />
+          </div>
+          <Typography variant="h2" className="!text-brand-secondary">
+            Estados Mensuales del Deudor
+          </Typography>
+        </div>
 
         {canEdit && (
-          <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
+          <Dialog
+            open={open}
+            onOpenChange={(v) => {
+              setOpen(v);
+              if (!v) resetForm();
+            }}
+          >
             <DialogTrigger asChild>
-              <Button onClick={() => { resetForm(); setOpen(true); }}>Agregar estado mensual</Button>
+              <Button
+                onClick={() => {
+                  resetForm();
+                  setOpen(true);
+                }}
+                variant="brand"
+                className="gap-2 shadow-md hover:shadow-lg transition-all"
+              >
+                <Plus className="h-4 w-4" />
+                Agregar estado mensual
+              </Button>
             </DialogTrigger>
 
-            <DialogContent>
+            <DialogContent className="sm:max-w-3xl">
               <DialogHeader>
-                <DialogTitle>
+                <DialogTitle className="text-brand-primary text-xl font-bold flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
                   {editing ? `Editar Estado (${nuevoEstadoMensual.mes})` : "Nuevo Estado Mensual"}
                 </DialogTitle>
               </DialogHeader>
 
               <div className="relative">
-                <fieldset disabled={saving} className="grid grid-cols-2 gap-4 py-4">
-                  <div className="col-span-2">
-                    <Label>Mes *</Label>
+                <fieldset disabled={saving} className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4">
+                  <div className="col-span-full">
+                    <Label className="text-brand-secondary font-medium flex items-center gap-2">
+                      <Calendar className="h-4 w-4" />
+                      Mes *
+                    </Label>
                     <Input
                       type="month"
                       value={nuevoEstadoMensual.mes ?? ""}
                       onChange={(e) =>
                         setNuevoEstadoMensual((s) => ({ ...s, mes: e.target.value.slice(0, 7) }))
                       }
-                      disabled={editing} // bloqueado en edición
+                      disabled={editing}
+                      className={cn(
+                        "border-brand-secondary/30 mt-1.5",
+                        editing && "bg-gray-50 cursor-not-allowed"
+                      )}
                     />
                   </div>
 
                   <div>
-                    <Label>Porcentaje Honorarios</Label>
+                    <Label className="text-brand-secondary font-medium flex items-center gap-2">
+                      <Percent className="h-4 w-4" />
+                      Porcentaje Honorarios
+                    </Label>
                     <Input
                       type="number"
                       min={10}
@@ -174,11 +255,15 @@ export default function EstadosMensualesTable() {
                         const clamped = clamp(isNaN(raw) ? 15 : raw, 10, 20);
                         setNuevoEstadoMensual((s) => ({ ...s, porcentajeHonorarios: clamped }));
                       }}
+                      className="border-brand-secondary/30 mt-1.5"
                     />
                   </div>
 
                   <div>
-                    <Label>Deuda</Label>
+                    <Label className="text-brand-secondary font-medium flex items-center gap-2">
+                      <DollarSign className="h-4 w-4" />
+                      Deuda
+                    </Label>
                     <Input
                       type="number"
                       value={nuevoEstadoMensual.deuda ?? ""}
@@ -188,11 +273,15 @@ export default function EstadosMensualesTable() {
                           deuda: e.target.value === "" ? undefined : Number(e.target.value),
                         }))
                       }
+                      className="border-brand-secondary/30 mt-1.5"
                     />
                   </div>
 
                   <div>
-                    <Label>Recaudo</Label>
+                    <Label className="text-brand-secondary font-medium flex items-center gap-2">
+                      <DollarSign className="h-4 w-4" />
+                      Recaudo
+                    </Label>
                     <Input
                       type="number"
                       value={nuevoEstadoMensual.recaudo ?? ""}
@@ -202,11 +291,15 @@ export default function EstadosMensualesTable() {
                           recaudo: e.target.value === "" ? undefined : Number(e.target.value),
                         }))
                       }
+                      className="border-brand-secondary/30 mt-1.5"
                     />
                   </div>
 
                   <div>
-                    <Label>Acuerdo</Label>
+                    <Label className="text-brand-secondary font-medium flex items-center gap-2">
+                      <DollarSign className="h-4 w-4" />
+                      Acuerdo
+                    </Label>
                     <Input
                       type="number"
                       value={nuevoEstadoMensual.acuerdo ?? ""}
@@ -216,46 +309,101 @@ export default function EstadosMensualesTable() {
                           acuerdo: e.target.value === "" ? undefined : Number(e.target.value),
                         }))
                       }
+                      className="border-brand-secondary/30 mt-1.5"
                     />
                   </div>
 
                   <div>
-                    <Label>Honorarios Deuda</Label>
-                    <Input type="number" value={nuevoEstadoMensual.honorariosDeuda ?? ""} readOnly disabled />
+                    <Label className="text-brand-secondary font-medium flex items-center gap-2">
+                      <DollarSign className="h-4 w-4" />
+                      Honorarios Deuda
+                    </Label>
+                    <Input
+                      type="number"
+                      value={nuevoEstadoMensual.honorariosDeuda ?? ""}
+                      readOnly
+                      disabled
+                      className="bg-gray-50 border-brand-secondary/30 mt-1.5"
+                    />
                   </div>
 
                   <div>
-                    <Label>Honorarios Acuerdo</Label>
-                    <Input type="number" value={nuevoEstadoMensual.honorariosAcuerdo ?? ""} readOnly disabled />
+                    <Label className="text-brand-secondary font-medium flex items-center gap-2">
+                      <DollarSign className="h-4 w-4" />
+                      Honorarios Acuerdo
+                    </Label>
+                    <Input
+                      type="number"
+                      value={nuevoEstadoMensual.honorariosAcuerdo ?? ""}
+                      readOnly
+                      disabled
+                      className="bg-gray-50 border-brand-secondary/30 mt-1.5"
+                    />
                   </div>
 
                   <div>
-                    <Label>Recibo</Label>
+                    <Label className="text-brand-secondary font-medium flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      Recibo
+                    </Label>
                     <Input
                       value={nuevoEstadoMensual.recibo ?? ""}
                       onChange={(e) => setNuevoEstadoMensual((s) => ({ ...s, recibo: e.target.value }))}
+                      className="border-brand-secondary/30 mt-1.5"
                     />
                   </div>
 
-                  <div className="col-span-2">
-                    <Label>Observaciones</Label>
+                  <div className="col-span-full">
+                    <Label className="text-brand-secondary font-medium flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      Observaciones
+                    </Label>
                     <Input
                       value={nuevoEstadoMensual.observaciones ?? ""}
-                      onChange={(e) => setNuevoEstadoMensual((s) => ({ ...s, observaciones: e.target.value }))}
+                      onChange={(e) =>
+                        setNuevoEstadoMensual((s) => ({ ...s, observaciones: e.target.value }))
+                      }
+                      className="border-brand-secondary/30 mt-1.5"
                     />
                   </div>
                 </fieldset>
 
                 {saving && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-white/60 backdrop-blur-sm rounded-md">
-                    <span className="text-sm font-medium">Guardando…</span>
+                  <div className="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm rounded-md">
+                    <div className="flex items-center gap-3">
+                      <div className="h-5 w-5 animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary" />
+                      <Typography variant="body" className="font-medium">
+                        Guardando...
+                      </Typography>
+                    </div>
                   </div>
                 )}
               </div>
 
               <DialogFooter>
-                <Button onClick={handleCrearOEditar} disabled={saving}>
-                  {saving ? "Guardando…" : editing ? "Guardar cambios" : "Guardar"}
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setOpen(false);
+                    resetForm();
+                  }}
+                  disabled={saving}
+                  className="border-brand-secondary/30"
+                >
+                  Cancelar
+                </Button>
+                <Button onClick={handleCrearOEditar} disabled={saving} variant="brand" className="gap-2">
+                  {saving ? (
+                    <>
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                      Guardando...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4" />
+                      {editing ? "Guardar cambios" : "Guardar"}
+                    </>
+                  )}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -263,45 +411,95 @@ export default function EstadosMensualesTable() {
         )}
       </div>
 
-      <table className="w-full text-sm border">
-        <thead className="bg-gray-100">
-          <tr>
-            <th className="text-left p-2">Mes</th>
-            <th className="text-left p-2">Deuda</th>
-            <th className="text-left p-2">Recaudo</th>
-            <th className="text-left p-2">Acuerdo</th>
-            <th className="text-left p-2">% Honorarios</th>
-            <th className="text-left p-2">Hon. Deuda</th>
-            <th className="text-left p-2">Hon. Acuerdo</th>
-            {canEdit && <th className="text-left p-2">Acciones</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {estadosMensuales.map((estado) => (
-            <tr key={estado.id ?? `${estado.mes}`}>
-              <td className="p-2">{estado.mes}</td>
-              <td className="p-2">${Number(estado.deuda ?? 0).toLocaleString()}</td>
-              <td className="p-2">${Number(estado.recaudo ?? 0).toLocaleString()}</td>
-              <td className="p-2">${Number(estado.acuerdo ?? 0).toLocaleString()}</td>
-              <td className="p-2">{Number(estado.porcentajeHonorarios ?? 0).toLocaleString()}%</td>
-              <td className="p-2">${Number(estado.honorariosDeuda ?? 0).toLocaleString()}</td>
-              <td className="p-2">${Number(estado.honorariosAcuerdo ?? 0).toLocaleString()}</td>
-
-              {canEdit && (
-                <td className="p-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => openEdit(estado)}
+      {/* Tabla */}
+      {estadosMensuales.length === 0 ? (
+        <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
+          <div className="flex flex-col items-center gap-3">
+            <div className="p-4 rounded-full bg-brand-primary/10">
+              <TrendingUp className="h-8 w-8 text-brand-primary/60" />
+            </div>
+            <Typography variant="h3" className="text-brand-secondary">
+              No hay registros
+            </Typography>
+            <Typography variant="small" className="text-muted">
+              Aún no se han registrado estados mensuales
+            </Typography>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <Table className="min-w-[900px]">
+              <TableHeader className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5">
+                <TableRow className="border-brand-secondary/10 hover:bg-transparent">
+                  <TableHead className="text-brand-secondary font-semibold">Mes</TableHead>
+                  <TableHead className="text-brand-secondary font-semibold">Deuda</TableHead>
+                  <TableHead className="text-brand-secondary font-semibold">Recaudo</TableHead>
+                  <TableHead className="text-brand-secondary font-semibold">Acuerdo</TableHead>
+                  <TableHead className="text-brand-secondary font-semibold">% Honorarios</TableHead>
+                  <TableHead className="text-brand-secondary font-semibold">Hon. Deuda</TableHead>
+                  <TableHead className="text-brand-secondary font-semibold">Hon. Acuerdo</TableHead>
+                  {canEdit && (
+                    <TableHead className="text-center text-brand-secondary font-semibold">Acciones</TableHead>
+                  )}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {estadosMensuales.map((estado, index) => (
+                  <TableRow
+                    key={estado.id ?? `${estado.mes}`}
+                    className={cn(
+                      "border-brand-secondary/5 transition-colors",
+                      index % 2 === 0 ? "bg-white" : "bg-brand-primary/[0.02]",
+                      "hover:bg-brand-primary/5"
+                    )}
                   >
-                    Editar
-                  </Button>
-                </td>
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                    <TableCell className="font-medium text-brand-secondary">
+                      <span className="inline-flex items-center gap-1.5">
+                        <Calendar className="h-3.5 w-3.5" />
+                        {estado.mes}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-gray-700">
+                      ${Number(estado.deuda ?? 0).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-gray-700">
+                      ${Number(estado.recaudo ?? 0).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-gray-700">
+                      ${Number(estado.acuerdo ?? 0).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-gray-700">
+                      {Number(estado.porcentajeHonorarios ?? 0).toLocaleString()}%
+                    </TableCell>
+                    <TableCell className="text-gray-700">
+                      ${Number(estado.honorariosDeuda ?? 0).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-gray-700">
+                      ${Number(estado.honorariosAcuerdo ?? 0).toLocaleString()}
+                    </TableCell>
+
+                    {canEdit && (
+                      <TableCell>
+                        <div className="flex justify-center">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => openEdit(estado)}
+                            className="hover:bg-brand-primary/10"
+                          >
+                            <Edit className="h-4 w-4 text-brand-primary" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

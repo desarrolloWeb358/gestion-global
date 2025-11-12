@@ -1,0 +1,15 @@
+/* Light usa los valores de variables.css */
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+/* Dark: sobreescribe lo necesario */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #0B1220;
+  --color-fg: #E5E7EB;
+  --color-border: #243047;
+  /* Si quieres otro brand en dark, ajusta aquí:
+     --color-brand-primary: #00A8E8;
+  */
+}

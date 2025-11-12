@@ -10,6 +10,14 @@ import {
   IconUsers,
   IconSearch,
   IconBell,
+  IconLayoutDashboard,
+  IconBriefcase,
+  IconGavel,
+  IconFileText,
+  IconCreditCard,
+  IconUserCircle,
+  IconChartBar,
+  IconClipboardList,
 } from "@tabler/icons-react";
 
 export type NavItem = {
@@ -21,22 +29,87 @@ export type NavItem = {
 };
 
 export const NAV_ITEMS: NavItem[] = [
-  // Dashboards por rol (opcional, si quieres link directo en menú)
-  { to: "/dashboard/admin",     label: "Dashboard", roles: ["admin"] },
-  { to: "/dashboard/ejecutivo", label: "Dashboard", roles: ["ejecutivo"] },
-  { to: "/dashboard/abogado",   label: "Dashboard", roles: ["abogado"] },
-  { to: "/dashboard/cliente",   label: "Dashboard", roles: ["cliente"] },
-  { to: "/dashboard/deudor",    label: "Dashboard", roles: ["deudor"] },
+  // ========================================
+  // DASHBOARDS POR ROL
+  // ========================================
+  { 
+    to: "/dashboard/admin", 
+    label: "Dashboard", 
+    icon: IconLayoutDashboard,
+    roles: ["admin"] 
+  },
+  { 
+    to: "/dashboard/ejecutivo", 
+    label: "Dashboard", 
+    icon: IconLayoutDashboard,
+    roles: ["ejecutivo"] 
+  },
+  { 
+    to: "/dashboard/abogado", 
+    label: "Dashboard", 
+    icon: IconLayoutDashboard,
+    roles: ["abogado"] 
+  },
+  { 
+    to: "/dashboard/cliente", 
+    label: "Dashboard", 
+    icon: IconLayoutDashboard,
+    roles: ["cliente"] 
+  },
+  { 
+    to: "/dashboard/deudor", 
+    label: "Dashboard", 
+    icon: IconLayoutDashboard,
+    roles: ["deudor"] 
+  },
 
-  // Administración
-  { to: "/usuarios-tables", label: "Usuarios", icon: IconUsers, roles: ["admin"] },
+  // ========================================
+  // ADMINISTRACIÓN
+  // ========================================
+  { 
+    to: "/usuarios-tables", 
+    label: "Usuarios", 
+    icon: IconUsers, 
+    roles: ["admin"] 
+  },
 
-  // Cobranza
-  { to: "/clientes-tables",   label: "Clientes", icon: IconUsers, roles: ["admin", "ejecutivo", "abogado"] },
-  
-  /*
-  { to: "/consulta-personas", label: "Consulta personas", icon: IconSearch, roles: ["admin", "cliente"] },
+  // ========================================
+  // GESTIÓN DE COBRANZA
+  // ========================================
+  { 
+    to: "/clientes-tables", 
+    label: "Clientes", 
+    icon: IconBriefcase, 
+    roles: ["admin", "ejecutivo", "abogado"] 
+  },
 
-  { to: "/probar-notificaciones", label: "Notificaciones", icon: IconBell, roles: ["admin"] },
-   */
+  // ========================================
+  // MÓDULOS ADICIONALES (Descomentados)
+  // ========================================
+  /*{ 
+    to: "/consulta-personas", 
+    label: "Consulta Personas", 
+    icon: IconSearch, 
+    roles: ["admin", "cliente"] 
+  },*/
+
+  // ========================================
+  // REPORTES Y ANÁLISIS
+  // ========================================
+  // { 
+  //   to: "/reportes", 
+  //   label: "Reportes", 
+  //   icon: IconChartBar, 
+  //   roles: ["admin", "ejecutivo"] 
+  // },
+
+  // ========================================
+  // HERRAMIENTAS Y PRUEBAS
+  // ========================================
+  /*{ 
+    to: "/probar-notificaciones", 
+    label: "Notificaciones", 
+    icon: IconBell, 
+    roles: ["admin"] 
+  },*/
 ];

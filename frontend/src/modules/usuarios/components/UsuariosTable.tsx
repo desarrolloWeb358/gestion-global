@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { Check, ChevronDown, Pencil } from "lucide-react";
+import { Check, ChevronDown, Filter, Pencil, Search, X, UserPlus, Users } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 
 import {
@@ -37,13 +37,33 @@ import {
 } from "../services/usuarioService";
 import { cn } from "@/shared/lib/cn";
 import { Rol, ROLES } from "@/shared/constants/acl";
+import { Typography } from "@/shared/design-system/components/Typography";
+import { BackButton } from "@/shared/design-system/components/BackButton";
 
 // Sentinelas para selects (evitar value="")
 const ALL = "__ALL__";
 const ALL_BOOL = "__ALL_BOOL__";
 
+// ====== FUNCIÓN HELPER PARA COLORES DE ROLES ======
+const getRoleBadgeColor = (role: string) => {
+  const colors: Record<string, string> = {
+    admin: "bg-purple-100 text-purple-700 border-purple-200",
+    administrador: "bg-purple-100 text-purple-700 border-purple-200",
+    editor: "bg-blue-100 text-blue-700 border-blue-200",
+    viewer: "bg-green-100 text-green-700 border-green-200",
+    usuario: "bg-green-100 text-green-700 border-green-200",
+    gerente: "bg-orange-100 text-orange-700 border-orange-200",
+    supervisor: "bg-indigo-100 text-indigo-700 border-indigo-200",
+    empleado: "bg-teal-100 text-teal-700 border-teal-200",
+  };
+  return colors[role.toLowerCase()] || "bg-gray-100 text-gray-700 border-gray-200";
+};
+
 export default function UsuariosCrud() {
   const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([]);
+  const [tipoDocControl, setTipoDocControl] = useState<"CC" | "CE" | "TI" | "NIT" | undefined>(
+    undefined
+  );
   const [loading, setLoading] = useState(true);
   const [usuarioEditando, setUsuarioEditando] = useState<UsuarioSistema | null>(null);
   const [mostrarDialogo, setMostrarDialogo] = useState(false);
@@ -53,20 +73,33 @@ export default function UsuariosCrud() {
   const rolesDisponibles = ROLES;
 
   // ====== FILTROS ======
-  const [q, setQ] = useState("");                 // búsqueda en nombre/email
-  const [rolFilter, setRolFilter] = useState<string>(ALL); // Todos o un rol
-  const [activoFilter, setActivoFilter] = useState<string>(ALL_BOOL); // Todos/Sí/No
+  const [q, setQ] = useState("");
+  const [rolFilter, setRolFilter] = useState<string>(ALL);
+  const [activoFilter, setActivoFilter] = useState<string>(ALL_BOOL);
   const [desde, setDesde] = useState<Date | undefined>();
   const [hasta, setHasta] = useState<Date | undefined>();
 
   const normalizarInicio = (d?: Date) => {
     if (!d) return undefined;
-    const x = new Date(d); x.setHours(0,0,0,0); return x;
+    const x = new Date(d); x.setHours(0, 0, 0, 0); return x;
   };
   const normalizarFin = (d?: Date) => {
     if (!d) return undefined;
-    const x = new Date(d); x.setHours(23,59,59,999); return x;
+    const x = new Date(d); x.setHours(23, 59, 59, 999); return x;
   };
+
+  const fmt = (d?: Date) => (d ? d.toLocaleDateString("es-CO") : "—");
+  const chips = useMemo(() => {
+    const arr: { label: string; onClear: () => void }[] = [];
+    if (q) arr.push({ label: `Búsqueda: "${q}"`, onClear: () => setQ("") });
+    if (rolFilter !== ALL) arr.push({ label: `Rol: ${rolFilter}`, onClear: () => setRolFilter(ALL) });
+    if (activoFilter !== ALL_BOOL) {
+      arr.push({ label: `Activo: ${activoFilter === "true" ? "Sí" : "No"}`, onClear: () => setActivoFilter(ALL_BOOL) });
+    }
+    if (desde) arr.push({ label: `Desde: ${fmt(desde)}`, onClear: () => setDesde(undefined) });
+    if (hasta) arr.push({ label: `Hasta: ${fmt(hasta)}`, onClear: () => setHasta(undefined) });
+    return arr;
+  }, [q, rolFilter, activoFilter, desde, hasta]);
 
   function MultiSelectRoles({
     selectedRoles,
@@ -82,10 +115,11 @@ export default function UsuariosCrud() {
         setSelectedRoles([...selectedRoles, rol]);
       }
     };
+
     return (
       <Popover>
         <PopoverTrigger asChild>
-          <Button variant="outline" className="w-full justify-between">
+          <Button variant="outline" className="w-full justify-between border-brand-secondary/30 hover:border-brand-secondary/50">
             {selectedRoles.length > 0
               ? selectedRoles.join(", ")
               : "Selecciona roles"}
@@ -99,8 +133,8 @@ export default function UsuariosCrud() {
               type="button"
               onClick={() => toggleRole(rol)}
               className={cn(
-                "w-full flex items-center justify-between px-2 py-1.5 text-sm rounded hover:bg-muted",
-                selectedRoles.includes(rol) && "bg-muted"
+                "w-full flex items-center justify-between px-2 py-1.5 text-sm rounded hover:bg-brand-primary/10 transition-colors",
+                selectedRoles.includes(rol) && "bg-brand-primary/10 text-brand-primary"
               )}
             >
               <span className="capitalize">{rol}</span>
@@ -129,6 +163,7 @@ export default function UsuariosCrud() {
     setFecha(undefined);
     setRolesSeleccionados([]);
     setMostrarDialogo(true);
+    setTipoDocControl(undefined);
   };
 
   const abrirEditar = (usuario: UsuarioSistema) => {
@@ -137,7 +172,9 @@ export default function UsuariosCrud() {
     setFecha(usuario.fecha_registro instanceof Timestamp ? usuario.fecha_registro.toDate() : undefined);
     setRolesSeleccionados((usuario.roles ?? []) as Rol[]);
     setMostrarDialogo(true);
+    setTipoDocControl(usuario.tipoDocumento as any);
   };
+  
   const cerrarDialogo = () => {
     setUsuarioEditando(null);
     setPassword("");
@@ -161,25 +198,21 @@ export default function UsuariosCrud() {
     const fHasta = normalizarFin(hasta);
 
     return usuarios.filter((u) => {
-      // texto: nombre o email
       if (qn) {
         const texto = `${u.nombre ?? ""} ${u.email ?? ""}`.toLowerCase();
         if (!texto.includes(qn)) return false;
       }
 
-      // rol
       if (rolFilter !== ALL) {
         const rolesU = (u.roles ?? []) as string[];
         if (!rolesU.includes(rolFilter)) return false;
       }
 
-      // activo
       if (activoFilter !== ALL_BOOL) {
         const want = activoFilter === "true";
         if (Boolean(u.activo) !== want) return false;
       }
 
-      // fecha_registro (Timestamp)
       if (fDesde || fHasta) {
         const ts = u.fecha_registro;
         const d = ts instanceof Timestamp ? ts.toDate() : undefined;
@@ -193,259 +226,400 @@ export default function UsuariosCrud() {
   }, [usuarios, q, rolFilter, activoFilter, desde, hasta]);
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold">Usuarios</h2>
-        <Button onClick={abrirCrear}>Crear Usuario</Button>
-      </div>
-
-      {/* ====== FILTROS ====== */}
-      <div className="grid gap-3 md:grid-cols-4 lg:grid-cols-6">
-        <div className="md:col-span-2">
-          <Label>Búsqueda</Label>
-          <Input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Buscar por nombre o email…"
-          />
-        </div>
-
-        <div>
-          <Label>Rol</Label>
-          <Select value={rolFilter} onValueChange={setRolFilter}>
-            <SelectTrigger>
-              <SelectValue placeholder="Todos" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Todos</SelectItem>
-              {rolesDisponibles.map((r) => (
-                <SelectItem key={r} value={r}>
-                  {r}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Label>Activo</Label>
-          <Select value={activoFilter} onValueChange={setActivoFilter}>
-            <SelectTrigger>
-              <SelectValue placeholder="Todos" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_BOOL}>Todos</SelectItem>
-              <SelectItem value="true">Sí</SelectItem>
-              <SelectItem value="false">No</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <Label>Desde</Label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="justify-start">
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {desde ? desde.toLocaleDateString("es-CO") : "—"}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-2" align="start">
-              <Calendar mode="single" selected={desde} onSelect={setDesde} initialFocus />
-            </PopoverContent>
-          </Popover>
-          {desde && (
-            <Button
-              variant="ghost"
+    <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30">
+      <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
+        
+        {/* ====== HEADER MEJORADO ====== */}
+        <header className="space-y-4">
+          {/* Navegación */}
+          <div className="flex items-center gap-2">
+            <BackButton 
+              variant="ghost" 
               size="sm"
-              className="justify-start px-2"
-              onClick={() => setDesde(undefined)}
+              to="/dashboard/admin" label="Ir al Dashboard"
+              className="text-brand-secondary hover:text-brand-primary hover:bg-brand-primary/5 transition-all"
+            />
+          </div>
+
+          {/* Título y estadísticas */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-brand-primary/10">
+                  <Users className="h-6 w-6 text-brand-primary" />
+                </div>
+                <div>
+                  <Typography variant="h2" className="!text-brand-primary font-bold">
+                    Gestión de Usuarios
+                  </Typography>
+                  <Typography variant="small" className="text-muted mt-0.5">
+                    {usuariosFiltrados.length} {usuariosFiltrados.length === 1 ? 'usuario encontrado' : 'usuarios encontrados'}
+                  </Typography>
+                </div>
+              </div>
+            </div>
+
+            <Button 
+              variant="brand" 
+              onClick={abrirCrear}
+              className="gap-2 shadow-md hover:shadow-lg transition-all"
             >
-              Limpiar
+              <UserPlus className="h-4 w-4" />
+              Crear Usuario
             </Button>
-          )}
-        </div>
+          </div>
+        </header>
 
-        <div className="flex flex-col gap-1">
-          <Label>Hasta</Label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="justify-start">
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {hasta ? hasta.toLocaleDateString("es-CO") : "—"}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-2" align="start">
-              <Calendar mode="single" selected={hasta} onSelect={setHasta} />
-            </PopoverContent>
-          </Popover>
-          {hasta && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="justify-start px-2"
-              onClick={() => setHasta(undefined)}
-            >
-              Limpiar
-            </Button>
-          )}
-        </div>
+        {/* ====== FILTROS MEJORADOS ====== */}
+        <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
+          <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5 border-b border-brand-secondary/10">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-brand-primary/10">
+                  <Filter className="h-4 w-4 text-brand-primary" />
+                </div>
+                <Typography variant="h3" className="!text-brand-secondary font-semibold">
+                  Filtros de búsqueda
+                </Typography>
+              </div>
 
-        <div className="flex items-end">
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => {
-              setQ("");
-              setRolFilter(ALL);
-              setActivoFilter(ALL_BOOL);
-              setDesde(undefined);
-              setHasta(undefined);
-            }}
-          >
-            Limpiar filtros
-          </Button>
-        </div>
-      </div>
-
-      {loading ? (
-        <p className="text-center py-6 text-muted-foreground">Cargando usuarios...</p>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Email</TableHead>
-              <TableHead>Nombre</TableHead>
-              <TableHead>Rol</TableHead>
-              <TableHead>Activo</TableHead>
-              <TableHead>Fecha de registro</TableHead>
-              <TableHead className="text-center">Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {usuariosFiltrados.map((usuario) => (
-              <TableRow key={usuario.uid}>
-                <TableCell>{usuario.email}</TableCell>
-                <TableCell>{usuario.nombre}</TableCell>
-                <TableCell>{usuario.roles?.join(", ")}</TableCell>
-                <TableCell>
-                  <Switch
-                    checked={!!usuario.activo}
-                    onCheckedChange={async (checked) => {
-                      const actualizado = { ...usuario, activo: checked };
-                      await actualizarUsuario(actualizado);
-                      setUsuarios((prev) =>
-                        prev.map((u) => (u.uid === actualizado.uid ? actualizado : u))
-                      );
-                    }}
-                  />
-                </TableCell>
-                <TableCell>
-                  {usuario.fecha_registro instanceof Timestamp
-                    ? (() => {
-                        const d = usuario.fecha_registro.toDate();
-                        const dia = String(d.getDate()).padStart(2, "0");
-                        const mes = String(d.getMonth() + 1).padStart(2, "0");
-                        const anio = d.getFullYear();
-                        return `${dia}/${mes}/${anio}`;
-                      })()
-                    : "—"}
-                </TableCell>
-
-                <TableCell>
-                  <div className="flex justify-center gap-2">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => abrirEditar(usuario)}
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Editar</TooltipContent>
-                      </Tooltip>
-                      {/* Si vas a reactivar Eliminar, puedes agregar aquí tu Dialog/Confirm */}
-                    </TooltipProvider>
+              <div className="flex flex-wrap items-center gap-2">
+                {chips.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {chips.map((c, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-brand-primary/20 bg-brand-primary/5 px-3 py-1 text-xs text-brand-secondary font-medium"
+                      >
+                        {c.label}
+                        <button
+                          type="button"
+                          onClick={c.onClear}
+                          className="rounded-full p-0.5 hover:bg-brand-primary/20 transition-colors"
+                          aria-label={`Quitar ${c.label}`}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </span>
+                    ))}
                   </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    "border-brand-secondary/30 text-brand-secondary hover:bg-brand-primary/5",
+                    chips.length === 0 && "opacity-50 pointer-events-none"
+                  )}
+                  onClick={() => {
+                    setQ("");
+                    setRolFilter(ALL);
+                    setActivoFilter(ALL_BOOL);
+                    setDesde(undefined);
+                    setHasta(undefined);
+                  }}
+                >
+                  Limpiar todo
+                </Button>
+              </div>
+            </div>
+          </div>
 
-      <Dialog open={mostrarDialogo} onOpenChange={setMostrarDialogo}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle>{usuarioEditando ? "Editar Usuario" : "Crear Usuario"}</DialogTitle>
-          </DialogHeader>
+          <div className="p-4 md:p-5">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
+              {/* Búsqueda */}
+              <div className="lg:col-span-3">
+                <Label className="mb-2 block text-brand-secondary font-medium">Búsqueda</Label>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-secondary/60" />
+                  <Input
+                    value={q}
+                    onChange={(e) => setQ(e.target.value)}
+                    placeholder="Buscar por nombre o email..."
+                    className="pl-9 border-brand-secondary/30 bg-white focus:border-brand-primary focus:ring-brand-primary/20"
+                    aria-label="Buscar por nombre o email"
+                  />
+                  {q && (
+                    <button
+                      type="button"
+                      onClick={() => setQ("")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted hover:bg-gray-100 transition-colors"
+                      aria-label="Limpiar búsqueda"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
 
-          <form
-            className="grid gap-4 py-4"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              const form = e.target as HTMLFormElement;
-              const formData = new FormData(form);
+              {/* Rol */}
+              <div>
+                <Label className="mb-2 block text-brand-secondary font-medium">Rol</Label>
+                <Select value={rolFilter} onValueChange={setRolFilter}>
+                  <SelectTrigger className="border-brand-secondary/30 bg-white focus:border-brand-primary focus:ring-brand-primary/20">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent className="border-brand-secondary/30 bg-white">
+                    <SelectItem value={ALL}>Todos los roles</SelectItem>
+                    {rolesDisponibles.map((r) => (
+                      <SelectItem key={r} value={r} className="capitalize">{r}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-              const email = formData.get("email") as string;
-              const nombre = formData.get("nombre") as string;
-              const telefonoUsuario = formData.get("telefono") as string;
-              const tipoDocumento = formData.get("tipoDocumento") as "CC" | "CE" | "TI" | "NIT";
-              const numeroDocumento = formData.get("numeroDocumento") as string;
-              const activo = (form.elements.namedItem("activo") as HTMLInputElement)?.checked;
-              const fecha_registro = fecha ? Timestamp.fromDate(fecha) : Timestamp.now();
+              {/* Activo */}
+              <div>
+                <Label className="mb-2 block text-brand-secondary font-medium">Estado</Label>
+                <Select value={activoFilter} onValueChange={setActivoFilter}>
+                  <SelectTrigger className="border-brand-secondary/30 bg-white focus:border-brand-primary focus:ring-brand-primary/20">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent className="border-brand-secondary/30 bg-white">
+                    <SelectItem value={ALL_BOOL}>Todos los estados</SelectItem>
+                    <SelectItem value="true">✓ Activos</SelectItem>
+                    <SelectItem value="false">✗ Inactivos</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-              if (!email || !/\S+@\S+\.\S+/.test(email)) {
-                toast("Por favor ingresa un correo electrónico válido.");
-                return;
-              }
+              {/* Rango de fechas */}
+              <div className="lg:col-span-2">
+                <Label className="mb-2 block text-brand-secondary font-medium">Rango de fechas</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start border-brand-secondary/30 bg-white hover:bg-brand-primary/5">
+                      <CalendarIcon className="mr-2 h-4 w-4 text-brand-primary" />
+                      {desde || hasta ? `${fmt(desde)} → ${fmt(hasta)}` : "Seleccionar rango"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-3" align="start">
+                    <div className="flex flex-col gap-3">
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" variant="outline" className="text-xs" onClick={() => {
+                          const hoy = new Date(); setDesde(hoy); setHasta(hoy);
+                        }}>Hoy</Button>
+                        <Button size="sm" variant="outline" className="text-xs" onClick={() => {
+                          const hoy = new Date(); const d7 = new Date(); d7.setDate(hoy.getDate() - 7);
+                          setDesde(d7); setHasta(hoy);
+                        }}>Últimos 7 días</Button>
+                        <Button size="sm" variant="outline" className="text-xs" onClick={() => {
+                          const hoy = new Date(); const d30 = new Date(); d30.setDate(hoy.getDate() - 30);
+                          setDesde(d30); setHasta(hoy);
+                        }}>Últimos 30 días</Button>
+                        <Button size="sm" variant="ghost" className="text-xs" onClick={() => { setDesde(undefined); setHasta(undefined); }}>
+                          Limpiar
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <div>
+                          <Label className="mb-1 block text-xs text-muted">Desde</Label>
+                          <Calendar mode="single" selected={desde} onSelect={setDesde} initialFocus />
+                        </div>
+                        <div>
+                          <Label className="mb-1 block text-xs text-muted">Hasta</Label>
+                          <Calendar mode="single" selected={hasta} onSelect={setHasta} />
+                        </div>
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+          </div>
+        </section>
 
-              if (!nombre || !tipoDocumento || !numeroDocumento) {
-                toast("Todos los campos personales son obligatorios.");
-                return;
-              }
+        {/* ====== TABLA MEJORADA ====== */}
+        {loading ? (
+          <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
+            <div className="flex flex-col items-center gap-4">
+              <div className="h-12 w-12 animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary" />
+              <Typography variant="body" className="text-muted">
+                Cargando usuarios...
+              </Typography>
+            </div>
+          </div>
+        ) : usuariosFiltrados.length === 0 ? (
+          <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
+            <div className="flex flex-col items-center gap-3">
+              <div className="p-4 rounded-full bg-brand-primary/10">
+                <Users className="h-8 w-8 text-brand-primary/60" />
+              </div>
+              <Typography variant="h3" className="text-brand-secondary">
+                No hay resultados
+              </Typography>
+              <Typography variant="small" className="text-muted max-w-md">
+                {chips.length > 0 
+                  ? "No se encontraron usuarios que coincidan con los filtros aplicados. Intenta ajustar tus criterios de búsqueda." 
+                  : "Aún no hay usuarios registrados. Comienza creando el primer usuario."}
+              </Typography>
+              {chips.length > 0 && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="mt-2"
+                  onClick={() => {
+                    setQ("");
+                    setRolFilter(ALL);
+                    setActivoFilter(ALL_BOOL);
+                    setDesde(undefined);
+                    setHasta(undefined);
+                  }}
+                >
+                  Limpiar filtros
+                </Button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <Table className="min-w-[900px]">
+                <TableHeader className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5">
+                  <TableRow className="border-brand-secondary/10 hover:bg-transparent">
+                    <TableHead className="text-brand-secondary font-semibold">Email</TableHead>
+                    <TableHead className="text-brand-secondary font-semibold">Nombre</TableHead>
+                    <TableHead className="text-brand-secondary font-semibold">Rol</TableHead>
+                    <TableHead className="text-brand-secondary font-semibold">Estado</TableHead>
+                    <TableHead className="text-brand-secondary font-semibold">Fecha de registro</TableHead>
+                    <TableHead className="text-center text-brand-secondary font-semibold">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {usuariosFiltrados.map((usuario, index) => (
+                    <TableRow 
+                      key={usuario.uid} 
+                      className={cn(
+                        "border-brand-secondary/5 transition-colors",
+                        index % 2 === 0 ? "bg-white" : "bg-brand-primary/[0.02]",
+                        "hover:bg-brand-primary/5"
+                      )}
+                    >
+                      <TableCell className="font-medium text-brand-secondary">{usuario.email}</TableCell>
+                      <TableCell className="text-gray-700">{usuario.nombre}</TableCell>
 
-              if (rolesSeleccionados.length === 0) {
-                toast("Debes seleccionar al menos un rol.");
-                return;
-              }
+                      <TableCell className="text-sm">
+                        <div className="flex flex-wrap gap-1">
+                          {usuario.roles?.map((r) => (
+                            <span
+                              key={r}
+                              className={cn(
+                                "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium transition-all hover:scale-105",
+                                getRoleBadgeColor(r)
+                              )}
+                            >
+                              {r}
+                            </span>
+                          ))}
+                        </div>
+                      </TableCell>
 
-              if (usuarioEditando) {
-                // Editar
-                const actualizado: UsuarioSistema = {
-                  ...usuarioEditando,
-                  email,
-                  nombre,
-                  telefonoUsuario,
-                  tipoDocumento,
-                  numeroDocumento,
-                  roles: rolesSeleccionados,
-                  activo,
-                  fecha_registro,
-                };
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={!!usuario.activo}
+                            onCheckedChange={async (checked) => {
+                              const actualizado = { ...usuario, activo: checked };
+                              await actualizarUsuario(actualizado);
+                              setUsuarios((prev) =>
+                                prev.map((u) => (u.uid === actualizado.uid ? actualizado : u))
+                              );
+                              toast.success(checked ? "✓ Usuario activado" : "✗ Usuario desactivado");
+                            }}
+                            className="data-[state=checked]:bg-brand-primary hover:data-[state=checked]:bg-brand-primary/90 data-[state=unchecked]:bg-gray-300 focus-visible:ring-2 focus-visible:ring-brand-primary/30"
+                          />
+                          <span className={cn(
+                            "text-xs font-medium",
+                            usuario.activo ? "text-green-600" : "text-gray-400"
+                          )}>
+                            {usuario.activo ? "Activo" : "Inactivo"}
+                          </span>
+                        </div>
+                      </TableCell>
+                      
+                      <TableCell className="text-gray-600">
+                        {usuario.fecha_registro instanceof Timestamp
+                          ? (() => {
+                            const d = usuario.fecha_registro.toDate();
+                            const dia = String(d.getDate()).padStart(2, "0");
+                            const mes = String(d.getMonth() + 1).padStart(2, "0");
+                            const anio = d.getFullYear();
+                            return `${dia}/${mes}/${anio}`;
+                          })()
+                          : "—"}
+                      </TableCell>
+                      
+                      <TableCell>
+                        <div className="flex justify-center gap-2">
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button 
+                                  size="icon" 
+                                  variant="ghost" 
+                                  onClick={() => abrirEditar(usuario)}
+                                  className="hover:bg-brand-primary/10 transition-colors"
+                                >
+                                  <Pencil className="w-4 h-4 text-brand-primary" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent className="bg-brand-secondary text-white border-brand-secondary">
+                                Editar usuario
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
 
-                await actualizarUsuario(actualizado);
-                setUsuarios((prev) =>
-                  prev.map((u) => (u.uid === actualizado.uid ? actualizado : u))
-                );
-                cerrarDialogo();
-              } else {
-                // Crear
-                if (!password) {
-                  toast("La contraseña es obligatoria para nuevos usuarios.");
+        {/* ====== DIALOG MEJORADO ====== */}
+        <Dialog open={mostrarDialogo} onOpenChange={setMostrarDialogo}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="text-brand-primary text-xl font-bold">
+                {usuarioEditando ? "Editar Usuario" : "Crear Nuevo Usuario"}
+              </DialogTitle>
+            </DialogHeader>
+
+            <form
+              className="space-y-6 py-4"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const form = e.target as HTMLFormElement;
+                const formData = new FormData(form);
+
+                const email = formData.get("email") as string;
+                const nombre = formData.get("nombre") as string;
+                const telefonoUsuario = formData.get("telefono") as string;
+                const tipoDocumento = formData.get("tipoDocumento") as "CC" | "CE" | "TI" | "NIT";
+                const numeroDocumento = formData.get("numeroDocumento") as string;
+                const activo = (form.elements.namedItem("activo") as HTMLInputElement)?.checked;
+                const fecha_registro = fecha ? Timestamp.fromDate(fecha) : Timestamp.now();
+
+                if (!email || !/\S+@\S+\.\S+/.test(email)) {
+                  toast.error("Por favor ingresa un correo electrónico válido.");
                   return;
                 }
-                if (password.length < 6) {
-                  toast("⚠️ La contraseña debe tener al menos 6 caracteres.");
+
+                if (!nombre || !tipoDocumento || !numeroDocumento) {
+                  toast.error("Todos los campos personales son obligatorios.");
                   return;
                 }
 
-                try {
-                  const usuarioSinUid: UsuarioSistema & { password: string } = {
-                    uid: "",
+                if (rolesSeleccionados.length === 0) {
+                  toast.error("Debes seleccionar al menos un rol.");
+                  return;
+                }
+
+                if (usuarioEditando) {
+                  const actualizado: UsuarioSistema = {
+                    ...usuarioEditando,
                     email,
                     nombre,
                     telefonoUsuario,
@@ -454,122 +628,202 @@ export default function UsuariosCrud() {
                     roles: rolesSeleccionados,
                     activo,
                     fecha_registro,
-                    password,
                   };
 
-                  const uid = await crearUsuario(usuarioSinUid);
-                  const nuevo: UsuarioSistema = { ...usuarioSinUid, uid };
-                  setUsuarios((prev) => [...prev, nuevo]);
+                  await actualizarUsuario(actualizado);
+                  setUsuarios((prev) =>
+                    prev.map((u) => (u.uid === actualizado.uid ? actualizado : u))
+                  );
+                  toast.success("✓ Usuario actualizado correctamente");
                   cerrarDialogo();
-                } catch (error: any) {
-                  if (error.code === "auth/email-already-in-use") {
-                    toast("❌ Este correo ya está registrado. Usa uno diferente.");
-                  } else {
-                    toast("⚠️ Error al crear el usuario: " + error.message);
+                } else {
+                  if (!password) {
+                    toast.error("La contraseña es obligatoria para nuevos usuarios.");
+                    return;
+                  }
+                  if (password.length < 6) {
+                    toast.error("⚠️ La contraseña debe tener al menos 6 caracteres.");
+                    return;
+                  }
+
+                  try {
+                    const usuarioSinUid: UsuarioSistema & { password: string } = {
+                      uid: "",
+                      email,
+                      nombre,
+                      telefonoUsuario,
+                      tipoDocumento,
+                      numeroDocumento,
+                      roles: rolesSeleccionados,
+                      activo,
+                      fecha_registro,
+                      password,
+                    };
+
+                    const uid = await crearUsuario(usuarioSinUid);
+                    const nuevo: UsuarioSistema = { ...usuarioSinUid, uid };
+                    setUsuarios((prev) => [...prev, nuevo]);
+                    toast.success("✓ Usuario creado exitosamente");
+                    cerrarDialogo();
+                  } catch (error: any) {
+                    if (error.code === "auth/email-already-in-use") {
+                      toast.error("❌ Este correo ya está registrado. Usa uno diferente.");
+                    } else {
+                      toast.error("⚠️ Error al crear el usuario: " + error.message);
+                    }
                   }
                 }
-              }
-            }}
-          >
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Nombre</Label>
-                <Input name="nombre" defaultValue={usuarioEditando?.nombre} />
-              </div>
-              <div>
-                <Label>Email</Label>
-                <Input name="email" defaultValue={usuarioEditando?.email} required />
-              </div>
-
-              <div>
-                <Label>Teléfono</Label>
-                <Input name="telefono" defaultValue={usuarioEditando?.telefonoUsuario} />
-              </div>
-
-              <div>
-                <Label>Tipo de documento</Label>
-                <Select name="tipoDocumento" defaultValue={usuarioEditando?.tipoDocumento}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="CC">Cédula de ciudadanía</SelectItem>
-                    <SelectItem value="CE">Cédula de extranjería</SelectItem>
-                    <SelectItem value="TI">Tarjeta de identidad</SelectItem>
-                    <SelectItem value="NIT">NIT</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label>Número de documento</Label>
-                <Input
-                  name="numeroDocumento"
-                  defaultValue={usuarioEditando?.numeroDocumento}
-                  required
-                />
-              </div>
-
-              <div className="col-span-2">
-                <Label>Roles</Label>
-                <MultiSelectRoles
-                  selectedRoles={rolesSeleccionados}
-                  setSelectedRoles={setRolesSeleccionados}
-                />
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Switch
-                  name="activo"
-                  id="activo"
-                  defaultChecked={usuarioEditando?.activo ?? true}
-                />
-                <Label htmlFor="activo">Activo</Label>
-              </div>
-
-              <div className="col-span-2">
-                <Label>Fecha de Registro</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      className="w-full justify-start text-left font-normal"
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {fecha ? fecha.toLocaleDateString("es-CO") : "Selecciona una fecha"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={fecha}
-                      onSelect={setFecha}
-                      autoFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              {!usuarioEditando && (
-                <div className="col-span-2">
-                  <Label>Contraseña</Label>
-                  <Input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
+              }}
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-brand-secondary font-medium">Nombre completo</Label>
+                  <Input 
+                    name="nombre" 
+                    defaultValue={usuarioEditando?.nombre}
+                    className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
+                    placeholder="Ej: Juan Pérez"
                   />
                 </div>
-              )}
-            </div>
+                <div>
+                  <Label className="text-brand-secondary font-medium">Email</Label>
+                  <Input 
+                    name="email" 
+                    type="email"
+                    defaultValue={usuarioEditando?.email} 
+                    required
+                    className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
+                    placeholder="ejemplo@correo.com"
+                  />
+                </div>
 
-            <DialogFooter className="mt-6">
-              <Button type="submit">Guardar</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+                <div>
+                  <Label className="text-brand-secondary font-medium">Teléfono</Label>
+                  <Input 
+                    name="telefono" 
+                    defaultValue={usuarioEditando?.telefonoUsuario}
+                    className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
+                    placeholder="300 123 4567"
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-brand-secondary font-medium">Tipo de documento</Label>
+                  <Select value={tipoDocControl} onValueChange={(v) => setTipoDocControl(v as any)}>
+                    <SelectTrigger className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20">
+                      <SelectValue placeholder="Selecciona un tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="CC">Cédula de ciudadanía</SelectItem>
+                      <SelectItem value="CE">Cédula de extranjería</SelectItem>
+                      <SelectItem value="TI">Tarjeta de identidad</SelectItem>
+                      <SelectItem value="NIT">NIT</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <input type="hidden" name="tipoDocumento" value={tipoDocControl ?? ""} />
+                </div>
+
+                <div>
+                  <Label className="text-brand-secondary font-medium">Número de documento</Label>
+                  <Input
+                    name="numeroDocumento"
+                    defaultValue={usuarioEditando?.numeroDocumento}
+                    required
+                    className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
+                    placeholder="1234567890"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <Label className="text-brand-secondary font-medium">Roles asignados</Label>
+                  <div className="mt-1.5">
+                    <MultiSelectRoles
+                      selectedRoles={rolesSeleccionados}
+                      setSelectedRoles={setRolesSeleccionados}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 rounded-lg border border-brand-secondary/20 bg-brand-primary/5">
+                  <Switch
+                    name="activo"
+                    id="activo"
+                    defaultChecked={usuarioEditando?.activo ?? true}
+                    className="data-[state=checked]:bg-brand-primary data-[state=unchecked]:bg-gray-300 focus-visible:ring-2 focus-visible:ring-brand-primary/30"
+                  />
+                  <div>
+                    <Label htmlFor="activo" className="text-brand-secondary font-medium cursor-pointer">
+                      Usuario activo
+                    </Label>
+                    <p className="text-xs text-muted mt-0.5">
+                      Los usuarios inactivos no pueden acceder al sistema
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-brand-secondary font-medium">Fecha de Registro</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className="w-full justify-start text-left font-normal mt-1.5 border-brand-secondary/30 hover:bg-brand-primary/5"
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4 text-brand-primary" />
+                        {fecha ? fecha.toLocaleDateString("es-CO") : "Selecciona una fecha"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={fecha}
+                        onSelect={setFecha}
+                        autoFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {!usuarioEditando && (
+                  <div className="md:col-span-2">
+                    <Label className="text-brand-secondary font-medium">Contraseña</Label>
+                    <Input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
+                      placeholder="Mínimo 6 caracteres"
+                    />
+                    <p className="text-xs text-muted mt-1.5">
+                      La contraseña debe tener al menos 6 caracteres
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter className="mt-6 gap-2">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={cerrarDialogo}
+                  className="border-brand-secondary/30"
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  type="submit"
+                  variant="brand"
+                  className="gap-2"
+                >
+                  {usuarioEditando ? "Guardar cambios" : "Crear usuario"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
     </div>
   );
 }
