@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Eye, Pencil, Search, X, Users, UserPlus, Filter } from "lucide-react";
+import { Eye, Pencil, Search, X, Users, UserPlus, Filter, FileText } from "lucide-react";
 import { Deudor } from "../models/deudores.model";
 import {
   obtenerDeudorPorCliente,
   crearDeudor,
-  eliminarDeudor,
   actualizarDeudorDatos
 } from "../services/deudorService";
 import { Cliente } from "@/modules/clientes/models/cliente.model";
@@ -85,25 +84,25 @@ export default function DeudoresTable() {
     try {
       const clienteData = await getClienteById(clienteId);
       setCliente(clienteData);
-      
+
       if (clienteData) {
         // Opción 1: Si el cliente tiene un campo 'nombre' directamente
         if (clienteData.nombre) {
           setNombreCliente(clienteData.nombre);
-        } 
+        }
         // Opción 2: Si el clienteId es el mismo que el uid del usuario
         else {
           const todosUsuarios = await obtenerUsuarios();
           setUsuarios(todosUsuarios);
-          
+
           // Buscar el usuario que tenga el mismo uid que el clienteId
           const usuarioEncontrado = todosUsuarios.find(u => u.uid === clienteId);
-          
+
           if (usuarioEncontrado) {
             setNombreCliente(
-              usuarioEncontrado.nombre ?? 
-              (usuarioEncontrado as any).displayName ?? 
-              usuarioEncontrado.email ?? 
+              usuarioEncontrado.nombre ??
+              (usuarioEncontrado as any).displayName ??
+              usuarioEncontrado.email ??
               "Cliente"
             );
           } else {
@@ -247,12 +246,12 @@ export default function DeudoresTable() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30">
       <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
-        
+
         {/* HEADER */}
         <header className="space-y-4">
           <div className="flex items-center gap-2">
-            <BackButton 
-              variant="ghost" 
+            <BackButton
+              variant="ghost"
               size="sm"
               to="/clientes-tables"
               className="text-brand-secondary hover:text-brand-primary hover:bg-brand-primary/5 transition-all"
@@ -279,8 +278,8 @@ export default function DeudoresTable() {
             {canEdit && (
               <Dialog open={open} onOpenChange={setOpen}>
                 <DialogTrigger asChild>
-                  <Button 
-                    variant="brand" 
+                  <Button
+                    variant="brand"
                     onClick={iniciarCrear}
                     className="gap-2 shadow-md hover:shadow-lg transition-all"
                   >
@@ -307,10 +306,10 @@ export default function DeudoresTable() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <Label className="text-brand-secondary font-medium">Nombre completo</Label>
-                          <Input 
-                            name="nombre" 
-                            value={formData.nombre ?? ""} 
-                            onChange={handleChange} 
+                          <Input
+                            name="nombre"
+                            value={formData.nombre ?? ""}
+                            onChange={handleChange}
                             readOnly={readOnly}
                             className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
                             placeholder="Ej: Juan Pérez"
@@ -318,10 +317,10 @@ export default function DeudoresTable() {
                         </div>
                         <div>
                           <Label className="text-brand-secondary font-medium">Cédula</Label>
-                          <Input 
-                            name="cedula" 
-                            value={formData.cedula ?? ""} 
-                            onChange={handleChange} 
+                          <Input
+                            name="cedula"
+                            value={formData.cedula ?? ""}
+                            onChange={handleChange}
                             readOnly={readOnly}
                             className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
                             placeholder="1234567890"
@@ -332,10 +331,10 @@ export default function DeudoresTable() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <Label className="text-brand-secondary font-medium">Ubicación</Label>
-                          <Input 
-                            name="ubicacion" 
-                            value={formData.ubicacion ?? ""} 
-                            onChange={handleChange} 
+                          <Input
+                            name="ubicacion"
+                            value={formData.ubicacion ?? ""}
+                            onChange={handleChange}
                             readOnly={readOnly}
                             className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
                             placeholder="Ciudad, Departamento"
@@ -413,15 +412,15 @@ export default function DeudoresTable() {
                     <DialogFooter className="gap-2">
                       {!readOnly && (
                         <>
-                          <Button 
-                            type="button" 
-                            variant="outline" 
+                          <Button
+                            type="button"
+                            variant="outline"
                             onClick={() => setOpen(false)}
                             className="border-brand-secondary/30"
                           >
                             Cancelar
                           </Button>
-                          <Button 
+                          <Button
                             type="submit"
                             variant="brand"
                           >
@@ -480,11 +479,11 @@ export default function DeudoresTable() {
 
               <div>
                 <Label className="mb-2 block text-brand-secondary font-medium">Tipificación</Label>
-                <Select 
-                  value={tipFilter} 
-                  onValueChange={(v) => { 
-                    setTipFilter(v); 
-                    setCurrentPage(1); 
+                <Select
+                  value={tipFilter}
+                  onValueChange={(v) => {
+                    setTipFilter(v);
+                    setCurrentPage(1);
                   }}
                 >
                   <SelectTrigger className="border-brand-secondary/30 bg-white focus:border-brand-primary focus:ring-brand-primary/20">
@@ -559,7 +558,7 @@ export default function DeudoresTable() {
                 </TableHeader>
                 <TableBody>
                   {paginatedDeudores.map((deudor, index) => (
-                    <TableRow 
+                    <TableRow
                       key={deudor.id}
                       className={cn(
                         "border-brand-secondary/5 transition-colors",
@@ -601,21 +600,39 @@ export default function DeudoresTable() {
                             </Tooltip>
 
                             {canEdit && (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button 
-                                    size="icon" 
-                                    variant="ghost" 
-                                    onClick={() => iniciarEditar(deudor)}
-                                    className="hover:bg-brand-primary/10 transition-colors"
-                                  >
-                                    <Pencil className="h-4 w-4 text-brand-primary" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent className="bg-brand-secondary text-white">
-                                  Editar deudor
-                                </TooltipContent>
-                              </Tooltip>
+                              <>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      onClick={() => iniciarEditar(deudor)}
+                                      className="hover:bg-brand-primary/10 transition-colors"
+                                    >
+                                      <Pencil className="h-4 w-4 text-brand-primary" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="bg-brand-secondary text-white">
+                                    Editar deudor
+                                  </TooltipContent>
+                                </Tooltip>
+
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      onClick={() => navigate(`/clientes/${clienteId}/deudores/${deudor.id}/AcuerdoPagoPDF`)}
+                                      className="hover:bg-green-50 transition-colors"
+                                    >
+                                      <FileText className="h-4 w-4 text-green-600" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="bg-brand-secondary text-white">
+                                    Acuerdo de pago
+                                  </TooltipContent>
+                                </Tooltip>
+                              </>
                             )}
                           </TooltipProvider>
                         </div>
