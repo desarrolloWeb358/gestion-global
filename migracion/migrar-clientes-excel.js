@@ -12,6 +12,39 @@ const db = admin.firestore();
 // ---- Archivos ----
 const excelPath = process.env.INPUT || './Clientes.xlsx';
 
+// ---- Mapeo de primer nombre -> UID (insensible a mayúsculas/acentos)
+const NAME_TO_UID = {
+  jesus: "GADNSujfclR3RaLKUA80GosFWZj2",
+  iveth: "e00pkYVc2SZESu3Kt4OB7xiEs6N2",
+  sandra: "HUHzGX9VxEYAd0yDggGr5FLqlHi1",
+  nathaly: "iho8mBuxxNWCEWqtuN6ZCgwpeuw1",
+  laura: "TkBWDCsUzjNCwdu5q8cXciSQqmQ2",
+  nicoll: "FWn2ELTvlSSDxnrvoAkBGewzBr43",
+  javier: "ZdHbDZk1iAfs537M8kSEwls6b8K2",
+  jeimmy: "AM5OrR7UlQgUNPDMkmFDCSNUsv43",
+  diego: "WgnPyseUC0WygnBkAL9loZwpYmv2",
+};
+
+// Normaliza y toma el PRIMER nombre
+function firstNameKey(v) {
+  const s = String(v || "")
+    .trim()
+    .split(/\s+/)[0]                     // primer token
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // sin acentos
+    .toLowerCase();
+  return s;
+}
+
+// Convierte un nombre a UID usando el diccionario
+function nameToUid(v) {
+  const key = firstNameKey(v);
+  // Si viene vacío o alguna variante de "no tiene", retorna vacío
+  if (!key || ['no', 'notiene', 'no_tiene', 'sin', 'ninguno', 'ninguna'].includes(key)) {
+    return '';
+  }
+  return NAME_TO_UID[key] || "";
+}
+
 // ---- Utilidades ----
 function isValidEmail(email) {
   if (!email || typeof email !== 'string') return false;
@@ -53,10 +86,17 @@ const toStrOrEmpty = (v) => (v === null || v === undefined ? '' : String(v));
     const idxNCta = hIndex(['numero_cuenta', 'número_cuenta', 'numero cuenta', 'nro cuenta', 'nro_cuenta']);
     const idxTCta = hIndex(['tipo_cuenta', 'tipo cuenta']);
 
+    /* antes con el uid ahora con nombres
     const idxEjPreUID = hIndex(['ejecutivoPrejuridicoUID']);
     const idxEjJurUID = hIndex(['ejecutivoJuridicoUID']);
     const idxEjDepUID = hIndex(['ejecutivoDependienteUID']);
     const idxAbogUID = hIndex(['abogadoUID']);
+    */
+
+    const idxEjPreNOM = hIndex(['ejecutivoPrejuridico']);
+    const idxEjJurNOM = hIndex(['ejecutivoJuridico']);
+    const idxEjDepNOM = hIndex(['ejecutivoDependiente']);
+    const idxAbogNOM = hIndex(['abogado']);
 
 
     // Asegurar columnas finales: UID y ERROR
@@ -95,11 +135,23 @@ const toStrOrEmpty = (v) => (v === null || v === undefined ? '' : String(v));
         const numero_cuenta = toStrOrEmpty(idxNCta >= 0 ? rowArr[idxNCta] : '');
         const tipo_cuenta = toStrOrEmpty(idxTCta >= 0 ? rowArr[idxTCta] : '');
 
+        /* antes con UIDs
         const ejecutivoPrejuridicoUID = toStrOrEmpty(idxEjPreUID >= 0 ? rowArr[idxEjPreUID] : '');
         const ejecutivoJuridicoUID = toStrOrEmpty(idxEjJurUID >= 0 ? rowArr[idxEjJurUID] : '');
         const ejecutivoDependienteUID = toStrOrEmpty(idxEjDepUID >= 0 ? rowArr[idxEjDepUID] : '');
         const abogadoUID = toStrOrEmpty(idxAbogUID >= 0 ? rowArr[idxAbogUID] : '');
+        */
 
+        // ahora con nombres
+        const ejPreNom = idxEjPreNOM >= 0 ? rowArr[idxEjPreNOM] : '';
+        const ejJurNom = idxEjJurNOM >= 0 ? rowArr[idxEjJurNOM] : '';
+        const ejDepNom = idxEjDepNOM >= 0 ? rowArr[idxEjDepNOM] : '';
+        const abogNom = idxAbogNOM >= 0 ? rowArr[idxAbogNOM] : '';
+
+        const ejecutivoPrejuridicoUID = nameToUid(ejPreNom);
+        const ejecutivoJuridicoUID = nameToUid(ejJurNom);
+        const ejecutivoDependienteUID = nameToUid(ejDepNom);
+        const abogadoUID = nameToUid(abogNom);
 
         // ---- Validaciones previas
         if (!nit) throw new Error('FALTA_NIT');

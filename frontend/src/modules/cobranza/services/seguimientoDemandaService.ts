@@ -103,6 +103,7 @@ export async function addSeguimientoDemanda(
     `clientes/${clienteId}/deudores/${deudorId}/seguimientoDemanda`
   );
 
+  // se modifica para que reciba la fecha de creacion, ejecutivoUID y clienteUID
   const payload = stripUndefined({
     consecutivo: data.consecutivo,
     fechaCreacion: Timestamp.fromDate(new Date()),

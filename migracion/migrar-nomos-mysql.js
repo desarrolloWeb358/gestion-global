@@ -397,6 +397,7 @@ async function main() {
                   `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
 
                 const estadoSoloDeuda = {
+                  clienteUID: clienteId,
                   mes: mesSoloDeuda,
                   deuda: deudaTitulo,
                   recaudo: 0,
@@ -430,6 +431,7 @@ async function main() {
                 const honorariosRecaudo = 0;
 
                 const estadoDoc = {
+                  clienteUID: clienteId,
                   mes,
                   deuda: Number(deudaTotal) || 0,
                   recaudo: Number(sumaRecaudo) || 0,
@@ -552,3 +554,6 @@ main().catch(e => {
   logError('FINAL', { note: 'main() unhandled' }, e);
   process.exit(1);
 });
+
+
+// forma de ejecutar el script: node .\migrar-nomos-mysql.js 

@@ -149,6 +149,7 @@ export default function SeguimientoDemandaTable() {
           toast.error("No se pudo obtener el usuario autenticado.");
           return;
         }
+        // se adiciona el uid del usuario que crea el registro
         await addSeguimientoDemanda(uidUsuario, clienteId, deudorId, payload, archivo);
         toast.success("Seguimiento de demanda creado.");
       }
