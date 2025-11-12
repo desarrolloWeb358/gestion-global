@@ -13,6 +13,7 @@ import {
   orderBy,
 } from "firebase/firestore";
 import { EstadoMensual } from "../models/estadoMensual.model";
+import { C } from "react-router/dist/development/index-react-server-client-BKpa2trA";
 
 /* ---------- Helpers compartidos ---------- */
 export const toNullableNumber = (v: any) =>
@@ -20,6 +21,7 @@ export const toNullableNumber = (v: any) =>
 
 export function normalizeEstado(input: Partial<EstadoMensual>): Record<string, any> {
   const n: Record<string, any> = {
+    clienteUID: input.clienteUID,
     mes: input.mes ?? null,
     deuda: input.deuda,
     recaudo: input.recaudo,
@@ -72,6 +74,7 @@ export async function crearEstadoMensual(
   deudorId: string,
   estadoMensual: Partial<EstadoMensual>
 ) {
+  estadoMensual.clienteUID = clienteId;
   const ref = collection(db, `clientes/${clienteId}/deudores/${deudorId}/estadosMensuales`);
   const payload = normalizeEstado(estadoMensual);
   if (!payload.mes) throw new Error("El campo 'mes' es obligatorio para crear un estado mensual.");
@@ -111,6 +114,7 @@ export async function crearEstadosMensualesMasivo(
 
   for (const it of items) {
     if (isEmptyRow(it)) continue;
+    it.clienteUID = clienteId;
     const payload = normalizeEstado(it);
     if (!payload.mes) continue;
 
@@ -132,6 +136,8 @@ export async function upsertEstadoMensualPorMes(
   deudorId: string,
   estadoMensual: Partial<EstadoMensual>
 ) {
+  console.log("Upsert estado mensual con clienteId:", clienteId);
+  estadoMensual.clienteUID = clienteId;
   const payload = normalizeEstado(estadoMensual);
   if (!payload.mes) throw new Error("El campo 'mes' es obligatorio.");
   const ref = doc(db, `clientes/${clienteId}/deudores/${deudorId}/estadosMensuales/${String(payload.mes)}`);

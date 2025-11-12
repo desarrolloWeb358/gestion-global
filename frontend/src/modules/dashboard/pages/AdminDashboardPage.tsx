@@ -3,8 +3,9 @@
 
 import React from "react";
 import SeguimientoDashboardAdmin from "@/modules/reportes/components/SeguimientoDashboardAdmin";
+import RecaudoDashboardAdmin from "@/modules/reportes/components/RecaudoDashboardAdmin";
 import { Typography } from "@/shared/design-system/components/Typography";
-import { LayoutDashboard, TrendingUp, Users, Activity } from "lucide-react";
+import { LayoutDashboard, TrendingUp, Users, Activity, CalendarIcon } from "lucide-react";
 
 export default function AdminDashboardPage() {
   const currentDate = new Date().toLocaleDateString("es-CO", {
@@ -35,9 +36,9 @@ export default function AdminDashboardPage() {
 
         </header>
 
-        {/* SECCIÓN DE MÉTRICAS RÁPIDAS (Opcional - puedes agregar stats cards aquí) */}
+        {/* SECCIÓN DE MÉTRICAS RÁPIDAS (Opcional - puedes agregar stats cards aquí) 
         <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {/* Card 1 */}
+          
           <div className="rounded-xl border border-brand-secondary/20 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between mb-3">
               <div className="p-2 rounded-lg bg-blue-100">
@@ -55,7 +56,7 @@ export default function AdminDashboardPage() {
             </Typography>
           </div>
 
-          {/* Card 2 */}
+          
           <div className="rounded-xl border border-brand-secondary/20 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between mb-3">
               <div className="p-2 rounded-lg bg-green-100">
@@ -73,7 +74,7 @@ export default function AdminDashboardPage() {
             </Typography>
           </div>
 
-          {/* Card 3 */}
+          
           <div className="rounded-xl border border-brand-secondary/20 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between mb-3">
               <div className="p-2 rounded-lg bg-purple-100">
@@ -91,7 +92,7 @@ export default function AdminDashboardPage() {
             </Typography>
           </div>
 
-          {/* Card 4 */}
+          
           <div className="rounded-xl border border-brand-secondary/20 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between mb-3">
               <div className="p-2 rounded-lg bg-orange-100">
@@ -110,6 +111,8 @@ export default function AdminDashboardPage() {
           </div>
         </section>
 
+        */}
+
         {/* DASHBOARD PRINCIPAL */}
         <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
           <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5 border-b border-brand-secondary/10">
@@ -126,6 +129,24 @@ export default function AdminDashboardPage() {
 
           <div className="p-4 md:p-5">
             <SeguimientoDashboardAdmin />
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
+          <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5 border-b border-brand-secondary/10">
+            <div className="flex items-center gap-2">
+              <CalendarIcon className="h-5 w-5 text-brand-primary" />
+              <Typography variant="h3" className="!text-brand-secondary font-semibold">
+                Reporte de Recaudo Mensual
+              </Typography>
+            </div>
+            <Typography variant="small" className="text-muted-foreground mt-1">
+              Consolidado por mes de todos los conjuntos residenciales
+            </Typography>
+          </div>
+
+          <div className="p-4 md:p-5">
+            <RecaudoDashboardAdmin />
           </div>
         </section>
       </div>

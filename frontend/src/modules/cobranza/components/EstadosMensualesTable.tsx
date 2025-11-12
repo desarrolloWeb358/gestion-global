@@ -46,6 +46,7 @@ export default function EstadosMensualesTable() {
 
   const [nuevoEstadoMensual, setNuevoEstadoMensual] = useState<Partial<EstadoMensual>>({
     mes: hoyYYYYMM,
+    clienteUID: clienteId || "",
     deuda: undefined,
     recaudo: undefined,
     acuerdo: undefined,
@@ -105,6 +106,7 @@ export default function EstadosMensualesTable() {
   const openEdit = (estado: EstadoMensual) => {
     if (!canEdit) return;
     setNuevoEstadoMensual({
+      clienteUID: clienteId || "",
       id: estado.id,
       mes: estado.mes,
       deuda: estado.deuda ?? undefined,
@@ -121,6 +123,7 @@ export default function EstadosMensualesTable() {
   };
 
   const handleCrearOEditar = async () => {
+    console.log("Guardando estado mensual:", nuevoEstadoMensual);
     if (!canEdit) return toast.error("Sin permiso para guardar.");
     if (!clienteId || !deudorId || !nuevoEstadoMensual.mes) {
       return toast.error("Debe seleccionar el mes.");

@@ -2,6 +2,7 @@ export interface EstadoMensual {
   id?: string;
   mes: string;  // formato "AAAA-MM"
   
+  clienteUID: string;
   deuda: number;    
   recaudo?: number;
   acuerdo?: number;
