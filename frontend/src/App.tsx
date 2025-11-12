@@ -35,6 +35,7 @@ import ClienteDashboardPage from "@/modules/dashboard/pages/ClienteDashboardPage
 import DeudorDashboardPage from "@/modules/dashboard/pages/DeudorDashboardPage";
 import { DemandaInfoPage } from "./modules/cobranza/components/DemandaInfoPage";
 import { ThemeProvider } from "./app/providers/ThemeContext";
+import AcuerdoPagoPage from "./modules/cobranza/components/reportes/AcuerdoPagoPDF";
 
 
 export default function App() {
@@ -42,47 +43,48 @@ export default function App() {
     <>
       <ScrollToTop />
       <ThemeProvider>
-      <Routes>
-         
-        {/* Redirección inicial a SignIn */}
-        <Route path="/" element={<Navigate to="/signin" replace />} />
+        <Routes>
 
-        {/* Auth Routes */}
-        <Route path="/signin" element={<SignIn />} />
-        <Route path="/sign-up" element={<SignUp />} />
-        <Route path="/forgot-password" element={<ResetPasswordForm />} />
-        <Route path="/home" element={<RedirectByRol />} />
+          {/* Redirección inicial a SignIn */}
+          <Route path="/" element={<Navigate to="/signin" replace />} />
 
-        {/* Layout protegido */}
-        <Route element={<AppLayout />}>
-          <Route path="/deudores/:clienteId/:deudorId/seguimiento" element={<SeguimientoTable />} />
-          <Route path="/clientes/:clienteId/deudores/:deudorId" element={<DeudorDetailPage />} />
-          <Route path="/deudores/:clienteId/:deudorId/estadosMensuales" element={<EstadosMensualesTable />} />
-          <Route path="/clientes/:clienteId" element={<ClientePage />} />
-          <Route path="/clientes/:clienteId/estado-mensual" element={<EstadosMensualesInputMasivo />} />
-          <Route path="/clientes-tables" element={<ClientesTable />} />
-          <Route path="/usuarios-tables" element={<UsuariosTable />} />
-          <Route path="/deudores/:clienteId" element={<DeudoresTable />} />
-          <Route path="/consulta-personas" element={<ConsultaPersonasPage />} />
-          <Route path="/probar-notificaciones" element={<ProbarNotificacionesPage />} />
-          <Route path="/clientes/:clienteId/reporte" element={<ReporteClientePage />} />
-          <Route path="/clientes/:clienteId/deudores/:deudorId/demanda" element={<DemandaInfoPage />} />
-          {/* valores agregados */}
-          <Route path="/valores-agregados/:clienteId" element={<ValoresAgregadosTable />} />
-          <Route path="/clientes/:clienteId/valores-agregados/:valorId" element={<ValorAgregadoDetailPage />} />
+          {/* Auth Routes */}
+          <Route path="/signin" element={<SignIn />} />
+          <Route path="/sign-up" element={<SignUp />} />
+          <Route path="/forgot-password" element={<ResetPasswordForm />} />
+          <Route path="/home" element={<RedirectByRol />} />
 
-          {/* Dashboards por rol */}
-          <Route path="/dashboard/admin" element={<AdminDashboardPage />} />
-          <Route path="/dashboard/ejecutivo" element={<EjecutivoDashboardPage />} />
-          <Route path="/dashboard/abogado" element={<AbogadoDashboardPage />} />
-          <Route path="/dashboard/cliente" element={<ClienteDashboardPage />} />
-          <Route path="/dashboard/deudor" element={<DeudorDashboardPage />} />
-            
+          {/* Layout protegido */}
+          <Route element={<AppLayout />}>
+            <Route path="/deudores/:clienteId/:deudorId/seguimiento" element={<SeguimientoTable />} />
+            <Route path="/clientes/:clienteId/deudores/:deudorId" element={<DeudorDetailPage />} />
+            <Route path="/deudores/:clienteId/:deudorId/estadosMensuales" element={<EstadosMensualesTable />} />
+            <Route path="/clientes/:clienteId" element={<ClientePage />} />
+            <Route path="/clientes/:clienteId/estado-mensual" element={<EstadosMensualesInputMasivo />} />
+            <Route path="/clientes-tables" element={<ClientesTable />} />
+            <Route path="/usuarios-tables" element={<UsuariosTable />} />
+            <Route path="/deudores/:clienteId" element={<DeudoresTable />} />
+            <Route path="/consulta-personas" element={<ConsultaPersonasPage />} />
+            <Route path="/probar-notificaciones" element={<ProbarNotificacionesPage />} />
+            <Route path="/clientes/:clienteId/reporte" element={<ReporteClientePage />} />
+            <Route path="/clientes/:clienteId/deudores/:deudorId/demanda" element={<DemandaInfoPage />} />
+            {/* valores agregados */}
+            <Route path="/valores-agregados/:clienteId" element={<ValoresAgregadosTable />} />
+            <Route path="/clientes/:clienteId/valores-agregados/:valorId" element={<ValorAgregadoDetailPage />} />
+            <Route path="/clientes/:clienteId/deudores/:deudorId/AcuerdoPagoPDF" element={<AcuerdoPagoPage/>} />
+    
+            {/* Dashboards por rol */}
+            <Route path="/dashboard/admin" element={<AdminDashboardPage />} />
+            <Route path="/dashboard/ejecutivo" element={<EjecutivoDashboardPage />} />
+            <Route path="/dashboard/abogado" element={<AbogadoDashboardPage />} />
+            <Route path="/dashboard/cliente" element={<ClienteDashboardPage />} />
+            <Route path="/dashboard/deudor" element={<DeudorDashboardPage />} />
 
-        </Route>
-        {/* 404 */}
-      
-      </Routes>
+
+          </Route>
+          {/* 404 */}
+
+        </Routes>
       </ThemeProvider>
     </>
   );
