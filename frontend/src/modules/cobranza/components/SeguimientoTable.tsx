@@ -399,21 +399,21 @@ export default function SeguimientoTable() {
               className="data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all"
             >
               <History className="h-4 w-4 mr-2" />
-              Pre-jurídico
+              Ejecutiv@ Pre-jurídico
             </TabsTrigger>
             <TabsTrigger 
               value="juridico"
               className="data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all"
             >
               <Scale className="h-4 w-4 mr-2" />
-              Jurídico
+              Ejecutiv@ Jurídico
             </TabsTrigger>
             <TabsTrigger 
               value="demanda"
               className="data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all"
             >
               <Gavel className="h-4 w-4 mr-2" />
-              Demanda
+              Dependiente(Demanda)
             </TabsTrigger>
             <TabsTrigger 
               value="obs"
