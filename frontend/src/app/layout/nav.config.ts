@@ -34,31 +34,31 @@ export const NAV_ITEMS: NavItem[] = [
   // ========================================
   { 
     to: "/dashboard/admin", 
-    label: "Dashboard", 
+    label: "Administrador", 
     icon: IconLayoutDashboard,
     roles: ["admin"] 
   },
   { 
     to: "/dashboard/ejecutivo", 
-    label: "Dashboard", 
+    label: "Ejecutivo", 
     icon: IconLayoutDashboard,
     roles: ["ejecutivo"] 
   },
   { 
     to: "/dashboard/abogado", 
-    label: "Dashboard", 
+    label: "Abogado", 
     icon: IconLayoutDashboard,
     roles: ["abogado"] 
   },
   { 
     to: "/dashboard/cliente", 
-    label: "Dashboard", 
+    label: "Dashboard Cliente", 
     icon: IconLayoutDashboard,
     roles: ["cliente"] 
   },
   { 
     to: "/dashboard/deudor", 
-    label: "Dashboard", 
+    label: "Dashboard Deudor", 
     icon: IconLayoutDashboard,
     roles: ["deudor"] 
   },

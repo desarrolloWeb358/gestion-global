@@ -253,7 +253,6 @@ export default function DeudoresTable() {
             <BackButton
               variant="ghost"
               size="sm"
-              to="/clientes-tables"
               className="text-brand-secondary hover:text-brand-primary hover:bg-brand-primary/5 transition-all"
             />
           </div>
