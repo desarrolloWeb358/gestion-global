@@ -15,12 +15,49 @@ const SERVICE_ACCOUNT_PATH = './serviceAccountKey.json';
 
 // UIDs de clientes a procesar
 const CLIENT_UIDS = [
-'AV8SWNMqovRUoHNhXrkvlGOMROg1',
-'VfDCAgwT5jdJrxqoskPTGK6mQb72',
-'XhM3A78fm9c4fHbLMa83z2uqYo22',
-'K0xZ2eNhvoM0w4sx36KbF3HZUGv2',
-'jAW9wa3r61ftFQHsIqWTdcVqAmT2',
-'DCsYBM9k4YQ9MVLpeQP3HBEfhGs1',
+'830015808',
+'830074930',
+'830042740',
+'900291664',
+'900367986',
+'900153423',
+'900060600',
+'900123118',
+'900754972',
+'901359839',
+'900041729',
+'900194299',
+'900051936',
+'901507077',
+'900422149',
+'900182882',
+'900026123',
+'900539381',
+'901001861',
+'830113468',
+'800237079',
+'830056841',
+'900291664',
+'830015808',
+'900153423',
+'900539381',
+'901359839',
+'900026123',
+'901507077',
+'830056841',
+'900654612',
+'830074930',
+'900123118',
+'900041729',
+'900194299',
+'900051936',
+'900422149',
+'800237079',
+'830042740',
+'900367986',
+'900182882',
+'830113468',
+'800245235',
 ];
 
 // Pausa entre clientes (ms)
@@ -39,6 +76,50 @@ const db = admin.firestore();
 
 // Utilidad simple para pausar
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Resuelve un identificador (UID o NIT) a un UID de cliente.
+ *
+ * Lógica:
+ * 1) Intenta como UID directo en clientes/{id}.
+ * 2) Si no existe, lo interpreta como NIT y busca en usuarios
+ *    where numeroDocumento == valor (limit 1) y devuelve user.id.
+ *
+ * Devuelve:
+ *  - string  → UID del cliente
+ *  - null    → si no se encontró nada
+ */
+async function resolveClientUid(idOrNitRaw) {
+  const idOrNit = String(idOrNitRaw || '').trim();
+  if (!idOrNit) {
+    console.log('⛔️ Identificador vacío, se omite.');
+    return null;
+  }
+
+  // 1) Probar como UID directo de clientes
+  const clientDoc = await db.collection('clientes').doc(idOrNit).get();
+  if (clientDoc.exists) {
+    console.log(`✔ "${idOrNit}" reconocido como UID de cliente.`);
+    return idOrNit;
+  }
+
+  // 2) Probar como NIT en usuarios.numeroDocumento
+  const usuariosRef = db.collection('usuarios');
+  const qSnap = await usuariosRef
+    .where('numeroDocumento', '==', idOrNit)
+    .limit(1)
+    .get();
+
+  if (!qSnap.empty) {
+    const userDoc = qSnap.docs[0];
+    const uid = userDoc.id;
+    console.log(`✔ "${idOrNit}" reconocido como NIT, resuelto a UID "${uid}".`);
+    return uid;
+  }
+
+  console.log(`⛔️ No se encontró cliente para identificador/NIT "${idOrNit}".`);
+  return null;
+}
 
 /**
  * Borra recursivamente TODOS los documentos de una colección dada (nivel 1).
@@ -106,31 +187,40 @@ async function deleteAllSubcollectionsOfClient(clientUid) {
   console.log('=== Borrado de TODAS las subcolecciones en documentos de "clientes" ===');
 
   if (!Array.isArray(CLIENT_UIDS) || CLIENT_UIDS.length === 0) {
-    console.log('⛔️ Debes especificar al menos un UID en CLIENT_UIDS.');
+    console.log('⛔️ Debes especificar al menos un UID o NIT en CLIENT_UIDS.');
     process.exit(1);
   }
 
   const results = [];
-  for (const uid of CLIENT_UIDS) {
+  for (const rawId of CLIENT_UIDS) {
     try {
-      const res = await deleteAllSubcollectionsOfClient(uid);
-      results.push(res);
+      const uid = await resolveClientUid(rawId);
+      if (!uid) {
+        const msg = 'No se pudo resolver a UID (ni como cliente ni como usuario.numeroDocumento).';
+        results.push({ uid: null, original: rawId, subcollections: [], totalDeletedDocs: 0, error: msg });
+        console.error(`❌ ${msg} -> "${rawId}"`);
+      } else {
+        const res = await deleteAllSubcollectionsOfClient(uid);
+        results.push({ ...res, original: rawId });
+      }
     } catch (e) {
       const msg = e?.message || String(e);
-      results.push({ uid, subcollections: [], totalDeletedDocs: 0, error: msg });
-      console.error(`❌ Error procesando cliente ${uid}: ${msg}`);
+      results.push({ uid: null, original: rawId, subcollections: [], totalDeletedDocs: 0, error: msg });
+      console.error(`❌ Error procesando identificador "${rawId}": ${msg}`);
     }
     if (SLEEP_MS_BETWEEN_CLIENTS > 0) await sleep(SLEEP_MS_BETWEEN_CLIENTS);
   }
 
   console.log('\n=== Resumen ===');
   for (const r of results) {
+    const label = r.original ? `${r.original} (uid=${r.uid || 'N/A'})` : r.uid;
+
     if (r.error) {
-      console.log(`• ${r.uid}: ERROR -> ${r.error}`);
+      console.log(`• ${label}: ERROR -> ${r.error}`);
       continue;
     }
     if (!r.subcollections.length) {
-      console.log(`• ${r.uid}: sin subcolecciones o sin documentos.`);
+      console.log(`• ${label}: sin subcolecciones o sin documentos.`);
       continue;
     }
     for (const s of r.subcollections) {
@@ -140,7 +230,7 @@ async function deleteAllSubcollectionsOfClient(clientUid) {
         console.log(`  - ${s.colPath}: ${s.deleted} doc(s) borrados`);
       }
     }
-    console.log(`  Total docs borrados en ${r.uid}: ${r.totalDeletedDocs}`);
+    console.log(`  Total docs borrados en ${label}: ${r.totalDeletedDocs}`);
   }
 
   console.log('\n🚀 Listo.');

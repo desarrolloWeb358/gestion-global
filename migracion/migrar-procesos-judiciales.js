@@ -66,20 +66,6 @@ function buildOkRow(raw, { deudorCreado }) {
   };
 }
 
-// Funcionalidad para cuando no tengo deudores el cliente
-// Set en memoria para NITs cuyo cliente NO tiene deudores (colección vacía al primer chequeo)
-const NITS_SIN_DEUDORES = new Set();
-
-// ¿El cliente tiene al menos un deudor?
-async function hasAnyDeudores(uidCliente) {
-  const snap = await db
-    .collection("clientes").doc(uidCliente)
-    .collection("deudores")
-    .limit(1)
-    .get();
-  return !snap.empty;
-}
-
 // Crea deudor con datos judiciales
 async function createDeudor(uidCliente, ubicacion, payload) {
 
@@ -211,18 +197,6 @@ function normalizeUbicacion(ubicacion) {
 
   // Trim inicial
   let trimmed = ubicacion.trim();
-
-  /*
-  // 1) Quitar una letra final si existe (con o sin espacio antes)
-  trimmed = trimmed.replace(/\s*[A-Za-z]$/, "");
-  // Si empieza con letra de A-Z → la convierte a número y concatena lo que sigue
-  const firstChar = trimmed.charAt(0).toUpperCase();
-  if (firstChar >= 'A' && firstChar <= 'Z') {
-    const num = firstChar.charCodeAt(0) - 'A'.charCodeAt(0) + 1;
-    return num + trimmed.slice(1);
-  }
-  */
-
   return trimmed;
 }
 
@@ -375,63 +349,36 @@ async function main() {
         { merge: true }
       );
 
-      // --- NUEVO: marcar si el cliente no tiene deudores (solo la primera vez que lo vemos)
-      if (!NITS_SIN_DEUDORES.has(nit)) {
-        const tieneDeudores = await hasAnyDeudores(uidCliente);
-        if (!tieneDeudores) {
-          NITS_SIN_DEUDORES.add(nit);
-          console.warn(`ℹ️  Cliente NIT=${nit} marcado como SIN deudores (colección vacía).`);
-        }
-      }
 
-      // 4) Localizar deudor por 'ubicacion'    
-      let deudorRef = null;
-      let deudorCreado = false; // NUEVO: flag para el reporte
-      deudorRef = await getDeudorDocRefByUbicacion(uidCliente, ubicacion);
+      // 4) Localizar deudor por 'ubicacion'
+      let deudorRef = await getDeudorDocRefByUbicacion(uidCliente, ubicacion);
+      let deudorCreado = false; // para el reporte
 
-      if (!deudorRef) {
-        // --- NUEVO: si este cliente fue marcado como "sin deudores", crea el deudor
-        if (NITS_SIN_DEUDORES.has(nit)) {
-          const updateDeudor = { demandados, juzgado, numeroRadicado, localidad, observacionesDemanda: observaciones };
+      // 5) Construir una sola vez el payload judicial
+      const updateDeudor = {
+        demandados,
+        juzgado,
+        numeroRadicado,
+        localidad,
+        observacionesDemanda: observaciones,
+      };
 
-          // Parse y agregado de fecha de última revisión (igual que más abajo)
-          const parsedDateForCreate = parseFechaUltimaRevision(fechaUltRevRaw);
-          if (parsedDateForCreate) {
-            updateDeudor.fechaUltimaRevision = admin.firestore.Timestamp.fromDate(parsedDateForCreate);
-          } else {
-            //console.warn(`    ⚠️ Fecha última revisión inválida/ausente para NIT=${nit}, ubicacion='${ubicacion}' (creación)`);
-          }
-
-          // Crear el deudor con los datos judiciales
-          deudorRef = await createDeudor(uidCliente, ubicacion, updateDeudor);
-          deudorCreado = true; // NUEVO: marcar para el reporte
-
-          //console.log(`🆕 [${i + 1}/${rows.length}] NIT=${nit} | ubicacion='${ubicacion}' → deudor creado (${deudorRef.path})`);
-        } else {
-          // Comportamiento anterior si NO fue marcado como “sin deudores”
-          badRows.push(withMotivoNoMigrado(
-            raw,
-            `Deudor no encontrado'`
-          ));
-          noMigrados++;
-          //console.warn(`⚠️  [${i + 1}] Deudor no encontrado (NIT=${nit}, ubicacion='${ubicacion}').`);
-          continue;
-        }
-      }
-
-      // 5) Actualizar campos judiciales del deudor
-      const updateDeudor = { demandados, juzgado, numeroRadicado, localidad, observacionesDemanda: observaciones };
       // Parseo y agregado de la fecha de última revisión si viene válida
       const parsedDate = parseFechaUltimaRevision(fechaUltRevRaw);
       if (parsedDate) {
         updateDeudor.fechaUltimaRevision = admin.firestore.Timestamp.fromDate(parsedDate);
-      } else {
-        //console.warn(`    ⚠️ Fecha última revisión inválida/ausente para NIT=${nit}, ubicacion='${ubicacion}'`);
       }
 
-      await deudorRef.set(updateDeudor, { merge: true });
+      // 6) Si el deudor NO existe → lo creamos SIEMPRE
+      if (!deudorRef) {
+        deudorRef = await createDeudor(uidCliente, ubicacion, updateDeudor);
+        deudorCreado = true;
+      } else {
+        // Si ya existe → solo actualizamos sus campos judiciales
+        await deudorRef.set(updateDeudor, { merge: true });
+      }
 
-      // éxito → empuja la misma fila original + metadatos opcionales
+      // éxito → empuja la fila al reporte
       okRows.push(
         buildOkRow(raw, {
           deudorCreado,
@@ -439,7 +386,9 @@ async function main() {
       );
       migrados++;
 
-      console.log(`✅ [${i + 1}/${rows.length}] NIT=${nit} | ubicacion='${ubicacion}' → actualizado (${deudorRef.path})`);
+      console.log(
+        `✅ [${i + 1}/${rows.length}] NIT=${nit} | ubicacion='${ubicacion}' → ${deudorCreado ? "creado" : "actualizado"} (${deudorRef.path})`
+      );
 
       // Evitar picos de cuota
       await sleep(15);
