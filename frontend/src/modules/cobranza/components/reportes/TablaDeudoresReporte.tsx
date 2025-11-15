@@ -120,7 +120,7 @@ export default function TablaDeudoresReporte({ clienteId }: { clienteId: string 
               ))}
 
               <th
-                className="sticky top-0 z-30 px-3 py-2 text-right bg-background border-b"
+                className="sticky top-0 z-30 px-3 py-2 text-right bg-background border-b text-red-600"
                 style={{ minWidth: W_TOTAL }}
               >
                 Recaudo Total
@@ -189,7 +189,7 @@ export default function TablaDeudoresReporte({ clienteId }: { clienteId: string 
                   <td className="px-3 py-2 text-right whitespace-nowrap border-r border-gray-200" style={{ minWidth: W_MES }}>{formatCOP(r.rec_12)}</td>
 
                   <td
-                    className="px-3 py-2 text-right font-medium whitespace-nowrap"
+                    className="px-3 py-2 text-right font-medium whitespace-nowrap text-red-600"
                     style={{ minWidth: W_TOTAL }}
                   >
                     {formatCOP(r.recaudoTotal)}

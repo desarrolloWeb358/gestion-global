@@ -76,6 +76,17 @@ export default function ReporteClientePage() {
   const [barsData, setBarsData] = useState<MesTotal[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // pieData + color fijo por item
+  const pieWithColors = useMemo(
+    () =>
+      pieData.map((d, i) => ({
+        ...d,
+        color: COLORS[i % COLORS.length],
+      })),
+    [pieData]
+  );
+
+
   useEffect(() => {
     if (!clienteId) return;
     (async () => {
@@ -90,21 +101,34 @@ export default function ReporteClientePage() {
     })();
   }, [clienteId]);
 
-  const total = useMemo(() => pieData.reduce((acc, d) => acc + d.value, 0), [pieData]);
+  //const total = useMemo(() => pieData.reduce((acc, d) => acc + d.value, 0), [pieData]);
 
   const chartData = useMemo(
-    () => pieData.filter(d => d.value > 0).sort((a, b) => b.value - a.value),
-    [pieData]
+    () =>
+      pieWithColors
+        .filter((d) => d.value > 0)
+        .sort((a, b) => b.value - a.value),
+    [pieWithColors]
   );
 
-  const legendPayload: LegendPayload[] = useMemo(() => (
-    pieData.map((d, i) => ({
-      id: d.name,
-      type: "circle" as const,
-      value: `${d.name} ${total ? ((d.value / total) * 100).toFixed(0) : 0}%`,
-      color: COLORS[i % COLORS.length],
-    }))
-  ), [pieData, total]);
+
+  const total = useMemo(
+    () => pieWithColors.reduce((acc, d) => acc + d.value, 0),
+    [pieWithColors]
+  );
+
+  const legendPayload: LegendPayload[] = useMemo(
+    () =>
+      pieWithColors.map((d) => ({
+        id: d.name,
+        type: "circle" as const,
+        value: `${d.name} ${
+          total ? ((d.value / total) * 100).toFixed(0) : 0
+        }%`,
+        color: d.color, // 👈 mismo color que en el Pie
+      })),
+    [pieWithColors, total]
+  );
 
   const bars = useMemo(
     () => barsData.map(item => ({
@@ -154,10 +178,11 @@ export default function ReporteClientePage() {
                   labelLine={false}
                   minAngle={3}
                 >
-                  {chartData.map((_, i) => (
-                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                  {chartData.map((entry) => (
+                    <Cell key={entry.name} fill={entry.color} />
                   ))}
                 </Pie>
+
                 <Tooltip formatter={(v: any) => `${v} inmuebles`} separator=": " />
                 <Legend payload={legendPayload} />
               </PieChart>

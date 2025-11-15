@@ -113,6 +113,35 @@ export default function AdminDashboardPage() {
 
         */}
 
+        <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          
+          
+
+          
+          
+
+          
+          <div className="rounded-xl border border-brand-secondary/20 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <div className="p-2 rounded-lg bg-purple-100">
+                <Users className="h-5 w-5 text-purple-600" />
+              </div>
+              <Typography variant="small" className="text-muted-foreground">
+                Total
+              </Typography>
+            </div>
+            <Typography variant="h2" className="!text-brand-primary mb-1">
+              --
+            </Typography>
+            <Typography variant="small" className="text-muted-foreground">
+              Ejecutivos activos
+            </Typography>
+          </div>
+
+          
+          
+        </section>
+
         {/* DASHBOARD PRINCIPAL */}
         <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
           <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5 border-b border-brand-secondary/10">
