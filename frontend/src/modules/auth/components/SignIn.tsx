@@ -1,6 +1,6 @@
 import { Globe } from "lucide-react";
 import { LoginForm } from "@/modules/auth/components/Login-form";
-import portadaImage from "@/assets/icons/images/GestionGlobalPortada.png";
+import logo from "@/assets/brand/logo.png";
 
 export default function LoginPage() {
   return (
@@ -9,11 +9,13 @@ export default function LoginPage() {
       <div className="flex flex-col gap-4 p-6 md:p-10">
         {/* Logo */}
         <div className="flex justify-center gap-2 md:justify-start">
-          <a className="flex items-center gap-2 font-medium">
-            <div className="bg-brand-primary text-white flex size-8 items-center justify-center rounded-lg">
-              <Globe className="size-5" />
-            </div>
-            <span className="text-brand-secondary font-semibold">
+          <a className="flex items-center gap-3">
+            <img
+              src={logo}
+              alt="Gestión Global ACG"
+              className="h-10 w-10 object-contain rounded-lg"
+            />
+            <span className="text-brand-secondary font-semibold text-lg">
               Gestión Global ACG SAS
             </span>
           </a>
@@ -28,12 +30,14 @@ export default function LoginPage() {
       </div>
 
       {/* RIGHT SIDE - Image */}
-      <div className="relative hidden lg:block bg-muted">
-        <img
-          src={portadaImage}
-          alt="Gestión Global"
-          className="absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
-        />
+      <div className="relative hidden lg:block bg-gradient-to-br from-brand-primary/5 to-brand-secondary/5">
+        <div className="absolute inset-0 flex items-center justify-center p-12">
+          <img
+            src={logo}
+            alt="Gestión Global"
+            className="w-96 h-96 object-contain drop-shadow-2xl"
+          />
+        </div>
       </div>
     </div>
   );
