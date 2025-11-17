@@ -17,6 +17,10 @@ import { Typography } from "@/shared/design-system/components/Typography";
 import { BackButton } from "@/shared/design-system/components/BackButton";
 import { cn } from "@/shared/lib/cn";
 import { toast } from "sonner";
+import { useUsuarioActual } from "@/modules/auth/hooks/useUsuarioActual";
+import { useAcl } from "@/modules/auth/hooks/useAcl";
+import { PERMS } from "@/shared/constants/acl";
+
 
 export default function ClientesCrud() {
   const navigate = useNavigate();
@@ -32,6 +36,35 @@ export default function ClientesCrud() {
   const [activoSel, setActivoSel] = useState<boolean>(true);
   const [q, setQ] = useState("");
 
+  // Roles
+  const { usuario, roles, loading: userLoading } = useUsuarioActual();
+  const { can, loading: aclLoading } = useAcl();
+
+  const isAdmin = roles?.includes("admin") || roles?.includes("ejecutivoAdmin");
+  const isEjecutivo = roles?.includes("ejecutivo");
+  const isClienteOnly = roles?.includes("cliente") && !isAdmin && !isEjecutivo; // cliente puro
+
+  const canView = can(PERMS.Clientes_Read);
+  const canEdit = can(PERMS.Clientes_Edit);
+  // Carga usuarios (para mostrar nombres de cliente)
+  useEffect(() => {
+    // No depende de auth; pero si quieres ahorrar, puedes moverlo después
+    fetchUsuarios();
+  }, []);
+
+  // Carga clientes SOLO cuando ya sepamos quién es (o que definitivamente no hay sesión)
+  useEffect(() => {
+    if (userLoading || aclLoading) return;     // aún cargando contexto
+    if (!roles || (!usuario && !isAdmin)) {
+      // si no hay usuario y no es admin (raro), no dispares fetch
+      return;
+    }
+    fetchClientes();                            // ahora sí
+    // re-filtra si cambian usuario/roles
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userLoading, aclLoading, usuario?.uid, isAdmin, isEjecutivo]);
+
+
   const usuariosMap = useMemo(() => {
     const m: Record<string, UsuarioSistema> = {};
     for (const u of usuarios) if (u.uid) m[u.uid] = u;
@@ -46,12 +79,38 @@ export default function ClientesCrud() {
     return "(Sin usuario)";
   }
 
+
+
   const fetchClientes = async () => {
     setLoading(true);
-    const data = await obtenerClientes();
-    setClientes(Array.isArray(data) ? data : []);
-    setLoading(false);
+    try {
+      const data = await obtenerClientes();
+      let lista = Array.isArray(data) ? data : [];
+
+      // Admin y Ejecutivo Admin: ven todo
+      if (isAdmin) {
+        setClientes(lista);
+        return;
+      }
+
+      // Ejecutivos “puros”: ver solo los asignados
+      if (isEjecutivo && usuario?.uid) {
+        const uid = usuario.uid;
+        lista = lista.filter((c) =>
+          c?.ejecutivoPrejuridicoId === uid ||
+          c?.ejecutivoJuridicoId === uid ||
+          c?.ejecutivoDependienteId === uid
+        );
+      }
+
+      // Clientes no deben ver esta página → el guard ya los bloquea arriba
+      setClientes(lista);
+    } finally {
+      setLoading(false);
+    }
   };
+
+
 
   const fetchUsuarios = async () => {
     const todos = await obtenerUsuarios();
@@ -89,6 +148,16 @@ export default function ClientesCrud() {
     });
   }, [clientes, q, usuariosMap]);
 
+  if (userLoading || aclLoading) {
+    return <div className="p-6 text-muted-foreground">Cargando permisos…</div>;
+  }
+  if (isClienteOnly) {
+    return <div className="p-6">No tienes acceso a esta página.</div>;
+  }
+  if (!can(PERMS.Clientes_Read)) {
+    return <div className="p-6">No tienes permiso para ver clientes.</div>;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30">
       <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
@@ -97,7 +166,6 @@ export default function ClientesCrud() {
           <BackButton
             variant="ghost"
             size="sm"
-            to="/dashboard/admin"  // 👈 Agrega "/" al inicio
             className="text-brand-secondary hover:text-brand-primary hover:bg-brand-primary/5 transition-all"
           />
 

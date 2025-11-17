@@ -3,6 +3,7 @@ import AdminDashboardPage from "@/modules/dashboard/pages/AdminDashboardPage";
 export const ROLES = [
   "admin",
   "ejecutivo",
+  "ejecutivoAdmin",
   "cliente",
   "abogado",
   "deudor",
@@ -12,6 +13,7 @@ export type Rol = (typeof ROLES)[number];
 // Prioridad cuando alguien tiene varios roles (elige su "home")
 export const ROL_PRIORITY: Rol[] = [
   "admin",
+  "ejecutivoAdmin",
   "ejecutivo",
   "abogado",
   "cliente",
@@ -23,6 +25,7 @@ export const DEFAULT_HOME = "/dashboard/cliente" as const;
 
 export const ROLE_HOME: Record<Rol, string> = {
   admin: "/dashboard/admin",
+  ejecutivoAdmin: "/dashboard/ejecutivo",
   ejecutivo: "/dashboard/ejecutivo",
   abogado: "/dashboard/abogado",
   cliente: "/dashboard/cliente",
@@ -45,7 +48,7 @@ export const PERMS = {
   Deudores_Obs_Create: "deudores.observaciones.create",
 
   Valores_Read: "valores.read",
-  Valores_Obs_Create: "valores.observaciones.create", // 👈 crear observaciones en Valores
+  Valores_Obs_Create: "valores.observaciones.create", 
 
   // Seguimientos / Abonos
   Seguimientos_Read: "seguimientos.read",
@@ -61,55 +64,58 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Admin_Read,
     PERMS.Usuarios_Read,
     PERMS.Usuarios_Create,
-
     PERMS.Clientes_Read,
     PERMS.Clientes_Edit,
-
     PERMS.Deudores_Read,
     PERMS.Deudores_Edit,
     PERMS.Deudores_Obs_Create,
-
-    PERMS.Valores_Read,          // 👀 admin solo ve observaciones (NO crea)
-
+    PERMS.Valores_Read, 
     PERMS.Seguimientos_Read,
     PERMS.Seguimientos_Edit,
     PERMS.Abonos_Read,
     PERMS.Abonos_Edit,
   ],
 
-  ejecutivo: [
+  ejecutivoAdmin: [
     PERMS.Clientes_Read,
     PERMS.Clientes_Edit,
-
     PERMS.Deudores_Read,
     PERMS.Deudores_Edit,
     PERMS.Deudores_Obs_Create,
-
     PERMS.Seguimientos_Read,
     PERMS.Seguimientos_Edit,
     PERMS.Abonos_Read,
     PERMS.Abonos_Edit,
+    PERMS.Valores_Read, 
+  ],
 
-    PERMS.Valores_Read,          // 👀 solo ver en Valores
+  ejecutivo: [
+    PERMS.Clientes_Read,
+    PERMS.Clientes_Edit,
+    PERMS.Deudores_Read,
+    PERMS.Deudores_Edit,
+    PERMS.Deudores_Obs_Create,
+    PERMS.Seguimientos_Read,
+    PERMS.Seguimientos_Edit,
+    PERMS.Abonos_Read,
+    PERMS.Abonos_Edit,
+    PERMS.Valores_Read, 
   ],
 
   cliente: [
     PERMS.Clientes_Read,
     PERMS.Deudores_Read,
     PERMS.Deudores_Obs_Create,
-
     PERMS.Seguimientos_Read,
     PERMS.Abonos_Read,
-
-    PERMS.Valores_Read,          // 👀 ver
-    PERMS.Valores_Obs_Create,    // ✍️ único rol que crea observaciones en Valores
+    PERMS.Valores_Read,  
+    PERMS.Valores_Obs_Create,   
   ],
 
   abogado: [
-    PERMS.Valores_Read,          // 👀 solo ver en Valores
+    PERMS.Valores_Read,          
     PERMS.Clientes_Read,
     PERMS.Deudores_Read,
-
     PERMS.Seguimientos_Read,
     PERMS.Abonos_Read,
   ],
