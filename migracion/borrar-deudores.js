@@ -15,6 +15,9 @@ const SERVICE_ACCOUNT_PATH = './serviceAccountKey.json';
 
 // UIDs de clientes a procesar
 const CLIENT_UIDS = [
+'830074930',
+'900153423',
+'900051936',
 '900654612',
 ];
 
