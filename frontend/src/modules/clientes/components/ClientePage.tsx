@@ -2,13 +2,13 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState, useMemo } from "react";
 import { getDoc, doc } from "firebase/firestore";
 import { db } from "@/firebase";
-import { 
-  User, 
-  Users, 
-  FileText, 
-  DollarSign, 
-  TrendingUp,
-  Building2
+import {
+    User,
+    Users,
+    FileText,
+    DollarSign,
+    TrendingUp,
+    Building2
 } from "lucide-react";
 
 import { Cliente } from "@/modules/clientes/models/cliente.model";
@@ -19,10 +19,19 @@ import { Button } from "@/shared/ui/button";
 import { Typography } from "@/shared/design-system/components/Typography";
 import { BackButton } from "@/shared/design-system/components/BackButton";
 import { cn } from "@/shared/lib/cn";
+import { useAcl } from "@/modules/auth/hooks/useAcl";
+import { PERMS } from "@/shared/constants/acl";
+
 
 export default function ClientePage() {
     const { clienteId } = useParams();
     const navigate = useNavigate();
+
+    const { can, loading: aclLoading } = useAcl();
+
+    // Permiso específico para ver el botón de "Recaudos y Deudas"
+    const canViewRecaudos = can(PERMS.Recaudos_Read);
+
 
     const [cliente, setCliente] = useState<Cliente | null>(null);
     const [ejecutivos, setEjecutivos] = useState<UsuarioSistema[]>([]);
@@ -33,7 +42,7 @@ export default function ClientePage() {
     const nombreCliente = useMemo(() => {
         if (cliente?.nombre) return cliente.nombre;
         if (!clienteId) return "Cliente";
-        
+
         const usuario = usuarios.find(u => u.uid === clienteId);
         return usuario?.nombre ?? usuario?.email ?? "Cliente";
     }, [cliente, clienteId, usuarios]);
@@ -52,7 +61,7 @@ export default function ClientePage() {
 
                 const todosUsuarios = await obtenerUsuarios();
                 setUsuarios(todosUsuarios);
-                
+
                 const ejecutivosFiltrados = todosUsuarios.filter(
                     (u) => Array.isArray(u.roles) && u.roles.includes("ejecutivo")
                 );
@@ -68,7 +77,7 @@ export default function ClientePage() {
         cargarDatos();
     }, [clienteId]);
 
-    if (!clienteId || loading) {
+    if (!clienteId || loading || aclLoading) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30 flex items-center justify-center">
                 <div className="text-center">
@@ -80,6 +89,7 @@ export default function ClientePage() {
             </div>
         );
     }
+
 
     if (!cliente) {
         return (
@@ -94,8 +104,8 @@ export default function ClientePage() {
                     <Typography variant="body" className="text-muted mb-4">
                         No se pudo encontrar la información del cliente
                     </Typography>
-                    <Button 
-                        variant="outline" 
+                    <Button
+                        variant="outline"
                         onClick={() => navigate(-1)}
                         className="border-brand-secondary/30"
                     >
@@ -109,12 +119,12 @@ export default function ClientePage() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30">
             <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
-                
+
                 {/* HEADER */}
                 <header className="space-y-4">
                     <div className="flex items-center gap-2">
-                        <BackButton 
-                            variant="ghost" 
+                        <BackButton
+                            variant="ghost"
                             size="sm"
                             to="/clientes-tables"
                             className="text-brand-secondary hover:text-brand-primary hover:bg-brand-primary/5 transition-all"
@@ -141,10 +151,10 @@ export default function ClientePage() {
                         </Typography>
                     </div>
                     <div className="p-4 md:p-5">
-                        <ClienteInfoCard 
-                            cliente={cliente} 
-                            ejecutivos={ejecutivos} 
-                            usuarios={usuarios} 
+                        <ClienteInfoCard
+                            cliente={cliente}
+                            ejecutivos={ejecutivos}
+                            usuarios={usuarios}
                         />
                     </div>
                 </section>
@@ -156,27 +166,30 @@ export default function ClientePage() {
                             Accesos rápidos
                         </Typography>
                     </div>
-                    
+
                     <div className="p-4 md:p-5">
                         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                            {/* Tarjeta: Estado Mensual */}
-                            <button
-                                onClick={() => navigate("estado-mensual")}
-                                className="group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-6 text-left transition-all hover:border-brand-primary hover:shadow-lg hover:-translate-y-1"
-                            >
-                                <div className="absolute top-0 right-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-brand-primary/5 transition-transform group-hover:scale-150" />
-                                <div className="relative">
-                                    <div className="mb-4 inline-flex rounded-lg bg-brand-primary/10 p-3 transition-colors group-hover:bg-brand-primary/20">
-                                        <DollarSign className="h-6 w-6 text-brand-primary" />
+                            {/* Tarjeta: Estado Mensual (solo para admin / ejecutivo / ejecutivoAdmin) */}
+                            {canViewRecaudos && (
+                                <button
+                                    onClick={() => navigate("estado-mensual")}
+                                    className="group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-6 text-left transition-all hover:border-brand-primary hover:shadow-lg hover:-translate-y-1"
+                                >
+                                    <div className="absolute top-0 right-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-brand-primary/5 transition-transform group-hover:scale-150" />
+                                    <div className="relative">
+                                        <div className="mb-4 inline-flex rounded-lg bg-brand-primary/10 p-3 transition-colors group-hover:bg-brand-primary/20">
+                                            <DollarSign className="h-6 w-6 text-brand-primary" />
+                                        </div>
+                                        <Typography variant="h3" className="!text-brand-secondary mb-2">
+                                            Recaudos y Deudas
+                                        </Typography>
+                                        <Typography variant="small" className="text-muted">
+                                            Registra pagos y actualiza el estado mensual
+                                        </Typography>
                                     </div>
-                                    <Typography variant="h3" className="!text-brand-secondary mb-2">
-                                        Recaudos y Deudas
-                                    </Typography>
-                                    <Typography variant="small" className="text-muted">
-                                        Registra pagos y actualiza el estado mensual
-                                    </Typography>
-                                </div>
-                            </button>
+                                </button>
+                            )}
+
 
                             {/* Tarjeta: Ver Deudores */}
                             <button

@@ -55,6 +55,9 @@ export const PERMS = {
   Seguimientos_Edit: "seguimientos.edit",
   Abonos_Read: "abonos.read",
   Abonos_Edit: "abonos.edit",
+
+  //"Recaudos y Deudas"
+  Recaudos_Read: "recaudos.read",
 } as const;
 export type Perm = (typeof PERMS)[keyof typeof PERMS];
 
@@ -74,6 +77,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Seguimientos_Edit,
     PERMS.Abonos_Read,
     PERMS.Abonos_Edit,
+    PERMS.Recaudos_Read,
   ],
 
   ejecutivoAdmin: [
@@ -87,6 +91,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Abonos_Read,
     PERMS.Abonos_Edit,
     PERMS.Valores_Read, 
+    PERMS.Recaudos_Read,
   ],
 
   ejecutivo: [
@@ -100,6 +105,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Abonos_Read,
     PERMS.Abonos_Edit,
     PERMS.Valores_Read, 
+    PERMS.Recaudos_Read,
   ],
 
   cliente: [

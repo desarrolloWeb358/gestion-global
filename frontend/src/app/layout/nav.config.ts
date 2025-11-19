@@ -37,12 +37,12 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Administrador", 
     icon: IconLayoutDashboard,
     roles: ["admin"] 
-  },
+  },  
   { 
     to: "/dashboard/ejecutivo", 
     label: "Ejecutivo", 
     icon: IconLayoutDashboard,
-    roles: ["ejecutivo"] 
+    roles: ["ejecutivo", "ejecutivoAdmin"] 
   },
   { 
     to: "/dashboard/abogado", 
@@ -80,7 +80,7 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/clientes-tables", 
     label: "Clientes", 
     icon: IconBriefcase, 
-    roles: ["admin", "ejecutivo", "abogado"] 
+    roles: ["admin", "ejecutivo", "ejecutivoAdmin", "abogado"] 
   },
 
   // ========================================
