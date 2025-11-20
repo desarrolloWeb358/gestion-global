@@ -29,7 +29,7 @@ export async function obtenerReporteDeudoresPorAnio(
     for (let m = 1; m <= 12; m++) rec[String(m).padStart(2, "0")] = 0;
 
     // 👇 este campo ahora será "Por Recaudar"
-    let capitalEnero = 0;
+    let porRecaudar = 0;
     let ultimoMesConDatos: string | null = null; // "YYYY-MM"
 
     estadosSnap.forEach((mDoc) => {
@@ -57,7 +57,7 @@ export async function obtenerReporteDeudoresPorAnio(
       if (tieneDatos) {
         if (!ultimoMesConDatos || mesId > ultimoMesConDatos) {
           ultimoMesConDatos = mesId;
-          capitalEnero = Number.isFinite(deudaNum) ? deudaNum : 0;
+          porRecaudar = Number.isFinite(deudaNum) ? deudaNum : 0;
         }
       }
     });
@@ -69,7 +69,7 @@ export async function obtenerReporteDeudoresPorAnio(
       inmueble,
       nombre,
       // 👇 ahora significa "Por Recaudar" (último mes con datos)
-      capitalEnero,
+      porRecaudar,
       rec_01: rec["01"],
       rec_02: rec["02"],
       rec_03: rec["03"],

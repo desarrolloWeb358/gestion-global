@@ -171,7 +171,7 @@ export default function TablaDeudoresReporte({ clienteId }: { clienteId: string 
                     className="px-3 py-2 text-right whitespace-nowrap border-r border-gray-200"
                     style={{ minWidth: W_CAPITAL }}
                   >
-                    {formatCOP(r.capitalEnero)}
+                    {formatCOP(r.porRecaudar)}
                   </td>
 
                   {/* Meses */}

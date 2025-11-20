@@ -10,7 +10,7 @@ export function exportarExcel(rows: FilaReporte[], year: number, nombreArchivo =
   ];
 
   const data = rows.map(r => ([
-    r.tipificacion, r.inmueble, r.nombre, r.capitalEnero,
+    r.tipificacion, r.inmueble, r.nombre, r.porRecaudar,
     r.rec_01, r.rec_02, r.rec_03, r.rec_04, r.rec_05, r.rec_06,
     r.rec_07, r.rec_08, r.rec_09, r.rec_10, r.rec_11, r.rec_12,
     r.recaudoTotal,

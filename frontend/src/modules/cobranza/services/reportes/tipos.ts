@@ -3,7 +3,8 @@ export type FilaReporte = {
   inmueble: string;      // p.ej. "14-501"
   nombre: string;
 
-  capitalEnero: number;  // deuda (campo 'deuda') del doc "YYYY-01"
+  porRecaudar: number;  // deuda (campo 'deuda') del doc "YYYY-01"
+  
 
   rec_01: number; rec_02: number; rec_03: number; rec_04: number;
   rec_05: number; rec_06: number; rec_07: number; rec_08: number;
