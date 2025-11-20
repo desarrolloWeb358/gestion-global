@@ -19,6 +19,7 @@ import { BackButton } from "@/shared/design-system/components/BackButton";
 interface FilaEstadoBase {
   deudorId: string;
   nombre: string;
+  ubicacion: string;
   porcentajeHonorarios: string;
   deuda: string;
   recaudo: string;
@@ -96,6 +97,7 @@ export default function EstadosMensualesInputMasivo() {
         const nuevasFilas: FilaEstadoBase[] = deudores.map((d) => ({
           deudorId: d.id!,
           nombre: d.nombre || "Sin nombre",
+          ubicacion: d.ubicacion || "",
           porcentajeHonorarios: "15",
           deuda: "",
           recaudo: "",
@@ -302,6 +304,7 @@ export default function EstadosMensualesInputMasivo() {
                 <TableHeader className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5">
                   <TableRow className="border-brand-secondary/10 hover:bg-transparent">
                     <TableHead className="text-brand-secondary font-semibold">Deudor</TableHead>
+                    <TableHead className="text-brand-secondary font-semibold">Ubicación</TableHead>
                     <TableHead className="text-right text-brand-secondary font-semibold w-[180px]">
                       Deuda
                     </TableHead>
@@ -326,6 +329,9 @@ export default function EstadosMensualesInputMasivo() {
                     >
                       <TableCell className="font-medium text-gray-700">
                         {fila.nombre}
+                      </TableCell>
+                      <TableCell className="font-medium text-gray-700">
+                        {fila.ubicacion}
                       </TableCell>
                       <TableCell>
                         <Input

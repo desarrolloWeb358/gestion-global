@@ -182,7 +182,7 @@ export default function DeudorDetailPage() {
                 <User className="h-6 w-6 text-brand-primary" />
               </div>
               <Typography variant="h1" className="!text-brand-primary font-bold">
-                {deudor.nombre}
+                {deudor.nombre} - {deudor.ubicacion}
               </Typography>
             </div>
             <Typography variant="body" className="text-muted-foreground ml-12">
