@@ -44,7 +44,11 @@ import { obtenerRecaudosMensuales, MesTotal } from "../../services/reportes/reca
 
 const COLORS = ["#4F46E5", "#22C55E", "#F59E0B", "#06B6D4", "#EF4444", "#6366F1", "#10B981", "#F43F5E"];
 
-
+const DETALLE_VISIBLE_ROWS = 10;
+const DETALLE_ROW_H = 44;      // alto aproximado de cada fila
+const DETALLE_HEADER_H = 40;   // alto del encabezado
+const DETALLE_CONTAINER_H =
+  DETALLE_HEADER_H + DETALLE_ROW_H * DETALLE_VISIBLE_ROWS;
 
 
 // Tick de eje X rotado -45°
@@ -131,6 +135,18 @@ export default function ReporteClientePage() {
     [pieData]
   );
 
+  const totalesDetalle = useMemo(() => {
+    return detalleTip.reduce(
+      (acc, fila) => {
+        acc.inmuebles += 1; // cada fila es un inmueble
+        acc.recaudoTotal += fila.recaudoTotal;
+        acc.porRecuperar += fila.porRecuperar;
+        return acc;
+      },
+      { inmuebles: 0, recaudoTotal: 0, porRecuperar: 0 }
+    );
+  }, [detalleTip]);
+
 
   useEffect(() => {
     if (!clienteId) return;
@@ -204,16 +220,18 @@ export default function ReporteClientePage() {
   );
 
   const legendPayload: LegendPayload[] = useMemo(
-    () =>
-      pieWithColors.map((d) => ({
+  () =>
+    pieWithColors
+      .filter(d => d.value > 0)   // 👈 oculta los que están en 0
+      .map((d) => ({
         id: d.name,
         type: "circle" as const,
-        value: `${d.name} ${total ? ((d.value / total) * 100).toFixed(0) : 0
-          }%`,
-        color: d.color, // 👈 mismo color que en el Pie
+        value: `${d.name} ${total ? ((d.value / total) * 100).toFixed(0) : 0}%`,
+        color: d.color,
       })),
-    [pieWithColors, total]
-  );
+  [pieWithColors, total]
+);
+
 
   const bars = useMemo(
     () => barsData.map(item => ({
@@ -239,6 +257,8 @@ export default function ReporteClientePage() {
     );
   }
 
+
+
   return (
     <div className="p-4 space-y-6">
       <h2 className="text-xl font-semibold tracking-tight">Reporte de cliente</h2>
@@ -261,7 +281,7 @@ export default function ReporteClientePage() {
                     Tipificación
                   </TableHead>
                   <TableHead className="text-right font-semibold">
-                    Inmuebles
+                    Inmueble
                   </TableHead>
                   <TableHead className="text-right font-semibold">
                     Recaudo total
@@ -280,7 +300,7 @@ export default function ReporteClientePage() {
                     <TableCell className="text-right">
                       {fila.inmuebles.toLocaleString("es-CO")}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right text-red-600 font-semibold">
                       {formatCOP(fila.recaudoTotal)}
                     </TableCell>
                     <TableCell className="text-right">
@@ -344,7 +364,7 @@ export default function ReporteClientePage() {
       {/* Debajo: Recaudo mensual ocupa toda la fila */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Recaudo mensual (total cliente)</CardTitle>
+          <CardTitle className="text-base">Recaudo mes a mes</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-[340px]">
@@ -376,6 +396,18 @@ export default function ReporteClientePage() {
           </div>
         </CardContent>
       </Card>
+
+
+
+
+      {/* Sección de tabla de deudores */}
+      {clienteId && (
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold">Tabla de deudores (año)</h3>
+          <TablaDeudoresReporte clienteId={clienteId} />
+        </div>
+      )}
+
 
       {/* Detalle de deudores por tipificación */}
       <Card>
@@ -436,16 +468,24 @@ export default function ReporteClientePage() {
                   No hay deudores para esta tipificación.
                 </p>
               ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
+                <div
+                  className="border rounded overflow-y-auto"
+                  style={{
+                    // si hay más de 10 → altura fija
+                    // si hay 10 o menos → altura automática
+                    height:
+                      detalleTip.length > DETALLE_VISIBLE_ROWS
+                        ? DETALLE_CONTAINER_H
+                        : "auto",
+                    maxHeight: DETALLE_CONTAINER_H,
+                  }}
+                >
+                  <Table className="w-full">
+                    {/* Header sticky */}
+                    <TableHeader className="sticky top-0 z-10 bg-background">
                       <TableRow className="bg-muted/60">
-                        <TableHead className="w-24 font-semibold">
-                          Ubicación
-                        </TableHead>
-                        <TableHead className="font-semibold">
-                          Deudor
-                        </TableHead>
+                        <TableHead className="w-24 font-semibold">Ubicación</TableHead>
+                        <TableHead className="font-semibold">Deudor</TableHead>
                         <TableHead className="text-right font-semibold">
                           Recaudo total
                         </TableHead>
@@ -454,12 +494,16 @@ export default function ReporteClientePage() {
                         </TableHead>
                       </TableRow>
                     </TableHeader>
+
                     <TableBody>
                       {detalleTip.map((fila) => (
-                        <TableRow key={fila.deudorId}>
+                        <TableRow
+                          key={fila.deudorId}
+                          style={{ height: DETALLE_ROW_H }}
+                        >
                           <TableCell>{fila.ubicacion}</TableCell>
                           <TableCell>{fila.nombre}</TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="text-right text-red-600 font-semibold">
                             {formatCOP(fila.recaudoTotal)}
                           </TableCell>
                           <TableCell className="text-right">
@@ -467,23 +511,32 @@ export default function ReporteClientePage() {
                           </TableCell>
                         </TableRow>
                       ))}
+
+                      {/* FILA TOTAL */}
+                      <TableRow
+                        className="bg-muted/40 font-semibold"
+                        style={{ height: DETALLE_ROW_H }}
+                      >
+                        <TableCell>Total</TableCell>
+                        <TableCell className="text-right">
+                          {totalesDetalle.inmuebles}
+                        </TableCell>
+                        <TableCell className="text-right text-red-600">
+                          {formatCOP(totalesDetalle.recaudoTotal)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {formatCOP(totalesDetalle.porRecuperar)}
+                        </TableCell>
+                      </TableRow>
                     </TableBody>
                   </Table>
                 </div>
+
               )}
             </>
           )}
         </CardContent>
       </Card>
-
-
-      {/* Sección de tabla de deudores */}
-      {clienteId && (
-        <div className="space-y-2">
-          <h3 className="text-lg font-semibold">Tabla de deudores (año)</h3>
-          <TablaDeudoresReporte clienteId={clienteId} />
-        </div>
-      )}
     </div>
   );
 }

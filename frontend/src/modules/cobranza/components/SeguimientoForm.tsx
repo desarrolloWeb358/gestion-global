@@ -64,7 +64,7 @@ function humanize(val?: string) {
 }
 
 function defaultDestinoFromTipificacion(t?: TipificacionDeuda): DestinoColeccion {
-  if (t === TipificacionDeuda.DEMANDA || t === TipificacionDeuda.DEMANDAACUERDO) {
+  if (t === TipificacionDeuda.DEMANDA || t === TipificacionDeuda.DEMANDA_ACUERDO) {
     return "seguimientoJuridico";
   }
   return "seguimiento";

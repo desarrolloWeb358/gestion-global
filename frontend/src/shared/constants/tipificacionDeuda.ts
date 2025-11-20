@@ -4,6 +4,9 @@ export enum TipificacionDeuda {
   ACUERDO = "Acuerdo",
   GESTIONANDO = "Gestionando",
   DEMANDA = "Demanda",
-  DEMANDAACUERDO = "Demanda/Acuerdo",
+  DEMANDA_ACUERDO = "Demanda/Acuerdo",
+  DEMANDA_TERMINADO = "Demanda/Terminado",
   INACTIVO = "Inactivo",
+  PREJURIDICO_INSOLVENCIA = "Prejurídico/Insolvencia",
+  DEMANDA_INSOLVENCIA = "Demanda/Insolvencia",
 }

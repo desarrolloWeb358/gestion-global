@@ -58,8 +58,11 @@ function normalizeTipificacion(input: unknown): TipificacionDeuda {
     "acuerdo": TipificacionDeuda.ACUERDO,
     "acuerdo de pago": TipificacionDeuda.ACUERDO,
     "demanda": TipificacionDeuda.DEMANDA,
-    "demanda/acuerdo": TipificacionDeuda.DEMANDAACUERDO,
-    "acuerdo demanda": TipificacionDeuda.DEMANDAACUERDO,
+    "demanda/acuerdo": TipificacionDeuda.DEMANDA_ACUERDO,
+    "acuerdo demanda": TipificacionDeuda.DEMANDA_ACUERDO,
+    "demanda terminado": TipificacionDeuda.DEMANDA_TERMINADO,
+    "prejurídico/insolvencia": TipificacionDeuda.PREJURIDICO_INSOLVENCIA,
+    "demanda/insolvencia": TipificacionDeuda.DEMANDA_INSOLVENCIA,
     "devuelto": TipificacionDeuda.DEVUELTO,
     "terminado": TipificacionDeuda.TERMINADO,
   };

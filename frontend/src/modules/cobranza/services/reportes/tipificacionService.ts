@@ -35,11 +35,15 @@ export const CATEGORIAS: TipificacionKey[] = [
   TipificacionDeuda.ACUERDO,
   TipificacionDeuda.GESTIONANDO,
   TipificacionDeuda.DEMANDA,
-  TipificacionDeuda.DEMANDAACUERDO,
+  TipificacionDeuda.DEMANDA_ACUERDO,
+  TipificacionDeuda.DEMANDA_TERMINADO,
+  TipificacionDeuda.PREJURIDICO_INSOLVENCIA,
+  TipificacionDeuda.DEMANDA_INSOLVENCIA,
   // TipificacionDeuda.INACTIVO,
 ];
 
 // --- helper interno para normalizar la tipificación de un deudor ---
+/*
 function normalizarTipificacion(rawTip?: string): TipificacionKey {
   const raw = String(rawTip ?? "").trim();
 
@@ -52,7 +56,7 @@ function normalizarTipificacion(rawTip?: string): TipificacionKey {
   const upper = raw.toUpperCase();
 
   if (upper.includes("DEMANDA") && upper.includes("ACUERDO")) {
-    return TipificacionDeuda.DEMANDAACUERDO;
+    return TipificacionDeuda.DEMANDA_ACUERDO;
   } else if (upper.includes("GESTION")) {
     return TipificacionDeuda.GESTIONANDO;
   } else if (upper.includes("DEVUEL")) {
@@ -68,6 +72,7 @@ function normalizarTipificacion(rawTip?: string): TipificacionKey {
   // default
   return TipificacionDeuda.GESTIONANDO;
 }
+  */
 
 /**
  * Lee clientes/{clienteId}/deudores y cuenta por 'tipificacion'
@@ -83,7 +88,8 @@ export async function contarTipificacionPorCliente(
 
   snap.forEach((doc) => {
     const data = doc.data() as { tipificacion?: string };
-    const cat = normalizarTipificacion(data.tipificacion);
+    //const cat = normalizarTipificacion(data.tipificacion);
+    const cat = data.tipificacion as TipificacionKey;
     counts.set(cat, (counts.get(cat) || 0) + 1);
   });
 
@@ -122,7 +128,8 @@ export async function obtenerResumenPorTipificacion(
   // primero definimos deudores con su categoría normalizada
   const deudores = deudoresSnap.docs.map((doc) => {
     const data = doc.data() as { tipificacion?: string };
-    const cat = normalizarTipificacion(data.tipificacion);
+    //const cat = normalizarTipificacion(data.tipificacion);
+    const cat = data.tipificacion as TipificacionKey;
     // ya contamos el inmueble
     const acc = acumulado.get(cat)!;
     acc.inmuebles += 1;
@@ -206,7 +213,8 @@ export async function obtenerDetalleDeudoresPorTipificacion(
         ubicacion?: string;
       };
 
-      const cat = normalizarTipificacion(data.tipificacion);
+      //const cat = normalizarTipificacion(data.tipificacion);
+      const cat = data.tipificacion as TipificacionKey;
 
       if (cat !== tipificacion) return null;
 

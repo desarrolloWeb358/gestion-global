@@ -68,7 +68,16 @@ export default function TablaDeudoresReporte({ clienteId }: { clienteId: string 
       </div>
 
       {/* Tabla con scroll: EXACTAMENTE 10 filas visibles */}
-      <div className="overflow-auto border rounded" style={{ height: CONTAINER_H }}>
+      <div
+  className="overflow-auto border rounded"
+  style={{
+    // Si tiene más de 10 registros → height fija
+    // Si tiene 10 o menos → height auto
+    height: rows.length > VISIBLE_ROWS ? CONTAINER_H : "auto",
+    maxHeight: CONTAINER_H, 
+  }}
+>
+
         {/* border-collapse evita espacios fantasma */}
         <table className="min-w-[1750px] w-full text-sm table-fixed border-collapse">
           <thead>
