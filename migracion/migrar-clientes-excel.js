@@ -23,6 +23,7 @@ const NAME_TO_UID = {
   javier: "ZdHbDZk1iAfs537M8kSEwls6b8K2",
   jeimmy: "AM5OrR7UlQgUNPDMkmFDCSNUsv43",
   diego: "WgnPyseUC0WygnBkAL9loZwpYmv2",
+  sara: "Jy9NtfWSNRPYBBwQOiRA540W4m23",
 };
 
 // Normaliza y toma el PRIMER nombre

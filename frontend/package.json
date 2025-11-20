@@ -34,6 +34,7 @@
     "@tabler/icons-react": "^3.34.0",
     "@tailwindcss/vite": "^4.1.10",
     "@tanstack/react-query": "^5.72.0",
+    "@tanstack/react-table": "^8.21.3",
     "ag-grid-community": "^33.3.0",
     "ag-grid-react": "^33.3.0",
     "apexcharts": "^4.1.0",

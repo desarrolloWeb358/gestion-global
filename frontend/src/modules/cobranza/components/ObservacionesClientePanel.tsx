@@ -2,6 +2,7 @@
 import * as React from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { getAuth } from "firebase/auth";
 
 import { Button } from "@/shared/ui/button";
 import {
@@ -110,6 +111,8 @@ export default function SeguimientoTable() {
   const [seleccionado, setSeleccionado] = React.useState<Seguimiento | undefined>(undefined);
   const [deleteId, setDeleteId] = React.useState<string | null>(null);
 
+  const auth = getAuth();
+
   // ===== refresco jurídico =====
   const [refreshJuridicoKey, setRefreshJuridicoKey] = React.useState(0);
 
@@ -169,9 +172,15 @@ export default function SeguimientoTable() {
     }
 
     try {
+
+      const uidUsuario = auth.currentUser?.uid;
+      if (!uidUsuario) {
+        toast.error("No se pudo obtener el usuario autenticado.");
+        return;
+      }
       if (seleccionado?.id) {
         if (destino === "seguimientoJuridico") {
-          await addSeguimientoJuridico(clienteId, deudorId, data, archivo);
+          await addSeguimientoJuridico(uidUsuario, clienteId, deudorId, data, archivo);
           await deleteSeguimiento(clienteId, deudorId, seleccionado.id);
           setRefreshJuridicoKey((k) => k + 1);
         } else {
@@ -186,10 +195,10 @@ export default function SeguimientoTable() {
         }
       } else {
         if (destino === "seguimientoJuridico") {
-          await addSeguimientoJuridico(clienteId, deudorId, data, archivo);
+          await addSeguimientoJuridico(uidUsuario, clienteId, deudorId, data, archivo);
           setRefreshJuridicoKey((k) => k + 1);
         } else {
-          await addSeguimiento(clienteId, deudorId, data, archivo);
+          await addSeguimiento(uidUsuario, clienteId, deudorId, data, archivo);
         }
       }
 

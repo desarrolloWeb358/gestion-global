@@ -33,6 +33,7 @@ const EJECUTIVOS_UID = {
   nicoll: "FWn2ELTvlSSDxnrvoAkBGewzBr43",
   laura: "TkBWDCsUzjNCwdu5q8cXciSQqmQ2",
   diego: "WgnPyseUC0WygnBkAL9loZwpYmv2",
+  sara: "Jy9NtfWSNRPYBBwQOiRA540W4m23",
   // agrega más si aparecen en tu Excel...
 };
 
