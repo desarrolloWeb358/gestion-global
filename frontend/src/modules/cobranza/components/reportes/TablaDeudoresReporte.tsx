@@ -106,7 +106,7 @@ export default function TablaDeudoresReporte({ clienteId }: { clienteId: string 
                 className="sticky top-0 z-30 px-3 py-2 text-right bg-background border-b border-r border-gray-200"
                 style={{ minWidth: W_CAPITAL }}
               >
-                Capital Ene
+                Por Recaudar
               </th>
 
               {MESES.map((m) => (

@@ -1,30 +1,31 @@
+// src/modules/cobranza/services/reportes/tipificacionService.ts
+
 import { db } from "@/firebase";
 import { collection, getDocs } from "firebase/firestore";
+import { TipificacionDeuda } from "../../../../shared/constants/tipificacionDeuda"; 
+// ^ ajusta la ruta según donde tengas el enum
 
-export type TipificacionKey =
-  | "Demanda"
-  | "Demanda/Acuerdo"
-  | "Gestionando"
-  | "Acuerdo"
-  | "Terminado"
-  | "Devuelto";
-
-const CATEGORIAS: TipificacionKey[] = [
-  "Demanda",
-  "Demanda/Acuerdo",
-  "Gestionando",
-  "Acuerdo",
-  "Terminado",
-  "Devuelto",
-];
+// Usamos los valores del enum como tipo
+export type TipificacionKey = TipificacionDeuda;
 
 export interface PieItem {
-  name: string;
+  name: TipificacionKey;
   value: number;
 }
 
+// Solo las categorías que quieres graficar (puedes incluir INACTIVO si quieres)
+const CATEGORIAS: TipificacionKey[] = [
+  TipificacionDeuda.DEVUELTO,
+  TipificacionDeuda.TERMINADO,
+  TipificacionDeuda.ACUERDO,
+  TipificacionDeuda.GESTIONANDO,
+  TipificacionDeuda.DEMANDA,
+  TipificacionDeuda.DEMANDAACUERDO,
+  // TipificacionDeuda.INACTIVO, // si algún día lo quieres mostrar
+];
+
 /**
- * Lee clientes/{clienteId}/inmuebles y cuenta por 'tipificacion'
+ * Lee clientes/{clienteId}/deudores y cuenta por 'tipificacion'
  */
 export async function contarTipificacionPorCliente(
   clienteId: string
@@ -37,19 +38,40 @@ export async function contarTipificacionPorCliente(
 
   snap.forEach((doc) => {
     const data = doc.data() as { tipificacion?: string };
-    const raw = (data.tipificacion || "").toUpperCase().trim();
 
-    // Normaliza variantes comunes (ajusta si tienes nombres distintos)
-    let cat: TipificacionKey | undefined = CATEGORIAS.find((c) => c === raw);
-    if (!cat && raw.includes("Demanda") && raw.includes("Acuerdo")) cat = "Demanda/Acuerdo";
-    if (!cat && raw.includes("GESTION")) cat = "Gestionando";
-    if (!cat && raw.includes("DEVUEL")) cat = "Devuelto";
-    if (!cat && raw.includes("ACUERD")) cat = "Acuerdo";
-    if (!cat && raw.includes("TERMIN")) cat = "Terminado";
-    if (!cat && raw === "Demanda") cat = "Demanda";
+    const raw = String(data.tipificacion ?? "").trim();
 
-    counts.set((cat ?? "Gestionando"), (counts.get(cat ?? "Gestionando") || 0) + 1);
+    let cat: TipificacionKey | undefined;
+
+    // 1) Si el valor en BD ya coincide EXACTO con algún valor del enum
+    if (Object.values(TipificacionDeuda).includes(raw as TipificacionDeuda)) {
+      cat = raw as TipificacionKey;
+    } else {
+      // 2) Fallback por si hay valores viejos/variantes
+      const upper = raw.toUpperCase();
+
+      if (upper.includes("DEMANDA") && upper.includes("ACUERDO")) {
+        cat = TipificacionDeuda.DEMANDAACUERDO;
+      } else if (upper.includes("GESTION")) {
+        cat = TipificacionDeuda.GESTIONANDO;
+      } else if (upper.includes("DEVUEL")) {
+        cat = TipificacionDeuda.DEVUELTO;
+      } else if (upper.includes("ACUERD")) {
+        cat = TipificacionDeuda.ACUERDO;
+      } else if (upper.includes("TERMIN")) {
+        cat = TipificacionDeuda.TERMINADO;
+      } else if (upper.includes("DEMANDA")) {
+        cat = TipificacionDeuda.DEMANDA;
+      }
+    }
+
+    const finalCat = cat ?? TipificacionDeuda.GESTIONANDO; // default
+
+    counts.set(finalCat, (counts.get(finalCat) || 0) + 1);
   });
 
-  return CATEGORIAS.map((name) => ({ name, value: counts.get(name) || 0 }));
+  return CATEGORIAS.map((name) => ({
+    name,
+    value: counts.get(name) || 0,
+  }));
 }

@@ -38,12 +38,16 @@ export const NAV_ITEMS: NavItem[] = [
     icon: IconLayoutDashboard,
     roles: ["admin"] 
   },  
+  // (POR AHORA) SIN DASHBOARD PARA EJECUTIVO
+  // Descomentar cuando quieras volver a mostrarlo en el menú
+  /*
   { 
     to: "/dashboard/ejecutivo", 
     label: "Ejecutivo", 
     icon: IconLayoutDashboard,
     roles: ["ejecutivo", "ejecutivoAdmin"] 
   },
+  */
   { 
     to: "/dashboard/abogado", 
     label: "Abogado", 
