@@ -47,6 +47,8 @@
     "firebase": "^11.6.0",
     "flatpickr": "^4.6.13",
     "html2canvas": "^1.4.1",
+    "jspdf": "^3.0.4",
+    "jspdf-autotable": "^5.0.2",
     "jspreadsheet-ce": "^5.0.2",
     "lucide-react": "^0.514.0",
     "react": "^19.1.0",

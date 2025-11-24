@@ -1,0 +1,204 @@
+import React, { useEffect, useRef, CSSProperties } from 'react';
+
+interface RotatingEarthProps {
+  size?: number;
+  rotationSpeed?: number;
+  showStars?: boolean;
+  className?: string;
+  logoUrl?: string;
+}
+
+const RotatingEarth: React.FC<RotatingEarthProps> = ({
+  size = 400,
+  rotationSpeed = 20,
+  showStars = true,
+  className = '',
+  logoUrl,
+}) => {
+  const starsContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (showStars && starsContainerRef.current) {
+      const fragment = document.createDocumentFragment();
+      
+      for (let i = 0; i < 200; i++) {
+        const star = document.createElement('div');
+        Object.assign(star.style, {
+          position: 'absolute',
+          width: '2px',
+          height: '2px',
+          background: 'white',
+          borderRadius: '50%',
+          left: `${Math.random() * 100}%`,
+          top: `${Math.random() * 100}%`,
+          animation: `twinkle-${i} 3s ease-in-out infinite`,
+          animationDelay: `${Math.random() * 3}s`,
+          opacity: `${Math.random() * 0.7 + 0.3}`,
+        });
+        fragment.appendChild(star);
+      }
+      
+      starsContainerRef.current.appendChild(fragment);
+    }
+  }, [showStars]);
+
+  const wrapperStyle: CSSProperties = {
+    position: 'relative',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    height: '100%',
+  };
+
+  const starsStyle: CSSProperties = {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    top: 0,
+    left: 0,
+    pointerEvents: 'none',
+  };
+
+  const containerStyle: CSSProperties = {
+    position: 'relative',
+    width: `${size}px`,
+    height: `${size}px`,
+    perspective: '1000px',
+  };
+
+  const atmosphereStyle: CSSProperties = {
+    position: 'absolute',
+    width: '110%',
+    height: '110%',
+    top: '-5%',
+    left: '-5%',
+    borderRadius: '50%',
+    background: 'radial-gradient(circle, transparent 70%, rgba(100, 180, 255, 0.2) 85%, transparent 100%)',
+    animation: 'pulse 4s ease-in-out infinite',
+  };
+
+  const earthStyle: CSSProperties = {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    borderRadius: '50%',
+    background: 'radial-gradient(circle at 30% 30%, #4a90e2, #2c5f9e, #1a3a5c)',
+    boxShadow: `
+      inset -40px -40px 80px rgba(0, 0, 0, 0.5),
+      inset 20px 20px 40px rgba(255, 255, 255, 0.1),
+      0 0 100px rgba(74, 144, 226, 0.3)
+    `,
+    animation: `rotate-earth ${rotationSpeed}s linear infinite`,
+    transformStyle: 'preserve-3d',
+    overflow: 'hidden',
+  };
+
+  const logoOverlayStyle: CSSProperties = {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    borderRadius: '50%',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2,
+  };
+
+  const logoStyle: CSSProperties = {
+    width: '60%',
+    height: 'auto',
+    opacity: 0.7,
+    filter: 'drop-shadow(0 0 10px rgba(255, 255, 255, 0.5))',
+  };
+
+  const continentsStyle: CSSProperties = {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
+    borderRadius: '50%',
+    backgroundImage: `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400"><defs><style>.land{fill:%23ffffff;opacity:0.15;}</style></defs><g class="land"><path d="M180,120 Q200,100 220,110 L230,120 Q240,130 230,145 L220,155 Q210,165 195,160 L180,150 Q170,140 180,120 Z"/><path d="M100,180 Q120,170 140,180 L150,190 Q160,200 150,215 L140,225 Q130,235 115,230 L100,220 Q90,210 100,180 Z"/><path d="M280,160 Q295,155 305,165 L310,175 Q315,185 310,195 L300,205 Q290,210 280,205 L270,195 Q265,185 280,160 Z"/><path d="M150,240 Q165,235 175,245 L180,255 Q185,265 180,275 L170,285 Q160,290 150,285 L140,275 Q135,265 150,240 Z"/><ellipse cx="200" cy="80" rx="25" ry="15" transform="rotate(-15 200 80)"/><ellipse cx="320" cy="200" rx="30" ry="20" transform="rotate(20 320 200)"/><path d="M90,280 Q100,275 110,280 L115,290 Q120,300 110,310 L100,315 Q90,320 85,310 L80,300 Q75,290 90,280 Z"/></g></svg>')`,
+    backgroundSize: '400% 400%',
+    animation: 'move-map 40s linear infinite',
+  };
+
+  const cloudsStyle: CSSProperties = {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    borderRadius: '50%',
+    backgroundImage: `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400"><defs><filter id="blur"><feGaussianBlur stdDeviation="3"/></filter></defs><g fill="white" opacity="0.15" filter="url(%23blur)"><ellipse cx="100" cy="120" rx="40" ry="15"/><ellipse cx="250" cy="180" rx="50" ry="20"/><ellipse cx="150" cy="280" rx="35" ry="12"/><ellipse cx="320" cy="240" rx="45" ry="18"/></g></svg>')`,
+    backgroundSize: '400% 400%',
+    animation: 'move-clouds 30s linear infinite',
+    opacity: 0.6,
+  };
+
+  const shineStyle: CSSProperties = {
+    position: 'absolute',
+    top: '-50%',
+    left: '-50%',
+    width: '200%',
+    height: '200%',
+    borderRadius: '50%',
+    background: 'radial-gradient(circle at 70% 70%, transparent 30%, rgba(255, 255, 255, 0.05) 40%, transparent 50%)',
+    animation: 'shine 10s ease-in-out infinite',
+  };
+
+  return (
+    <>
+      <style>{`
+        @keyframes rotate-earth {
+          0% { transform: rotateY(0deg); }
+          100% { transform: rotateY(360deg); }
+        }
+
+        @keyframes move-map {
+          0% { background-position: 0% 0%; }
+          100% { background-position: 100% 0%; }
+        }
+
+        @keyframes move-clouds {
+          0% { background-position: 0% 0%; }
+          100% { background-position: 100% 0%; }
+        }
+
+        @keyframes shine {
+          0%, 100% { opacity: 0.3; }
+          50% { opacity: 0.6; }
+        }
+
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); opacity: 0.5; }
+          50% { transform: scale(1.05); opacity: 0.8; }
+        }
+
+        @keyframes twinkle {
+          0%, 100% { opacity: 0.3; }
+          50% { opacity: 1; }
+        }
+      `}</style>
+
+      <div style={wrapperStyle} className={className}>
+        {showStars && <div style={starsStyle} ref={starsContainerRef} />}
+        
+        <div style={containerStyle}>
+          <div style={atmosphereStyle} />
+          <div style={earthStyle}>
+            <div style={continentsStyle} />
+            <div style={cloudsStyle} />
+            <div style={shineStyle} />
+          </div>
+          {logoUrl && (
+            <div style={logoOverlayStyle}>
+              <img src={logoUrl} alt="Logo" style={logoStyle} />
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+};
+
+export default RotatingEarth;

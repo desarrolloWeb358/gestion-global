@@ -167,6 +167,7 @@ export async function crearDeudor(clienteId: string, data: DeudorCreateInput): P
     telefonos: data.telefonos ?? [],
     porcentajeHonorarios: data.porcentajeHonorarios ?? 15,
     tipificacion: data.tipificacion ?? TipificacionDeuda.GESTIONANDO,
+    
   };
   const docRef = await addDoc(ref, payload);
   return docRef.id;
@@ -203,13 +204,11 @@ export async function actualizarDeudorDatos(
   deudorId: string,
   patch: DeudorPatch
 ): Promise<void> {
-  // Tipamos el ref al documento
   const ref = doc(
     db,
     `clientes/${clienteId}/deudores/${deudorId}`
   ) as DocumentReference<DeudorDoc>;
 
-  // Quitamos undefined, y lo tipamos a UpdateData<DeudorDoc>
   const sanitized = Object.fromEntries(
     Object.entries(patch).filter(([, v]) => v !== undefined)
   ) as UpdateData<DeudorDoc>;

@@ -4,13 +4,28 @@ import { useEffect, useState } from "react";
 import {
   obtenerEstadosMensuales,
   upsertEstadoMensualPorMes,
+  eliminarEstadoMensual,
 } from "../services/estadoMensualService";
 import { EstadoMensual } from "../models/estadoMensual.model";
-import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/shared/ui/dialog";
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/shared/ui/dialog";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
 import { Button } from "@/shared/ui/button";
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/shared/ui/table";
+import {
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
+} from "@/shared/ui/table";
 import { toast } from "sonner";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { PERMS } from "@/shared/constants/acl";
@@ -25,8 +40,19 @@ import {
   Plus,
   TrendingUp,
   Save,
+  Trash2,
 } from "lucide-react";
 import { BackButton } from "@/shared/design-system/components/BackButton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/shared/ui/alert-dialog";
 
 export default function EstadosMensualesTable() {
   const { clienteId, deudorId } = useParams();
@@ -40,36 +66,46 @@ export default function EstadosMensualesTable() {
   // Modo edición
   const [editing, setEditing] = useState(false);
 
-  const hoyYYYYMM = new Date().toISOString().slice(0, 7);
-  const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
-  const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+  // Eliminación
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [estadoToDelete, setEstadoToDelete] = useState<EstadoMensual | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
-  const [nuevoEstadoMensual, setNuevoEstadoMensual] = useState<Partial<EstadoMensual>>({
-    mes: hoyYYYYMM,
-    clienteUID: clienteId || "",
-    deuda: undefined,
-    recaudo: undefined,
-    acuerdo: undefined,
-    porcentajeHonorarios: 15,
-    honorariosDeuda: undefined,
-    honorariosAcuerdo: undefined,
-    recibo: "",
-    observaciones: "",
-  });
+  const hoyYYYYMM = new Date().toISOString().slice(0, 7);
+  const clamp = (n: number, min: number, max: number) =>
+    Math.min(max, Math.max(min, n));
+  const round2 = (n: number) =>
+    Math.round((n + Number.EPSILON) * 100) / 100;
+
+  const [nuevoEstadoMensual, setNuevoEstadoMensual] =
+    useState<Partial<EstadoMensual>>({
+      mes: hoyYYYYMM,
+      clienteUID: clienteId || "",
+      deuda: undefined,
+      recaudo: undefined,
+      acuerdo: undefined,
+      porcentajeHonorarios: 15,
+      honorariosDeuda: undefined,
+      honorariosAcuerdo: undefined,
+      recibo: "",
+      observaciones: "",
+    });
 
   // Recalcular honorarios cuando cambien deuda/acuerdo/%
   useEffect(() => {
     setNuevoEstadoMensual((s) => {
       const pct = (s.porcentajeHonorarios ?? 15) / 100;
-      const hd = s.deuda != null ? round2((s.deuda as number) * pct) : undefined;
-      const ha = s.acuerdo != null ? round2((s.acuerdo as number) * pct) : undefined;
+      const hd =
+        s.deuda != null ? round2((s.deuda as number) * pct) : undefined;
+      const ha =
+        s.acuerdo != null ? round2((s.acuerdo as number) * pct) : undefined;
       if (hd === s.honorariosDeuda && ha === s.honorariosAcuerdo) return s;
       return { ...s, honorariosDeuda: hd, honorariosAcuerdo: ha };
     });
   }, [
     nuevoEstadoMensual.deuda,
     nuevoEstadoMensual.acuerdo,
-    nuevoEstadoMensual.porcentajeHonorarios
+    nuevoEstadoMensual.porcentajeHonorarios,
   ]);
 
   const { can, roles = [], loading: aclLoading } = useAcl();
@@ -85,7 +121,7 @@ export default function EstadosMensualesTable() {
 
   useEffect(() => {
     cargarEstadosMensuales();
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clienteId, deudorId]);
 
   const resetForm = () => {
@@ -130,8 +166,14 @@ export default function EstadosMensualesTable() {
     }
     try {
       setSaving(true);
-      await upsertEstadoMensualPorMes(clienteId, deudorId, nuevoEstadoMensual);
-      toast.success(editing ? "✓ Estado mensual actualizado" : "✓ Estado mensual guardado");
+      await upsertEstadoMensualPorMes(
+        clienteId,
+        deudorId,
+        nuevoEstadoMensual
+      );
+      toast.success(
+        editing ? "✓ Estado mensual actualizado" : "✓ Estado mensual guardado"
+      );
       await cargarEstadosMensuales();
       setOpen(false);
       resetForm();
@@ -140,6 +182,24 @@ export default function EstadosMensualesTable() {
       toast.error("⚠️ Error al guardar el estado mensual");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleEliminarEstado = async () => {
+    if (!clienteId || !deudorId || !estadoToDelete?.id) return;
+
+    try {
+      setDeleting(true);
+      await eliminarEstadoMensual(clienteId, deudorId, estadoToDelete.id);
+      toast.success("✓ Estado mensual eliminado");
+      await cargarEstadosMensuales();
+      setEstadoToDelete(null);
+      setDeleteDialogOpen(false);
+    } catch (e) {
+      console.error(e);
+      toast.error("⚠️ Error al eliminar el estado mensual");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -217,12 +277,17 @@ export default function EstadosMensualesTable() {
               <DialogHeader>
                 <DialogTitle className="text-brand-primary text-xl font-bold flex items-center gap-2">
                   <FileText className="h-5 w-5" />
-                  {editing ? `Editar Estado (${nuevoEstadoMensual.mes})` : "Nuevo Estado Mensual"}
+                  {editing
+                    ? `Editar Estado (${nuevoEstadoMensual.mes})`
+                    : "Nuevo Estado Mensual"}
                 </DialogTitle>
               </DialogHeader>
 
               <div className="relative">
-                <fieldset disabled={saving} className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4">
+                <fieldset
+                  disabled={saving}
+                  className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4"
+                >
                   <div className="col-span-full">
                     <Label className="text-brand-secondary font-medium flex items-center gap-2">
                       <Calendar className="h-4 w-4" />
@@ -232,13 +297,12 @@ export default function EstadosMensualesTable() {
                       type="month"
                       value={nuevoEstadoMensual.mes ?? ""}
                       onChange={(e) =>
-                        setNuevoEstadoMensual((s) => ({ ...s, mes: e.target.value.slice(0, 7) }))
+                        setNuevoEstadoMensual((s) => ({
+                          ...s,
+                          mes: e.target.value.slice(0, 7),
+                        }))
                       }
-                      disabled={editing}
-                      className={cn(
-                        "border-brand-secondary/30 mt-1.5",
-                        editing && "bg-gray-50 cursor-not-allowed"
-                      )}
+                      className={cn("border-brand-secondary/30 mt-1.5")}
                     />
                   </div>
 
@@ -254,9 +318,17 @@ export default function EstadosMensualesTable() {
                       step={1}
                       value={nuevoEstadoMensual.porcentajeHonorarios ?? 15}
                       onChange={(e) => {
-                        const raw = e.target.value === "" ? 15 : Number(e.target.value);
-                        const clamped = clamp(isNaN(raw) ? 15 : raw, 10, 20);
-                        setNuevoEstadoMensual((s) => ({ ...s, porcentajeHonorarios: clamped }));
+                        const raw =
+                          e.target.value === "" ? 15 : Number(e.target.value);
+                        const clamped = clamp(
+                          isNaN(raw) ? 15 : raw,
+                          10,
+                          20
+                        );
+                        setNuevoEstadoMensual((s) => ({
+                          ...s,
+                          porcentajeHonorarios: clamped,
+                        }));
                       }}
                       className="border-brand-secondary/30 mt-1.5"
                     />
@@ -273,7 +345,10 @@ export default function EstadosMensualesTable() {
                       onChange={(e) =>
                         setNuevoEstadoMensual((s) => ({
                           ...s,
-                          deuda: e.target.value === "" ? undefined : Number(e.target.value),
+                          deuda:
+                            e.target.value === ""
+                              ? undefined
+                              : Number(e.target.value),
                         }))
                       }
                       className="border-brand-secondary/30 mt-1.5"
@@ -291,7 +366,10 @@ export default function EstadosMensualesTable() {
                       onChange={(e) =>
                         setNuevoEstadoMensual((s) => ({
                           ...s,
-                          recaudo: e.target.value === "" ? undefined : Number(e.target.value),
+                          recaudo:
+                            e.target.value === ""
+                              ? undefined
+                              : Number(e.target.value),
                         }))
                       }
                       className="border-brand-secondary/30 mt-1.5"
@@ -309,7 +387,10 @@ export default function EstadosMensualesTable() {
                       onChange={(e) =>
                         setNuevoEstadoMensual((s) => ({
                           ...s,
-                          acuerdo: e.target.value === "" ? undefined : Number(e.target.value),
+                          acuerdo:
+                            e.target.value === ""
+                              ? undefined
+                              : Number(e.target.value),
                         }))
                       }
                       className="border-brand-secondary/30 mt-1.5"
@@ -351,7 +432,12 @@ export default function EstadosMensualesTable() {
                     </Label>
                     <Input
                       value={nuevoEstadoMensual.recibo ?? ""}
-                      onChange={(e) => setNuevoEstadoMensual((s) => ({ ...s, recibo: e.target.value }))}
+                      onChange={(e) =>
+                        setNuevoEstadoMensual((s) => ({
+                          ...s,
+                          recibo: e.target.value,
+                        }))
+                      }
                       className="border-brand-secondary/30 mt-1.5"
                     />
                   </div>
@@ -364,7 +450,10 @@ export default function EstadosMensualesTable() {
                     <Input
                       value={nuevoEstadoMensual.observaciones ?? ""}
                       onChange={(e) =>
-                        setNuevoEstadoMensual((s) => ({ ...s, observaciones: e.target.value }))
+                        setNuevoEstadoMensual((s) => ({
+                          ...s,
+                          observaciones: e.target.value,
+                        }))
                       }
                       className="border-brand-secondary/30 mt-1.5"
                     />
@@ -395,7 +484,12 @@ export default function EstadosMensualesTable() {
                 >
                   Cancelar
                 </Button>
-                <Button onClick={handleCrearOEditar} disabled={saving} variant="brand" className="gap-2">
+                <Button
+                  onClick={handleCrearOEditar}
+                  disabled={saving}
+                  variant="brand"
+                  className="gap-2"
+                >
                   {saving ? (
                     <>
                       <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
@@ -435,15 +529,31 @@ export default function EstadosMensualesTable() {
             <Table className="min-w-[900px]">
               <TableHeader className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5">
                 <TableRow className="border-brand-secondary/10 hover:bg-transparent">
-                  <TableHead className="text-brand-secondary font-semibold">Mes</TableHead>
-                  <TableHead className="text-brand-secondary font-semibold">Deuda</TableHead>
-                  <TableHead className="text-brand-secondary font-semibold">Recaudo</TableHead>
-                  <TableHead className="text-brand-secondary font-semibold">Acuerdo</TableHead>
-                  <TableHead className="text-brand-secondary font-semibold">% Honorarios</TableHead>
-                  <TableHead className="text-brand-secondary font-semibold">Hon. Deuda</TableHead>
-                  <TableHead className="text-brand-secondary font-semibold">Hon. Acuerdo</TableHead>
+                  <TableHead className="text-brand-secondary font-semibold">
+                    Mes
+                  </TableHead>
+                  <TableHead className="text-brand-secondary font-semibold">
+                    Deuda
+                  </TableHead>
+                  <TableHead className="text-brand-secondary font-semibold">
+                    Recaudo
+                  </TableHead>
+                  <TableHead className="text-brand-secondary font-semibold">
+                    Acuerdo
+                  </TableHead>
+                  <TableHead className="text-brand-secondary font-semibold">
+                    % Honorarios
+                  </TableHead>
+                  <TableHead className="text-brand-secondary font-semibold">
+                    Hon. Deuda
+                  </TableHead>
+                  <TableHead className="text-brand-secondary font-semibold">
+                    Hon. Acuerdo
+                  </TableHead>
                   {canEdit && (
-                    <TableHead className="text-center text-brand-secondary font-semibold">Acciones</TableHead>
+                    <TableHead className="text-center text-brand-secondary font-semibold">
+                      Acciones
+                    </TableHead>
                   )}
                 </TableRow>
               </TableHeader>
@@ -453,7 +563,9 @@ export default function EstadosMensualesTable() {
                     key={estado.id ?? `${estado.mes}`}
                     className={cn(
                       "border-brand-secondary/5 transition-colors",
-                      index % 2 === 0 ? "bg-white" : "bg-brand-primary/[0.02]",
+                      index % 2 === 0
+                        ? "bg-white"
+                        : "bg-brand-primary/[0.02]",
                       "hover:bg-brand-primary/5"
                     )}
                   >
@@ -473,7 +585,10 @@ export default function EstadosMensualesTable() {
                       ${Number(estado.acuerdo ?? 0).toLocaleString()}
                     </TableCell>
                     <TableCell className="text-gray-700">
-                      {Number(estado.porcentajeHonorarios ?? 0).toLocaleString()}%
+                      {Number(
+                        estado.porcentajeHonorarios ?? 0
+                      ).toLocaleString()}
+                      %
                     </TableCell>
                     <TableCell className="text-gray-700">
                       ${Number(estado.honorariosDeuda ?? 0).toLocaleString()}
@@ -484,7 +599,7 @@ export default function EstadosMensualesTable() {
 
                     {canEdit && (
                       <TableCell>
-                        <div className="flex justify-center">
+                        <div className="flex justify-center gap-1">
                           <Button
                             size="sm"
                             variant="ghost"
@@ -492,6 +607,18 @@ export default function EstadosMensualesTable() {
                             className="hover:bg-brand-primary/10"
                           >
                             <Edit className="h-4 w-4 text-brand-primary" />
+                          </Button>
+
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setEstadoToDelete(estado);
+                              setDeleteDialogOpen(true);
+                            }}
+                            className="hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4 text-red-600" />
                           </Button>
                         </div>
                       </TableCell>
@@ -503,6 +630,38 @@ export default function EstadosMensualesTable() {
           </div>
         </div>
       )}
+
+      {/* Dialog de confirmación de eliminación */}
+      <AlertDialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open);
+          if (!open) setEstadoToDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar estado mensual</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que deseas eliminar el estado mensual del mes{" "}
+              <strong>{estadoToDelete?.mes}</strong>? Esta acción no se puede
+              deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleEliminarEstado}
+              disabled={deleting}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deleting ? "Eliminando..." : "Eliminar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

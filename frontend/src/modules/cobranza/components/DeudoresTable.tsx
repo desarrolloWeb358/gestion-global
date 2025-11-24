@@ -151,6 +151,7 @@ export default function DeudoresTable() {
     setDeudorEditando(null);
     setFormData({
       tipificacion: TipificacionDeuda.GESTIONANDO,
+      porcentajeHonorarios: 15, // 👈 default
     });
     setOpen(true);
   };
@@ -158,7 +159,16 @@ export default function DeudoresTable() {
   const iniciarEditar = (deudor: Deudor) => {
     if (!canEdit) return;
     setDeudorEditando(deudor);
-    setFormData({ ...deudor });
+
+    setFormData({
+      ...deudor,
+      // nos aseguramos de que el campo exista y sea número
+      porcentajeHonorarios:
+        deudor.porcentajeHonorarios !== undefined && deudor.porcentajeHonorarios !== null
+          ? Number(deudor.porcentajeHonorarios)
+          : 15,
+    });
+
     setOpen(true);
   };
 
@@ -204,6 +214,7 @@ export default function DeudoresTable() {
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const numericFields = new Set(["porcentajeHonorarios"]);
     const { name, value } = e.target;
     setFormData((prev) => {
       const numericFields = new Set(['porcentajeHonorarios']);

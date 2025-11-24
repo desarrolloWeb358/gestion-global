@@ -1,19 +1,53 @@
 // src/modules/admin/components/AdminDashboardPage.tsx
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import SeguimientoDashboardAdmin from "@/modules/reportes/components/SeguimientoDashboardAdmin";
 import RecaudoDashboardAdmin from "@/modules/reportes/components/RecaudoDashboardAdmin";
 import { Typography } from "@/shared/design-system/components/Typography";
-import { LayoutDashboard, TrendingUp, Users, Activity, CalendarIcon } from "lucide-react";
+import {
+  LayoutDashboard,
+  Users,
+  Activity,
+  CalendarIcon,
+} from "lucide-react";
+
+// 🔥 Firebase
+import { db } from "@/firebase";
+import { collection, getDocs, query, where } from "firebase/firestore";
 
 export default function AdminDashboardPage() {
+  const navigate = useNavigate();
+
   const currentDate = new Date().toLocaleDateString("es-CO", {
     weekday: "long",
     year: "numeric",
     month: "long",
     day: "numeric",
   });
+
+  // Solo manejamos clientes activos (contador)
+  const [clientesActivos, setClientesActivos] = useState<number | null>(null);
+  const [loadingClientes, setLoadingClientes] = useState<boolean>(true);
+
+  useEffect(() => {
+    const fetchClientesActivos = async () => {
+      try {
+        const ref = collection(db, "clientes");
+        const qClientes = query(ref, where("activo", "==", true));
+        const snap = await getDocs(qClientes);
+        setClientesActivos(snap.size);
+      } catch (error) {
+        console.error("Error cargando clientes activos:", error);
+        setClientesActivos(null);
+      } finally {
+        setLoadingClientes(false);
+      }
+    };
+
+    fetchClientesActivos();
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30">
@@ -33,116 +67,35 @@ export default function AdminDashboardPage() {
               </Typography>
             </div>
           </div>
-
         </header>
 
-        {/* SECCIÓN DE MÉTRICAS RÁPIDAS (Opcional - puedes agregar stats cards aquí) 
+        {/* MÉTRICA RÁPIDA: CLIENTES ACTIVOS */}
         <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          
-          <div className="rounded-xl border border-brand-secondary/20 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-3">
-              <div className="p-2 rounded-lg bg-blue-100">
-                <Activity className="h-5 w-5 text-blue-600" />
-              </div>
-              <Typography variant="small" className="text-muted-foreground">
-                Hoy
-              </Typography>
-            </div>
-            <Typography variant="h2" className="!text-brand-primary mb-1">
-              --
-            </Typography>
-            <Typography variant="small" className="text-muted-foreground">
-              Seguimientos activos
-            </Typography>
-          </div>
-
-          
-          <div className="rounded-xl border border-brand-secondary/20 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-3">
-              <div className="p-2 rounded-lg bg-green-100">
-                <TrendingUp className="h-5 w-5 text-green-600" />
-              </div>
-              <Typography variant="small" className="text-muted-foreground">
-                Mes actual
-              </Typography>
-            </div>
-            <Typography variant="h2" className="!text-brand-primary mb-1">
-              --
-            </Typography>
-            <Typography variant="small" className="text-muted-foreground">
-              Gestiones completadas
-            </Typography>
-          </div>
-
-          
-          <div className="rounded-xl border border-brand-secondary/20 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-3">
-              <div className="p-2 rounded-lg bg-purple-100">
-                <Users className="h-5 w-5 text-purple-600" />
-              </div>
-              <Typography variant="small" className="text-muted-foreground">
-                Total
-              </Typography>
-            </div>
-            <Typography variant="h2" className="!text-brand-primary mb-1">
-              --
-            </Typography>
-            <Typography variant="small" className="text-muted-foreground">
-              Ejecutivos activos
-            </Typography>
-          </div>
-
-          
-          <div className="rounded-xl border border-brand-secondary/20 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
+          <div
+            className="rounded-xl border border-brand-secondary/20 bg-white p-5 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+            onClick={() => {
+              // Ir a la tabla de clientes
+              navigate("/clientes-tables");
+            }}
+          >
             <div className="flex items-center justify-between mb-3">
               <div className="p-2 rounded-lg bg-orange-100">
-                <LayoutDashboard className="h-5 w-5 text-orange-600" />
+                <Users className="h-5 w-5 text-orange-600" />
               </div>
               <Typography variant="small" className="text-muted-foreground">
                 Total
               </Typography>
             </div>
             <Typography variant="h2" className="!text-brand-primary mb-1">
-              --
+              {loadingClientes ? "..." : clientesActivos ?? 0}
             </Typography>
             <Typography variant="small" className="text-muted-foreground">
-              Clientes registrados
+              Clientes activos
             </Typography>
           </div>
         </section>
 
-        */}
-
-        <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          
-          
-
-          
-          
-
-          
-          <div className="rounded-xl border border-brand-secondary/20 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-3">
-              <div className="p-2 rounded-lg bg-purple-100">
-                <Users className="h-5 w-5 text-purple-600" />
-              </div>
-              <Typography variant="small" className="text-muted-foreground">
-                Total
-              </Typography>
-            </div>
-            <Typography variant="h2" className="!text-brand-primary mb-1">
-              --
-            </Typography>
-            <Typography variant="small" className="text-muted-foreground">
-              Ejecutivos activos
-            </Typography>
-          </div>
-
-          
-          
-        </section>
-
-        {/* DASHBOARD PRINCIPAL */}
+        {/* DASHBOARD SEGUIMIENTOS */}
         <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
           <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5 border-b border-brand-secondary/10">
             <div className="flex items-center gap-2">
@@ -161,6 +114,7 @@ export default function AdminDashboardPage() {
           </div>
         </section>
 
+        {/* DASHBOARD RECAUDO */}
         <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
           <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5 border-b border-brand-secondary/10">
             <div className="flex items-center gap-2">

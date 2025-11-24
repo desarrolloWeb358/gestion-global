@@ -16,7 +16,7 @@ correos: string[];
 telefonos: string[];
 direccion?: string;
 tipificacion: TipificacionDeuda;
-
+porcentajeHonorarios?: number;
 estadoMensual?: EstadoMensual[];
 acuerdoActivoId?: string;
 historialAcuerdos?: AcuerdoPago[];

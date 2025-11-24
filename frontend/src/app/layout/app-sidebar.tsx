@@ -13,6 +13,7 @@ import { useNavigate } from "react-router-dom";
 import { NAV_ITEMS, type NavItem } from "@/app/layout/nav.config";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { cerrarSesion } from "@/modules/auth/services/authService";
+import logoGestionGlobal from '../../assets/brand/logoBlanco.png';
 
 import { NavMain } from "@/app/layout/sidebar/nav-main";
 import {
@@ -27,7 +28,8 @@ import {
 } from "@/shared/ui/sidebar";
 import { Separator } from "@/shared/ui/separator";
 import { cn } from "@/shared/lib/cn";
-import logo from "@/assets/brand/logo.png";
+import RotatingEarth from "@/shared/design-system/components/Rotatingearth";
+
 
 function useFilteredNav(items: NavItem[]) {
   const { roles, can, loading } = useAcl();
@@ -52,8 +54,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   // Estado de carga
   if (loading) {
     return (
-      <Sidebar 
-        collapsible="offcanvas" 
+      <Sidebar
+        collapsible="offcanvas"
         className="border-r border-brand-secondary/20 bg-gradient-to-b from-white to-brand-primary/5"
         {...props}
       >
@@ -106,8 +108,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   };
 
   return (
-    <Sidebar 
-      collapsible="offcanvas" 
+    <Sidebar
+      collapsible="offcanvas"
       className="border-r border-brand-secondary/20 bg-gradient-to-b from-white to-brand-primary/5"
       {...props}
     >
@@ -115,14 +117,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarHeader className="border-b border-brand-secondary/10 bg-white/80 backdrop-blur-sm p-4">
         <SidebarMenu>
           <SidebarMenuItem>
-            <div className="flex items-center justify-center py-2">
-              <img
-                src={logo}
-                alt="Gestión Global ACG SAS"
-                className="h-16 w-auto object-contain transition-all duration-300 group-data-[state=collapsed]:h-10"
-              />
-            </div>
-          </SidebarMenuItem>
+  <div className="flex items-center justify-center py-2">
+    <RotatingEarth 
+      size={60}
+      rotationSpeed={15}
+      showStars={false}
+      logoUrl={logoGestionGlobal}
+    />
+  </div>
+</SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
 
@@ -158,7 +161,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {/* Botón de logout */}
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton 
+            <SidebarMenuButton
               onClick={onLogout}
               className={cn(
                 "w-full hover:bg-red-50 hover:text-red-600 transition-all duration-200",

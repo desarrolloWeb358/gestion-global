@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { Input } from "@/shared/ui/input";
 import { Button } from "@/shared/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
@@ -10,7 +10,7 @@ import { obtenerDeudorPorCliente } from "../services/deudorService";
 import { upsertEstadoMensualPorMes } from "../services/estadoMensualService";
 import { db } from "@/firebase";
 import { doc, getDoc } from "firebase/firestore";
-import { Loader2, Calendar, DollarSign, Save, TrendingUp, Users } from "lucide-react";
+import { Calendar, DollarSign, Save, TrendingUp, Users } from "lucide-react";
 import { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 import { Typography } from "@/shared/design-system/components/Typography";
 import { cn } from "@/shared/lib/cn";
@@ -28,7 +28,6 @@ interface FilaEstadoBase {
 
 export default function EstadosMensualesInputMasivo() {
   const { clienteId } = useParams();
-  const navigate = useNavigate();
 
   const [clienteNombre, setClienteNombre] = useState<string>("");
   const [mesGlobal, setMesGlobal] = useState<string>(() =>
@@ -73,7 +72,8 @@ export default function EstadosMensualesInputMasivo() {
         };
 
         const nombreUsuario = await tryUserCollections();
-        const resolved = nombreUsuario ?? (await tryClienteCollection()) ?? "Cliente";
+        const resolved =
+          nombreUsuario ?? (await tryClienteCollection()) ?? "Cliente";
 
         if (!cancel) setClienteNombre(resolved);
       } catch (e) {
@@ -98,7 +98,11 @@ export default function EstadosMensualesInputMasivo() {
           deudorId: d.id!,
           nombre: d.nombre || "Sin nombre",
           ubicacion: d.ubicacion || "",
-          porcentajeHonorarios: "15",
+          // 👉 usamos el porcentaje del deudor si existe, si no 15
+          porcentajeHonorarios:
+            d.porcentajeHonorarios !== undefined && d.porcentajeHonorarios !== null
+              ? String(d.porcentajeHonorarios)
+              : "15",
           deuda: "",
           recaudo: "",
           acuerdo: "",
@@ -114,12 +118,29 @@ export default function EstadosMensualesInputMasivo() {
     })();
   }, [clienteId]);
 
-  const handleChange = (index: number, field: keyof FilaEstadoBase, value: string) => {
+  const handleChange = (
+    index: number,
+    field: keyof FilaEstadoBase,
+    value: string
+  ) => {
     setFilas((prev) => {
       const next = [...prev];
       next[index] = { ...next[index], [field]: value };
       return next;
     });
+  };
+
+  const handleChangePorcentaje = (index: number, raw: string) => {
+    // Permitimos campo vacío mientras escribe
+    if (raw === "") {
+      handleChange(index, "porcentajeHonorarios", "");
+      return;
+    }
+    let num = Number(raw);
+    if (Number.isNaN(num)) num = 0;
+    // clamp 0–20
+    num = Math.max(0, Math.min(20, num));
+    handleChange(index, "porcentajeHonorarios", String(num));
   };
 
   const guardarTodos = async () => {
@@ -130,7 +151,9 @@ export default function EstadosMensualesInputMasivo() {
       return;
     }
 
-    const porGuardar = filas.filter((f) => f.deuda.trim() !== "" && f.recaudo.trim() !== "");
+    const porGuardar = filas.filter(
+      (f) => f.deuda.trim() !== "" && f.recaudo.trim() !== ""
+    );
     const omitidas = filas.length - porGuardar.length;
 
     if (porGuardar.length === 0) {
@@ -145,15 +168,20 @@ export default function EstadosMensualesInputMasivo() {
         porGuardar.map(async (fila) => {
           const deudaNum = Number.parseFloat(fila.deuda);
           const recaudoNum = Number.parseFloat(fila.recaudo);
-          const acuerdoNum = fila.acuerdo?.trim() ? Number.parseFloat(fila.acuerdo) : 0;
-          const porcentaje = fila.porcentajeHonorarios?.trim()
+          const acuerdoNum = fila.acuerdo?.trim()
+            ? Number.parseFloat(fila.acuerdo)
+            : 0;
+          const porcentajeParse = fila.porcentajeHonorarios?.trim()
             ? Number.parseFloat(fila.porcentajeHonorarios)
             : 15;
 
           const deuda = Number.isNaN(deudaNum) ? 0 : deudaNum;
           const recaudo = Number.isNaN(recaudoNum) ? 0 : recaudoNum;
           const acuerdo = Number.isNaN(acuerdoNum) ? 0 : acuerdoNum;
-          const porc = Number.isNaN(porcentaje) ? 15 : porcentaje;
+
+          // 👇 clamp 0–20 en el cálculo
+          let porc = Number.isNaN(porcentajeParse) ? 15 : porcentajeParse;
+          porc = Math.max(0, Math.min(20, porc));
 
           const honorariosDeuda = (deuda * porc) / 100;
           const honorariosAcuerdo = (acuerdo * porc) / 100;
@@ -246,7 +274,10 @@ export default function EstadosMensualesInputMasivo() {
                 <Typography variant="small" className="text-muted-foreground">
                   Conjunto
                 </Typography>
-                <Typography variant="h3" className="!text-brand-secondary font-semibold">
+                <Typography
+                  variant="h3"
+                  className="!text-brand-secondary font-semibold"
+                >
                   {clienteNombre}
                 </Typography>
               </div>
@@ -259,7 +290,10 @@ export default function EstadosMensualesInputMasivo() {
           <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5 border-b border-brand-secondary/10">
             <div className="flex items-center gap-2">
               <Calendar className="h-5 w-5 text-brand-primary" />
-              <Typography variant="h3" className="!text-brand-secondary font-semibold">
+              <Typography
+                variant="h3"
+                className="!text-brand-secondary font-semibold"
+              >
                 Seleccionar mes
               </Typography>
             </div>
@@ -288,7 +322,10 @@ export default function EstadosMensualesInputMasivo() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <DollarSign className="h-5 w-5 text-brand-primary" />
-                <Typography variant="h3" className="!text-brand-secondary font-semibold">
+                <Typography
+                  variant="h3"
+                  className="!text-brand-secondary font-semibold"
+                >
                   Datos de deudores
                 </Typography>
               </div>
@@ -300,11 +337,18 @@ export default function EstadosMensualesInputMasivo() {
 
           <div className="overflow-x-auto">
             <fieldset disabled={saving}>
-              <Table className="min-w-[800px]">
+              <Table className="min-w-[900px]">
                 <TableHeader className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5">
                   <TableRow className="border-brand-secondary/10 hover:bg-transparent">
-                    <TableHead className="text-brand-secondary font-semibold">Deudor</TableHead>
-                    <TableHead className="text-brand-secondary font-semibold">Ubicación</TableHead>
+                    <TableHead className="text-brand-secondary font-semibold">
+                      Deudor
+                    </TableHead>
+                    <TableHead className="text-brand-secondary font-semibold">
+                      Ubicación
+                    </TableHead>
+                    <TableHead className="text-right text-brand-secondary font-semibold w-[140px]">
+                      % Hon.
+                    </TableHead>
                     <TableHead className="text-right text-brand-secondary font-semibold w-[180px]">
                       Deuda
                     </TableHead>
@@ -323,7 +367,9 @@ export default function EstadosMensualesInputMasivo() {
                       key={fila.deudorId}
                       className={cn(
                         "border-brand-secondary/5 transition-colors",
-                        i % 2 === 0 ? "bg-white" : "bg-brand-primary/[0.02]",
+                        i % 2 === 0
+                          ? "bg-white"
+                          : "bg-brand-primary/[0.02]",
                         "hover:bg-brand-primary/5"
                       )}
                     >
@@ -337,8 +383,27 @@ export default function EstadosMensualesInputMasivo() {
                         <Input
                           type="number"
                           inputMode="decimal"
+                          min={0}
+                          max={20}
+                          value={fila.porcentajeHonorarios ?? ""}
+                          onChange={(e) =>
+                            handleChangePorcentaje(
+                              i,
+                              e.target.value
+                            )
+                          }
+                          className="text-right border-brand-secondary/30"
+                          placeholder="0–20"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          inputMode="decimal"
                           value={fila.deuda ?? ""}
-                          onChange={(e) => handleChange(i, "deuda", e.target.value)}
+                          onChange={(e) =>
+                            handleChange(i, "deuda", e.target.value)
+                          }
                           className="text-right border-brand-secondary/30"
                           placeholder="0.00"
                         />
@@ -348,7 +413,9 @@ export default function EstadosMensualesInputMasivo() {
                           type="number"
                           inputMode="decimal"
                           value={fila.recaudo ?? ""}
-                          onChange={(e) => handleChange(i, "recaudo", e.target.value)}
+                          onChange={(e) =>
+                            handleChange(i, "recaudo", e.target.value)
+                          }
                           className="text-right border-brand-secondary/30"
                           placeholder="0.00"
                         />
@@ -358,7 +425,9 @@ export default function EstadosMensualesInputMasivo() {
                           type="number"
                           inputMode="decimal"
                           value={fila.acuerdo ?? ""}
-                          onChange={(e) => handleChange(i, "acuerdo", e.target.value)}
+                          onChange={(e) =>
+                            handleChange(i, "acuerdo", e.target.value)
+                          }
                           className="text-right border-brand-secondary/30"
                           placeholder="0.00"
                         />
@@ -398,8 +467,10 @@ export default function EstadosMensualesInputMasivo() {
         {/* Nota informativa */}
         <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
           <Typography variant="small" className="text-blue-800">
-            <strong>Nota:</strong> Solo se guardarán las filas que tengan al menos Deuda y Recaudo completados.
-            Las filas vacías serán omitidas automáticamente.
+            <strong>Nota:</strong> Solo se guardarán las filas que tengan al
+            menos Deuda y Recaudo completados. Las filas vacías serán omitidas
+            automáticamente. El porcentaje de honorarios se limita entre 0% y
+            20%.
           </Typography>
         </div>
       </div>

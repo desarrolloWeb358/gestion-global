@@ -13,13 +13,14 @@ import {
   orderBy,
 } from "firebase/firestore";
 import { EstadoMensual } from "../models/estadoMensual.model";
-import { C } from "react-router/dist/development/index-react-server-client-BKpa2trA";
 
 /* ---------- Helpers compartidos ---------- */
 export const toNullableNumber = (v: any) =>
   v === "" || v === undefined || v === null ? null : Number(v);
 
-export function normalizeEstado(input: Partial<EstadoMensual>): Record<string, any> {
+export function normalizeEstado(
+  input: Partial<EstadoMensual>
+): Record<string, any> {
   const n: Record<string, any> = {
     clienteUID: input.clienteUID,
     mes: input.mes ?? null,
@@ -62,7 +63,10 @@ export async function obtenerEstadosMensuales(
   clienteId: string,
   deudorId: string
 ): Promise<EstadoMensual[]> {
-  const ref = collection(db, `clientes/${clienteId}/deudores/${deudorId}/estadosMensuales`);
+  const ref = collection(
+    db,
+    `clientes/${clienteId}/deudores/${deudorId}/estadosMensuales`
+  );
   const q = query(ref, orderBy("mes", "asc"));
   const snapshot = await getDocs(q);
   return snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as EstadoMensual));
@@ -75,10 +79,19 @@ export async function crearEstadoMensual(
   estadoMensual: Partial<EstadoMensual>
 ) {
   estadoMensual.clienteUID = clienteId;
-  const ref = collection(db, `clientes/${clienteId}/deudores/${deudorId}/estadosMensuales`);
   const payload = normalizeEstado(estadoMensual);
-  if (!payload.mes) throw new Error("El campo 'mes' es obligatorio para crear un estado mensual.");
-  await addDoc(ref, payload);
+  if (!payload.mes)
+    throw new Error(
+      "El campo 'mes' es obligatorio para crear un estado mensual."
+    );
+
+  const ref = doc(
+    db,
+    `clientes/${clienteId}/deudores/${deudorId}/estadosMensuales/${String(
+      payload.mes
+    )}`
+  );
+  await setDoc(ref, payload, { merge: true });
 }
 
 export async function actualizarEstadoMensual(
@@ -87,7 +100,10 @@ export async function actualizarEstadoMensual(
   estadoMensual: Partial<EstadoMensual>
 ) {
   if (!estadoMensual.id) return;
-  const ref = doc(db, `clientes/${clienteId}/deudores/${deudorId}/estadosMensuales/${estadoMensual.id}`);
+  const ref = doc(
+    db,
+    `clientes/${clienteId}/deudores/${deudorId}/estadosMensuales/${estadoMensual.id}`
+  );
   const payload = normalizeEstado(estadoMensual);
   await updateDoc(ref, payload);
 }
@@ -97,7 +113,10 @@ export async function eliminarEstadoMensual(
   deudorId: string,
   estadoMensualId: string
 ) {
-  const ref = doc(db, `clientes/${clienteId}/deudores/${deudorId}/estadosMensuales/${estadoMensualId}`);
+  const ref = doc(
+    db,
+    `clientes/${clienteId}/deudores/${deudorId}/estadosMensuales/${estadoMensualId}`
+  );
   await deleteDoc(ref);
 }
 
@@ -139,7 +158,25 @@ export async function upsertEstadoMensualPorMes(
   console.log("Upsert estado mensual con clienteId:", clienteId);
   estadoMensual.clienteUID = clienteId;
   const payload = normalizeEstado(estadoMensual);
+
   if (!payload.mes) throw new Error("El campo 'mes' es obligatorio.");
-  const ref = doc(db, `clientes/${clienteId}/deudores/${deudorId}/estadosMensuales/${String(payload.mes)}`);
-  await setDoc(ref, payload, { merge: true });
+
+  const basePath = `clientes/${clienteId}/deudores/${deudorId}/estadosMensuales`;
+  const newId = String(payload.mes);
+  const newRef = doc(db, `${basePath}/${newId}`);
+
+  const batch = writeBatch(db);
+
+  // Crear/actualizar con el nuevo mes (id = nuevo mes)
+  batch.set(newRef, payload, { merge: true });
+
+  // Si venía de un documento anterior y el id cambió, eliminar el viejo
+  const oldId = estadoMensual.id;
+  if (oldId && oldId !== newId) {
+    const oldRef = doc(db, `${basePath}/${oldId}`);
+    batch.delete(oldRef);
+  }
+
+  await batch.commit();
 }
+

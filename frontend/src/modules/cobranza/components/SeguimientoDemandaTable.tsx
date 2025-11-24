@@ -376,6 +376,17 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
 
         {/* TAB SEGUIMIENTOS */}
         <TabsContent value="seguimientos" className="mt-6 space-y-4">
+          {savingInfo && (
+            <div className="fixed inset-0 z-[1000] bg-black/40 backdrop-blur-sm flex items-center justify-center">
+              <div className="rounded-xl bg-white shadow-lg px-6 py-5 flex items-center gap-3">
+                <div className="h-5 w-5 animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary" />
+                <Typography variant="body" className="font-medium">
+                  Guardando cambios...
+                </Typography>
+              </div>
+            </div>
+          )}
+
           {/* Filtros */}
           <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
             <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5 border-b border-brand-secondary/10">
@@ -520,6 +531,71 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
               </div>
             </div>
           )}
+
+          {/* Observaciones internas */}
+          {!loadingInfo && !isCliente && (
+            <section className="rounded-2xl border border-orange-200 bg-white shadow-sm overflow-hidden">
+              <div className="bg-gradient-to-r from-orange-50 to-orange-100/50 p-4 md:p-5 border-b border-orange-200/50">
+                <Typography variant="h3" className="!text-orange-900 font-semibold">
+                  Observaciones internas
+                </Typography>
+              </div>
+              <div className="p-4 md:p-5">
+                <Textarea
+                  value={form.observacionesDemanda}
+                  onChange={onChange("observacionesDemanda")}
+                  readOnly={roObsInternas}
+                  className="min-h-36 border-brand-secondary/30"
+                />
+              </div>
+            </section>
+          )}
+
+          {/* Observaciones del conjunto */}
+          {!loadingInfo && (
+            <section className="rounded-2xl border border-green-200 bg-white shadow-sm overflow-hidden">
+              <div className="bg-gradient-to-r from-green-50 to-green-100/50 p-4 md:p-5 border-b border-green-200/50">
+                <Typography variant="h3" className="!text-green-900 font-semibold">
+                  Observaciones del conjunto
+                </Typography>
+              </div>
+              <div className="p-4 md:p-5 space-y-3">
+                <Textarea
+                  value={form.observacionesDemandaCliente}
+                  onChange={onChange("observacionesDemandaCliente")}
+                  readOnly={roObsConjunto}
+                  className="min-h-36 border-brand-secondary/30"
+                  placeholder={isCliente ? "Escribe tu observación..." : ""}
+                />
+                {!isCliente && (
+                  <div className="text-right">
+                    <span className="text-xs text-muted-foreground">
+                      {(() => {
+                        const ts = (deudor as any)?.observacionesDemandaClienteFecha;
+                        const d = ts && typeof ts.toDate === "function" ? ts.toDate() : null;
+                        return d ? `Última actualización: ${d.toLocaleString("es-CO", { hour12: false })}` : "";
+                      })()}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* Botón guardar */}
+          {!loadingInfo && puedeEditar && (
+            <div className="flex justify-end">
+              <Button
+                onClick={handleGuardarInfo}
+                disabled={savingInfo}
+                variant="brand"
+                className="gap-2 shadow-md hover:shadow-lg transition-all"
+              >
+                <Save className="h-4 w-4" />
+                {savingInfo ? "Guardando..." : "Guardar observaciones"}
+              </Button>
+            </div>
+          )}
         </TabsContent>
 
         {/* TAB INFORMACIÓN DEMANDA */}
@@ -602,54 +678,6 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
                       onChangeDate={onChangeDate("fechaUltimaRevision")}
                     />
                   </div>
-                </div>
-              </section>
-
-              {/* Observaciones internas */}
-              {!isCliente && (
-                <section className="rounded-2xl border border-orange-200 bg-white shadow-sm overflow-hidden">
-                  <div className="bg-gradient-to-r from-orange-50 to-orange-100/50 p-4 md:p-5 border-b border-orange-200/50">
-                    <Typography variant="h3" className="!text-orange-900 font-semibold">
-                      Observaciones internas
-                    </Typography>
-                  </div>
-                  <div className="p-4 md:p-5">
-                    <Textarea
-                      value={form.observacionesDemanda}
-                      onChange={onChange("observacionesDemanda")}
-                      readOnly={roObsInternas}
-                      className="min-h-36 border-brand-secondary/30"
-                    />
-                  </div>
-                </section>
-              )}
-
-              {/* Observaciones del conjunto */}
-              <section className="rounded-2xl border border-green-200 bg-white shadow-sm overflow-hidden">
-                <div className="bg-gradient-to-r from-green-50 to-green-100/50 p-4 md:p-5 border-b border-green-200/50">
-                  <Typography variant="h3" className="!text-green-900 font-semibold">
-                    Observaciones del conjunto
-                  </Typography>
-                </div>
-                <div className="p-4 md:p-5 space-y-3">
-                  <Textarea
-                    value={form.observacionesDemandaCliente}
-                    onChange={onChange("observacionesDemandaCliente")}
-                    readOnly={roObsConjunto}
-                    className="min-h-36 border-brand-secondary/30"
-                    placeholder={isCliente ? "Escribe tu observación..." : ""}
-                  />
-                  {!isCliente && (
-                    <div className="text-right">
-                      <span className="text-xs text-muted-foreground">
-                        {(() => {
-                          const ts = (deudor as any)?.observacionesDemandaClienteFecha;
-                          const d = ts && typeof ts.toDate === "function" ? ts.toDate() : null;
-                          return d ? `Última actualización: ${d.toLocaleString("es-CO", { hour12: false })}` : "";
-                        })()}
-                      </span>
-                    </div>
-                  )}
                 </div>
               </section>
             </>
