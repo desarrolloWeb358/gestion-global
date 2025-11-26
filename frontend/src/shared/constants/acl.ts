@@ -1,4 +1,5 @@
 import AdminDashboardPage from "@/modules/dashboard/pages/AdminDashboardPage";
+import { V } from "react-router/dist/development/index-react-server-client-BKpa2trA";
 
 export const ROLES = [
   "admin",
@@ -58,6 +59,10 @@ export const PERMS = {
 
   //"Recaudos y Deudas"
   Recaudos_Read: "recaudos.read",
+
+  // Valores agregados 
+  Valores_agregados_Read: "valoresAgregados.read",
+  Valores_agregados_Edit: "valoresAgregados.edit",
 } as const;
 export type Perm = (typeof PERMS)[keyof typeof PERMS];
 
@@ -115,6 +120,8 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Seguimientos_Read,
     PERMS.Abonos_Read,
     PERMS.Valores_Read,  
+    PERMS.Valores_agregados_Read,
+    PERMS.Valores_agregados_Edit,
     PERMS.Valores_Obs_Create,   
   ],
 
@@ -124,6 +131,8 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Deudores_Read,
     PERMS.Seguimientos_Read,
     PERMS.Abonos_Read,
+    PERMS.Valores_agregados_Read,
+    PERMS.Valores_agregados_Edit, 
   ],
 
   deudor: [
