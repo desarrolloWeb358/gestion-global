@@ -8,41 +8,38 @@ import { Spinner } from "@/shared/ui/spinner";
 import { Textarea } from "@/shared/ui/textarea";
 import { Label } from "@/shared/ui/label";
 import { Separator } from "@/shared/ui/separator";
+import { Input } from "@/shared/ui/input";
 import { toast } from "sonner";
+import { Upload, FileText, User as UserIcon } from "lucide-react";
 
-import { obtenerValorAgregado, timestampToDateInput } from "../services/valorAgregadoService";
+import {
+  obtenerValorAgregado,
+  timestampToDateInput,
+  listarConversacionValorAgregado,
+  crearMensajeConversacionValorAgregado,
+  formatFechaCO,
+} from "../services/valorAgregadoService";
+
 import { ValorAgregado } from "../models/valorAgregado.model";
-import { ObservacionCliente } from "@/modules/cobranza/models/observacionCliente.model";
+import { MensajeValorAgregado } from "../models/mensajeValorAgregado.model";
 import { TipoValorAgregadoLabels } from "../../../shared/constants/tipoValorAgregado";
 
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { PERMS } from "@/shared/constants/acl";
 import { getAuth } from "firebase/auth";
+import { cn } from "@/shared/lib/cn";
 
-import {
-  getObservacionesClienteValor,
-  addObservacionClienteValor,
-  updateObservacionCliente,
-  deleteObservacionCliente,
-} from "@/modules/cobranza/services/observacionClienteService";
+const MAX_FILE_MB = 15;
 
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogFooter,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogCancel,
-  AlertDialogAction,
-} from "@/shared/ui/alert-dialog";
-
-function formatObsDate(input: any): string {
+function formatMsgDate(input: any): string {
   try {
-    if (input && typeof input.toDate === "function") return input.toDate().toLocaleString("es-CO", { hour12: false });
-    if (input && typeof input.seconds === "number") return new Date(input.seconds * 1000).toLocaleString("es-CO", { hour12: false });
-    if (input instanceof Date) return input.toLocaleString("es-CO", { hour12: false });
-  } catch {}
+    if (input && typeof input.toDate === "function")
+      return input.toDate().toLocaleString("es-CO", { hour12: false });
+    if (input && typeof input.seconds === "number")
+      return new Date(input.seconds * 1000).toLocaleString("es-CO", { hour12: false });
+    if (input instanceof Date)
+      return input.toLocaleString("es-CO", { hour12: false });
+  } catch { }
   return "—";
 }
 
@@ -51,149 +48,117 @@ export default function ValorAgregadoDetailPage() {
   const navigate = useNavigate();
 
   const { can, roles = [] } = useAcl();
-  const canView = can(PERMS.Valores_Read);
-  // Si tienes un permiso específico para moderar observaciones, úsalo aquí
+  const canView = can(PERMS.Valores_agregados_Read);
   const canModerate = can((PERMS as any).Valores_Obs_Manage ?? ("valores.obs.manage" as any));
   const isCliente = Array.isArray(roles) && roles.includes("cliente");
-  const auth = getAuth();
-  const currentUid = auth.currentUser?.uid || null;
-  const currentName =
-    auth.currentUser?.displayName || auth.currentUser?.email || roles[0] || "Usuario";
 
-  // ===== Detalle
+
+  // ===== Detalle principal
   const [item, setItem] = React.useState<ValorAgregado | null>(null);
   const [loading, setLoading] = React.useState(true);
 
-  // ===== Observaciones (inline, scope = "valor")
-  const [obs, setObs] = React.useState<ObservacionCliente[]>([]);
-  const [obsLoading, setObsLoading] = React.useState(false);
-  const [obsSaving, setObsSaving] = React.useState(false);
-  const [obsWorking, setObsWorking] = React.useState(false);
+  // ===== Conversación
+  const [mensajes, setMensajes] = React.useState<MensajeValorAgregado[]>([]);
+  const [msgsLoading, setMsgsLoading] = React.useState(false);
+  const [msgSaving, setMsgSaving] = React.useState(false);
 
+  // Nuevo mensaje
   const [texto, setTexto] = React.useState("");
-  const [editingId, setEditingId] = React.useState<string | null>(null);
-  const [editingTexto, setEditingTexto] = React.useState("");
-  const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [archivoFile, setArchivoFile] = React.useState<File | undefined>(undefined);
 
-  const canCreate = isCliente || canModerate;
-  const canEditObs = (o: ObservacionCliente) =>
-    canModerate || (isCliente && !!currentUid && (o as any).creadoPorUid === currentUid);
-  const canDeleteObs = canEditObs;
 
+  // ===== Cargar detalle
   React.useEffect(() => {
     if (!clienteId || !valorId) return;
-    let canceled = false;
+    let cancelled = false;
+
     (async () => {
       setLoading(true);
       try {
         const data = await obtenerValorAgregado(clienteId, valorId);
-        if (!canceled) setItem(data);
+        if (!cancelled) setItem(data);
       } catch (e) {
         console.error(e);
         toast.error("No se pudo cargar el detalle.");
       } finally {
-        if (!canceled) setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
-    return () => { canceled = true; };
+
+    return () => {
+      cancelled = true;
+    };
   }, [clienteId, valorId]);
 
-  const fetchObs = React.useCallback(async () => {
+  // ===== Cargar conversación
+  const fetchMensajes = React.useCallback(async () => {
     if (!clienteId || !valorId) return;
-    setObsLoading(true);
+    setMsgsLoading(true);
     try {
-      const data = await getObservacionesClienteValor(clienteId, valorId);
-      setObs(data);
+      const data = await listarConversacionValorAgregado(clienteId, valorId);
+      setMensajes(data);
     } catch (e) {
       console.error(e);
-      toast.error("No se pudieron cargar las observaciones.");
+      toast.error("No se pudo cargar la conversación.");
     } finally {
-      setObsLoading(false);
+      setMsgsLoading(false);
     }
   }, [clienteId, valorId]);
 
   React.useEffect(() => {
-    fetchObs();
-  }, [fetchObs]);
+    fetchMensajes();
+  }, [fetchMensajes]);
 
-  async function onCreate() {
+  async function onCrearMensaje() {
     if (!clienteId || !valorId) return;
-    if (!canCreate) return toast.error("No tienes permiso para agregar observaciones.");
-    const val = texto.trim();
-    if (!val) return toast.error("Escribe la observación.");
-    setObsSaving(true);
+    
+
+    const desc = texto.trim();
+    if (!desc && !archivoFile) {
+      toast.error("Escribe una descripción o adjunta un archivo.");
+      return;
+    }
+
+    const autorTipo: "cliente" | "abogado" = isCliente ? "cliente" : "abogado";
+
+    setMsgSaving(true);
     try {
-      await addObservacionClienteValor(clienteId, valorId, val);
+      await crearMensajeConversacionValorAgregado(
+        clienteId,
+        valorId,
+        {
+          descripcion: desc,
+          autorTipo,
+        },
+        archivoFile
+      );
+
       setTexto("");
-      await fetchObs();
-      toast.success("Observación agregada.");
+      setArchivoFile(undefined);
+      await fetchMensajes();
+      toast.success("Mensaje agregado a la conversación.");
     } catch (e) {
       console.error(e);
-      toast.error("No se pudo agregar la observación.");
+      toast.error("No se pudo guardar el mensaje.");
     } finally {
-      setObsSaving(false);
-    }
-  }
-
-  function startEdit(o: ObservacionCliente) {
-    if (!canEditObs(o)) return;
-    setEditingId(o.id!);
-    setEditingTexto(o.texto);
-  }
-  function cancelEdit() {
-    setEditingId(null);
-    setEditingTexto("");
-  }
-  async function onSaveEdit() {
-    if (!clienteId || !valorId || !editingId) return;
-    const t = editingTexto.trim();
-    if (!t) return toast.error("El texto no puede estar vacío.");
-    setObsWorking(true);
-    try {
-      await updateObservacionCliente(clienteId, valorId, editingId, t, "valor");
-      setEditingId(null);
-      setEditingTexto("");
-      await fetchObs();
-      toast.success("Observación actualizada.");
-    } catch (e) {
-      console.error(e);
-      toast.error("No se pudo actualizar la observación.");
-    } finally {
-      setObsWorking(false);
-    }
-  }
-
-  function askDelete(o: ObservacionCliente) {
-    if (!canDeleteObs(o)) return;
-    setDeletingId(o.id!);
-  }
-  async function doDelete() {
-    if (!clienteId || !valorId || !deletingId) return;
-    setObsWorking(true);
-    try {
-      await deleteObservacionCliente(clienteId, valorId, deletingId, "valor");
-      setDeletingId(null);
-      await fetchObs();
-      toast.success("Observación eliminada.");
-    } catch (e) {
-      console.error(e);
-      toast.error("No se pudo eliminar la observación.");
-    } finally {
-      setObsWorking(false);
+      setMsgSaving(false);
     }
   }
 
   // ===== Guards
   if (loading) return <Spinner />;
+
   if (!item || !canView) {
     return (
       <div className="p-4 space-y-4">
         {!canView ? (
           <div className="text-sm">No tienes acceso a Valores agregados.</div>
         ) : (
-          <div className="text-sm">No se encontró el registro</div>
+          <div className="text-sm">No se encontró el registro.</div>
         )}
-        <Button variant="ghost" onClick={() => navigate(-1)}>← Volver</Button>
+        <Button variant="ghost" onClick={() => navigate(-1)}>
+          ← Volver
+        </Button>
       </div>
     );
   }
@@ -201,86 +166,112 @@ export default function ValorAgregadoDetailPage() {
   // ===== Render
   return (
     <div className="px-4 py-6 space-y-6">
-      {/* Detalle */}
+      {/* Detalle del valor agregado (solicitud inicial) */}
       <Card>
-        <CardHeader><CardTitle>Detalle a del Valor Agregado</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>Detalle del Valor Agregado</CardTitle>
+        </CardHeader>
         <CardContent className="grid gap-3 text-sm text-muted-foreground">
-          <div><span className="font-medium text-foreground">Fecha:</span> {timestampToDateInput(item.fecha as any) || "—"}</div>
-          <div><span className="font-medium text-foreground">Tipo:</span> {TipoValorAgregadoLabels[item.tipo]}</div>
-          <div><span className="font-medium text-foreground">Título:</span> {item.titulo}</div>
-          <div><span className="font-medium text-foreground">Detalle:</span> {item.descripcion || "—"}</div>
           <div>
-            <span className="font-medium text-foreground">Archivo:</span>{" "}
+            <span className="font-medium text-foreground">Fecha de solicitud:</span>{" "}
+            {timestampToDateInput(item.fecha as any) || "—"}
+          </div>
+          <div>
+            <span className="font-medium text-foreground">Tipo:</span>{" "}
+            {TipoValorAgregadoLabels[item.tipo]}
+          </div>
+          <div>
+            <span className="font-medium text-foreground">Título:</span> {item.titulo}
+          </div>
+          <div>
+            <span className="font-medium text-foreground">Detalle:</span>{" "}
+            {item.descripcion || "—"}
+          </div>
+          <div>
+            <span className="font-medium text-foreground">Archivo de la solicitud:</span>{" "}
             {item.archivoURL ? (
-              <a className="text-primary underline" href={item.archivoURL} target="_blank" rel="noreferrer">
+              <a
+                className="text-primary underline"
+                href={item.archivoURL}
+                target="_blank"
+                rel="noreferrer"
+              >
                 {item.archivoNombre ?? "Ver archivo"}
               </a>
-            ) : "—"}
+            ) : (
+              "—"
+            )}
           </div>
           <div className="pt-4">
-            <Button variant="outline" onClick={() => navigate(`/clientes/${clienteId}/valores-agregados`)}>
+            <Button
+              variant="outline"
+              onClick={() => navigate(`/clientes/${clienteId}/valores-agregados`)}
+            >
               Volver al listado
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Observaciones del Cliente (inline, scope=valor) */}
+      {/* Conversación abogado / cliente */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>Observaciones del cliente</span>
+            <span>Conversación sobre este valor agregado</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {obsLoading ? (
-            <p className="text-sm text-muted-foreground">Cargando…</p>
-          ) : obs.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Sin observaciones aún.</p>
+          {/* Timeline */}
+          {msgsLoading ? (
+            <p className="text-sm text-muted-foreground">Cargando conversación…</p>
+          ) : mensajes.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Aún no hay respuestas. El abogado puede responder aquí y el cliente podrá
+              continuar la conversación.
+            </p>
           ) : (
             <div className="space-y-3">
-              {obs.map((o) => {
-                const fecha = formatObsDate((o as any).fecha || (o as any).creadoTs || (o as any).creadoEn);
-                const editable = canEditObs(o);
+              {mensajes.map((m) => {
+                const fechaStr = formatMsgDate(m.fecha as any);
+                const autorLabel = m.autorTipo === "cliente" ? "CLIENTE" : "ABOGADO";
+                const isClienteMsg = m.autorTipo === "cliente";
 
                 return (
-                  <div key={o.id} className="rounded-md border p-3">
-                    <div className="text-xs text-muted-foreground mb-1 flex items-center justify-between gap-2">
-                      <span>{fecha}</span>
+                  <div
+                    key={m.id}
+                    className={cn(
+                      "rounded-md border p-3 flex flex-col gap-1",
+                      isClienteMsg
+                        ? "border-brand-primary/40 bg-brand-primary/5"
+                        : "border-slate-200 bg-slate-50"
+                    )}
+                  >
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <UserIcon className="h-3 w-3" />
+                        <span className="font-medium text-foreground">{autorLabel}</span>
+                      </div>
+                      <span>{fechaStr}</span>
                     </div>
 
-                    {editingId === o.id ? (
-                      <div className="space-y-2">
-                        <Textarea
-                          value={editingTexto}
-                          onChange={(e) => setEditingTexto(e.target.value)}
-                          className="min-h-24"
-                          maxLength={1000}
-                          disabled={obsWorking}
-                        />
-                        <div className="flex items-center justify-end gap-2">
-                          <Button variant="outline" onClick={cancelEdit} disabled={obsWorking}>
-                            Cancelar
-                          </Button>
-                          <Button onClick={onSaveEdit} disabled={obsWorking || !editingTexto.trim()}>
-                            Guardar cambios
-                          </Button>
-                        </div>
+                    {m.descripcion && (
+                      <div className="text-sm whitespace-pre-wrap mt-1">
+                        {m.descripcion}
                       </div>
-                    ) : (
-                      <>
-                        <div className="text-sm whitespace-pre-wrap">{o.texto}</div>
-                        {editable && (
-                          <div className="mt-2 flex items-center gap-2 justify-end">
-                            <Button size="sm" variant="outline" onClick={() => startEdit(o)} disabled={obsWorking}>
-                              Editar
-                            </Button>
-                            <Button size="sm" variant="destructive" onClick={() => askDelete(o)} disabled={obsWorking}>
-                              Eliminar
-                            </Button>
-                          </div>
-                        )}
-                      </>
+                    )}
+
+                    {m.archivoURL && (
+                      <div className="mt-2 flex items-center gap-2 text-xs">
+                        <FileText className="h-3 w-3 text-primary" />
+                        <a
+                          href={m.archivoURL}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="underline text-primary"
+                        >
+                          {m.archivoNombre ?? "Ver archivo adjunto"}
+                        </a>
+                      </div>
                     )}
                   </div>
                 );
@@ -288,51 +279,105 @@ export default function ValorAgregadoDetailPage() {
             </div>
           )}
 
-          {(canCreate) && (
-            <div className="pt-2 space-y-2">
-              <Separator />
-              <Label>Nueva observación</Label>
-              <Textarea
-                value={texto}
-                onChange={(e) => setTexto(e.target.value)}
-                placeholder="Escribe tu observación para el ejecutivo…"
-                className="min-h-24"
-                maxLength={1000}
-                disabled={obsSaving || obsWorking}
-              />
-              <div className="flex justify-end">
-                <Button onClick={onCreate} disabled={obsSaving || obsWorking || !texto.trim()}>
-                  {obsSaving ? "Guardando…" : "Agregar observación"}
+          {/* Nuevo mensaje (cliente o abogado/ejecutivo) */}
+
+          <div className="pt-4 space-y-3">
+            <Separator />
+            <Label>Agregar mensaje a la conversación</Label>
+            <Textarea
+              value={texto}
+              onChange={(e) => setTexto(e.target.value)}
+              placeholder="Escribe tu respuesta, observaciones o instrucciones…"
+              className="min-h-24"
+              maxLength={2000}
+              disabled={msgSaving}
+            />
+
+            {/* Archivo adjunto */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2 text-sm">
+                <Upload className="h-4 w-4" />
+                Archivo adjunto (opcional)
+              </Label>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <Input
+                  id="archivo-conversacion-valor"
+                  type="file"
+                  className="hidden"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+                  disabled={msgSaving}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (!f) {
+                      setArchivoFile(undefined);
+                      return;
+                    }
+                    const tooBig = f.size > MAX_FILE_MB * 1024 * 1024;
+                    if (tooBig) {
+                      toast.error(`El archivo supera ${MAX_FILE_MB} MB`);
+                      e.currentTarget.value = "";
+                      return;
+                    }
+                    setArchivoFile(f);
+                  }}
+                />
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={msgSaving}
+                  onClick={() =>
+                    document.getElementById("archivo-conversacion-valor")?.click()
+                  }
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Seleccionar archivo
                 </Button>
+
+                {archivoFile ? (
+                  <div className="text-xs flex items-center gap-2">
+                    <FileText className="h-3 w-3 text-brand-primary" />
+                    <span className="font-medium">{archivoFile.name}</span>
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground">
+                    No hay archivo seleccionado
+                  </div>
+                )}
+
+                {archivoFile && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setArchivoFile(undefined)}
+                    disabled={msgSaving}
+                  >
+                    Quitar archivo
+                  </Button>
+                )}
               </div>
+
+              <p className="text-[11px] text-muted-foreground">
+                Formatos permitidos: PDF, Word, Excel, JPG/PNG. Tamaño máximo: {MAX_FILE_MB} MB.
+              </p>
             </div>
-          )}
+
+            <div className="flex justify-end">
+              <Button
+                onClick={onCrearMensaje}
+                disabled={msgSaving || (!texto.trim() && !archivoFile)}
+              >
+                {msgSaving ? "Guardando…" : "Enviar respuesta"}
+              </Button>
+            </div>
+          </div>
+
+
+
         </CardContent>
       </Card>
-
-      {/* Confirmación eliminar */}
-      <AlertDialog open={!!deletingId} onOpenChange={(v) => !v && setDeletingId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar observación?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta acción no se puede deshacer. La observación se eliminará permanentemente.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setDeletingId(null)} disabled={obsWorking}>
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700"
-              onClick={doDelete}
-              disabled={obsWorking}
-            >
-              Sí, eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

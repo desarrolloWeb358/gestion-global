@@ -17,8 +17,8 @@ import { ValorAgregado } from "../models/valorAgregado.model";
 import { TipoValorAgregado, TipoValorAgregadoLabels } from "../../../shared/constants/tipoValorAgregado";
 import { normalizeToE164 } from "@/shared/phoneUtils";
 import { enviarNotificacionValorAgregadoBasico } from "./notificacionValorAgregadoService";
-import { ObservacionCliente } from "@/modules/cobranza/models/observacionCliente.model";
-
+import { MensajeValorAgregado } from "../models/mensajeValorAgregado.model";
+import { getAuth } from "firebase/auth";
 
 
 async function obtenerContactoCliente(clienteId: string): Promise<{
@@ -260,61 +260,124 @@ export async function eliminarValorAgregado(
   await deleteDoc(docRef(clienteId, valorId));
 }
 
-// =====================================================
-// 💬 Observaciones Cliente
-// =====================================================
-export async function listarObservacionesCliente(
+
+export async function listarConversacionValorAgregado(
   clienteId: string,
   valorId: string
-): Promise<ObservacionCliente[]> {
-  const refCol = collection(
-    db,
-    "clientes",
-    clienteId,
-    "valoresAgregados",
-    valorId,
-    "observacionesCliente"
-  );
-  const qy = query(refCol, orderBy("fecha", "desc"));
+): Promise<MensajeValorAgregado[]> {
+  const qy = query(colRefConversacion(clienteId, valorId), orderBy("fecha", "asc"));
   const snap = await getDocs(qy);
+
   return snap.docs.map((d) => {
     const data = d.data() as any;
     return {
       id: d.id,
-      texto: data.texto ?? "",
-      fecha: data.fecha?.toDate?.() ?? new Date(),
-    } as ObservacionCliente;
+      descripcion: data.descripcion ?? "",
+      fecha: data.fecha,
+      archivoPath: data.archivoPath,
+      archivoURL: data.archivoURL,
+      archivoNombre: data.archivoNombre,
+      autorTipo: data.autorTipo === "cliente" ? "cliente" : "abogado",
+    } as MensajeValorAgregado;
   });
 }
 
-export async function crearObservacionCliente(
-  clienteId: string,
-  valorId: string,
-  payload: { texto: string }
-): Promise<ObservacionCliente> {
-  const refCol = collection(
+
+
+// =====================================================
+// 💬 Conversación de Valor Agregado
+//    clientes/{clienteId}/valoresAgregados/{valorId}/conversacion
+// =====================================================
+function colRefConversacion(clienteId: string, valorId: string) {
+  return collection(
     db,
     "clientes",
     clienteId,
     "valoresAgregados",
     valorId,
-    "observacionesCliente"
+    "conversacion"
   );
+}
 
-  const texto = (payload.texto ?? "").trim();
-  if (!texto) throw new Error("El texto de la observación es obligatorio.");
+function docRefConversacion(clienteId: string, valorId: string, msgId: string) {
+  return doc(
+    db,
+    "clientes",
+    clienteId,
+    "valoresAgregados",
+    valorId,
+    "conversacion",
+    msgId
+  );
+}
 
-  const fecha = Timestamp.fromDate(new Date());
+function storagePathConversacion(
+  clienteId: string,
+  valorId: string,
+  msgId: string,
+  fileName: string
+) {
+  return `clientes/${clienteId}/valoresAgregados/${valorId}/conversacion/${msgId}/${fileName}`;
+}
 
-  // 🕒 Guardar solo texto y fecha
-  const created = await addDoc(refCol, {
-    texto,
-    fecha: new Date(),
-  });
+// AHORA
+export type CrearMensajeConversacionInput = {
+  descripcion: string;
+  fechaTs?: Timestamp;
+  autorTipo: "cliente" | "abogado";
+};
 
-  return {
-    id: created.id,
-    texto,
-    fecha,
-  } as ObservacionCliente;
+export async function crearMensajeConversacionValorAgregado(
+  clienteId: string,
+  valorId: string,
+  data: CrearMensajeConversacionInput,
+  archivo?: File
+): Promise<string> {
+  const base: any = {
+    descripcion: (data.descripcion ?? "").trim(),
+    fecha: data.fechaTs ?? serverTimestamp(),
+    autorTipo: data.autorTipo === "cliente" ? "cliente" : "abogado",
+  };
+
+  if (!base.descripcion && !archivo) {
+    throw new Error("Debes escribir una descripción o adjuntar un archivo.");
+  }
+
+  const created = await addDoc(colRefConversacion(clienteId, valorId), base);
+  const msgId = created.id;
+
+  if (archivo) {
+    const path = storagePathConversacion(clienteId, valorId, msgId, archivo.name);
+    const rf = ref(storage, path);
+    await uploadBytes(rf, archivo);
+    const url = await getDownloadURL(rf);
+
+    await updateDoc(docRefConversacion(clienteId, valorId, msgId), {
+      archivoPath: path,
+      archivoURL: url,
+      archivoNombre: archivo.name,
+    });
+  }
+
+  return msgId;
+}
+
+export async function eliminarMensajeConversacionValorAgregado(
+  clienteId: string,
+  valorId: string,
+  msgId: string
+): Promise<void> {
+  const snap = await getDoc(docRefConversacion(clienteId, valorId, msgId));
+  if (!snap.exists()) {
+    return;
+  }
+  const data: any = snap.data() || {};
+  if (data.archivoPath) {
+    try {
+      await deleteObject(ref(storage, data.archivoPath));
+    } catch {
+      /* ignore */
+    }
+  }
+  await deleteDoc(docRefConversacion(clienteId, valorId, msgId));
 }
