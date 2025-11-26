@@ -56,7 +56,7 @@ export default function DeudoresTable() {
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [deudorEditando, setDeudorEditando] = useState<Deudor | null>(null);
-  const [formData, setFormData] = useState<Partial<Deudor> & { porcentajeHonorarios?: number }>({});
+  const [formData, setFormData] = useState<Partial<Deudor> & { porcentajeHonorarios?: number | string }>({});
 
   // Estado para cliente y usuarios
   const [cliente, setCliente] = useState<Cliente | null>(null);
@@ -151,7 +151,7 @@ export default function DeudoresTable() {
     setDeudorEditando(null);
     setFormData({
       tipificacion: TipificacionDeuda.GESTIONANDO,
-      porcentajeHonorarios: 15, // 👈 default
+      porcentajeHonorarios: 15, // 👈 default solo para crear
     });
     setOpen(true);
   };
@@ -160,13 +160,22 @@ export default function DeudoresTable() {
     if (!canEdit) return;
     setDeudorEditando(deudor);
 
+    // 🔍 DEBUG: Ver qué valor viene de BD
+    console.log('Deudor completo:', deudor);
+    console.log('porcentajeHonorarios desde BD:', deudor.porcentajeHonorarios);
+    console.log('Tipo de dato:', typeof deudor.porcentajeHonorarios);
+
+    // 🔧 FIX: Convertir explícitamente a número si existe
+    const porcentaje = deudor.porcentajeHonorarios !== undefined && 
+                       deudor.porcentajeHonorarios !== null
+      ? Number(deudor.porcentajeHonorarios)
+      : 15; // Default si no hay valor
+
+    console.log('Porcentaje procesado:', porcentaje);
+
     setFormData({
       ...deudor,
-      // nos aseguramos de que el campo exista y sea número
-      porcentajeHonorarios:
-        deudor.porcentajeHonorarios !== undefined && deudor.porcentajeHonorarios !== null
-          ? Number(deudor.porcentajeHonorarios)
-          : 15,
+      porcentajeHonorarios: porcentaje,
     });
 
     setOpen(true);
@@ -181,6 +190,14 @@ export default function DeudoresTable() {
     if (!clienteId) return;
     if (!canEdit) return;
 
+    // Convertir porcentajeHonorarios a número, usando 15 como default solo si está vacío
+    const valorActual = formData.porcentajeHonorarios as number | string | undefined;
+    const porcentajeFinal = !valorActual || valorActual === ''
+      ? 15
+      : Number(valorActual);
+
+    console.log('Guardando con porcentaje:', porcentajeFinal);
+
     try {
       if (deudorEditando) {
         await actualizarDeudorDatos(clienteId, deudorEditando.id!, {
@@ -190,7 +207,7 @@ export default function DeudoresTable() {
           correos: formData.correos ?? [],
           telefonos: formData.telefonos ?? [],
           tipificacion: formData.tipificacion as TipificacionDeuda,
-          porcentajeHonorarios: Number(formData.porcentajeHonorarios ?? 15),
+          porcentajeHonorarios: porcentajeFinal,
         });
         toast.success("✓ Deudor actualizado correctamente");
       } else {
@@ -198,7 +215,7 @@ export default function DeudoresTable() {
           nombre: formData.nombre ?? "",
           cedula: formData.cedula,
           ubicacion: formData.ubicacion,
-          porcentajeHonorarios: Number(formData.porcentajeHonorarios ?? 15),
+          porcentajeHonorarios: porcentajeFinal,
           correos: formData.correos ?? [],
           telefonos: formData.telefonos ?? [],
           tipificacion: (formData.tipificacion as TipificacionDeuda) ?? TipificacionDeuda.GESTIONANDO,
@@ -214,16 +231,21 @@ export default function DeudoresTable() {
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const numericFields = new Set(["porcentajeHonorarios"]);
     const { name, value } = e.target;
-    setFormData((prev) => {
-      const numericFields = new Set(['porcentajeHonorarios']);
-      const parsedValue =
-        numericFields.has(name)
-          ? (value === '' ? undefined : Number(value))
-          : value;
-      return { ...prev, [name]: parsedValue as any };
-    });
+    const numericFields = new Set(['porcentajeHonorarios']);
+    
+    if (numericFields.has(name)) {
+      // Para campos numéricos: mantener el valor como string mientras se escribe
+      // Solo convertir a número cuando hay un valor válido
+      const numValue = value === '' ? '' : value;
+      setFormData((prev) => ({ 
+        ...prev, 
+        [name]: numValue === '' ? '' : Number(numValue)
+      }));
+    } else {
+      // Para campos de texto normales
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
   };
 
   if (aclLoading) {
@@ -264,6 +286,7 @@ export default function DeudoresTable() {
             <BackButton
               variant="ghost"
               size="sm"
+              to={`/clientes/${clienteId}`}
               className="text-brand-secondary hover:text-brand-primary hover:bg-brand-primary/5 transition-all"
             />
           </div>
@@ -374,12 +397,13 @@ export default function DeudoresTable() {
                         <Input
                           type="number"
                           name="porcentajeHonorarios"
-                          value={formData.porcentajeHonorarios ?? 15}
+                          value={formData.porcentajeHonorarios ?? ''}
                           onChange={handleChange}
                           readOnly={readOnly}
                           className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
                           placeholder="15"
                         />
+                        <p className="text-xs text-muted mt-1">Valor actual: {formData.porcentajeHonorarios || 'vacío'}</p>
                       </div>
 
                       <div className="space-y-3 pt-4 border-t border-brand-secondary/10">

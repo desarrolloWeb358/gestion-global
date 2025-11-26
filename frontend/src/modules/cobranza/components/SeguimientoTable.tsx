@@ -295,7 +295,7 @@ export default function SeguimientoTable() {
       <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30 flex items-center justify-center">
         <div className="text-center">
           <div className="h-12 w-12 mx-auto animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary mb-4" />
-          <Typography variant="body" className="text-muted">
+          <Typography variant="body" className="text-gray-600">
             Cargando permisos...
           </Typography>
         </div>
@@ -310,7 +310,7 @@ export default function SeguimientoTable() {
           <Typography variant="h2" className="text-brand-secondary mb-2">
             Acceso denegado
           </Typography>
-          <Typography variant="body" className="text-muted mb-4">
+          <Typography variant="body" className="text-gray-600 mb-4">
             No tienes permisos para ver seguimientos.
           </Typography>
           <Button variant="outline" onClick={() => navigate(-1)}>
@@ -355,7 +355,7 @@ export default function SeguimientoTable() {
                 <Typography variant="h2" className="!text-brand-primary font-bold">
                   Gestión de Seguimiento
                 </Typography>
-                <Typography variant="small" className="text-muted mt-0.5">
+                <Typography variant="small" className="text-gray-600 mt-0.5">
                   {tab === "pre" && "Seguimiento pre-jurídico"}
                   {tab === "juridico" && "Seguimiento jurídico"}
                   {tab === "demanda" && "Seguimiento de demanda"}
@@ -449,7 +449,7 @@ export default function SeguimientoTable() {
               <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
                 <div className="flex flex-col items-center gap-4">
                   <div className="h-12 w-12 animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary" />
-                  <Typography variant="body" className="text-muted">
+                  <Typography variant="body" className="text-gray-600">
                     Cargando seguimientos...
                   </Typography>
                 </div>
@@ -463,7 +463,7 @@ export default function SeguimientoTable() {
                   <Typography variant="h3" className="text-brand-secondary">
                     No hay seguimientos
                   </Typography>
-                  <Typography variant="small" className="text-muted">
+                  <Typography variant="small" className="text-gray-600">
                     Aún no se han registrado seguimientos pre-jurídicos
                   </Typography>
                 </div>
@@ -520,7 +520,7 @@ export default function SeguimientoTable() {
                                 Ver
                               </a>
                             ) : (
-                              <span className="text-muted-foreground text-sm">—</span>
+                              <span className="text-gray-400 text-sm">—</span>
                             )}
                           </TableCell>
                           {canEditSafe && (
@@ -565,7 +565,7 @@ export default function SeguimientoTable() {
               seguimiento={seleccionado}
               tipificacionDeuda={undefined}
               onSaveWithDestino={onSaveWithDestino}
-              destinoInicial={tab === "juridico" ? "seguimientoJuridico" : "seguimiento"}
+              destinoInicial="seguimiento"
             />
 
             <AlertDialog open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)}>
@@ -594,6 +594,19 @@ export default function SeguimientoTable() {
           {/* JURÍDICO */}
           <TabsContent value="juridico" className="mt-6">
             <SeguimientoJuridicoTable key={refreshJuridicoKey} />
+            
+            {/* 🔧 FIX: Agregar el formulario también en el tab jurídico */}
+            <SeguimientoForm
+              open={open}
+              onClose={() => {
+                setOpen(false);
+                setSeleccionado(undefined);
+              }}
+              seguimiento={seleccionado}
+              tipificacionDeuda={undefined}
+              onSaveWithDestino={onSaveWithDestino}
+              destinoInicial="seguimientoJuridico"
+            />
           </TabsContent>
 
           {/* DEMANDA */}
@@ -613,7 +626,7 @@ export default function SeguimientoTable() {
                     Observaciones del cliente
                   </Typography>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Ordenar:</span>
+                    <span className="text-sm text-gray-600">Ordenar:</span>
                     <Select
                       value={obsFilters.order}
                       onValueChange={(v) => setObsFilter("order", (v as SortDir) || "desc")}
@@ -644,7 +657,7 @@ export default function SeguimientoTable() {
                 {obsLoading ? (
                   <div className="text-center py-8">
                     <div className="h-8 w-8 mx-auto animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary mb-3" />
-                    <Typography variant="small" className="text-muted">
+                    <Typography variant="small" className="text-gray-600">
                       Cargando observaciones...
                     </Typography>
                   </div>
@@ -653,7 +666,7 @@ export default function SeguimientoTable() {
                     <div className="p-3 rounded-full bg-brand-primary/10 inline-block mb-3">
                       <MessageSquare className="h-6 w-6 text-brand-primary/60" />
                     </div>
-                    <Typography variant="body" className="text-muted">
+                    <Typography variant="body" className="text-gray-600">
                       No hay observaciones del cliente
                     </Typography>
                   </div>
@@ -674,7 +687,7 @@ export default function SeguimientoTable() {
                         >
                           <div className="flex items-center gap-2 mb-2">
                             <MessageSquare className="h-4 w-4 text-brand-primary" />
-                            <span className="text-xs text-muted-foreground font-medium">{fecha}</span>
+                            <span className="text-xs text-gray-600 font-medium">{fecha}</span>
                           </div>
                           <div className="text-sm whitespace-pre-wrap text-gray-700 leading-relaxed">
                             {o.texto}

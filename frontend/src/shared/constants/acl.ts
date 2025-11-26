@@ -1,5 +1,4 @@
 import AdminDashboardPage from "@/modules/dashboard/pages/AdminDashboardPage";
-import { V } from "react-router/dist/development/index-react-server-client-BKpa2trA";
 
 export const ROLES = [
   "admin",

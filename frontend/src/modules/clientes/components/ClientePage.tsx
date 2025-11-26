@@ -15,12 +15,15 @@ import { Cliente } from "@/modules/clientes/models/cliente.model";
 import { ClienteInfoCard } from "./ClienteInfoCard";
 import { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 import { obtenerUsuarios } from "@/modules/usuarios/services/usuarioService";
+import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 import { Button } from "@/shared/ui/button";
 import { Typography } from "@/shared/design-system/components/Typography";
 import { BackButton } from "@/shared/design-system/components/BackButton";
 import { cn } from "@/shared/lib/cn";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { PERMS } from "@/shared/constants/acl";
+import { Deudor } from "@/modules/cobranza/models/deudores.model";
+import { obtenerDeudorPorCliente } from "@/modules/cobranza/services/deudorService";
 
 
 export default function ClientePage() {
@@ -32,8 +35,8 @@ export default function ClientePage() {
     // Permiso específico para ver el botón de "Recaudos y Deudas"
     const canViewRecaudos = can(PERMS.Recaudos_Read);
 
-
     const [cliente, setCliente] = useState<Cliente | null>(null);
+    const [deudores, setDeudores] = useState<Deudor[]>([]);
     const [ejecutivos, setEjecutivos] = useState<UsuarioSistema[]>([]);
     const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([]);
     const [loading, setLoading] = useState(true);
@@ -47,6 +50,11 @@ export default function ClientePage() {
         return usuario?.nombre ?? usuario?.email ?? "Cliente";
     }, [cliente, clienteId, usuarios]);
 
+    // Filtrar deudores activos (no INACTIVO)
+    const deudoresActivos = useMemo(() => {
+        return deudores.filter(d => d.tipificacion !== TipificacionDeuda.INACTIVO);
+    }, [deudores]);
+
     useEffect(() => {
         const cargarDatos = async () => {
             if (!clienteId) return;
@@ -58,6 +66,10 @@ export default function ClientePage() {
                 if (snap.exists()) {
                     setCliente({ id: snap.id, ...snap.data() } as Cliente);
                 }
+
+                // Cargar deudores
+                const deudoresData = await obtenerDeudorPorCliente(clienteId);
+                setDeudores(deudoresData);
 
                 const todosUsuarios = await obtenerUsuarios();
                 setUsuarios(todosUsuarios);
@@ -82,14 +94,13 @@ export default function ClientePage() {
             <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30 flex items-center justify-center">
                 <div className="text-center">
                     <div className="h-12 w-12 mx-auto animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary mb-4" />
-                    <Typography variant="body" className="text-muted">
+                    <Typography variant="body">
                         Cargando información del cliente...
                     </Typography>
                 </div>
             </div>
         );
     }
-
 
     if (!cliente) {
         return (
@@ -101,7 +112,7 @@ export default function ClientePage() {
                     <Typography variant="h2" className="text-red-600 mb-2">
                         Cliente no encontrado
                     </Typography>
-                    <Typography variant="body" className="text-muted mb-4">
+                    <Typography variant="body" className="mb-4">
                         No se pudo encontrar la información del cliente
                     </Typography>
                     <Button
@@ -155,10 +166,13 @@ export default function ClientePage() {
                             cliente={cliente}
                             ejecutivos={ejecutivos}
                             usuarios={usuarios}
+                            totalDeudores={deudoresActivos.length}
                         />
                     </div>
                 </section>
 
+                {/* DEUDORES ACTIVOS */}
+            
                 {/* ACCIONES RÁPIDAS */}
                 <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
                     <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5 border-b border-brand-secondary/10">
@@ -183,13 +197,12 @@ export default function ClientePage() {
                                         <Typography variant="h3" className="!text-brand-secondary mb-2">
                                             Recaudos y Deudas
                                         </Typography>
-                                        <Typography variant="small" className="text-muted">
+                                        <Typography variant="small" >
                                             Registra pagos y actualiza el estado mensual
                                         </Typography>
                                     </div>
                                 </button>
                             )}
-
 
                             {/* Tarjeta: Ver Deudores */}
                             <button
@@ -204,7 +217,7 @@ export default function ClientePage() {
                                     <Typography variant="h3" className="!text-brand-secondary mb-2">
                                         Ver Deudores
                                     </Typography>
-                                    <Typography variant="small" className="text-muted">
+                                    <Typography variant="small" >
                                         Gestiona la lista de deudores del cliente
                                     </Typography>
                                 </div>
@@ -223,7 +236,7 @@ export default function ClientePage() {
                                     <Typography variant="h3" className="!text-brand-secondary mb-2">
                                         Valores Agregados
                                     </Typography>
-                                    <Typography variant="small" className="text-muted">
+                                    <Typography variant="small" >
                                         Consulta valores adicionales y métricas
                                     </Typography>
                                 </div>
@@ -242,7 +255,7 @@ export default function ClientePage() {
                                     <Typography variant="h3" className="!text-brand-secondary mb-2">
                                         Ver Reporte
                                     </Typography>
-                                    <Typography variant="small" className="text-muted">
+                                    <Typography variant="small" >
                                         Genera y descarga reportes detallados
                                     </Typography>
                                 </div>
