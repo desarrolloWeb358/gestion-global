@@ -94,7 +94,7 @@ export default function ClientePage() {
             <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30 flex items-center justify-center">
                 <div className="text-center">
                     <div className="h-12 w-12 mx-auto animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary mb-4" />
-                    <Typography variant="body" className="text-muted">
+                    <Typography variant="body">
                         Cargando información del cliente...
                     </Typography>
                 </div>
@@ -112,7 +112,7 @@ export default function ClientePage() {
                     <Typography variant="h2" className="text-red-600 mb-2">
                         Cliente no encontrado
                     </Typography>
-                    <Typography variant="body" className="text-muted mb-4">
+                    <Typography variant="body" className="mb-4">
                         No se pudo encontrar la información del cliente
                     </Typography>
                     <Button
@@ -197,7 +197,7 @@ export default function ClientePage() {
                                         <Typography variant="h3" className="!text-brand-secondary mb-2">
                                             Recaudos y Deudas
                                         </Typography>
-                                        <Typography variant="small" className="text-muted">
+                                        <Typography variant="small" >
                                             Registra pagos y actualiza el estado mensual
                                         </Typography>
                                     </div>
@@ -217,7 +217,7 @@ export default function ClientePage() {
                                     <Typography variant="h3" className="!text-brand-secondary mb-2">
                                         Ver Deudores
                                     </Typography>
-                                    <Typography variant="small" className="text-muted">
+                                    <Typography variant="small" >
                                         Gestiona la lista de deudores del cliente
                                     </Typography>
                                 </div>
@@ -236,7 +236,7 @@ export default function ClientePage() {
                                     <Typography variant="h3" className="!text-brand-secondary mb-2">
                                         Valores Agregados
                                     </Typography>
-                                    <Typography variant="small" className="text-muted">
+                                    <Typography variant="small" >
                                         Consulta valores adicionales y métricas
                                     </Typography>
                                 </div>
@@ -255,7 +255,7 @@ export default function ClientePage() {
                                     <Typography variant="h3" className="!text-brand-secondary mb-2">
                                         Ver Reporte
                                     </Typography>
-                                    <Typography variant="small" className="text-muted">
+                                    <Typography variant="small" >
                                         Genera y descarga reportes detallados
                                     </Typography>
                                 </div>
