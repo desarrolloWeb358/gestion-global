@@ -45,15 +45,13 @@ export default function EstadosMensualesInputMasivo() {
     (async () => {
       try {
         const tryUserCollections = async (): Promise<string | null> => {
-          const usersCollections = ["usuariosSistema", "usuarios"];
-          for (const col of usersCollections) {
-            const ref = doc(db, col, String(clienteId));
-            const snap = await getDoc(ref);
-            if (snap.exists()) {
-              const u = snap.data() as Partial<UsuarioSistema>;
-              const nombre = (u?.nombre ?? "").toString().trim();
-              if (nombre) return nombre;
-            }
+          const usersCollections = "usuarios";
+          const ref = doc(db, usersCollections, String(clienteId));
+          const snap = await getDoc(ref);
+          if (snap.exists()) {
+            const u = snap.data() as Partial<UsuarioSistema>;
+            const nombre = (u?.nombre ?? "").toString().trim();
+            if (nombre) return nombre;
           }
           return null;
         };
@@ -202,7 +200,7 @@ export default function EstadosMensualesInputMasivo() {
 
       toast.success(
         `✓ Se guardaron ${porGuardar.length} fila(s).` +
-          (omitidas > 0 ? ` Omitidas ${omitidas} sin deuda y/o recaudo.` : "")
+        (omitidas > 0 ? ` Omitidas ${omitidas} sin deuda y/o recaudo.` : "")
       );
     } catch (err: any) {
       console.error(err);

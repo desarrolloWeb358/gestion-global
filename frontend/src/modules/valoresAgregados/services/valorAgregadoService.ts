@@ -21,7 +21,7 @@ import { MensajeValorAgregado } from "../models/mensajeValorAgregado.model";
 import { getAuth } from "firebase/auth";
 
 
-async function obtenerContactoCliente(clienteId: string): Promise<{
+async function obtenerContactoUsuario(usuarioID: string): Promise<{
   nombre?: string;
   correo?: string;
   whatsapp?: string;
@@ -30,21 +30,12 @@ async function obtenerContactoCliente(clienteId: string): Promise<{
   let correo: string | undefined;
   let whatsapp: string | undefined;
 
-  const uSnap = await getDoc(doc(db, `usuariosSistema/${clienteId}`));
+  const uSnap = await getDoc(doc(db, `usuarios/${usuarioID}`));
   if (uSnap.exists()) {
     const uData: any = uSnap.data() || {};
     nombre = uData.nombre || nombre;
     correo = uData.email || correo;
     whatsapp = normalizeToE164(uData.telefonoUsuario, { defaultCountry: "CO" }) || whatsapp;
-  } else {
-    // 2️⃣ Fallback: clientes/{clienteId}
-    const cSnap = await getDoc(doc(db, `clientes/${clienteId}`));
-    if (cSnap.exists()) {
-      const cData: any = cSnap.data() || {};
-      nombre = (cData.nombre || cData.razonSocial || nombre)?.toString();
-      correo = cData.correo || cData.email || correo;
-      whatsapp = normalizeToE164(cData.telefono, { defaultCountry: "CO" }) || whatsapp;
-    }
   }
 
   return { nombre, correo, whatsapp };
@@ -157,6 +148,7 @@ export async function crearValorAgregado(
   data: CrearValorInput,
   archivo?: File
 ): Promise<string> {
+  console.log(`Creando valor agregado para el cliente ${clienteId}...`);
   const payload: Partial<ValorAgregado> = {
     tipo: data.tipo,
     titulo: data.titulo,
@@ -184,7 +176,7 @@ export async function crearValorAgregado(
 
   // 3️⃣ Enviar notificación (si aplica)
   try {
-    const contacto = await obtenerContactoCliente(clienteId);
+    const contacto = await obtenerContactoUsuario(clienteId);
     const tipoLabel = TipoValorAgregadoLabels[data.tipo];
     const nombreValor = data.titulo || "Documento";
     const nombreCliente = contacto.nombre || "Cliente";
@@ -209,6 +201,32 @@ export async function crearValorAgregado(
   }
 
   return valorId;
+}
+
+async function obtenerContactoAbogadoDeCliente(clienteId: string): Promise<{
+  nombre?: string;
+  correo?: string;
+  whatsapp?: string;
+}> {
+  // 1. Leer el cliente
+  const cSnap = await getDoc(doc(db, `clientes/${clienteId}`));
+  if (!cSnap.exists()) {
+    console.warn(`[obtenerContactoAbogadoDeCliente] Cliente ${clienteId} no existe`);
+    return { nombre: undefined, correo: undefined, whatsapp: undefined };
+  }
+
+  const cData: any = cSnap.data() || {};
+  const abogadoId: string | undefined = cData.abogadoId;
+
+  if (!abogadoId) {
+    console.warn(
+      `[obtenerContactoAbogadoDeCliente] Cliente ${clienteId} no tiene abogadoId definido`
+    );
+    return { nombre: undefined, correo: undefined, whatsapp: undefined };
+  }
+
+  // 2. Reusar tu helper que lee de usuarios/{usuarioID}
+  return await obtenerContactoUsuario(abogadoId);
 }
 
 export async function actualizarValorAgregado(
