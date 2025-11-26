@@ -133,6 +133,7 @@ export async function getDeudorById(clienteId: string, deudorId: string): Promis
   return null;
 }
 
+// 🔧 FIX: Agregar porcentajeHonorarios al mapeo
 export function mapDocToDeudor(id: string, data: DocumentData): Deudor {
   return {
     id,
@@ -142,6 +143,7 @@ export function mapDocToDeudor(id: string, data: DocumentData): Deudor {
     cedula: data.cedula ?? "",    
     correos: Array.isArray(data.correos) ? data.correos : [],
     telefonos: Array.isArray(data.telefonos) ? data.telefonos : [],
+    porcentajeHonorarios: data.porcentajeHonorarios ?? 15, // 🔧 AGREGADO: mapear porcentajeHonorarios desde Firestore
     acuerdoActivoId: data.acuerdoActivoId,
     juzgadoId: data.juzgadoId,
     numeroProceso: data.numeroProceso,

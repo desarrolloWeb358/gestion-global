@@ -15,12 +15,15 @@ import { Cliente } from "@/modules/clientes/models/cliente.model";
 import { ClienteInfoCard } from "./ClienteInfoCard";
 import { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 import { obtenerUsuarios } from "@/modules/usuarios/services/usuarioService";
+import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 import { Button } from "@/shared/ui/button";
 import { Typography } from "@/shared/design-system/components/Typography";
 import { BackButton } from "@/shared/design-system/components/BackButton";
 import { cn } from "@/shared/lib/cn";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { PERMS } from "@/shared/constants/acl";
+import { Deudor } from "@/modules/cobranza/models/deudores.model";
+import { obtenerDeudorPorCliente } from "@/modules/cobranza/services/deudorService";
 
 
 export default function ClientePage() {
@@ -32,8 +35,8 @@ export default function ClientePage() {
     // Permiso específico para ver el botón de "Recaudos y Deudas"
     const canViewRecaudos = can(PERMS.Recaudos_Read);
 
-
     const [cliente, setCliente] = useState<Cliente | null>(null);
+    const [deudores, setDeudores] = useState<Deudor[]>([]);
     const [ejecutivos, setEjecutivos] = useState<UsuarioSistema[]>([]);
     const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([]);
     const [loading, setLoading] = useState(true);
@@ -47,6 +50,11 @@ export default function ClientePage() {
         return usuario?.nombre ?? usuario?.email ?? "Cliente";
     }, [cliente, clienteId, usuarios]);
 
+    // Filtrar deudores activos (no INACTIVO)
+    const deudoresActivos = useMemo(() => {
+        return deudores.filter(d => d.tipificacion !== TipificacionDeuda.INACTIVO);
+    }, [deudores]);
+
     useEffect(() => {
         const cargarDatos = async () => {
             if (!clienteId) return;
@@ -58,6 +66,10 @@ export default function ClientePage() {
                 if (snap.exists()) {
                     setCliente({ id: snap.id, ...snap.data() } as Cliente);
                 }
+
+                // Cargar deudores
+                const deudoresData = await obtenerDeudorPorCliente(clienteId);
+                setDeudores(deudoresData);
 
                 const todosUsuarios = await obtenerUsuarios();
                 setUsuarios(todosUsuarios);
@@ -89,7 +101,6 @@ export default function ClientePage() {
             </div>
         );
     }
-
 
     if (!cliente) {
         return (
@@ -155,10 +166,13 @@ export default function ClientePage() {
                             cliente={cliente}
                             ejecutivos={ejecutivos}
                             usuarios={usuarios}
+                            totalDeudores={deudoresActivos.length}
                         />
                     </div>
                 </section>
 
+                {/* DEUDORES ACTIVOS */}
+            
                 {/* ACCIONES RÁPIDAS */}
                 <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
                     <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5 border-b border-brand-secondary/10">
@@ -189,7 +203,6 @@ export default function ClientePage() {
                                     </div>
                                 </button>
                             )}
-
 
                             {/* Tarjeta: Ver Deudores */}
                             <button

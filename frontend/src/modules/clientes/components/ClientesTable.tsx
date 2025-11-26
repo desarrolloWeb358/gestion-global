@@ -179,7 +179,7 @@ export default function ClientesCrud() {
                   <Typography variant="h2" className="!text-brand-primary font-bold">
                     Gestión de Clientes
                   </Typography>
-                  <Typography variant="small" className="text-muted mt-0.5">
+                  <Typography variant="small" className="mt-0.5">
                     {clientesFiltrados.length} {clientesFiltrados.length === 1 ? 'cliente encontrado' : 'clientes encontrados'}
                   </Typography>
                 </div>

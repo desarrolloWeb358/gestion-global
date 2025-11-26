@@ -1,5 +1,3 @@
-import AdminDashboardPage from "@/modules/dashboard/pages/AdminDashboardPage";
-
 export const ROLES = [
   "admin",
   "ejecutivo",
