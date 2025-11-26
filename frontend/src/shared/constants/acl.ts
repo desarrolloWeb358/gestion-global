@@ -83,6 +83,8 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Abonos_Read,
     PERMS.Abonos_Edit,
     PERMS.Recaudos_Read,
+    PERMS.Valores_agregados_Read,
+    PERMS.Valores_agregados_Edit,
   ],
 
   ejecutivoAdmin: [
@@ -97,6 +99,8 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Abonos_Edit,
     PERMS.Valores_Read, 
     PERMS.Recaudos_Read,
+    PERMS.Valores_agregados_Read,
+    PERMS.Valores_agregados_Edit,
   ],
 
   ejecutivo: [
