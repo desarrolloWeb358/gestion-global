@@ -174,12 +174,13 @@ export async function crearValorAgregado(
     });
   }
 
-  // 3️⃣ Enviar notificación (si aplica)
+  // 3️⃣ Enviar notificación al ABOGADO del cliente (si aplica)
   try {
-    const contacto = await obtenerContactoUsuario(clienteId);
+    const contacto = await obtenerContactoAbogadoDeCliente(clienteId);
+    console.log(`Contacto abogado del cliente ${clienteId}:`, contacto);
     const tipoLabel = TipoValorAgregadoLabels[data.tipo];
     const nombreValor = data.titulo || "Documento";
-    const nombreCliente = contacto.nombre || "Cliente";
+    const nombreDestinatario = contacto.nombre || "Usuario";
 
     if (contacto.correo || contacto.whatsapp) {
       await enviarNotificacionValorAgregadoBasico(
@@ -188,13 +189,16 @@ export async function crearValorAgregado(
           whatsappCliente: contacto.whatsapp,
         },
         {
-          nombreCliente,
+          // este campo en la plantilla realmente es "nombre del destinatario"
+          nombreCliente: nombreDestinatario,
           tipoLabel,
           nombreValor,
         }
       );
     } else {
-      console.warn(`[crearValorAgregado] Cliente ${clienteId} sin correo/whatsapp; no se envía notificación.`);
+      console.warn(
+        `[crearValorAgregado] Cliente ${clienteId} sin abogado con correo/whatsapp; no se envía notificación.`
+      );
     }
   } catch (err) {
     console.error("[crearValorAgregado] Error al enviar notificación:", err);
