@@ -127,6 +127,7 @@ function formatFechaCO(value: any) {
   return d ? d.toLocaleDateString("es-CO") : "—";
 }
 
+
 const ALL = "__ALL__";
 
 // =======================
