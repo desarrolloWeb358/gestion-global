@@ -178,26 +178,24 @@ export async function crearValorAgregado(
   try {
     const contacto = await obtenerContactoAbogadoDeCliente(clienteId);
     console.log(`Contacto abogado del cliente ${clienteId}:`, contacto);
+
+    const nombreCliente = clienteId;
     const tipoLabel = TipoValorAgregadoLabels[data.tipo];
     const nombreValor = data.titulo || "Documento";
     const nombreDestinatario = contacto.nombre || "Usuario";
+    const descripcionValor = data.descripcion || "";
 
-    if (contacto.correo || contacto.whatsapp) {
-      await enviarNotificacionValorAgregadoBasico(
-        {
-          correoCliente: contacto.correo,
-          whatsappCliente: contacto.whatsapp,
-        },
-        {
-          // este campo en la plantilla realmente es "nombre del destinatario"
-          nombreCliente: nombreDestinatario,
-          tipoLabel,
-          nombreValor,
-        }
-      );
+    if (contacto.correo) {
+      await enviarNotificacionValorAgregadoBasico(contacto.correo, {
+        nombreCliente,
+        nombreDestinatario,
+        tipoLabel,
+        nombreValor,
+        descripcionValor,
+      });
     } else {
       console.warn(
-        `[crearValorAgregado] Cliente ${clienteId} sin abogado con correo/whatsapp; no se envía notificación.`
+        `[crearValorAgregado] Cliente ${clienteId} sin abogado con correo; no se envía notificación.`
       );
     }
   } catch (err) {
