@@ -15,31 +15,10 @@ import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage
 import { db, storage } from "../../../firebase";
 import { ValorAgregado } from "../models/valorAgregado.model";
 import { TipoValorAgregado, TipoValorAgregadoLabels } from "../../../shared/constants/tipoValorAgregado";
-import { normalizeToE164 } from "@/shared/phoneUtils";
-import { enviarNotificacionValorAgregadoBasico } from "./notificacionValorAgregadoService";
 import { MensajeValorAgregado } from "../models/mensajeValorAgregado.model";
-import { getAuth } from "firebase/auth";
+import { notificarUsuarioConAlertaYCorreo } from "@/modules/notificaciones/services/notificacionService";
 
 
-async function obtenerContactoUsuario(usuarioID: string): Promise<{
-  nombre?: string;
-  correo?: string;
-  whatsapp?: string;
-}> {
-  let nombre: string | undefined;
-  let correo: string | undefined;
-  let whatsapp: string | undefined;
-
-  const uSnap = await getDoc(doc(db, `usuarios/${usuarioID}`));
-  if (uSnap.exists()) {
-    const uData: any = uSnap.data() || {};
-    nombre = uData.nombre || nombre;
-    correo = uData.email || correo;
-    whatsapp = normalizeToE164(uData.telefonoUsuario, { defaultCountry: "CO" }) || whatsapp;
-  }
-
-  return { nombre, correo, whatsapp };
-}
 
 // =====================================================
 // 🧩 Tipos y mapeos
@@ -174,62 +153,88 @@ export async function crearValorAgregado(
     });
   }
 
-  // 3️⃣ Enviar notificación al ABOGADO del cliente (si aplica)
+  // 3️⃣ Notificar al ABOGADO del cliente (si aplica)
   try {
-    const contacto = await obtenerContactoAbogadoDeCliente(clienteId);
-    console.log(`Contacto abogado del cliente ${clienteId}:`, contacto);
+    const clienteInfo = await obtenerClienteInfoParaNotificacion(clienteId);
+    const abogadoId = clienteInfo.abogadoId;
+    if (!abogadoId) {
+      console.warn(
+        `[crearValorAgregado] Cliente ${clienteId} sin abogadoId; no se notifica.`
+      );
+      return valorId;
+    }
 
-    const nombreCliente = clienteId;
+    const nombreCliente = clienteInfo.nombreCliente;
     const tipoLabel = TipoValorAgregadoLabels[data.tipo];
     const nombreValor = data.titulo || "Documento";
-    const nombreDestinatario = contacto.nombre || "Usuario";
     const descripcionValor = data.descripcion || "";
 
-    if (contacto.correo) {
-      await enviarNotificacionValorAgregadoBasico(contacto.correo, {
-        nombreCliente,
-        nombreDestinatario,
-        tipoLabel,
-        nombreValor,
-        descripcionValor,
-      });
-    } else {
-      console.warn(
-        `[crearValorAgregado] Cliente ${clienteId} sin abogado con correo; no se envía notificación.`
-      );
-    }
+    // Ruta dentro de tu app a donde debe ir el abogado
+    const ruta = `/clientes/${clienteId}/valor-agregado/${valorId}`;
+
+    const descripcionAlerta = `Nuevo valor agregado (${tipoLabel}) para el cliente ${nombreCliente}: ${nombreValor}`;
+
+    const cuerpoHtmlCorreo = `
+      <p>Se ha registrado un nuevo <strong>valor agregado</strong> en la plataforma.</p>
+      <ul>
+        <li><strong>Cliente:</strong> ${nombreCliente}</li>
+        <li><strong>Tipo:</strong> ${tipoLabel}</li>
+        <li><strong>Nombre:</strong> ${nombreValor}</li>
+        <li><strong>Descripción:</strong> ${descripcionValor}</li>
+      </ul>
+      <p>Puedes revisar el detalle directamente en la plataforma.</p>
+    `;
+
+    await notificarUsuarioConAlertaYCorreo({
+      usuarioId: abogadoId,
+      modulo: "valor agregado",
+      ruta,
+      descripcionAlerta,
+      subject: `Nuevo valor agregado: ${tipoLabel}`,
+      tituloCorreo: "Se ha registrado un nuevo valor agregado",
+      cuerpoHtmlCorreo,
+      accionUrl: `${window.location.origin}#${ruta}`, // o tu patrón real de rutas
+      accionTexto: "Ver valor agregado",
+    });
   } catch (err) {
-    console.error("[crearValorAgregado] Error al enviar notificación:", err);
+    console.error("[crearValorAgregado] Error al notificar:", err);
   }
 
   return valorId;
 }
 
-async function obtenerContactoAbogadoDeCliente(clienteId: string): Promise<{
-  nombre?: string;
-  correo?: string;
-  whatsapp?: string;
-}> {
-  // 1. Leer el cliente
+type ClienteInfoParaNotificacion = {
+  abogadoId?: string;
+  nombreCliente?: string;
+};
+
+async function obtenerClienteInfoParaNotificacion(
+  clienteId: string
+): Promise<ClienteInfoParaNotificacion> {
   const cSnap = await getDoc(doc(db, `clientes/${clienteId}`));
+
   if (!cSnap.exists()) {
-    console.warn(`[obtenerContactoAbogadoDeCliente] Cliente ${clienteId} no existe`);
-    return { nombre: undefined, correo: undefined, whatsapp: undefined };
+    console.warn(
+      `[obtenerClienteInfoParaNotificacion] Cliente ${clienteId} no existe`
+    );
+    return {};
   }
 
   const cData: any = cSnap.data() || {};
+
   const abogadoId: string | undefined = cData.abogadoId;
+  const nombreCliente: string | undefined =
+    cData.nombre;
 
   if (!abogadoId) {
     console.warn(
-      `[obtenerContactoAbogadoDeCliente] Cliente ${clienteId} no tiene abogadoId definido`
+      `[obtenerClienteInfoParaNotificacion] Cliente ${clienteId} no tiene abogadoId definido`
     );
-    return { nombre: undefined, correo: undefined, whatsapp: undefined };
   }
 
-  // 2. Reusar tu helper que lee de usuarios/{usuarioID}
-  return await obtenerContactoUsuario(abogadoId);
+  return { abogadoId, nombreCliente };
 }
+
 
 export async function actualizarValorAgregado(
   clienteId: string,
@@ -237,6 +242,10 @@ export async function actualizarValorAgregado(
   patch: ActualizarValorPatch,
   nuevoArchivo?: File
 ): Promise<void> {
+  
+  // 0️⃣ Obtener datos actuales ANTES de actualizar (para armar la notificación)
+  const prev = await obtenerValorAgregado(clienteId, valorId);  
+
   const basePatch: any = {};
   if (patch.tipo !== undefined) basePatch.tipo = patch.tipo;
   if (patch.titulo !== undefined) basePatch.titulo = patch.titulo;
@@ -262,7 +271,67 @@ export async function actualizarValorAgregado(
     basePatch.archivoNombre = nuevoArchivo.name;
   }
 
+  // 2️⃣ Actualizar el documento en Firestore
   await updateDoc(docRef(clienteId, valorId), basePatch);
+
+  // 3️⃣ Enviar notificación de "valor agregado modificado"
+  try {
+    // Info del cliente (abogadoId + nombreCliente) en una sola consulta
+    const clienteInfo = await obtenerClienteInfoParaNotificacion(clienteId);
+    const abogadoId = clienteInfo.abogadoId;
+
+    if (!abogadoId) {
+      console.warn(
+        `[actualizarValorAgregado] Cliente ${clienteId} sin abogadoId; no se notifica.`
+      );
+      return;
+    }
+
+    const nombreCliente = clienteInfo.nombreCliente || clienteId;
+
+    // Determinar valores FINALES (usando patch o, si no, lo que había antes)
+    const tipoFinal: TipoValorAgregado =
+      patch.tipo ?? prev?.tipo ?? TipoValorAgregado.DERECHO_DE_PETICION;
+
+    const tipoLabel = TipoValorAgregadoLabels[tipoFinal];
+    const nombreValor = patch.titulo ?? prev?.titulo ?? "Documento";
+    const descripcionValor =
+      patch.descripcion ?? prev?.descripcion ?? "";
+
+    const ruta = `/clientes/${clienteId}/valor-agregado/${valorId}`;
+
+    const descripcionAlerta = `Se ha modificado el valor agregado (${tipoLabel}) del cliente ${nombreCliente}: ${nombreValor}`;
+
+    const cuerpoHtmlCorreo = `
+      <p>Se ha <strong>modificado</strong> un valor agregado en la plataforma.</p>
+      <ul>
+        <li><strong>Cliente:</strong> ${nombreCliente}</li>
+        <li><strong>Tipo:</strong> ${tipoLabel}</li>
+        <li><strong>Nombre:</strong> ${nombreValor}</li>
+        <li><strong>Descripción actual:</strong> ${descripcionValor}</li>
+      </ul>
+      <p>Puedes revisar el detalle directamente en la plataforma.</p>
+      ${
+        nuevoArchivo
+          ? `<p>Nota: También se ha actualizado el archivo adjunto.</p>`
+          : ""
+      }
+    `;
+
+    await notificarUsuarioConAlertaYCorreo({
+      usuarioId: abogadoId,
+      modulo: "valor_agregado",
+      ruta,
+      descripcionAlerta,
+      subject: `Valor agregado modificado: ${tipoLabel} - ${nombreCliente}`,
+      tituloCorreo: "Se ha modificado un valor agregado",
+      cuerpoHtmlCorreo,
+      accionUrl: `${window.location.origin}#${ruta}`,
+      accionTexto: "Ver valor agregado",
+    });
+  } catch (err) {
+    console.error("[actualizarValorAgregado] Error al notificar:", err);
+  }
 }
 
 export async function eliminarValorAgregado(
