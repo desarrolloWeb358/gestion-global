@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="./output.css">
+    <link rel="stylesheet" href="./style.css">
+    <title>Gestion Global ACG SAS</title>
+    <link rel="shortcut icon" href="./images/icons8-favicon-32.ico" type="image/x-icon">
+<link rel="icon" href="./images/icons8-favicon-32.ico" type="image/x-icon">
+<!-- Swiper CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper/swiper-bundle.min.css" />
+<!-- Swiper JS -->
+<script src="https://cdn.jsdelivr.net/npm/swiper/swiper-bundle.min.js"></script>
+
+</head>
+<body class="relative bg-gradient-to-r from-blue-900 via-blue-800 to-blue-700">
+  <nav class="sticky top-0 z-50 relative bg-[#00091d] bg-[radial-gradient(#00091d_1px,#00091d_1px)] bg-[size:20px_20px] backdrop-blur-md py-6">
+    <div class="container mx-auto flex px-8 xl:px-0">
+        <div class="flex flex-grow items-center">
+           <a href="./index.html">
+    <img class="h-12" src="./images/Logo_Gestion_Global_Blanco.png" alt="Logo Gestión Global">
+</a>
+        </div>
+        <div class="lg:hidden">
+            <svg onclick="openMenu()" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="white" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+            </svg>
+        </div>
+        <div id="menu" class="lg:flex hidden flex-grow justify-between absolute lg:relative lg:top-0 top-20 left-0
+  w-full lg:w-auto items-center py-14 lg:py-0 px-8 bg-white lg:bg-transparent">
+            <div class="flex flex-col lg:flex-row bg-white lg:bg-transparent">
+                <a href="./index.html" class="text-black lg:text-white font-bold lg:mr-7 mb-8 lg:mb-0">Somos</a>
+                <a href="./Servicios.html" class="text-black lg:text-white font-bold lg:mr-7 mb-8 lg:mb-0">Servicios</a>
+                <a href="./GesGlo.html" class="text-black lg:text-white font-bold lg:mr-7 mb-8 lg:mb-0">GesGlo</a>
+                <a href="./Contacts.html" class="text-black lg:text-white font-bold lg:mr-7 mb-8 lg:mb-0">Contáctanos</a>
+            </div>
+            <!-- Botón visible tanto en móvil como en escritorio -->
+            <div class="flex justify-center lg:flex lg:flex-1 lg:justify-end">
+                <a href="https://gestionglobal-9eac8.web.app/" class="text-sm/6 font-bold text-black lg:text-white hover:underline">
+                    Entrada a GesGlo <span aria-hidden="true">&rarr;</span>
+                </a>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<section>
+  <div class="flex flex-col lg:flex-row">
+    <!-- Contenido textual -->
+    <div class="lg:w-1/2 w-full py-8 my-24 lg:pr-4 md:pr-10 text-left">
+      <p id="typewriter" class="block flex flex-row text-4xl font-medium tracking-tight text-white sm:text-6xl"></p>
+      <p class="block mt-6 text-2xl font-semibold text-indigo-100 sm:text-3xl lg:text-4xl">
+        Somos la forma diferente de cobrar cartera en propiedad horizontal.
+      </p>
+      <dl class="mt-10 max-w-xl space-y-8 text-base/7 text-gray-600 lg:max-w-none">
+        <div class="relative pl-9">
+          <dt class="inline font-semibold text-white">
+            <svg class="absolute left-1 top-1 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M17.25 8.25 21 12m0 0-3.75 3.75M21 12H3" />
+            </svg>
+            Su mejor aliado en Recuperación de cartera y asesoría jurídica en propiedad horizontal.
+          </dt>
+        </div>
+        <div class="relative pl-9">
+          <dt class="inline font-semibold text-white">
+            <svg class="absolute left-1 top-1 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M17.25 8.25 21 12m0 0-3.75 3.75M21 12H3" />
+            </svg>
+            Recuperamos su cartera con rapidez y respaldo legal, asegurando el bienestar financiero de su comunidad.
+          </dt>
+        </div>
+        <div class="relative pl-9">
+          <dt class="inline font-semibold text-white">
+            <svg class="absolute left-1 top-1 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M17.25 8.25 21 12m0 0-3.75 3.75M21 12H3" />
+            </svg>
+            Soluciones efectivas para la recuperación de cartera, combinadas con una asesoría jurídica precisa y confiable para su propiedad horizontal.
+          </dt>
+        </div>
+      </dl>
+    </div>
+
+    <!-- Carrusel -->
+    <div class="lg:w-1/2 w-full s-auto py-8">
+      <div class="swiper w-full rounded-lg overflow-hidden">
+        <div class="swiper-wrapper">
+          <div class="swiper-slide">
+            <img class="block border-0 w-full object-cover rounded" src="./images/1.svg" alt="Imagen 1">
+          </div>
+          <div class="swiper-slide">
+            <img class="block border-0 w-full  object-cover rounded" src="./images/2.svg" alt="Imagen 2">
+          </div>
+          <div class="swiper-slide">
+            <img class="block border-0 w-full  object-cover rounded" src="./images/3.svg" alt="Imagen 3">
+          </div>
+          <div class="swiper-slide">
+            <img class="block border-0 w-full  object-cover rounded" src="./images/4.svg" alt="Imagen 4">
+          </div>
+          <div class="swiper-slide">
+            <img class="block border-0 w-full  object-cover rounded" src="./images/5.svg" alt="Imagen 5">
+          </div>
+          <div class="swiper-slide">
+            <img class="block border-0 w-full  object-cover rounded" src="./images/6.svg" alt="Imagen 6">
+          </div>
+          <div class="swiper-slide">
+            <img class="block border-0 w-full  object-cover rounded" src="./images/7.svg" alt="Imagen 6">
+          </div>
+        </div>
+        <!-- Controles de navegación y paginación -->
+        <div class="swiper-pagination"></div>
+      
+      </div>
+    </div>
+  </div>
+</section>
+
+    
+    <section class="relative inset-0 -z-10 h-full w-full bg-white bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px]">
+        <div class="max-w-6xl px-6 py-10 mx-auto">
+            <p class="block text-3xl font-medium text-blue-950 ">¿Quiénes somos?</p>
+    
+            <h1 class="block mt-2 text-3xl font-semibold text-blue-500 capitalize lg:text-3xl ">
+                Compromiso
+            </h1>
+    
+            <main class="relative z-20 w-full mt-8 md:flex md:items-center xl:mt-12">
+                <div class="absolute w-full bg-blue-600 -z-10 md:h-96 rounded-2xl"></div>
+                
+                <div class="w-full p-6 bg-blue-600 md:flex md:items-center rounded-2xl md:bg-transparent md:p-0 lg:px-12 md:justify-evenly">
+                    <img id="animatedElement" class=" block opacity-0 h-24 w-24 md:mx-6 rounded-full object-cover shadow-md md:h-[32rem] md:w-80 lg:h-[36rem] lg:w-[26rem] md:rounded-2xl" src="./images/FotoSencond.png" alt="client photo" />
+                    
+                    <div class="mt-2 md:mx-6">
+                        <div>
+                            <p class=" block inview text-xl font-medium tracking-tight text-white">¿Quiénes somos?</p>
+                            
+                        </div>
+    
+                        <p class="block  inview mt-4 text-lg leading-relaxed text-white md:text-xl"> Con una sólida experiencia de más de 18 años en el sector, nos enorgullece ser una empresa comprometida con la excelencia, dedicada a satisfacer y superar las expectativas de nuestros valiosos clientes. Nos destacamos por ofrecer servicios altamente efectivos de gestión y recuperación de cartera, respaldados por una sólida base de consultoría y asesoría legal oportuna.</p>
+                        
+
+                    </div>
+                </div>
+            </main>
+        </div>
+    </section>
+</section>
+
+<section class=" bg-[#000000] bg-[radial-gradient(#ffffff33_1px,#00091d_1px)] bg-[size:20px_20px] py-16">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:py-20 lg:px-8">
+      <div class="max-w-2xl lg:max-w-4xl mx-auto text-center">
+        <h2 class="block text-3xl font-extrabold text-white">Visita nuestra ubicación</h2>
+        <p class="block mt-4 text-lg text-gray-200">Encuentra nuestras oficinas y contáctanos para más información.</p>
+      </div>
+      <div class="mt-16 lg:mt-20">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <!-- Recuadro del mapa -->
+          <div class="rounded-lg overflow-hidden bg-white p-6 shadow-lg">
+            <iframe
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3976.9250645167515!2d-74.1289477251483!3d4.610215995109748!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x8e3f99d85e83bcd3%3A0x7b1b90b2d0b5c5e4!2sCalle%2024%20Sur%20%2368h-52%2C%20Bogot%C3%A1%2C%20Colombia!5e0!3m2!1ses-419!2sco!4v1699613587123!5m2!1ses-419!2sco"
+              width="100%" height="480" style="border:0;" allowfullscreen="" loading="lazy"></iframe>
+          </div>
+  
+          <!-- Recuadro de información de contacto -->
+          <div class="rounded-lg overflow-hidden bg-white p-6 shadow-lg">
+            <div class="rounded-lg overflow-hidden bg-white shadow-lg max-w-lg mx-auto">
+              <!-- Dirección -->
+              <div class="px-4 py-4 sm:px-6">
+                <h3 class="block text-base sm:text-lg font-medium text-black">Nuestra Dirección</h3>
+                <p class="block mt-1 text-sm sm:text-base text-gray-600">
+                  Calle 24 Sur #68h-52, Bogotá, Colombia
+                </p>
+              </div>
+              
+              <!-- Horario -->
+              <div class="border-t border-gray-200 px-4 py-4 sm:px-6">
+                <h3 class="text-base sm:text-lg font-medium text-black">Horario</h3>
+                <p class="mt-1 text-sm sm:text-base text-gray-600">Lunes - Viernes: 9am - 5pm</p>
+                <p class="mt-1 text-sm sm:text-base text-gray-600">Sábado: 9am - 1pm</p>
+                <p class="mt-1 text-sm sm:text-base text-gray-600">Domingo: Cerrado</p>
+              </div>
+              
+              <!-- Contacto -->
+              <div class="border-t border-gray-200 px-4 py-4 sm:px-6">
+                <h3 class="text-base sm:text-lg font-medium text-black">Contacto</h3>
+                <p class="mt-1 text-xs text-wrap sm:text-sm lg:text-base text-gray-600">
+                  Email: asistentegerencia@gestionglobalacg.com
+                </p>
+                <p class="mt-1 text-sm sm:text-base text-gray-600">
+                  Teléfono: (601) 4631148 - +57 316 6936088 - +57 312 3152594
+                </p>
+              </div>
+            </div>
+            
+  </section>
+  <section class=" relative bg-[size:20px_20px] backdrop-blur-md py-6">
+    <footer class="text-gray-600 body-font">
+        <div class="container px-5 py-8 mx-auto flex items-center sm:flex-row flex-col">
+          <a class="flex title-font font-medium items-center md:justify-start justify-center text-white">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m20.893 13.393-1.135-1.135a2.252 2.252 0 0 1-.421-.585l-1.08-2.16a.414.414 0 0 0-.663-.107.827.827 0 0 1-.812.21l-1.273-.363a.89.89 0 0 0-.738 1.595l.587.39c.59.395.674 1.23.172 1.732l-.2.2c-.212.212-.33.498-.33.796v.41c0 .409-.11.809-.32 1.158l-1.315 2.191a2.11 2.11 0 0 1-1.81 1.025 1.055 1.055 0 0 1-1.055-1.055v-1.172c0-.92-.56-1.747-1.414-2.089l-.655-.261a2.25 2.25 0 0 1-1.383-2.46l.007-.042a2.25 2.25 0 0 1 .29-.787l.09-.15a2.25 2.25 0 0 1 2.37-1.048l1.178.236a1.125 1.125 0 0 0 1.302-.795l.208-.73a1.125 1.125 0 0 0-.578-1.315l-.665-.332-.091.091a2.25 2.25 0 0 1-1.591.659h-.18c-.249 0-.487.1-.662.274a.931.931 0 0 1-1.458-1.137l1.411-2.353a2.25 2.25 0 0 0 .286-.76m11.928 9.869A9 9 0 0 0 8.965 3.525m11.928 9.868A9 9 0 1 1 8.965 3.525" />
+              </svg>
+              
+            <span class="ml-3 text-xl">Gestión Global ACG SAS</span>
+          </a>
+          <p class="text-sm text-white sm:ml-4 sm:pl-4 sm:border-l-2 sm:border-white sm:py-2 sm:mt-0 mt-4">© 2024 Gestión Global ACG SAS
+          </p>
+          <span class="inline-flex sm:ml-auto sm:mt-0 mt-4 justify-center sm:justify-start">
+            <a class="text-white" href="https://www.facebook.com/gestionglobalacg/" target="_blank" rel="noopener noreferrer">
+              <svg fill="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="w-5 h-5" viewBox="0 0 24 24">
+                <path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"></path>
+              </svg>
+            </a>
+            <a class="ml-3 text-white" href="https://www.instagram.com/gestionglobalacgsas/"  target="_blank" rel="noopener noreferrer">
+              <svg fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="w-5 h-5" viewBox="0 0 24 24">
+                <rect width="20" height="20" x="2" y="2" rx="5" ry="5"></rect>
+                <path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37zm1.5-4.87h.01"></path>
+              </svg>
+            </a>
+           
+          </span>
+        </div>
+      </footer>
+  </section>
+  
+  <script>
+    function openMenu() {
+        let menu = document.getElementById('menu');
+
+        if (menu.classList.contains('hidden')) {
+            menu.classList.remove('hidden');
+        } else {
+            menu.classList.add('hidden');
+        }
+    }
+
+    // Typewriter Script (solo escribe una vez y no borra)
+    const typewriterElement = document.getElementById("typewriter");
+    const word = "Gestión Global ACG SAS";
+    let j = 0;
+    let typingSpeed = 100; // Velocidad de escritura
+
+    function type() {
+        if (!typewriterElement) return; // Verificar si el elemento existe
+
+        // Escribir la palabra
+        if (j < word.length) {
+            typewriterElement.textContent = word.substring(0, j + 1);
+            j++;
+            setTimeout(type, typingSpeed);
+        }
+    }
+
+    type(); // Iniciar el efecto de máquina de escribir
+
+    // Intersection Observer for Animated Element
+    const animatedElement = document.getElementById('animatedElement');
+
+    // Configuración del Intersection Observer
+    const observerOptions = {
+        root: null, // Usa la ventana del navegador como contenedor
+        rootMargin: '0px',
+        threshold: 0.1, // Activa la animación cuando el 10% del elemento es visible
+    };
+
+    // Callback para Intersection Observer
+    const observerCallback = (entries) => {
+        entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+                animatedElement.classList.remove('opacity-0');
+                animatedElement.classList.add('animate-jump');
+                observer.unobserve(animatedElement); // Deja de observar una vez animado
+            }
+        });
+    };
+
+    // Crear el Intersection Observer
+    const observer = new IntersectionObserver(observerCallback, observerOptions);
+
+    // Iniciar la observación
+    observer.observe(animatedElement);
+
+   
+  const swiper = new Swiper('.swiper', {
+    loop: true, // Repetir imágenes
+    autoplay: {
+      delay: 3000, // Cambiar cada 3 segundos
+      disableOnInteraction: false,
+    },
+    pagination: {
+      el: '.swiper-pagination',
+      clickable: true,
+    },
+    navigation: {
+      nextEl: '.swiper-button-next',
+      prevEl: '.swiper-button-prev',
+    },
+  });
+
+
+</script>
+
+</body>
+</html>

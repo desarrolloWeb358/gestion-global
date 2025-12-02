@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="./output.css">
+    <link rel="stylesheet" href="./style.css">
+    <title>Gestion Global ACG SAS</title>
+    <link rel="shortcut icon" href="./images/icons8-favicon-32.ico" type="image/x-icon">
+<link rel="icon" href="./images/icons8-favicon-32.ico" type="image/x-icon">
+</head>
+<body class="relative bg-[#000000] bg-[radial-gradient(#ffffff33_1px,#00091d_1px)] bg-[size:20px_20px]">
+  <nav class="sticky top-0 z-50 relative bg-[#00091d] bg-[radial-gradient(#00091d_1px,#00091d_1px)] bg-[size:20px_20px] backdrop-blur-md py-6">
+    <div class="container mx-auto flex px-8 xl:px-0">
+        <div class="flex flex-grow items-center">
+          <a href="./index.html">
+            <img class="h-12" src="./images/Logo_Gestion_Global_Blanco.png" alt="Logo Gestión Global">
+        </a>
+        </div>
+        <div class="lg:hidden">
+            <svg onclick="openMenu()" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="white" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+            </svg>
+        </div>
+        <div id="menu" class="lg:flex hidden flex-grow justify-between absolute lg:relative lg:top-0 top-20 left-0
+  w-full lg:w-auto items-center py-14 lg:py-0 px-8 bg-white lg:bg-transparent">
+            <div class="flex flex-col lg:flex-row bg-white lg:bg-transparent">
+                <a href="./index.html" class="text-black lg:text-white font-bold lg:mr-7 mb-8 lg:mb-0">Somos</a>
+                <a href="./Servicios.html" class="text-black lg:text-white font-bold lg:mr-7 mb-8 lg:mb-0">Servicios</a>
+                <a href="./GesGlo.html" class="text-black lg:text-white font-bold lg:mr-7 mb-8 lg:mb-0">GesGlo</a>
+                <a href="./Contacts.html" class="text-black lg:text-white font-bold lg:mr-7 mb-8 lg:mb-0">Contáctanos</a>
+            </div>
+            <!-- Botón visible tanto en móvil como en escritorio -->
+            <div class="flex justify-center lg:flex lg:flex-1 lg:justify-end">
+                <a href="https://sistema.gestionglobalacg.com/login.php" class="text-sm/6 font-bold text-black lg:text-white hover:underline">
+                    Entrada a GESGLO <span aria-hidden="true">&rarr;</span>
+                </a>
+            </div>
+        </div>
+    </div>
+</nav>
+
+
+    <section class="text-white body-font">
+        <div class="container px-5 py-24 mx-auto">
+          <div class="flex flex-wrap w-full mb-20">
+            <div class="flex justify-center mt-12 lg:w-1/2 w-full mb-6 lg:mb-0">
+              <h1 id="typewriter" class="sm:text-5xl text-2xl font-bold  title-font mb-2 text-white"></h1>
+            </div>
+            <p class="first-letter:text-7xl first-letter:font-bold first-letter:text-white
+            first-letter:mr-3 first-letter:float-left lg:w-1/2 w-full leading-relaxed font-semibold text-white">En Gestión Global ACG, ofrecemos servicios integrales de asesoría jurídica, ayudándote a resolver conflictos legales de manera eficiente. Nos especializamos en la administración de inmuebles, garantizando la gestión óptima de tu propiedad y su mantenimiento. 
+                Además, contamos con expertos en la recuperación de cartera, asegurando el manejo efectivo de cobros y la recuperación de deudas pendientes para mantener tu liquidez financiera.</p>
+          </div>
+          
+          <div class="flex flex-wrap -m-4">
+            <div class="xl:w-1/4 md:w-1/2 p-4">
+              <a href="#recuperacionCar"  class="scroll-smooth"> 
+            <div class="bg-gray-100 p-6 rounded-lg  text-black hover:bg-blue-950 hover:text-white transition-all duration-300">
+              <img class="h-40 rounded w-full object-cover object-center mb-6" src="./images/Servicios3.png" alt="content">
+              <h3 class="tracking-widest text-blue-600 text-xs font-medium title-font">RECUPERACIÓN DE CARTERA</h3>
+              <h2 class=" text-base font-medium title-font mb-4  hover:text-white transition-all">Descripción</h2>
+              <p class="leading-relaxed text-base hover:text-white">"Implementamos estrategias efectivas para recuperar tus deudas pendientes,
+                   mejorando tu flujo de caja."</p>
+            </div>
+          </a>
+          </div>
+          <div class="xl:w-1/4 md:w-1/2 p-4">
+            <a href="#administracionIn" class="scroll-smooth">
+            <div class="bg-gray-100 p-6 rounded-lg  text-black hover:bg-blue-950 hover:text-white transition-all duration-300">
+              <img class="h-40 rounded w-full object-cover object-center mb-6 " src="./images/Servicios2.png" alt="content">
+              <h3 class="tracking-widest text-blue-600 text-xs font-medium title-font">ADMINISTRACIÓN DE INMUEBLES</h3>
+              <h2 class=" text-base font-medium title-font mb-4 hover:text-white transition-all">Descripción</h2>
+              <p class="leading-relaxed text-base hover:text-white">"Gestionamos tus propiedades con enfoque profesional, 
+                  asegurando mantenimiento y maximización de ingresos."</p>
+            </div>
+          </a> 
+          </div>
+            <div class="xl:w-1/4 md:w-1/2 p-4" >
+              <a href="#asesoriaJ" class="scroll-smooth">
+              <div class="bg-gray-100 p-6 rounded-lg text-black hover:bg-blue-950 hover:text-white transition-all duration-300">
+                <img class="h-40 rounded w-full object-cover object-center mb-6 " src="./images/Servicios1.png" alt="content">
+                <h3 class="tracking-widest text-blue-600 text-xs font-medium title-font">ASESORÍA JURÍDICA</h3>
+                <h2 class="text-lg  font-medium title-font mb-4 hover:text-white">Descripción</h2>
+                <p class="leading-relaxed text-base hover:text-white">"Brindamos soporte legal integral para 
+                    proteger tus derechos y resolver conflictos legales de manera eficiente."</p>
+              </div>
+            </a>
+            </div>              
+            <div class="xl:w-1/4 md:w-1/2 p-4">
+              <a href="#asesorias">
+              <div class="bg-gray-100 p-6 rounded-lg  text-black hover:bg-blue-950 hover:text-white transition-all duration-300">
+                <img class="h-40 rounded w-full object-cover object-center mb-6" src="./images/Servicios4.png" alt="content">
+                <h3 class="tracking-widest text-blue-600 text-xs font-medium title-font">VALOR AGREGADO</h3>
+                <h2 class="text-base font-medium title-font mb-4 hover:text-white transition-all">Descripción</h2>
+                <p class="leading-relaxed text-base hover:text-white ">"Ofrecemos consultoría especializada 
+                    para ayudarte a tomar decisiones informadas y estratégicas."</p>
+              </div>
+            </a>
+            </div>
+          </div>
+        </div>
+      </section >
+      <section id="recuperacionCar" class="pt-24 relative inset-0 -z-10 h-full w-full bg-white bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px] text-black body-font">
+        <div class="container mx-auto flex px-5 py-24 md:flex-row flex-col items-center">
+          <div class="lg:flex-grow md:w-1/2 lg:pr-24 md:pr-16 flex flex-col md:items-start md:text-left mb-16 md:mb-0 items-center text-center">
+            <h1 class=" text-blue-600 title-font sm:text-4xl text-3xl mb-4 font-bold ">RECUPERACIÓN DE CARTERA
+              <br class=" hidden lg:inline-block">
+            </h1>
+            <p class="font-semibold mb-8 leading-relaxed text-justify">Nos enfocamos en soluciones rápidas para la gestión de cobranza mediante procedimientos pre-jurídicos o jurídicos, promoviendo el pago oportuno para reducir morosidad. Utilizamos metodologías eficaces para identificar riesgos de impago y recuperar pagos de forma efectiva. Contamos con un equipo capacitado que actúa de manera ética, cumpliendo con las normativas legales.
+          </div>
+          <div class="lg:max-w-lg lg:w-full md:w-1/2 w-5/6">
+            <img class="object-cover object-center rounded" alt="hero" src="./images/Servicios3.png">
+          </div>
+        </div>
+      </section>
+      <section id="administracionIn" class= "pt-24 relative bg-[#000000] bg-[radial-gradient(#ffffff33_1px,#00091d_1px)] bg-[size:20px_20px]">
+        <div class="container px-6 py-10 mx-auto">
+            <div class="lg:-mx-6 lg:flex lg:items-center">
+                <img class="object-cover object-center lg:w-1/2 lg:mx-6 w-full h-96 rounded-lg lg:h-[36rem]" src="./images/Servicios2.png" alt="">
+    
+                <div class="mt-8 lg:w-1/2 lg:px-6 lg:mt-0">
+                    <p class="text-5xl font-semibold text-blue-600 ">“</p>
+    
+                    <h1 class=" text-blue-600 title-font sm:text-4xl text-3xl mb-4 font-bold ">ADMINISTRACIÓN DE INMUEBLES
+                      <br class=" hidden lg:inline-block">
+                    </h1>
+    
+                    <p class="max-w-lg mt-6 text-white text-justify">
+                        En nuestra firma ofrecemos administración integral de inmuebles mediante contrato de mandato, encargándonos de todas las tareas, desde la gestión inicial hasta el final del contrato de arrendamiento. Garantizamos el cumplimiento del contrato, seleccionamos arrendatarios, gestionamos pagos, cobranzas, contratos y comunicaciones. Ofrecemos una atención personalizada para soluciones efectivas, asegurando una administración eficiente y rentable que brinda tranquilidad y confianza a nuestros clientes.                    </p>
+
+                </div>
+            </div>
+        </div>
+    </section>
+
+      <section id="asesoriaJ" class="pt-24 relative inset-0 -z-10 h-full w-full bg-white bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px] text-black body-font">
+        <div class="container mx-auto flex px-5 py-24 md:flex-row flex-col items-center">
+          <div class="lg:flex-grow md:w-1/2 lg:pr-24 md:pr-16 flex flex-col md:items-start md:text-left mb-16 md:mb-0 items-center text-center">
+            <h1 class=" text-blue-600 title-font sm:text-4xl text-3xl mb-4 font-bold ">ASESORÍA JURÍDICA
+              <br class=" hidden lg:inline-block">
+            </h1>
+            <p class="font-semibold mb-8 leading-relaxed text-justify">En nuestra firma, ofrecemos asesoría jurídica especializada en Propiedad Horizontal para brindar soluciones efectivas en todos los temas relacionados con la aplicación de las normativas, leyes y reglamentos en la materia del Derecho.
+
+                Nuestro equipo de abogados expertos cuenta con amplia experiencia en todas las ramas del Derecho, con un enfoque especial en Propiedad Horizontal. Nuestros servicios de asesoramiento incluyen la interpretación y aplicación de normativas, la elaboración de reglamentos y estatutos y la gestión de reclamaciones ante las autoridades competentes.
+                
+                Nuestra asesoría jurídica en Propiedad Horizontal se enfoca en ofrecer soluciones efectivas a nuestros clientes, brindándoles la confianza y seguridad que necesitan en la gestión de las copropiedades.</p>
+            
+          </div>
+          <div class="lg:max-w-lg lg:w-full md:w-1/2 w-5/6">
+            <img class="object-cover object-center rounded" alt="hero" src="./images/Servicios1.png">
+          </div>
+        </div>
+      </section>
+      
+
+    
+    <section id="asesorias" class= "pt-24 relative bg-[#000000] bg-[radial-gradient(#ffffff33_1px,#00091d_1px)] bg-[size:20px_20px]">
+      <div class="container px-6 py-10 mx-auto">
+          <div class="lg:-mx-6 lg:flex lg:items-center">
+              <img class="object-cover object-center lg:w-1/2 lg:mx-6 w-full h-96 rounded-lg lg:h-[36rem]" src="./images/Servicios4.png" alt="">
+  
+              <div class="mt-8 lg:w-1/2 lg:px-6 lg:mt-0">
+                  <p class="text-5xl font-semibold text-blue-600 ">“</p>
+  
+                  <h1 class=" text-blue-600 title-font sm:text-4xl text-3xl mb-4 font-bold ">VALOR AGREGADO
+                    <br class=" hidden lg:inline-block">
+                  </h1>
+  
+                  <p class="max-w-lg mt-6 text-white text-justify">
+                    Garantizamos respuestas claras, oportunas y ajustadas a los plazos legales, fortaleciendo la confianza y evitando sanciones. Nuestro enfoque combina cumplimiento normativo con comunicación transparente, asegurando protección efectiva de derechos y previniendo controversias legales. </p>
+
+              </div>
+          </div>
+      </div>
+  </section>
+
+  <section id="Contact" class="relative inset-0 h-full w-full bg-white bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px] text-black body-font">
+    <div class="mx-auto max-w-screen-xl px-4 py-16 sm:px-6 lg:px-8">
+      <div class="mx-auto max-w-lg text-center">
+        <h1 class="text-2xl font-bold sm:text-3xl">Contáctanos</h1>
+  
+        <p class="mt-4 text-black">
+          Déjanos tu nombre y correo electrónico para brindarte una asesoría personalizada. Estamos listos para ayudarte en temas legales, administración de inmuebles o recuperación de cartera. ¡Trabajemos juntos para encontrar la mejor solución para ti!
+        </p>
+      </div>
+  
+      <form action="https://formsubmit.co/asistentegerencia@gestionglobalacg.com" method="POST" class="mx-auto mb-0 mt-8 max-w-md space-y-4">
+        <!-- Campo para el email -->
+        
+  
+        <!-- Campo para el nombre -->
+        <div>
+          <label for="name" class="sr-only">Nombre</label>
+          <div class="relative">
+            <input
+              type="text"
+              id="name"
+              name="name"
+              required
+              class="w-full rounded-lg border-gray-200 p-4 pr-12 text-sm shadow-sm"
+              placeholder="Ingresar nombre"
+            />
+          </div>
+        </div>
+        <div>
+          <label for="email" class="sr-only">Email</label>
+          <div class="relative">
+            <input
+              type="email"
+              id="email"
+              name="email"
+              required
+              class="w-full rounded-lg border-gray-200 p-4 pr-12 text-sm shadow-sm"
+              placeholder="Ingresar email"
+            />
+          </div>
+        </div>
+  
+        <!-- Botón de envío -->
+        <div class="flex items-center justify-center">
+          <button
+            type="submit"
+            class="inline-block rounded-lg bg-blue-950 px-5 py-3 text-sm font-medium text-white"
+          >
+            Enviar
+          </button>
+        </div>
+      </form>
+    </div>
+  </section>
+  <section>
+    <footer class="text-gray-600 body-font">
+        <div class="container px-5 py-8 mx-auto flex items-center sm:flex-row flex-col">
+          <a class="flex title-font font-medium items-center md:justify-start justify-center text-white">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m20.893 13.393-1.135-1.135a2.252 2.252 0 0 1-.421-.585l-1.08-2.16a.414.414 0 0 0-.663-.107.827.827 0 0 1-.812.21l-1.273-.363a.89.89 0 0 0-.738 1.595l.587.39c.59.395.674 1.23.172 1.732l-.2.2c-.212.212-.33.498-.33.796v.41c0 .409-.11.809-.32 1.158l-1.315 2.191a2.11 2.11 0 0 1-1.81 1.025 1.055 1.055 0 0 1-1.055-1.055v-1.172c0-.92-.56-1.747-1.414-2.089l-.655-.261a2.25 2.25 0 0 1-1.383-2.46l.007-.042a2.25 2.25 0 0 1 .29-.787l.09-.15a2.25 2.25 0 0 1 2.37-1.048l1.178.236a1.125 1.125 0 0 0 1.302-.795l.208-.73a1.125 1.125 0 0 0-.578-1.315l-.665-.332-.091.091a2.25 2.25 0 0 1-1.591.659h-.18c-.249 0-.487.1-.662.274a.931.931 0 0 1-1.458-1.137l1.411-2.353a2.25 2.25 0 0 0 .286-.76m11.928 9.869A9 9 0 0 0 8.965 3.525m11.928 9.868A9 9 0 1 1 8.965 3.525" />
+              </svg>
+              
+            <span class="ml-3 text-xl">Gestión Global ACG SAS</span>
+          </a>
+          <p class="text-sm text-white sm:ml-4 sm:pl-4 sm:border-l-2 sm:border-white sm:py-2 sm:mt-0 mt-4">© 2024 Gestión Global ACG SAS
+          </p>
+          <span class="inline-flex sm:ml-auto sm:mt-0 mt-4 justify-center sm:justify-start">
+            <a class="text-white" href="https://www.facebook.com/gestionglobalacg/" target="_blank" rel="noopener noreferrer">
+              <svg fill="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="w-5 h-5" viewBox="0 0 24 24">
+                <path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"></path>
+              </svg>
+            </a>
+            <a class="ml-3 text-white" href="https://www.instagram.com/gestionglobalacgsas/"  target="_blank" rel="noopener noreferrer">
+              <svg fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="w-5 h-5" viewBox="0 0 24 24">
+                <rect width="20" height="20" x="2" y="2" rx="5" ry="5"></rect>
+                <path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37zm1.5-4.87h.01"></path>
+              </svg>
+            </a>
+           
+          </span>
+        </div>
+      </footer>
+  </section>
+  
+
+    <script>
+        function openMenu(){
+            let menu =document.getElementById('menu');
+
+            if(menu.classList.contains('hidden')){
+                menu.classList.remove('hidden');
+            } else {
+                menu.classList.add('hidden');
+            }
+        }
+        const typewriterElement = document.getElementById("typewriter");
+const word = "Servicios";
+let j = 0;
+let isDeleting = false;
+let typingSpeed = 100; // Velocidad de escritura y borrado
+const pauseEndOfWord = 1500; // Pausa al final de la palabra
+const minCharacters = 2; // Número mínimo de caracteres que siempre se mostrarán
+
+function type() {
+  if (!typewriterElement) return; // Verificar si el elemento existe
+
+  if (isDeleting) {
+    // Borrar hasta que queden al menos 'minCharacters' visibles
+    if (j > minCharacters) {
+      j--;
+      typewriterElement.textContent = word.substring(0, j);
+      typingSpeed = 50;
+    } else {
+      // Detener el borrado y volver a escribir
+      isDeleting = false;
+      typingSpeed = 500;
+    }
+  } else {
+    // Escribir la palabra
+    typewriterElement.textContent = word.substring(0, j + 1);
+    j++;
+    typingSpeed = 100;
+
+    // Iniciar el borrado al llegar al final de la palabra
+    if (j === word.length) {
+      isDeleting = true;
+      typingSpeed = pauseEndOfWord;
+    }
+  }
+  setTimeout(type, typingSpeed);
+}
+
+type(); // Iniciar el efecto de máquina de escribir
+
+ // Selecciona el elemento a animar
+ const animatedElement = document.getElementById('animatedElement');
+
+// Configuración del Intersection Observer
+const observerOptions = {
+  root: null, // Usa la ventana del navegador como contenedor
+  rootMargin: '0px',
+  threshold: 0.1, // Activa la animación cuando el 10% del elemento es visible
+};
+
+// Callback para Intersection Observer
+const observerCallback = (entries) => {
+  entries.forEach((entry) => {
+    if (entry.isIntersecting) {
+      animatedElement.classList.remove('opacity-0');
+      animatedElement.classList.add('animate-jump');
+      observer.unobserve(animatedElement); // Deja de observar una vez animado
+    }
+  });
+};
+
+// Crear el Intersection Observer
+const observer = new IntersectionObserver(observerCallback, observerOptions);
+
+// Iniciar la observación
+observer.observe(animatedElement);
+    </script>
+
+</body>
+</html>

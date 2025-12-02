@@ -2,6 +2,17 @@
   "projects": {
     "default": "gestionglobal-9eac8"
   },
-  "targets": {},
+  "targets": {
+    "gestionglobal-9eac8": {
+      "hosting": {
+        "web": [
+          "gestion-global-paginaweb"
+        ],
+        "app": [
+          "gestionglobal-9eac8"
+        ]
+      }
+    }
+  },
   "etags": {}
 }
