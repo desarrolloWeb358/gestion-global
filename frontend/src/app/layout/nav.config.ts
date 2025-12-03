@@ -87,6 +87,16 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ["admin", "ejecutivo", "ejecutivoAdmin", "abogado"] 
   },
 
+    // ========================================
+  // NOTIFICACIONES
+  // ========================================
+  { 
+    to: "/notificaciones", 
+    label: "Notificaciones", 
+    icon: IconBell, 
+    roles: ["admin", "ejecutivo", "ejecutivoAdmin", "abogado", "cliente", "deudor"] 
+  },
+
   // ========================================
   // MÓDULOS ADICIONALES (Descomentados)
   // ========================================

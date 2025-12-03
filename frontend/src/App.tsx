@@ -36,6 +36,7 @@ import DeudorDashboardPage from "@/modules/dashboard/pages/DeudorDashboardPage";
 import { DemandaInfoPage } from "./modules/cobranza/components/DemandaInfoPage";
 import { ThemeProvider } from "./app/providers/ThemeContext";
 import AcuerdoPagoPage from "./modules/cobranza/components/reportes/AcuerdoPagoPDF";
+import NotificacionesPage from "./modules/notificaciones/components/NotificacionesPage";
 
 
 export default function App() {
@@ -47,7 +48,7 @@ export default function App() {
 
           {/* Redirección inicial a SignIn */}
           <Route path="/" element={<Navigate to="/signin" replace />} />
-
+          
           {/* Auth Routes */}
           <Route path="/signin" element={<SignIn />} />
           <Route path="/sign-up" element={<SignUp />} />
@@ -56,6 +57,7 @@ export default function App() {
 
           {/* Layout protegido */}
           <Route element={<AppLayout />}>
+            <Route path="/notificaciones" element={<NotificacionesPage />} />
             <Route path="/deudores/:clienteId/:deudorId/seguimiento" element={<SeguimientoTable />} />
             <Route path="/clientes/:clienteId/deudores/:deudorId" element={<DeudorDetailPage />} />
             <Route path="/deudores/:clienteId/:deudorId/estadosMensuales" element={<EstadosMensualesTable />} />
