@@ -21,8 +21,8 @@ export type NotificarInput = {
   descripcionAlerta: string;
 
   // Datos del correo
-  correoDestino: string;
   nombreDestino: string;
+  correoDestino: string;  
   subject: string;
   tituloCorreo: string;
   cuerpoHtmlCorreo: string;
@@ -56,8 +56,8 @@ type EnviarEmailUsuarioInput = {
 };
 
 type EnviarEmailInput = {
-  correoDestino: string;
   nombreDestino: string;
+  correoDestino: string;  
   subject: string;
   titulo: string;      // título visible en el cuerpo del correo
   cuerpoHtml: string;  // HTML específico del módulo (sin header/pie)
@@ -71,8 +71,8 @@ export async function notificarUsuarioConAlertaYCorreo(
     modulo,
     ruta,
     descripcionAlerta,
-    correoDestino,
     nombreDestino,
+    correoDestino,    
     subject,
     tituloCorreo,
     cuerpoHtmlCorreo,
@@ -94,6 +94,9 @@ export async function notificarUsuarioConAlertaYCorreo(
     );
   }
 
+  console.log("correoDestino:", correoDestino);
+  console.log("nombreDestino:", nombreDestino);
+
   if (correoDestino === "" ) {
     try {
       await enviarEmailAUsuario({
@@ -111,8 +114,8 @@ export async function notificarUsuarioConAlertaYCorreo(
     // 2) Enviar email (si tiene correo)
     try {
       await enviarEmail({
-        correoDestino,
         nombreDestino,
+        correoDestino,        
         subject,
         titulo: tituloCorreo,
         cuerpoHtml: cuerpoHtmlCorreo,
@@ -205,8 +208,8 @@ async function enviarEmailAUsuario({
 }
 
 async function enviarEmail({
-  correoDestino,
   nombreDestino,
+  correoDestino,  
   subject,
   titulo,
   cuerpoHtml,

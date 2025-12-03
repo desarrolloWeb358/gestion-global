@@ -322,6 +322,7 @@ export async function actualizarValorAgregado(
       }
     `;
 
+    console.log("Notificando al abogado2222");
     await notificarUsuarioConAlertaYCorreo({
       usuarioId: abogadoId,
       modulo: "valor_agregado",
@@ -474,7 +475,7 @@ export async function crearMensajeConversacionValorAgregado(
         : "Nuevo mensaje en la conversación.");
 
     // Ruta interna hacia el detalle del valor agregado
-    const ruta = `/clientes/${clienteId}/valor-agregado/${valorId}`;
+    const ruta = `/clientes/${clienteId}/valores-agregados/${valorId}`;
 
     let usuarioDestinoId: string;
     let subject: string;
@@ -482,7 +483,12 @@ export async function crearMensajeConversacionValorAgregado(
     let descripcionAlerta: string;
     let cuerpoHtmlCorreo: string;
 
+
+    var nombreDestinatario = "";
+    var correoDestinatario = "";
     if (base.autorTipo === "cliente") {
+      nombreDestinatario = nombreDestinatarioAbogado;
+      correoDestinatario = correoDestinatarioAbogado;
       // 👉 Mensaje creado por el CLIENTE → se notifica al ABOGADO
       const abogadoId = clienteInfo.abogadoId;
       if (!abogadoId) {
@@ -509,7 +515,7 @@ export async function crearMensajeConversacionValorAgregado(
         <p>${descripcionMsg || "(sin texto, solo archivo adjunto)"}</p>
         <p>Puedes revisar la conversación y responder directamente desde la plataforma.</p>
       `;
-    } else {
+    } else {      
       // 👉 Mensaje creado por el ABOGADO → se notifica al CLIENTE
       //    Aquí el usuarioId del cliente es el mismo clienteId ✅
       usuarioDestinoId = clienteId;
@@ -531,13 +537,14 @@ export async function crearMensajeConversacionValorAgregado(
       `;
     }
 
+    console.log("Notificando al abogado333");
     await notificarUsuarioConAlertaYCorreo({
       usuarioId: usuarioDestinoId,
       modulo: "valor_agregado_conversacion",
       ruta,
       descripcionAlerta,
-      nombreDestino: "",
-      correoDestino: "",
+      nombreDestino: nombreDestinatario,
+      correoDestino: correoDestinatario,
       subject,
       tituloCorreo,
       cuerpoHtmlCorreo,     
