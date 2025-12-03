@@ -176,7 +176,7 @@ export default function NotificacionesPage() {
         <div className="space-y-2">
           {todas.map((notif, index) => {
             const ModuloIcon = getModuloIcon(notif.modulo);
-            const fechaStr = formatFecha(notif.fechaCreacion);
+            const fechaStr = formatFecha((notif as any).fechaCreacion ?? (notif as any).createdAt ?? (notif as any).fecha);
             
             return (
               <div
