@@ -170,7 +170,8 @@ export async function addObservacionClienteGeneric(
       const textoMsg = (texto || "").trim();
 
       // Ruta interna a la pantalla de seguimiento (ajusta si tu ruta real es distinta)
-      const ruta = `/clientes/${clienteId}/deudores/${parentId}/seguimiento`;
+      const ruta = `/deudores/${clienteId}/${parentId}/seguimiento`;
+
 
       // 📝 Esta descripción es la que se guarda en la notificación en BD
       const descripcionAlerta = `Nueva observación del cliente ${nombreCliente} sobre el deudor ${nombreDeudor}: ${textoMsg}`;
@@ -360,7 +361,8 @@ export async function addObservacionDeudorConNotificacion(params: {
   const nombreDeu = nombreDeudor ?? "deudor";
 
   const descripcionAlerta = `Nueva observación de ${nombreCli} sobre el deudor ${nombreDeu}`;
-  const ruta = `/clientes/${clienteId}/deudores/${deudorId}?tab=observaciones`;
+  const ruta = `/deudores/${clienteId}/${deudorId}/seguimiento`;
+  
 
   const cuerpoHtmlCorreo = `
     <p>El cliente <strong>${nombreCli}</strong> ha registrado una nueva observación sobre el deudor <strong>${nombreDeu}</strong>.</p>

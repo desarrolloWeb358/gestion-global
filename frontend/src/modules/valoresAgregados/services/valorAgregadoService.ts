@@ -325,7 +325,7 @@ export async function actualizarValorAgregado(
     console.log("Notificando al abogado2222");
     await notificarUsuarioConAlertaYCorreo({
       usuarioId: abogadoId,
-      modulo: "valor_agregado",
+      modulo: "valor agregado",
       ruta,
       descripcionAlerta,
       nombreDestino: nombreDestinatarioAbogado,
@@ -537,10 +537,9 @@ export async function crearMensajeConversacionValorAgregado(
       `;
     }
 
-    console.log("Notificando al abogado333");
     await notificarUsuarioConAlertaYCorreo({
       usuarioId: usuarioDestinoId,
-      modulo: "valor_agregado_conversacion",
+      modulo: "valor agregado conversacion",
       ruta,
       descripcionAlerta,
       nombreDestino: nombreDestinatario,
