@@ -432,9 +432,11 @@ export async function crearMensajeConversacionValorAgregado(
     throw new Error("Debes escribir una descripción o adjuntar un archivo.");
   }
 
+  // 1️⃣ Crear doc del mensaje
   const created = await addDoc(colRefConversacion(clienteId, valorId), base);
   const msgId = created.id;
 
+  // 2️⃣ Subir archivo si viene
   if (archivo) {
     const path = storagePathConversacion(clienteId, valorId, msgId, archivo.name);
     const rf = ref(storage, path);
@@ -448,8 +450,101 @@ export async function crearMensajeConversacionValorAgregado(
     });
   }
 
+  // 3️⃣ Notificar a la contraparte (cliente ↔ abogado)
+  try {
+    // Info del cliente (nombre y abogadoId)
+    const clienteInfo = await obtenerClienteInfoParaNotificacion(clienteId);
+    const nombreCliente = clienteInfo.nombreCliente || clienteId;
+
+    // Info del valor agregado (tipo y título)
+    const valor = await obtenerValorAgregado(clienteId, valorId);
+    const tipoValor = valor?.tipo ?? TipoValorAgregado.DERECHO_DE_PETICION;
+    const tipoLabel = TipoValorAgregadoLabels[tipoValor] ?? "Valor agregado";
+    const nombreValor = valor?.titulo || "Documento";
+
+    // Texto breve del mensaje
+    const descripcionMsg =
+      base.descripcion ||
+      (archivo
+        ? `Mensaje con archivo adjunto: ${archivo.name}`
+        : "Nuevo mensaje en la conversación.");
+
+    // Ruta interna hacia el detalle del valor agregado
+    const ruta = `/clientes/${clienteId}/valor-agregado/${valorId}`;
+
+    let usuarioDestinoId: string;
+    let subject: string;
+    let tituloCorreo: string;
+    let descripcionAlerta: string;
+    let cuerpoHtmlCorreo: string;
+
+    if (base.autorTipo === "cliente") {
+      // 👉 Mensaje creado por el CLIENTE → se notifica al ABOGADO
+      const abogadoId = clienteInfo.abogadoId;
+      if (!abogadoId) {
+        console.warn(
+          `[crearMensajeConversacionValorAgregado] Cliente ${clienteId} sin abogadoId; no se notifica.`
+        );
+        return msgId;
+      }
+
+      usuarioDestinoId = abogadoId;
+
+      subject = `Nuevo mensaje del cliente en valor agregado: ${tipoLabel}`;
+      tituloCorreo = "Nuevo mensaje del cliente en un valor agregado";
+      descripcionAlerta = `Nuevo mensaje del cliente ${nombreCliente} en el valor agregado (${tipoLabel}): ${nombreValor}`;
+
+      cuerpoHtmlCorreo = `
+        <p>El cliente <strong>${nombreCliente}</strong> ha enviado un nuevo mensaje en la conversación de un <strong>valor agregado</strong>.</p>
+        <ul>
+          <li><strong>Cliente:</strong> ${nombreCliente}</li>
+          <li><strong>Tipo de valor agregado:</strong> ${tipoLabel}</li>
+          <li><strong>Título:</strong> ${nombreValor}</li>
+        </ul>
+        <p><strong>Mensaje:</strong></p>
+        <p>${descripcionMsg || "(sin texto, solo archivo adjunto)"}</p>
+        <p>Puedes revisar la conversación y responder directamente desde la plataforma.</p>
+      `;
+    } else {
+      // 👉 Mensaje creado por el ABOGADO → se notifica al CLIENTE
+      //    Aquí el usuarioId del cliente es el mismo clienteId ✅
+      usuarioDestinoId = clienteId;
+
+      subject = `Nuevo mensaje del abogado en valor agregado: ${tipoLabel}`;
+      tituloCorreo = "Nuevo mensaje del abogado en un valor agregado";
+      descripcionAlerta = `Nuevo mensaje del abogado en el valor agregado (${tipoLabel}) del cliente ${nombreCliente}: ${nombreValor}`;
+
+      cuerpoHtmlCorreo = `
+        <p>Tu abogado ha enviado un nuevo mensaje en la conversación de un <strong>valor agregado</strong>.</p>
+        <ul>
+          <li><strong>Cliente:</strong> ${nombreCliente}</li>
+          <li><strong>Tipo de valor agregado:</strong> ${tipoLabel}</li>
+          <li><strong>Título:</strong> ${nombreValor}</li>
+        </ul>
+        <p><strong>Mensaje:</strong></p>
+        <p>${descripcionMsg || "(sin texto, solo archivo adjunto)"}</p>
+        <p>Puedes ingresar a la plataforma para revisar el mensaje completo y responder.</p>
+      `;
+    }
+
+    await notificarUsuarioConAlertaYCorreo({
+      usuarioId: usuarioDestinoId,
+      modulo: "valor_agregado_conversacion",
+      ruta,
+      descripcionAlerta,
+      subject,
+      tituloCorreo,
+      cuerpoHtmlCorreo,
+      accionUrl: `${window.location.origin}#${ruta}`,
+      accionTexto: "Ver conversación",
+    });
+  } catch (err) {
+    console.error("[crearMensajeConversacionValorAgregado] Error al notificar:", err);
+  }
+
   return msgId;
 }
+
 
 export async function eliminarMensajeConversacionValorAgregado(
   clienteId: string,
