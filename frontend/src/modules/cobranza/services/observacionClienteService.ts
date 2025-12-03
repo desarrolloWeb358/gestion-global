@@ -9,7 +9,6 @@ import {
   Timestamp,
   type CollectionReference,
   doc,
-  getDoc,
   updateDoc,
   deleteDoc,
   getDoc,
