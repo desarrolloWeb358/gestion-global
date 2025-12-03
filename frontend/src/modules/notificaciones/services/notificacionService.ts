@@ -21,11 +21,11 @@ export type NotificarInput = {
   descripcionAlerta: string;
 
   // Datos del correo
+  correoDestino: string;
+  nombreDestino: string;
   subject: string;
   tituloCorreo: string;
   cuerpoHtmlCorreo: string;
-  accionUrl?: string;
-  accionTexto?: string;
 };
 
 type ContactoUsuario = {
@@ -46,8 +46,6 @@ type EmailTemplateParams = {
   nombreDestinatario: string;
   titulo: string;          // p.ej. "Nuevo valor agregado registrado"
   cuerpoHtml: string;      // contenido principal específico del módulo
-  accionUrl?: string;      // opcional: link para "Ver detalle"
-  accionTexto?: string;    // texto del botón, p.ej. "Ver en Gestión Global"
 };
 
 type EnviarEmailUsuarioInput = {
@@ -55,8 +53,14 @@ type EnviarEmailUsuarioInput = {
   subject: string;
   titulo: string;      // título visible en el cuerpo del correo
   cuerpoHtml: string;  // HTML específico del módulo (sin header/pie)
-  accionUrl?: string;
-  accionTexto?: string;
+};
+
+type EnviarEmailInput = {
+  correoDestino: string;
+  nombreDestino: string;
+  subject: string;
+  titulo: string;      // título visible en el cuerpo del correo
+  cuerpoHtml: string;  // HTML específico del módulo (sin header/pie)
 };
 
 export async function notificarUsuarioConAlertaYCorreo(
@@ -67,11 +71,11 @@ export async function notificarUsuarioConAlertaYCorreo(
     modulo,
     ruta,
     descripcionAlerta,
+    correoDestino,
+    nombreDestino,
     subject,
     tituloCorreo,
     cuerpoHtmlCorreo,
-    accionUrl,
-    accionTexto,
   } = input;
 
   // 1) Crear alerta en Firestore
@@ -90,19 +94,35 @@ export async function notificarUsuarioConAlertaYCorreo(
     );
   }
 
-  // 2) Enviar email (si tiene correo)
-  try {
-    await enviarEmailAUsuario({
-      usuarioId,
-      subject,
-      titulo: tituloCorreo,
-      cuerpoHtml: cuerpoHtmlCorreo,
-      accionUrl,
-      accionTexto,
-    });
-  } catch (err) {
-    console.error("[notificarUsuarioConAlertaYCorreo] Error enviando email:", err);
+  if (correoDestino === "" ) {
+    try {
+      await enviarEmailAUsuario({
+        usuarioId,
+        subject,
+        titulo: tituloCorreo,
+        cuerpoHtml: cuerpoHtmlCorreo,
+      });
+    } catch (err) {
+      console.error("[notificarUsuarioConAlertaYCorreo] Error enviando email:", err);
+    }
+
+  } else {
+
+    // 2) Enviar email (si tiene correo)
+    try {
+      await enviarEmail({
+        correoDestino,
+        nombreDestino,
+        subject,
+        titulo: tituloCorreo,
+        cuerpoHtml: cuerpoHtmlCorreo,
+      });
+    } catch (err) {
+      console.error("[notificarUsuarioConAlertaYCorreo] Error enviando email:", err);
+    }
+
   }
+
 
   return { alertaId };
 }
@@ -149,9 +169,7 @@ async function enviarEmailAUsuario({
   usuarioId,
   subject,
   titulo,
-  cuerpoHtml,
-  accionUrl,
-  accionTexto,
+  cuerpoHtml,  
 }: EnviarEmailUsuarioInput): Promise<void> {
   const contacto = await obtenerContactoUsuario(usuarioId);
   if (!contacto.correo) {
@@ -167,8 +185,6 @@ async function enviarEmailAUsuario({
     nombreDestinatario: nombreDest,
     titulo,
     cuerpoHtml,
-    accionUrl,
-    accionTexto,
   });
 
   // Para el texto plano quitamos etiquetas simples:
@@ -178,10 +194,41 @@ async function enviarEmailAUsuario({
     .replace(/<[^>]+>/g, "")
     .trim();
 
-  const text = buildPlainText(nombreDest, titulo, plainBody, accionUrl);
+  const text = buildPlainText(nombreDest, titulo, plainBody);
 
   await sendNotification({
     to: contacto.correo,
+    subject,
+    text,
+    html,
+  });
+}
+
+async function enviarEmail({
+  correoDestino,
+  nombreDestino,
+  subject,
+  titulo,
+  cuerpoHtml,
+}: EnviarEmailInput): Promise<void> {
+
+  const html = buildGestionGlobalEmailHtml({
+    nombreDestinatario: nombreDestino,
+    titulo,
+    cuerpoHtml,
+  });
+
+  // Para el texto plano quitamos etiquetas simples:
+  const plainBody = cuerpoHtml
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<[^>]+>/g, "")
+    .trim();
+
+  const text = buildPlainText(nombreDestino, titulo, plainBody);
+
+  await sendNotification({
+    to: correoDestino,
     subject,
     text,
     html,
@@ -193,22 +240,9 @@ function buildGestionGlobalEmailHtml(params: EmailTemplateParams): string {
     nombreDestinatario,
     titulo,
     cuerpoHtml,
-    accionUrl,
-    accionTexto = "Abrir Gestión Global",
   } = params;
 
-  const botonHtml = accionUrl
-    ? `
-      <p style="text-align:center;margin:24px 0;">
-        <a href="${accionUrl}"
-           style="background-color:#2563eb;color:#ffffff;padding:12px 24px;
-                  border-radius:6px;text-decoration:none;font-weight:600;
-                  display:inline-block;">
-          ${accionTexto}
-        </a>
-      </p>
-    `
-    : "";
+  
 
   return `
     <!doctype html>
@@ -246,9 +280,7 @@ function buildGestionGlobalEmailHtml(params: EmailTemplateParams): string {
                   <div style="font-size:14px;color:#374151;line-height:1.5;">
                     ${cuerpoHtml}
                   </div>
-
-                  ${botonHtml}
-
+                
                   <p style="margin-top:24px;font-size:12px;color:#6b7280;">
                     Si no reconoces esta notificación, por favor comunícate con el equipo de soporte de Gestión Global.
                   </p>
@@ -275,7 +307,6 @@ function buildPlainText(
   nombreDestinatario: string,
   titulo: string,
   cuerpo: string,
-  accionUrl?: string
 ): string {
   let text = `Hola ${nombreDestinatario},
 
@@ -284,12 +315,6 @@ ${titulo}
 ${cuerpo}
 `;
 
-  if (accionUrl) {
-    text += `
-
-Ver detalle: ${accionUrl}
-`;
-  }
 
   text += `
 

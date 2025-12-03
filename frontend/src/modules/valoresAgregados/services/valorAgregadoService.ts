@@ -19,6 +19,9 @@ import { MensajeValorAgregado } from "../models/mensajeValorAgregado.model";
 import { notificarUsuarioConAlertaYCorreo } from "@/modules/notificaciones/services/notificacionService";
 
 
+const nombreDestinatarioAbogado = "Abogado";
+const correoDestinatarioAbogado = "comercial@gestionglobalacg.com";
+
 
 // =====================================================
 // 🧩 Tipos y mapeos
@@ -127,6 +130,7 @@ export async function crearValorAgregado(
   data: CrearValorInput,
   archivo?: File
 ): Promise<string> {
+  
   console.log(`Creando valor agregado para el cliente ${clienteId}...`);
   const payload: Partial<ValorAgregado> = {
     tipo: data.tipo,
@@ -170,7 +174,7 @@ export async function crearValorAgregado(
     const descripcionValor = data.descripcion || "";
 
     // Ruta dentro de tu app a donde debe ir el abogado
-    const ruta = `/clientes/${clienteId}/valor-agregado/${valorId}`;
+    const ruta = `/clientes/${clienteId}/valores-agregados/${valorId}`;
 
     const descripcionAlerta = `Nuevo valor agregado (${tipoLabel}) para el cliente ${nombreCliente}: ${nombreValor}`;
 
@@ -190,11 +194,11 @@ export async function crearValorAgregado(
       modulo: "valor agregado",
       ruta,
       descripcionAlerta,
+      nombreDestino: nombreDestinatarioAbogado,
+      correoDestino: correoDestinatarioAbogado,
       subject: `Nuevo valor agregado: ${tipoLabel}`,
       tituloCorreo: "Se ha registrado un nuevo valor agregado",
-      cuerpoHtmlCorreo,
-      accionUrl: `${window.location.origin}#${ruta}`, // o tu patrón real de rutas
-      accionTexto: "Ver valor agregado",
+      cuerpoHtmlCorreo,      
     });
   } catch (err) {
     console.error("[crearValorAgregado] Error al notificar:", err);
@@ -298,7 +302,7 @@ export async function actualizarValorAgregado(
     const descripcionValor =
       patch.descripcion ?? prev?.descripcion ?? "";
 
-    const ruta = `/clientes/${clienteId}/valor-agregado/${valorId}`;
+    const ruta = `/clientes/${clienteId}/valores-agregados/${valorId}`;
 
     const descripcionAlerta = `Se ha modificado el valor agregado (${tipoLabel}) del cliente ${nombreCliente}: ${nombreValor}`;
 
@@ -323,11 +327,11 @@ export async function actualizarValorAgregado(
       modulo: "valor_agregado",
       ruta,
       descripcionAlerta,
+      nombreDestino: nombreDestinatarioAbogado,
+      correoDestino: correoDestinatarioAbogado,
       subject: `Valor agregado modificado: ${tipoLabel} - ${nombreCliente}`,
       tituloCorreo: "Se ha modificado un valor agregado",
-      cuerpoHtmlCorreo,
-      accionUrl: `${window.location.origin}#${ruta}`,
-      accionTexto: "Ver valor agregado",
+      cuerpoHtmlCorreo,     
     });
   } catch (err) {
     console.error("[actualizarValorAgregado] Error al notificar:", err);
@@ -532,11 +536,11 @@ export async function crearMensajeConversacionValorAgregado(
       modulo: "valor_agregado_conversacion",
       ruta,
       descripcionAlerta,
+      nombreDestino: "",
+      correoDestino: "",
       subject,
       tituloCorreo,
-      cuerpoHtmlCorreo,
-      accionUrl: `${window.location.origin}#${ruta}`,
-      accionTexto: "Ver conversación",
+      cuerpoHtmlCorreo,     
     });
   } catch (err) {
     console.error("[crearMensajeConversacionValorAgregado] Error al notificar:", err);

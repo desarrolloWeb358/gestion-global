@@ -18,6 +18,11 @@ import type { ObservacionCliente } from "../models/observacionCliente.model";
 import type { Cliente } from "@/modules/clientes/models/cliente.model";
 import { notificarUsuarioConAlertaYCorreo } from "../../notificaciones/services/notificacionService";
 
+const nombreDestinatarioPrejuridico = "Prejurídico";
+const correoDestinatarioPrejuridico = "carterazona1@gestionglobalacg.com";
+const nombreDestinatarioJuridico = "Jurídico";
+const correoDestinatarioJuridico = "juridico@gestionglobalacg.com";
+
 type Scope = "deudor" | "valor";
 
 // Estructura exacta que se guarda en Firestore
@@ -75,7 +80,7 @@ async function obtenerNombreDeudorPorId(
 
     const data: any = snap.data() || {};
     // Ajusta el campo si en tu colección se llama distinto (nombreCompleto, displayName, etc.)
-    return data.nombre || data.nombreCompleto || data.displayName || undefined;
+    return data.nombre || undefined;
   } catch (err) {
     console.error(
       "[obtenerNombreDeudorPorId] Error leyendo deudor:",
@@ -189,11 +194,11 @@ export async function addObservacionClienteGeneric(
         modulo: "observacion_cliente",
         ruta,
         descripcionAlerta,
+        nombreDestino: nombreDestinatarioPrejuridico,
+        correoDestino: correoDestinatarioPrejuridico,
         subject,
         tituloCorreo,
-        cuerpoHtmlCorreo,
-        accionUrl: `${window.location.origin}#${ruta}`,
-        accionTexto: "Ver observaciones",
+        cuerpoHtmlCorreo,       
       });
     } catch (err) {
       console.error(
@@ -372,11 +377,11 @@ export async function addObservacionDeudorConNotificacion(params: {
     modulo: "seguimiento",
     ruta,
     descripcionAlerta,
+    nombreDestino: nombreDestinatarioPrejuridico,
+    correoDestino: correoDestinatarioPrejuridico,
     subject: "Nueva observación de cliente sobre un deudor",
     tituloCorreo: "Tienes una nueva observación registrada por un cliente",
-    cuerpoHtmlCorreo,
-    accionUrl: `${APP_BASE_URL}${ruta}`,
-    accionTexto: "Ver observación",
+    cuerpoHtmlCorreo,  
   });
 
   return obsId;
