@@ -5,6 +5,7 @@ import {
   doc,
   getDoc,
   serverTimestamp,
+  updateDoc,
 } from "firebase/firestore";
 import { db } from "@/firebase";
 import { sendNotification } from "@/shared/services/sendNotification";
@@ -296,4 +297,12 @@ Ver detalle: ${accionUrl}
 Gestión Global
 `;
   return text;
+}
+
+export async function marcarNotificacionComoVista(
+  usuarioId: string,
+  notificacionId: string
+) {
+  const ref = doc(db, `usuarios/${usuarioId}/notificaciones/${notificacionId}`);
+  await updateDoc(ref, { visto: true });
 }

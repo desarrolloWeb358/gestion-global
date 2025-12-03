@@ -1,8 +1,10 @@
+// src/modules/auth/components/AuthGuard.tsx (o donde esté)
 import { useEffect, useState, ReactNode } from "react";
-import type { JSX } from "react"; 
-import { auth } from "../../../firebase";
+import type { JSX } from "react";
+import { auth } from "@/firebase"; // mejor con alias
 import { onAuthStateChanged } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
+
 interface AuthGuardProps {
   children: ReactNode;
 }
@@ -17,13 +19,13 @@ const AuthGuard = ({ children }: AuthGuardProps): JSX.Element | null => {
       if (user) {
         setUsuarioAutenticado(true);
       } else {
-        navigate("/login");
+        navigate("/signin"); // antes estaba "/login"
       }
       setCargando(false);
     });
 
     return () => unsub();
-  }, []);
+  }, [navigate]);
 
   if (cargando) return <p>Cargando...</p>;
 

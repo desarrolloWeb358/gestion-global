@@ -42,7 +42,7 @@ export const enviarNotificacionCobro = async (
       tipo: TipoNotificacion.SMS,
       destino: telefono,
       mensaje,
-    });
+    } as any);
     resultados.push(`SMS: ${res}`);
   }
 
@@ -60,7 +60,7 @@ export const enviarNotificacionCobro = async (
         // agrega más si tu template lo requiere, p.ej. '3': enlace
         ...(enlace ? { '3': enlace } : {}),
       },
-    });
+    } as any);
     resultados.push(`WhatsApp: ${res}`);
   }
 
@@ -76,7 +76,7 @@ export const enviarNotificacionCobro = async (
         deuda: deudaStr,
         ...(enlace ? { enlacePago: enlace } : {}),
       },
-    });
+    } as any);
     resultados.push(`Correo: ${res}`);
   }
 
