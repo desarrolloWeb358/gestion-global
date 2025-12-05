@@ -339,3 +339,12 @@ export async function listarEstadosMensuales(
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as EstadoMensual));
 }
+
+export async function vincularDeudorConUsuario(
+  clienteId: string,
+  deudorId: string,
+  uidUsuario: string
+) {
+  const ref = doc(db, `clientes/${clienteId}/deudores/${deudorId}`);
+  await updateDoc(ref, { uidUsuario });
+}

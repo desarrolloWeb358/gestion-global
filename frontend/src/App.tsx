@@ -37,6 +37,7 @@ import { DemandaInfoPage } from "./modules/cobranza/components/DemandaInfoPage";
 import { ThemeProvider } from "./app/providers/ThemeContext";
 import AcuerdoPagoPage from "./modules/cobranza/components/reportes/AcuerdoPagoPDF";
 import NotificacionesPage from "./modules/notificaciones/components/NotificacionesPage";
+import MiDeudaRedirectPage from "./modules/cobranza/components/MiDeudaRedirectPage";
 
 
 export default function App() {
@@ -81,6 +82,7 @@ export default function App() {
             <Route path="/dashboard/abogado" element={<AbogadoDashboardPage />} />
             <Route path="/dashboard/cliente" element={<ClienteDashboardPage />} />
             <Route path="/dashboard/deudor" element={<DeudorDashboardPage />} />
+            <Route path="/dashboard/deudor" element={<MiDeudaRedirectPage />} />
 
 
           </Route>
