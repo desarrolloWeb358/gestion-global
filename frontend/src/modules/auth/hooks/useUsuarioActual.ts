@@ -1,46 +1,48 @@
 // src/modules/auth/hooks/useUsuarioActual.ts
 import { useEffect, useState } from "react";
-import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { onAuthStateChanged, User } from "firebase/auth";
 import { auth, db } from "@/firebase";
-import { sanitizeRoles, type Rol } from "@/shared/constants/acl";
+import { doc, getDoc } from "firebase/firestore";
 import type { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
+import type { Rol } from "@/shared/constants/acl";
 
 export function useUsuarioActual() {
-  const [usuario, setUsuario] = useState<UsuarioSistema | null>(null);
+  const [usuario, setUsuario] = useState<User | null>(null);
+  const [usuarioSistema, setUsuarioSistema] = useState<UsuarioSistema | null>(null);
   const [roles, setRoles] = useState<Rol[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (fbUser) => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      setUsuario(user);
+      if (!user) {
+        setUsuarioSistema(null);
+        setRoles([]);
+        setLoading(false);
+        return;
+      }
+
       try {
-        if (!fbUser) {
-          setUsuario(null);
-          setRoles([]);
-          setLoading(false);
-          return;
-        }
-        const snap = await getDoc(doc(db, "usuarios", fbUser.uid));
+        const snap = await getDoc(doc(db, "usuarios", user.uid));
         if (snap.exists()) {
           const data = snap.data() as UsuarioSistema;
-          const safeRoles = sanitizeRoles(data.roles);
-          setUsuario({ ...data, uid: snap.id, roles: safeRoles });
-          setRoles(safeRoles);
+          setUsuarioSistema(data);
+          setRoles(data.roles ?? []);
         } else {
-          console.warn("No existe documento de usuario:", fbUser.uid);
-          setUsuario(null);
+          setUsuarioSistema(null);
           setRoles([]);
         }
-      } catch (err) {
-        console.error("useUsuarioActual error:", err);
-        setUsuario(null);
+      } catch (e) {
+        console.error("[useUsuarioActual] Error leyendo usuario:", e);
+        setUsuarioSistema(null);
         setRoles([]);
       } finally {
         setLoading(false);
       }
     });
+
     return () => unsub();
   }, []);
 
-  return { usuario, roles, loading };
+  return { usuario, usuarioSistema, roles, loading };
 }
