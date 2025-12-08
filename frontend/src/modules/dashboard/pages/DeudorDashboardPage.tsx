@@ -34,12 +34,14 @@ export default function DeudorDashboardPage() {
         return;
       }
 
+      /*
       // Si NO es deudor, que se vaya a su home normal
       if (usuarioSistema.rol !== "deudor") {
         // aquí podrías usar tu lógica de ROLE_HOME si quieres
         navigate("/home");
         return;
       }
+      */
 
       const clienteId = usuarioSistema.clienteIdAsociado;
       const deudorId = usuarioSistema.deudorIdAsociado;
