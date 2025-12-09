@@ -28,7 +28,7 @@ import {
 } from "@/shared/ui/sidebar";
 import { Separator } from "@/shared/ui/separator";
 import { cn } from "@/shared/lib/cn";
-import RotatingEarth from "@/shared/design-system/components/Rotatingearth";
+//import RotatingEarth from "@/shared/design-system/components/Rotatingearth";
 
 
 function useFilteredNav(items: NavItem[]) {
@@ -93,7 +93,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   };
 
   // Obtener información del usuario
-  const userName = usuario?.nombre || usuario?.email?.split('@')[0] || "Usuario";
+  const userName =  usuario?.email?.split('@')[0] || "Usuario";
   const userEmail = usuario?.email || "";
   const userRole = roles.length > 0 ? roles[0] : "usuario";
 
@@ -117,14 +117,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarHeader className="border-b border-brand-secondary/10 bg-white/80 backdrop-blur-sm p-4">
         <SidebarMenu>
           <SidebarMenuItem>
-  <div className="flex items-center justify-center py-2">
-    <RotatingEarth 
-      size={60}
-      rotationSpeed={15}
-      showStars={false}
-      logoUrl={logoGestionGlobal}
-    />
-  </div>
+  
 </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
