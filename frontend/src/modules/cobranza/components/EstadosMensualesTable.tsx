@@ -1,6 +1,19 @@
 // src/modules/deudores/components/EstadosMensualesTable.tsx
+import * as React from "react";
 import { useParams } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import {
+  Calendar,
+  DollarSign,
+  Edit,
+  FileText,
+  Percent,
+  Plus,
+  TrendingUp,
+  Save,
+  Trash2,
+} from "lucide-react";
+
 import {
   obtenerEstadosMensuales,
   upsertEstadoMensualPorMes,
@@ -26,23 +39,6 @@ import {
   TableBody,
   TableCell,
 } from "@/shared/ui/table";
-import { toast } from "sonner";
-import { useAcl } from "@/modules/auth/hooks/useAcl";
-import { PERMS } from "@/shared/constants/acl";
-import { Typography } from "@/shared/design-system/components/Typography";
-import { cn } from "@/shared/lib/cn";
-import {
-  Calendar,
-  DollarSign,
-  Edit,
-  FileText,
-  Percent,
-  Plus,
-  TrendingUp,
-  Save,
-  Trash2,
-} from "lucide-react";
-import { BackButton } from "@/shared/design-system/components/BackButton";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,23 +49,29 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/shared/ui/alert-dialog";
+import { Textarea } from "@/shared/ui/textarea";
+import { useAcl } from "@/modules/auth/hooks/useAcl";
+import { PERMS } from "@/shared/constants/acl";
+import { Typography } from "@/shared/design-system/components/Typography";
+import { BackButton } from "@/shared/design-system/components/BackButton";
+import { cn } from "@/shared/lib/cn";
 
 export default function EstadosMensualesTable() {
   const { clienteId, deudorId } = useParams();
-  const [estadosMensuales, setEstadosMensuales] = useState<EstadoMensual[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [estadosMensuales, setEstadosMensuales] = React.useState<EstadoMensual[]>([]);
+  const [loading, setLoading] = React.useState(true);
 
   // Modal & guardado
-  const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [open, setOpen] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
 
   // Modo edición
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = React.useState(false);
 
   // Eliminación
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [estadoToDelete, setEstadoToDelete] = useState<EstadoMensual | null>(null);
-  const [deleting, setDeleting] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
+  const [estadoToDelete, setEstadoToDelete] = React.useState<EstadoMensual | null>(null);
+  const [deleting, setDeleting] = React.useState(false);
 
   const hoyYYYYMM = new Date().toISOString().slice(0, 7);
   const clamp = (n: number, min: number, max: number) =>
@@ -78,7 +80,7 @@ export default function EstadosMensualesTable() {
     Math.round((n + Number.EPSILON) * 100) / 100;
 
   const [nuevoEstadoMensual, setNuevoEstadoMensual] =
-    useState<Partial<EstadoMensual>>({
+    React.useState<Partial<EstadoMensual>>({
       mes: hoyYYYYMM,
       clienteUID: clienteId || "",
       deuda: undefined,
@@ -92,7 +94,7 @@ export default function EstadosMensualesTable() {
     });
 
   // Recalcular honorarios cuando cambien deuda/acuerdo/%.
-  useEffect(() => {
+  React.useEffect(() => {
     setNuevoEstadoMensual((s) => {
       const pct = (s.porcentajeHonorarios ?? 15) / 100;
       const hd =
@@ -110,10 +112,10 @@ export default function EstadosMensualesTable() {
 
   const { can, roles = [], loading: aclLoading } = useAcl();
 
-  // 👇 NUEVO: detectar si el usuario actual es deudor
+  // Detectar si el usuario actual es deudor
   const esDeudor = roles.includes("deudor");
 
-  // 👇 Si es deudor: siempre puede ver, pero nunca editar
+  // Si es deudor: siempre puede ver, pero nunca editar
   const canView = esDeudor ? true : can(PERMS.Abonos_Read);
   const canEdit =
     !esDeudor && can(PERMS.Abonos_Edit) && !roles.includes("cliente");
@@ -125,7 +127,7 @@ export default function EstadosMensualesTable() {
     setLoading(false);
   };
 
-  useEffect(() => {
+  React.useEffect(() => {
     cargarEstadosMensuales();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clienteId, deudorId]);
@@ -165,7 +167,6 @@ export default function EstadosMensualesTable() {
   };
 
   const handleCrearOEditar = async () => {
-    console.log("Guardando estado mensual:", nuevoEstadoMensual);
     if (!canEdit) return toast.error("Sin permiso para guardar.");
     if (!clienteId || !deudorId || !nuevoEstadoMensual.mes) {
       return toast.error("Debe seleccionar el mes.");
@@ -178,14 +179,14 @@ export default function EstadosMensualesTable() {
         nuevoEstadoMensual
       );
       toast.success(
-        editing ? "✓ Estado mensual actualizado" : "✓ Estado mensual guardado"
+        editing ? "Estado mensual actualizado" : "Estado mensual guardado"
       );
       await cargarEstadosMensuales();
       setOpen(false);
       resetForm();
     } catch (e) {
       console.error(e);
-      toast.error("⚠️ Error al guardar el estado mensual");
+      toast.error("Error al guardar el estado mensual");
     } finally {
       setSaving(false);
     }
@@ -197,13 +198,13 @@ export default function EstadosMensualesTable() {
     try {
       setDeleting(true);
       await eliminarEstadoMensual(clienteId, deudorId, estadoToDelete.id);
-      toast.success("✓ Estado mensual eliminado");
+      toast.success("Estado mensual eliminado");
       await cargarEstadosMensuales();
       setEstadoToDelete(null);
       setDeleteDialogOpen(false);
     } catch (e) {
       console.error(e);
-      toast.error("⚠️ Error al eliminar el estado mensual");
+      toast.error("Error al eliminar el estado mensual");
     } finally {
       setDeleting(false);
     }
@@ -247,63 +248,289 @@ export default function EstadosMensualesTable() {
       <BackButton />
 
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-brand-primary/10">
-            <TrendingUp className="h-6 w-6 text-brand-primary" />
-          </div>
-          <Typography variant="h2" className="!text-brand-secondary">
-            Estados Mensuales del Deudor
-          </Typography>
-        </div>
-
-        {/* 👇 El deudor NO verá el botón de agregar, porque depende de canEdit */}
-        {canEdit && (
-          <Dialog
-            open={open}
-            onOpenChange={(v) => {
-              setOpen(v);
-              if (!v) resetForm();
-            }}
-          >
-            <DialogTrigger asChild>
-              <Button
-                onClick={() => {
-                  resetForm();
-                  setOpen(true);
-                }}
-                variant="brand"
-                className="gap-2 shadow-md hover:shadow-lg transition-all"
-              >
-                <Plus className="h-4 w-4" />
-                Agregar estado mensual
-              </Button>
-            </DialogTrigger>
-
-            {/* ... resto del modal igual ... */}
-            <DialogContent className="sm:max-w-3xl">
-              {/* (todo el contenido del diálogo, sin cambios) */}
-              {/* ... */}
-              {/* lo dejo tal cual lo tenías */}
-              <DialogHeader>
-                <DialogTitle className="text-brand-primary text-xl font-bold flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  {editing
-                    ? `Editar Estado (${nuevoEstadoMensual.mes})`
-                    : "Nuevo Estado Mensual"}
-                </DialogTitle>
-              </DialogHeader>
-              <div className="relative">
-                {/* ... campos ... */}
-                {/* (no los repito para no hacerlo eterno, ya están igual que antes) */}
+      <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
+        <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-5 md:p-6 border-b border-brand-secondary/10">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-brand-primary/10">
+                <TrendingUp className="h-6 w-6 text-brand-primary" />
               </div>
-              <DialogFooter>
-                {/* Botones de cancelar/guardar como los tenías */}
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        )}
-      </div>
+              <div>
+                <Typography variant="h2" className="!text-brand-secondary">
+                  Estados Mensuales del Deudor
+                </Typography>
+                <Typography variant="small" className="text-muted mt-0.5">
+                  Seguimiento de deuda, recaudos y honorarios
+                </Typography>
+              </div>
+            </div>
+
+            {canEdit && (
+              <Dialog
+                open={open}
+                onOpenChange={(v) => {
+                  setOpen(v);
+                  if (!v) resetForm();
+                }}
+              >
+                <DialogTrigger asChild>
+                  <Button
+                    onClick={() => {
+                      resetForm();
+                      setOpen(true);
+                    }}
+                    variant="brand"
+                    className="gap-2 shadow-md hover:shadow-lg transition-all"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Agregar estado mensual
+                  </Button>
+                </DialogTrigger>
+
+                <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle className="text-brand-primary text-xl font-bold flex items-center gap-2">
+                      <FileText className="h-5 w-5" />
+                      {editing
+                        ? `Editar Estado (${nuevoEstadoMensual.mes})`
+                        : "Nuevo Estado Mensual"}
+                    </DialogTitle>
+                  </DialogHeader>
+
+                  <div className="space-y-6 py-4">
+                    {/* Mes */}
+                    <div className="space-y-2">
+                      <Label htmlFor="mes" className="text-brand-secondary font-medium flex items-center gap-2">
+                        <Calendar className="h-4 w-4" />
+                        Mes *
+                      </Label>
+                      <Input
+                        id="mes"
+                        type="month"
+                        value={nuevoEstadoMensual.mes || ""}
+                        onChange={(e) =>
+                          setNuevoEstadoMensual((s) => ({
+                            ...s,
+                            mes: e.target.value,
+                          }))
+                        }
+                        className="border-brand-secondary/30"
+                      />
+                    </div>
+
+                    {/* Campos numéricos */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="deuda" className="text-brand-secondary font-medium flex items-center gap-2">
+                          <DollarSign className="h-4 w-4" />
+                          Deuda
+                        </Label>
+                        <Input
+                          id="deuda"
+                          type="number"
+                          step="0.01"
+                          value={nuevoEstadoMensual.deuda ?? ""}
+                          onChange={(e) => {
+                            const val = e.target.value
+                              ? clamp(parseFloat(e.target.value), 0, 1e15)
+                              : undefined;
+                            setNuevoEstadoMensual((s) => ({
+                              ...s,
+                              deuda: val,
+                            }));
+                          }}
+                          placeholder="0.00"
+                          className="border-brand-secondary/30"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="recaudo" className="text-brand-secondary font-medium flex items-center gap-2">
+                          <DollarSign className="h-4 w-4" />
+                          Recaudo
+                        </Label>
+                        <Input
+                          id="recaudo"
+                          type="number"
+                          step="0.01"
+                          value={nuevoEstadoMensual.recaudo ?? ""}
+                          onChange={(e) => {
+                            const val = e.target.value
+                              ? clamp(parseFloat(e.target.value), 0, 1e15)
+                              : undefined;
+                            setNuevoEstadoMensual((s) => ({
+                              ...s,
+                              recaudo: val,
+                            }));
+                          }}
+                          placeholder="0.00"
+                          className="border-brand-secondary/30"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="acuerdo" className="text-brand-secondary font-medium flex items-center gap-2">
+                          <DollarSign className="h-4 w-4" />
+                          Acuerdo
+                        </Label>
+                        <Input
+                          id="acuerdo"
+                          type="number"
+                          step="0.01"
+                          value={nuevoEstadoMensual.acuerdo ?? ""}
+                          onChange={(e) => {
+                            const val = e.target.value
+                              ? clamp(parseFloat(e.target.value), 0, 1e15)
+                              : undefined;
+                            setNuevoEstadoMensual((s) => ({
+                              ...s,
+                              acuerdo: val,
+                            }));
+                          }}
+                          placeholder="0.00"
+                          className="border-brand-secondary/30"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="porcentaje" className="text-brand-secondary font-medium flex items-center gap-2">
+                          <Percent className="h-4 w-4" />
+                          % Honorarios
+                        </Label>
+                        <Input
+                          id="porcentaje"
+                          type="number"
+                          step="0.01"
+                          value={nuevoEstadoMensual.porcentajeHonorarios ?? 15}
+                          onChange={(e) => {
+                            const val = e.target.value
+                              ? clamp(parseFloat(e.target.value), 0, 100)
+                              : 15;
+                            setNuevoEstadoMensual((s) => ({
+                              ...s,
+                              porcentajeHonorarios: val,
+                            }));
+                          }}
+                          placeholder="15"
+                          className="border-brand-secondary/30"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Honorarios (solo lectura) */}
+                    <div className="rounded-xl border border-brand-secondary/20 bg-brand-primary/5 p-4 space-y-3">
+                      <Typography variant="small" className="font-semibold text-brand-secondary">
+                        Honorarios calculados automáticamente
+                      </Typography>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-brand-secondary font-medium">
+                            Hon. Deuda
+                          </Label>
+                          <Input
+                            readOnly
+                            value={
+                              nuevoEstadoMensual.honorariosDeuda != null
+                                ? `$${nuevoEstadoMensual.honorariosDeuda.toLocaleString()}`
+                                : ""
+                            }
+                            className="bg-white border-brand-secondary/30 cursor-not-allowed"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-brand-secondary font-medium">
+                            Hon. Acuerdo
+                          </Label>
+                          <Input
+                            readOnly
+                            value={
+                              nuevoEstadoMensual.honorariosAcuerdo != null
+                                ? `$${nuevoEstadoMensual.honorariosAcuerdo.toLocaleString()}`
+                                : ""
+                            }
+                            className="bg-white border-brand-secondary/30 cursor-not-allowed"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Recibo */}
+                    <div className="space-y-2">
+                      <Label htmlFor="recibo" className="text-brand-secondary font-medium flex items-center gap-2">
+                        <FileText className="h-4 w-4" />
+                        Número de Recibo
+                      </Label>
+                      <Input
+                        id="recibo"
+                        value={nuevoEstadoMensual.recibo ?? ""}
+                        onChange={(e) =>
+                          setNuevoEstadoMensual((s) => ({
+                            ...s,
+                            recibo: e.target.value,
+                          }))
+                        }
+                        placeholder="Ej: REC-2024-001"
+                        className="border-brand-secondary/30"
+                      />
+                    </div>
+
+                    {/* Observaciones */}
+                    <div className="space-y-2">
+                      <Label htmlFor="observaciones" className="text-brand-secondary font-medium">
+                        Observaciones
+                      </Label>
+                      <Textarea
+                        id="observaciones"
+                        value={nuevoEstadoMensual.observaciones ?? ""}
+                        onChange={(e) =>
+                          setNuevoEstadoMensual((s) => ({
+                            ...s,
+                            observaciones: e.target.value,
+                          }))
+                        }
+                        placeholder="Notas adicionales sobre este estado mensual..."
+                        className="min-h-24 border-brand-secondary/30"
+                      />
+                    </div>
+                  </div>
+
+                  <DialogFooter>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setOpen(false);
+                        resetForm();
+                      }}
+                      disabled={saving}
+                      className="border-brand-secondary/30"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      onClick={handleCrearOEditar}
+                      disabled={saving}
+                      variant="brand"
+                      className="gap-2"
+                    >
+                      {saving ? (
+                        <>
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                          Guardando...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4" />
+                          {editing ? "Actualizar" : "Guardar"}
+                        </>
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            )}
+          </div>
+        </div>
+      </section>
 
       {/* Tabla */}
       {estadosMensuales.length === 0 ? (
