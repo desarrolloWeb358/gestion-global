@@ -28,7 +28,6 @@ import {
 } from "@/shared/ui/sidebar";
 import { Separator } from "@/shared/ui/separator";
 import { cn } from "@/shared/lib/cn";
-//import RotatingEarth from "@/shared/design-system/components/Rotatingearth";
 
 
 function useFilteredNav(items: NavItem[]) {
