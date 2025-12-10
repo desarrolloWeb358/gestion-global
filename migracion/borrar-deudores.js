@@ -192,6 +192,7 @@ const CLIENT_UIDS = [
 '900892217',
 '800245235',
 '900784867',
+'830121549',
 ];
 
 // Pausa entre clientes (ms)

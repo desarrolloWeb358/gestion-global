@@ -12,7 +12,11 @@ import { Switch } from "@/shared/ui/switch";
 import { Cliente } from "@/modules/clientes/models/cliente.model";
 import { obtenerClientes, actualizarCliente } from "@/modules/clientes/services/clienteService";
 import { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
-import { obtenerUsuarios } from "@/modules/usuarios/services/usuarioService";
+import {
+  obtenerUsuarios,
+  obtenerEjecutivos,
+  obtenerAbogados,
+} from "@/modules/usuarios/services/usuarioService";
 import { Typography } from "@/shared/design-system/components/Typography";
 import { BackButton } from "@/shared/design-system/components/BackButton";
 import { cn } from "@/shared/lib/cn";
@@ -26,8 +30,9 @@ export default function ClientesCrud() {
   const navigate = useNavigate();
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
-  const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([]);
+  
   const [ejecutivos, setEjecutivos] = useState<UsuarioSistema[]>([]);
+  const [abogados, setAbogados] = useState<UsuarioSistema[]>([]); // 👈 nuevo
   const [clienteEditando, setClienteEditando] = useState<Cliente | null>(null);
   const [mostrarDialogo, setMostrarDialogo] = useState(false);
   const [tipoCuentaSel, setTipoCuentaSel] = useState<"" | "ahorros" | "corriente" | "convenio">("");
@@ -35,6 +40,9 @@ export default function ClientesCrud() {
   const [ejecutivoJurSel, setEjecutivoJurSel] = useState<string>("");
   const [activoSel, setActivoSel] = useState<boolean>(true);
   const [q, setQ] = useState("");
+
+  const [dependienteSel, setDependienteSel] = useState<string>("");
+  const [abogadoSel, setAbogadoSel] = useState<string>("");
 
   // Roles
   const { usuario, roles, loading: userLoading } = useUsuarioActual();
@@ -65,20 +73,11 @@ export default function ClientesCrud() {
   }, [userLoading, aclLoading, usuario?.uid, isAdmin, isEjecutivo]);
 
 
-  const usuariosMap = useMemo(() => {
-    const m: Record<string, UsuarioSistema> = {};
-    for (const u of usuarios) if (u.uid) m[u.uid] = u;
-    return m;
-  }, [usuarios]);
 
   function resolverNombreCliente(c: Cliente) {
-    const usuarioUid = (c as any).usuarioUid;
-    let u: any = usuarioUid ? usuariosMap[usuarioUid] : undefined;
-    if (!u && c.id) u = usuariosMap[c.id];
-    if (u) return u.nombre ?? u.displayName ?? u.email ?? "(Sin usuario)";
-    return "(Sin usuario)";
+    // si algunos clientes viejos no tienen nombre, caes al id
+    return (c as any).nombre ?? c.id ?? "(Sin nombre)";
   }
-
 
 
   const fetchClientes = async () => {
@@ -113,11 +112,13 @@ export default function ClientesCrud() {
 
 
   const fetchUsuarios = async () => {
-    const todos = await obtenerUsuarios();
-    setUsuarios(todos);
-    const execs = todos.filter((u) => Array.isArray(u.roles) && u.roles.includes("ejecutivo"));
-    setEjecutivos(execs);
-  };
+  const [execs, lawyers] = await Promise.all([
+    obtenerEjecutivos(),
+    obtenerAbogados(),
+  ]);
+  setEjecutivos(execs);
+  setAbogados(lawyers);
+};
 
   useEffect(() => {
     fetchClientes();
@@ -129,6 +130,8 @@ export default function ClientesCrud() {
     setTipoCuentaSel((cliente.tipoCuenta as any) ?? "");
     setEjecutivoPreSel(cliente.ejecutivoPrejuridicoId ?? "");
     setEjecutivoJurSel(cliente.ejecutivoJuridicoId ?? "");
+    setDependienteSel(cliente.ejecutivoDependienteId ?? "");
+    setAbogadoSel(cliente.abogadoId ?? "");
     setActivoSel(cliente.activo ?? true);
     setMostrarDialogo(true);
   };
@@ -141,12 +144,13 @@ export default function ClientesCrud() {
   const clientesFiltrados = useMemo(() => {
     const qn = q.trim().toLowerCase();
     if (!qn) return clientes;
+
     return clientes.filter((c) => {
-      const nombre = resolverNombreCliente(c).toLowerCase();
-      const email = (c as any).email?.toLowerCase?.() ?? "";
-      return (`${nombre} ${email}`).includes(qn);
+      const nombre = (c as any).nombre?.toLowerCase?.() ?? "";
+      // si en clientes no guardas email, simplemente no lo uses
+      return nombre.includes(qn);
     });
-  }, [clientes, q, usuariosMap]);
+  }, [clientes, q]);
 
   if (userLoading || aclLoading) {
     return <div className="p-6 text-muted-foreground">Cargando permisos…</div>;
@@ -370,6 +374,8 @@ export default function ClientesCrud() {
                 const tipoCuenta = tipoCuentaSel === "" ? undefined : (tipoCuentaSel as "ahorros" | "corriente" | "convenio");
                 const ejecutivoPrejuridicoId = ejecutivoPreSel || null;
                 const ejecutivoJuridicoId = ejecutivoJurSel || null;
+                const ejecutivoDependienteId = dependienteSel || null;
+                const abogadoId = abogadoSel || null;
                 const activo = activoSel;
 
                 const payload: Partial<Cliente> = {
@@ -379,6 +385,8 @@ export default function ClientesCrud() {
                   ...(tipoCuenta ? { tipoCuenta } : {}),
                   ejecutivoPrejuridicoId,
                   ejecutivoJuridicoId,
+                  ejecutivoDependienteId,
+                  abogadoId,
                   activo,
                 };
 
@@ -392,7 +400,7 @@ export default function ClientesCrud() {
                 <div className="p-4 rounded-lg bg-brand-primary/5 border border-brand-primary/20">
                   <Label className="text-brand-secondary font-medium">Nombre del Cliente</Label>
                   <Input
-                    value={clienteEditando ? resolverNombreCliente(clienteEditando) : ""}
+                    value={clienteEditando?.nombre ?? ""} // solo lectura igual
                     readOnly
                     className="mt-1.5 bg-white/50 border-brand-secondary/30"
                   />
@@ -428,6 +436,38 @@ export default function ClientesCrud() {
                         {ejecutivos.map((e) => (
                           <SelectItem key={e.uid} value={e.uid}>
                             {e.nombre ?? (e as any).displayName ?? e.email}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label className="text-brand-secondary font-medium">Dependiente</Label>
+                    <Select value={dependienteSel} onValueChange={setDependienteSel}>
+                      <SelectTrigger className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20">
+                        <SelectValue placeholder="Selecciona un dependiente" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ejecutivos.map((u) => (
+                          <SelectItem key={u.uid} value={u.uid}>
+                            {u.nombre ?? (u as any).displayName ?? u.email}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label className="text-brand-secondary font-medium">Abogado</Label>
+                    <Select value={abogadoSel} onValueChange={setAbogadoSel}>
+                      <SelectTrigger className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20">
+                        <SelectValue placeholder="Selecciona un abogado" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {abogados.map((u) => (
+                          <SelectItem key={u.uid} value={u.uid}>
+                            {u.nombre ?? (u as any).displayName ?? u.email}
                           </SelectItem>
                         ))}
                       </SelectContent>

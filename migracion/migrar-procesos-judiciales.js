@@ -25,7 +25,7 @@ const OUTPUT_REPORTE = "./Reporte_ProcesosJudiciales.xlsx";
 const excelPath = "./ProcesosJudiciales.xlsx";                // <-- cambia si es necesario
 
 // 📂 Archivo externo con NITs a migrar (si está vacío o no existe → migra TODOS)
-const NITS_EXCEL_PATH = "./migracionXnit.xlsx";
+const NITS_EXCEL_PATH = "./migracionXnitJudicial.xlsx";
 
 // Mapeo ejecutivo -> UID (case-insensitive)
 const EJECUTIVOS_UID = {

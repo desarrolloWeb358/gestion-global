@@ -13,19 +13,50 @@ interface Props {
 }
 
 export function ClienteInfoCard({ cliente, ejecutivos = [], usuarios = [], totalDeudores = 0 }: Props) {
-  // Ejecutivos por uid guardado en cliente
+  // Normaliza IDs: si vienen como "", null o solo espacios => null
+  const ejecutivoPreId =
+    typeof cliente.ejecutivoPrejuridicoId === "string" &&
+      cliente.ejecutivoPrejuridicoId.trim() !== ""
+      ? cliente.ejecutivoPrejuridicoId.trim()
+      : null;
+
+  const ejecutivoJurId =
+    typeof cliente.ejecutivoJuridicoId === "string" &&
+      cliente.ejecutivoJuridicoId.trim() !== ""
+      ? cliente.ejecutivoJuridicoId.trim()
+      : null;
+
+  const dependienteId =
+    typeof cliente.ejecutivoDependienteId === "string" &&
+      cliente.ejecutivoDependienteId.trim() !== ""
+      ? cliente.ejecutivoDependienteId.trim()
+      : null;
+
+  const abogadoId =
+    typeof cliente.abogadoId === "string" && cliente.abogadoId.trim() !== ""
+      ? cliente.abogadoId.trim()
+      : null;
+
+  // Ahora sí buscamos SOLO si hay id válido
   const ejecutivoPre =
-    ejecutivos.find((e) => e.uid === cliente.ejecutivoPrejuridicoId) ?? null;
+    ejecutivoPreId !== null
+      ? ejecutivos.find((e) => e.uid === ejecutivoPreId) ?? null
+      : null;
+
   const ejecutivoJur =
-    ejecutivos.find((e) => e.uid === cliente.ejecutivoJuridicoId) ?? null;
+    ejecutivoJurId !== null
+      ? ejecutivos.find((e) => e.uid === ejecutivoJurId) ?? null
+      : null;
 
-  const dependiente = cliente.ejecutivoDependienteId
-    ? usuarios.find((u) => u.uid === cliente.ejecutivoDependienteId) ?? null
-    : null;
+  const dependiente =
+    dependienteId !== null
+      ? usuarios.find((u) => u.uid === dependienteId) ?? null
+      : null;
 
-  const abogado = cliente.abogadoId
-    ? usuarios.find((u) => u.uid === cliente.abogadoId) ?? null
-    : null;
+  const abogado =
+    abogadoId !== null
+      ? usuarios.find((u) => u.uid === abogadoId) ?? null
+      : null;
 
   const uidCliente = (cliente as any).usuarioUid ?? cliente.id ?? null;
 
@@ -85,7 +116,7 @@ export function ClienteInfoCard({ cliente, ejecutivos = [], usuarios = [], total
 
   const getNombreUsuario = (usuario: UsuarioSistema | null) => {
     if (!usuario) return "No asignado";
-    return usuario.nombre ?? (usuario as any)?.displayName ?? usuario.email ?? "No asignado";
+    return usuario.nombre ?? (usuario as any)?.displayName ?? usuario.email ?? "No tiene";
   };
 
   return (

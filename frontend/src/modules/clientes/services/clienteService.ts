@@ -33,18 +33,19 @@ export interface ClienteOption {
 // Crear Cliente desde UsuarioSistema (sin duplicar datos de usuario)
 // Guarda referencia al usuario por uid. NO guarda 'nombre'.
 // ===============================
-export function crearClienteDesdeUsuario(usuario: UsuarioSistema): Omit<Cliente, "id"> {
+export function crearClienteDesdeUsuario(
+  usuario: UsuarioSistema
+): Omit<Cliente, "id"> {
   return {
-    // datos propios del cliente (sin nombre)
+    nombre: usuario.nombre ?? usuario.email ?? "",  // 👈 clave
     direccion: "",
     banco: "",
     numeroCuenta: "",
-    // evita escribir undefined: si no hay tipo, no lo incluyas al guardar
-    // tipoCuenta: "", // opcional si quieres inicializar explícito
     ejecutivoPrejuridicoId: null,
     ejecutivoJuridicoId: null,
+    ejecutivoDependienteId: null,
+    abogadoId: null,
     activo: usuario.activo ?? true,
-    
   };
 }
 

@@ -46,6 +46,15 @@ function nameToUid(v) {
   return NAME_TO_UID[key] || "";
 }
 
+function nameToUidJuridico(v) {
+  const key = firstNameKey(v);
+  // Si viene vacío o alguna variante de "no tiene", retorna vacío
+  if (!key || ['no tiene', 'no', 'notiene', 'no_tiene', 'sin', 'ninguno', 'ninguna'].includes(key)) {
+    return ''; // Nadie cuando es dependiente
+  }
+  return NAME_TO_UID[key] || "";
+}
+
 // ---- Utilidades ----
 function isValidEmail(email) {
   if (!email || typeof email !== 'string') return false;
@@ -150,8 +159,8 @@ const toStrOrEmpty = (v) => (v === null || v === undefined ? '' : String(v));
         const abogNom = idxAbogNOM >= 0 ? rowArr[idxAbogNOM] : '';
 
         const ejecutivoPrejuridicoUID = nameToUid(ejPreNom);
-        const ejecutivoJuridicoUID = nameToUid(ejJurNom);
-        const ejecutivoDependienteUID = nameToUid(ejDepNom);
+        const ejecutivoJuridicoUID = nameToUidJuridico(ejJurNom);
+        const ejecutivoDependienteUID = nameToUidJuridico(ejDepNom);
         const abogadoUID = nameToUid(abogNom);
 
         // ---- Validaciones previas

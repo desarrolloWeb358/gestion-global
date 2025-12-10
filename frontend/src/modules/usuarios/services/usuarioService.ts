@@ -22,23 +22,40 @@ import { Cliente } from "@/modules/clientes/models/cliente.model";
 const sanitize = <T extends Record<string, any>>(obj: T) =>
   Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined)) as Partial<T>;
 
+
+// 👇 helper interno
+const mapDocToUsuario = (d: any): UsuarioSistema =>
+({
+  uid: d.id,
+  ...d.data(),
+} as UsuarioSistema);
+
 /* ============================================
    Obtener TODOS los usuarios
    ============================================ */
 export const obtenerUsuarios = async (): Promise<UsuarioSistema[]> => {
   const snapshot = await getDocs(collection(db, "usuarios"));
-  return snapshot.docs.map(
-    (d) =>
-      ({
-        uid: d.id,
-        ...d.data(),
-      } as UsuarioSistema)
-  );
+  return snapshot.docs.map(mapDocToUsuario);
 };
 
 /* ============================================
-   Obtener un usuario por UID (lo que necesitas)
+   Obtener usuarios por rol (ejecutivo, abogado, etc.)
    ============================================ */
+export const obtenerUsuariosPorRol = async (rol: string): Promise<UsuarioSistema[]> => {
+  const q = query(
+    collection(db, "usuarios"),
+    where("roles", "array-contains", rol)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(mapDocToUsuario);
+};
+
+/* Helpers específicos (azúcar sintáctico) */
+export const obtenerEjecutivos = () => obtenerUsuariosPorRol("ejecutivo");
+export const obtenerAbogados = () => obtenerUsuariosPorRol("abogado");
+
+
+
 export const getUsuarioByUid = async (uid: string): Promise<UsuarioSistema | null> => {
   const ref = doc(db, "usuarios", uid);
   const snap = await getDoc(ref);
@@ -46,9 +63,6 @@ export const getUsuarioByUid = async (uid: string): Promise<UsuarioSistema | nul
   return { uid, ...(snap.data() as Omit<UsuarioSistema, "uid">) };
 };
 
-/* ============================================
-   (Opcional) Buscar usuario por documento
-   ============================================ */
 export const getUsuarioByDocumento = async (
   tipoDocumento: UsuarioSistema["tipoDocumento"],
   numeroDocumento: string
@@ -70,11 +84,11 @@ export const getUsuarioByDocumento = async (
 export const crearUsuario = async (
   usuario: UsuarioSistema & { password: string }
 ): Promise<string> => {
-  // Crear en Firebase Auth
   const cred = await createUserWithEmailAndPassword(auth, usuario.email, usuario.password);
   const uid = cred.user.uid;
 
-  // Documento del usuario en Firestore
+  const roles = Array.isArray(usuario.roles) ? usuario.roles : [];
+
   const usuarioFirestore: UsuarioSistema = {
     uid,
     email: usuario.email,
@@ -82,25 +96,26 @@ export const crearUsuario = async (
     telefonoUsuario: usuario.telefonoUsuario,
     tipoDocumento: usuario.tipoDocumento,
     numeroDocumento: usuario.numeroDocumento,
-    roles: usuario.roles,
+    roles,
     activo: true,
     fecha_registro: serverTimestamp(),
   };
 
   await setDoc(doc(db, "usuarios", uid), usuarioFirestore);
 
-  // Si el usuario también es "cliente", crear el doc en "clientes"
-  if (usuario.roles.includes("cliente" as any)) {
+  // Si también es cliente, creamos el doc en "clientes"
+  if (roles.includes("cliente" as any)) {
     const clienteData: Cliente = {
-      id: uid,                      // relaciona 1:1 con el usuario      
+      id: uid,
       direccion: "",
       banco: "",
       numeroCuenta: "",
       tipoCuenta: "",
-      ejecutivoPrejuridicoId: "",
-      ejecutivoJuridicoId: "",
-      activo: true as any,           // ajusta si tu modelo lo requiere
-      // usuarioUid: uid,            // si tu modelo Cliente guarda el usuario
+      ejecutivoPrejuridicoId: null as any,
+      ejecutivoJuridicoId: null as any,
+      ejecutivoDependienteId: null as any,
+      abogadoId: null as any,
+      activo: true as any,
     };
 
     await setDoc(doc(db, "clientes", uid), clienteData);
@@ -108,6 +123,7 @@ export const crearUsuario = async (
 
   return uid;
 };
+
 
 /* ============================================
    Actualizar usuario

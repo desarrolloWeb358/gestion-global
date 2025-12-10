@@ -18,7 +18,7 @@ const fs = require("fs");
 
 // --- Config ---
 const excelPath = "./ProcesosJudicialesClientes.xlsx"; // libro origen (varias hojas, una por cliente)
-const NITS_EXCEL_PATH = "./migracionXnit.xlsx";        // archivo con NITs a migrar
+const NITS_EXCEL_PATH = "./migracionXnitJudicial.xlsx";        // archivo con NITs a migrar
 const OUTPUT_REPORTE = "./Reporte_ProcesosJudicialesClientes.xlsx";
 
 // Firebase
