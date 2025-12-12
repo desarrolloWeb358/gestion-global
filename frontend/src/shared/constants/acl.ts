@@ -4,6 +4,7 @@ export const ROLES = [
   "admin",
   "ejecutivo",
   "ejecutivoAdmin",
+  "dependiente",
   "cliente",
   "abogado",
   "deudor",
@@ -15,6 +16,7 @@ export const ROL_PRIORITY: Rol[] = [
   "admin",
   "ejecutivoAdmin",
   "ejecutivo",
+  "dependiente",
   "abogado",
   "cliente",
   "deudor",
@@ -25,8 +27,9 @@ export const DEFAULT_HOME = "/dashboard/cliente" as const;
 
 export const ROLE_HOME: Record<Rol, string> = {
   admin: "/dashboard/admin",
-  ejecutivoAdmin: "/clientes-tables",      // 👈 antes era "/dashboard/ejecutivo"
-  ejecutivo: "/clientes-tables",      // 👈 antes era "/dashboard/ejecutivo"
+  ejecutivoAdmin: "/clientes-tables",     
+  ejecutivo: "/clientes-tables",      
+  dependiente: "/clientes-tables", 
   abogado: "/dashboard/abogado",
   cliente: "/dashboard/cliente",
   deudor: "/dashboard/deudor",
@@ -45,14 +48,23 @@ export const PERMS = {
 
   Deudores_Read: "deudores.read",
   Deudores_Edit: "deudores.edit",
-  Deudores_Obs_Create: "deudores.observaciones.create",
+  //Deudores_Obs_Create: "deudores.observaciones.create", 
 
+  // Valores Agregados
   Valores_Read: "valores.read",
   Valores_Obs_Create: "valores.observaciones.create", 
 
-  // Seguimientos / Abonos
-  Seguimientos_Read: "seguimientos.read",
-  Seguimientos_Edit: "seguimientos.edit",
+  // Seguimientos Ejecutivos
+  Seguimientos_Ejecutivos_Read: "seguimientos.ejecutivos.read",
+  Seguimientos_Ejecutivos_Edit: "seguimientos.ejecutivos.edit",
+
+  // Seguimientos Dependientes
+  Seguimientos_Dependientes_Read: "seguimientos.dependientes.read",
+  Seguimientos_Dependientes_Edit: "seguimientos.dependientes.edit",
+
+  Seguimientos_Observaciones_Create: "seguimientos.observaciones.create",
+
+  // Abonos
   Abonos_Read: "abonos.read",
   Abonos_Edit: "abonos.edit",
 
@@ -74,11 +86,12 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Clientes_Read,
     PERMS.Clientes_Edit,
     PERMS.Deudores_Read,
-    PERMS.Deudores_Edit,
-    PERMS.Deudores_Obs_Create,
+    PERMS.Deudores_Edit,    
     PERMS.Valores_Read, 
-    PERMS.Seguimientos_Read,
-    PERMS.Seguimientos_Edit,
+    PERMS.Seguimientos_Ejecutivos_Read,
+    PERMS.Seguimientos_Ejecutivos_Edit,
+    PERMS.Seguimientos_Dependientes_Read,
+    PERMS.Seguimientos_Dependientes_Edit,
     PERMS.Abonos_Read,
     PERMS.Abonos_Edit,
     PERMS.Recaudos_Read,
@@ -91,9 +104,10 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Clientes_Edit,
     PERMS.Deudores_Read,
     PERMS.Deudores_Edit,
-    PERMS.Deudores_Obs_Create,
-    PERMS.Seguimientos_Read,
-    PERMS.Seguimientos_Edit,
+    PERMS.Seguimientos_Ejecutivos_Read,
+    PERMS.Seguimientos_Ejecutivos_Edit,
+    PERMS.Seguimientos_Dependientes_Read,
+    PERMS.Seguimientos_Dependientes_Edit,
     PERMS.Abonos_Read,
     PERMS.Abonos_Edit,
     PERMS.Valores_Read, 
@@ -107,11 +121,22 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Clientes_Edit,
     PERMS.Deudores_Read,
     PERMS.Deudores_Edit,
-    PERMS.Deudores_Obs_Create,
-    PERMS.Seguimientos_Read,
-    PERMS.Seguimientos_Edit,
+    PERMS.Seguimientos_Ejecutivos_Read,
+    PERMS.Seguimientos_Dependientes_Read,
+    PERMS.Seguimientos_Ejecutivos_Edit,
     PERMS.Abonos_Read,
     PERMS.Abonos_Edit,
+    PERMS.Valores_Read, 
+    PERMS.Recaudos_Read,
+  ],
+
+  dependiente: [
+    PERMS.Clientes_Read,
+    PERMS.Deudores_Read,   
+    PERMS.Seguimientos_Ejecutivos_Read,
+    PERMS.Seguimientos_Dependientes_Read,
+    PERMS.Seguimientos_Dependientes_Edit,
+    PERMS.Abonos_Read,    
     PERMS.Valores_Read, 
     PERMS.Recaudos_Read,
   ],
@@ -119,8 +144,9 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
   cliente: [
     PERMS.Clientes_Read,
     PERMS.Deudores_Read,
-    PERMS.Deudores_Obs_Create,
-    PERMS.Seguimientos_Read,
+    PERMS.Seguimientos_Observaciones_Create,
+    PERMS.Seguimientos_Ejecutivos_Read,
+    PERMS.Seguimientos_Dependientes_Read,
     PERMS.Abonos_Read,
     PERMS.Valores_Read,  
     PERMS.Valores_agregados_Read,
@@ -132,7 +158,8 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Valores_Read,          
     PERMS.Clientes_Read,
     PERMS.Deudores_Read,
-    PERMS.Seguimientos_Read,
+    PERMS.Seguimientos_Ejecutivos_Read,
+    PERMS.Seguimientos_Dependientes_Read,
     PERMS.Abonos_Read,
     PERMS.Valores_agregados_Read,
     PERMS.Valores_agregados_Edit, 

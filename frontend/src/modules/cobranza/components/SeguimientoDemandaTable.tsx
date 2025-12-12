@@ -3,12 +3,12 @@ import * as React from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
-import { 
-  Gavel, 
-  Save, 
-  Edit, 
-  Trash2, 
-  Download, 
+import {
+  Gavel,
+  Save,
+  Edit,
+  Trash2,
+  Download,
   Calendar as CalendarIcon,
   FileText,
   Hash,
@@ -124,11 +124,14 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
     can: (req: Perm | Perm[]) => boolean;
     loading: boolean;
   };
-  const user = acl.usuario ? { roles: acl.usuario.roles } : undefined;
+
   const can = (p: Perm) => acl.can(p);
-  const roles = sanitizeRoles(user?.roles ?? []);
-  const puedeEditar = can(PERMS.Deudores_Edit);
-  const isCliente = roles.includes("cliente");
+
+  // ✅ El único permiso que habilita edición en TODA esta pantalla (Demanda)
+  const puedeEditar = can(PERMS.Seguimientos_Dependientes_Edit);
+  const { roles = [] } = useAcl();
+  // ✅ Solo para ocultar UI
+  const isCliente = Array.isArray(roles) && roles.includes("cliente");
 
   // Tab activo
   const [tab, setTab] = React.useState<"seguimientos" | "info">("seguimientos");
@@ -224,6 +227,10 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
 
   React.useImperativeHandle(ref, () => ({
     openForm: () => {
+      if (!puedeEditar) {
+        toast.error("No tienes permiso para crear seguimientos de demanda.");
+        return;
+      }
       resetForm();
       setOpen(true);
     },
@@ -236,8 +243,12 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
   }, [rows, filters]);
 
   const openNew = () => { resetForm(); setOpen(true); };
-  
+
   const openEdit = (row: SeguimientoDemanda) => {
+    if (!puedeEditar) {
+      toast.error("No tienes permiso para editar.");
+      return;
+    }
     setEdit(row);
     setConsecutivo(row.consecutivo ?? "");
     setFecha(toDate(row.fecha));
@@ -247,6 +258,10 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
   };
 
   const saveSeguimiento = async () => {
+    if (!puedeEditar) {
+      toast.error("No tienes permiso para crear/editar seguimientos de demanda.");
+      return;
+    }
     if (!clienteId || !deudorId) return;
     if (saving) return;
     if (!consecutivo.trim()) {
@@ -291,9 +306,13 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
   };
 
   const remove = async (id: string) => {
+    if (!puedeEditar) {
+      toast.error("No tienes permiso para eliminar seguimientos de demanda.");
+      return;
+    }
     if (!clienteId || !deudorId) return;
     if (!window.confirm("¿Estás seguro de eliminar este registro?")) return;
-    
+
     try {
       await deleteSeguimientoDemanda(clienteId, deudorId, id);
       toast.success("✓ Registro eliminado");
@@ -315,7 +334,11 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
   };
 
   const handleGuardarInfo = async () => {
-    if (!puedeEditar || !clienteId || !deudorId) return;
+    if (!clienteId || !deudorId) return;
+    if (!puedeEditar) {
+      toast.error("No tienes permiso para guardar información de demanda.");
+      return;
+    }
     try {
       setSavingInfo(true);
       const ref = doc(db, `clientes/${clienteId}/deudores/${deudorId}`);
@@ -358,14 +381,14 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
     <div className="space-y-4">
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="w-full">
         <TabsList className="grid grid-cols-2 w-full bg-white border border-brand-secondary/20 p-1 rounded-xl">
-          <TabsTrigger 
+          <TabsTrigger
             value="seguimientos"
             className="data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all"
           >
             <FileText className="h-4 w-4 mr-2" />
             Seguimientos
           </TabsTrigger>
-          <TabsTrigger 
+          <TabsTrigger
             value="info"
             className="data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all"
           >
@@ -399,8 +422,8 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">Ordenar:</span>
-                  <Select 
-                    value={filters.order} 
+                  <Select
+                    value={filters.order}
                     onValueChange={(v) => setFilter("order", (v as SortDir) || "desc")}
                   >
                     <SelectTrigger className="w-[220px] border-brand-secondary/30">
@@ -458,7 +481,12 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
                       <TableHead className="w-[140px] text-brand-secondary font-semibold">Fecha</TableHead>
                       <TableHead className="text-brand-secondary font-semibold">Descripción</TableHead>
                       <TableHead className="w-[120px] text-brand-secondary font-semibold">Archivo</TableHead>
-                      <TableHead className="w-[180px] text-center text-brand-secondary font-semibold">Acciones</TableHead>
+                      {puedeEditar && (
+                        <TableHead className="w-[180px] text-center text-brand-secondary font-semibold">
+                          Acciones
+                        </TableHead>
+                      )}
+
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -466,7 +494,7 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
                       const d = toDate(row.fecha);
                       const fechaStr = d ? fmt.format(d) : "—";
                       return (
-                        <TableRow 
+                        <TableRow
                           key={row.id}
                           className={cn(
                             "border-brand-secondary/5 transition-colors",
@@ -503,26 +531,29 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
                               <span className="text-muted-foreground text-sm">—</span>
                             )}
                           </TableCell>
-                          <TableCell>
-                            <div className="flex justify-center gap-2">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => openEdit(row)}
-                                className="hover:bg-brand-primary/10"
-                              >
-                                <Edit className="h-4 w-4 text-brand-primary" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => remove(row.id!)}
-                                className="hover:bg-red-50"
-                              >
-                                <Trash2 className="h-4 w-4 text-red-600" />
-                              </Button>
-                            </div>
-                          </TableCell>
+                          {puedeEditar && (
+                            <TableCell>
+                              <div className="flex justify-center gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => openEdit(row)}
+                                  className="hover:bg-brand-primary/10"
+                                >
+                                  <Edit className="h-4 w-4 text-brand-primary" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => remove(row.id!)}
+                                  className="hover:bg-red-50"
+                                >
+                                  <Trash2 className="h-4 w-4 text-red-600" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          )}
+
                         </TableRow>
                       );
                     })}
@@ -565,19 +596,19 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
                   onChange={onChange("observacionesDemandaCliente")}
                   readOnly={roObsConjunto}
                   className="min-h-36 border-brand-secondary/30"
-                  placeholder={isCliente ? "Escribe tu observación..." : ""}
+                  placeholder={puedeEditar ? "Escribe tu observación..." : ""}
                 />
-                {!isCliente && (
-                  <div className="text-right">
-                    <span className="text-xs text-muted-foreground">
-                      {(() => {
-                        const ts = (deudor as any)?.observacionesDemandaClienteFecha;
-                        const d = ts && typeof ts.toDate === "function" ? ts.toDate() : null;
-                        return d ? `Última actualización: ${d.toLocaleString("es-CO", { hour12: false })}` : "";
-                      })()}
-                    </span>
-                  </div>
-                )}
+
+                <div className="text-right">
+                  <span className="text-xs text-muted-foreground">
+                    {(() => {
+                      const ts = (deudor as any)?.observacionesDemandaClienteFecha;
+                      const d = ts && typeof ts.toDate === "function" ? ts.toDate() : null;
+                      return d ? `Última actualización: ${d.toLocaleString("es-CO", { hour12: false })}` : "";
+                    })()}
+                  </span>
+                </div>
+
               </div>
             </section>
           )}
@@ -788,24 +819,26 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
             >
               Cancelar
             </Button>
-            <Button
-              onClick={saveSeguimiento}
-              disabled={saving}
-              variant="brand"
-              className="gap-2"
-            >
-              {saving ? (
-                <>
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                  Guardando...
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4" />
-                  Guardar
-                </>
-              )}
-            </Button>
+            {puedeEditar && (
+              <Button
+                onClick={saveSeguimiento}
+                disabled={saving}
+                variant="brand"
+                className="gap-2"
+              >
+                {saving ? (
+                  <>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4" />
+                    Guardar
+                  </>
+                )}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

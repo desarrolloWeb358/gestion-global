@@ -9,6 +9,8 @@ import {
   doc,
   Timestamp,
   deleteField,
+  orderBy,
+  query,
 } from "firebase/firestore";
 import {
   ref,
@@ -62,7 +64,8 @@ export async function getSeguimientos(
   deudorId: string
 ): Promise<Seguimiento[]> {
   const refCol = collection(db, `clientes/${clienteId}/deudores/${deudorId}/seguimiento`);
-  const snap = await getDocs(refCol);
+  const q = query(refCol, orderBy("fecha", "desc")); // ✅ más reciente primero
+  const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Seguimiento) }));
 }
 
@@ -162,7 +165,9 @@ export async function getSeguimientosJuridico(
   deudorId: string
 ): Promise<Seguimiento[]> {
   const refCol = collection(db, `clientes/${clienteId}/deudores/${deudorId}/seguimientoJuridico`);
-  const snap = await getDocs(refCol);
+  const q = query(refCol, orderBy("fecha", "desc")); // ✅ más reciente primero
+  const snap = await getDocs(q);
+  //const snap = await getDocs(refCol);
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Seguimiento) }));
 }
 

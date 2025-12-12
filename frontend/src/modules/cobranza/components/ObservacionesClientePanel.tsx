@@ -1,4 +1,4 @@
-// modules/cobranza/components/SeguimientoTable.tsx
+
 import * as React from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -100,7 +100,7 @@ function inRange(millis: number, range?: DateRange): boolean {
   return true;
 }
 
-export default function SeguimientoTable() {
+export default function ObservacionesClientePanel2() {
   const { clienteId, deudorId } = useParams();
   const navigate = useNavigate();
 
@@ -118,10 +118,13 @@ export default function SeguimientoTable() {
 
   // ===== RBAC =====
   const { can, loading: aclLoading, roles = [] } = useAcl();
-  const canView = can(PERMS.Seguimientos_Read);
-  const canEdit = can(PERMS.Seguimientos_Edit);
+  const canViewEjecutivo = can(PERMS.Seguimientos_Ejecutivos_Read);
+  const canViewDependiente = can(PERMS.Seguimientos_Dependientes_Read);
+  const canEditEjecutivo = can(PERMS.Seguimientos_Ejecutivos_Edit);
+  const canEditDependiente = can(PERMS.Seguimientos_Dependientes_Edit);
   const isCliente = Array.isArray(roles) && roles.includes("cliente");
-  const canEditSafe = canEdit && !isCliente;
+  const canEditSafeEjecutivo = canEditEjecutivo && !isCliente;
+  const canEditSafeDependiente = canEditDependiente && !isCliente;
 
   // ===== pestaña activa =====
   const [tab, setTab] = React.useState<"pre" | "juridico" | "obs">("pre");
@@ -166,7 +169,7 @@ export default function SeguimientoTable() {
     reemplazar?: boolean
   ) => {
     if (!clienteId || !deudorId) return;
-    if (!canEditSafe) {
+    if (!canEditSafeEjecutivo && !canEditSafeDependiente) {
       toast.error("No tienes permiso para crear/editar seguimientos.");
       return;
     }
@@ -215,7 +218,7 @@ export default function SeguimientoTable() {
   const handleConfirmDelete = async () => {
     if (!clienteId || !deudorId || !deleteId) return;
 
-    if (!canEditSafe) {
+    if (!canEditSafeEjecutivo || !canEditSafeDependiente) {
       toast.error("No tienes permiso para eliminar seguimientos.");
       setDeleteId(null);
       return;
@@ -236,7 +239,7 @@ export default function SeguimientoTable() {
   let guard: React.ReactNode | null = null;
   if (aclLoading) {
     guard = <p className="p-4 text-sm">Cargando permisos…</p>;
-  } else if (!canView) {
+  } else if (!canViewEjecutivo && !canViewDependiente) {
     guard = <p className="p-4 text-sm">No tienes acceso a Seguimientos.</p>;
   }
   if (guard) {
@@ -271,7 +274,7 @@ export default function SeguimientoTable() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-xl font-semibold">Seguimiento Pre-Jurídico</h2>
 
-              {canEditSafe && (
+              {canEditSafeEjecutivo && (
                 <Button
                   onClick={() => {
                     setSeleccionado(undefined);
@@ -305,7 +308,7 @@ export default function SeguimientoTable() {
                   <TableHead className="w-[160px]">Tipo</TableHead>
                   <TableHead>Descripción</TableHead>
                   <TableHead className="w-[140px]">Archivo</TableHead>
-                  {canEditSafe && (
+                  {canEditSafeEjecutivo && (
                     <TableHead className="w-[160px] text-right">Acciones</TableHead>
                   )}
                 </TableRow>
@@ -340,7 +343,7 @@ export default function SeguimientoTable() {
                         <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
-                    {canEditSafe && (
+                    {canEditSafeEjecutivo && (
                       <TableCell className="text-right space-x-2">
                         <Button
                           size="sm"

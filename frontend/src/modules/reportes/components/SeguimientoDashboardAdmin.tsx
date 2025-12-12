@@ -53,7 +53,7 @@ export default function SeguimientoDashboardAdmin() {
   const { can, loading: aclLoading } = useAcl();
   const canView =
     can(PERMS.Admin_Read) ||
-    can(PERMS.Seguimientos_Read);
+    can(PERMS.Seguimientos_Ejecutivos_Read);
 
   // ============================
   // Filtros (solo fechas)

@@ -139,11 +139,15 @@ export default function SeguimientoTable() {
 
   const [refreshJuridicoKey, setRefreshJuridicoKey] = React.useState(0);
 
-  const { can, loading: aclLoading, roles = [] } = useAcl();
-  const canView = can(PERMS.Seguimientos_Read);
-  const canEdit = can(PERMS.Seguimientos_Edit);
-  const isCliente = Array.isArray(roles) && roles.includes("cliente");
-  const canEditSafe = canEdit && !isCliente;
+  const { can, loading: aclLoading } = useAcl();
+
+  // Editar por sección
+  const canEditPre = can(PERMS.Seguimientos_Ejecutivos_Edit);        // PRE (ejecutivo)
+  const canEditJuridico = can(PERMS.Seguimientos_Ejecutivos_Edit);   // Jurídico (ejecutivo)
+  const canEditDemanda = can(PERMS.Seguimientos_Dependientes_Edit);  // Demanda (dependiente)
+
+  // Observaciones (cliente)
+  const canCreateObs = can(PERMS.Seguimientos_Observaciones_Create);
 
   const [obsCliente, setObsCliente] = React.useState<ObservacionCliente[]>([]);
   const [obsLoading, setObsLoading] = React.useState(false);
@@ -208,8 +212,13 @@ export default function SeguimientoTable() {
     reemplazar?: boolean
   ) => {
     if (!clienteId || !deudorId) return;
-    if (!canEditSafe) {
-      toast.error("No tienes permiso para crear/editar seguimientos.");
+    const canEditByDestino =
+      destino === "seguimiento" || destino === "seguimientoJuridico"
+        ? canEditPre // mismo permiso para pre/jurídico
+        : canEditDemanda; // si en el futuro agregas destino "demanda" aquí
+
+    if (!canEditByDestino) {
+      toast.error("No tienes permiso para crear/editar en esta sección.");
       return;
     }
     try {
@@ -252,7 +261,7 @@ export default function SeguimientoTable() {
 
   const handleConfirmDelete = async () => {
     if (!clienteId || !deudorId || !deleteId) return;
-    if (!canEditSafe) {
+    if (!canEditPre) {
       toast.error("No tienes permiso para eliminar seguimientos.");
       setDeleteId(null);
       return;
@@ -270,8 +279,8 @@ export default function SeguimientoTable() {
 
   const handleAgregarObservacion = async () => {
     if (!clienteId || !deudorId) return;
-    if (!isCliente) {
-      toast.error("Solo el cliente puede agregar observaciones.");
+    if (!canCreateObs) {
+      toast.error("No tienes permiso para agregar observaciones.");
       return;
     }
     const texto = obsTexto.trim();
@@ -303,23 +312,7 @@ export default function SeguimientoTable() {
     );
   }
 
-  if (!canView) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30 flex items-center justify-center">
-        <div className="text-center">
-          <Typography variant="h2" className="text-brand-secondary mb-2">
-            Acceso denegado
-          </Typography>
-          <Typography variant="body" className="text-gray-600 mb-4">
-            No tienes permisos para ver seguimientos.
-          </Typography>
-          <Button variant="outline" onClick={() => navigate(-1)}>
-            Volver
-          </Button>
-        </div>
-      </div>
-    );
-  }
+
 
   // Tab icons
   const tabIcons = {
@@ -334,12 +327,12 @@ export default function SeguimientoTable() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30">
       <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
-        
+
         {/* HEADER */}
         <header className="space-y-4">
           <div className="flex items-center gap-2">
-            <BackButton 
-              variant="ghost" 
+            <BackButton
+              variant="ghost"
               size="sm"
               className="text-brand-secondary hover:text-brand-primary hover:bg-brand-primary/5 transition-all"
             />
@@ -364,58 +357,73 @@ export default function SeguimientoTable() {
               </div>
             </div>
 
-            {canEditSafe && (
-              (tab === "pre" || tab === "juridico") ? (
-                <Button
-                  variant="brand"
-                  onClick={() => {
-                    setSeleccionado(undefined);
-                    setOpen(true);
-                  }}
-                  className="gap-2 shadow-md hover:shadow-lg transition-all"
-                >
-                  <Plus className="h-4 w-4" />
-                  {tab === "juridico" ? "Nuevo seguimiento jurídico" : "Nuevo seguimiento"}
-                </Button>
-              ) : tab === "demanda" ? (
-                <Button
-                  variant="brand"
-                  onClick={() => demandaRef.current?.openForm?.()}
-                  className="gap-2 shadow-md hover:shadow-lg transition-all"
-                >
-                  <Plus className="h-4 w-4" />
-                  Nuevo seguimiento (Demanda)
-                </Button>
-              ) : null
+            {tab === "pre" && canEditPre && (
+              <Button
+                variant="brand"
+                onClick={() => {
+                  setSeleccionado(undefined);
+                  setOpen(true);
+                }}
+                className="gap-2 shadow-md hover:shadow-lg transition-all"
+              >
+                <Plus className="h-4 w-4" />
+                Nuevo seguimiento
+              </Button>
             )}
+
+            {tab === "juridico" && canEditJuridico && (
+              <Button
+                variant="brand"
+                onClick={() => {
+                  setSeleccionado(undefined);
+                  setOpen(true);
+                }}
+                className="gap-2 shadow-md hover:shadow-lg transition-all"
+              >
+                <Plus className="h-4 w-4" />
+                Nuevo seguimiento jurídico
+              </Button>
+            )}
+
+            {tab === "demanda" && canEditDemanda && (
+              <Button
+                variant="brand"
+                onClick={() => demandaRef.current?.openForm?.()}
+                className="gap-2 shadow-md hover:shadow-lg transition-all"
+              >
+                <Plus className="h-4 w-4" />
+                Nuevo seguimiento (Demanda)
+              </Button>
+            )}
+
           </div>
         </header>
 
         {/* TABS */}
         <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="w-full">
           <TabsList className="grid grid-cols-4 w-full bg-white border border-brand-secondary/20 p-1 rounded-xl">
-            <TabsTrigger 
+            <TabsTrigger
               value="pre"
               className="data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all"
             >
               <History className="h-4 w-4 mr-2" />
               Ejecutiv@ Pre-jurídico
             </TabsTrigger>
-            <TabsTrigger 
+            <TabsTrigger
               value="juridico"
               className="data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all"
             >
               <Scale className="h-4 w-4 mr-2" />
               Ejecutiv@ Jurídico
             </TabsTrigger>
-            <TabsTrigger 
+            <TabsTrigger
               value="demanda"
               className="data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all"
             >
               <Gavel className="h-4 w-4 mr-2" />
               Dependiente(Demanda)
             </TabsTrigger>
-            <TabsTrigger 
+            <TabsTrigger
               value="obs"
               className="data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all"
             >
@@ -478,14 +486,14 @@ export default function SeguimientoTable() {
                         <TableHead className="w-[160px] text-brand-secondary font-semibold">Tipo</TableHead>
                         <TableHead className="text-brand-secondary font-semibold">Descripción</TableHead>
                         <TableHead className="w-[120px] text-brand-secondary font-semibold">Archivo</TableHead>
-                        {canEditSafe && (
+                        {canEditPre && (
                           <TableHead className="w-[180px] text-center text-brand-secondary font-semibold">Acciones</TableHead>
                         )}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {itemsFilteredSorted.map((seg, index) => (
-                        <TableRow 
+                        <TableRow
                           key={seg.id}
                           className={cn(
                             "border-brand-secondary/5 transition-colors",
@@ -523,7 +531,7 @@ export default function SeguimientoTable() {
                               <span className="text-gray-400 text-sm">—</span>
                             )}
                           </TableCell>
-                          {canEditSafe && (
+                          {canEditPre && (
                             <TableCell>
                               <div className="flex justify-center gap-2">
                                 <Button
@@ -594,7 +602,7 @@ export default function SeguimientoTable() {
           {/* JURÍDICO */}
           <TabsContent value="juridico" className="mt-6">
             <SeguimientoJuridicoTable key={refreshJuridicoKey} />
-            
+
             {/* 🔧 FIX: Agregar el formulario también en el tab jurídico */}
             <SeguimientoForm
               open={open}
@@ -678,8 +686,8 @@ export default function SeguimientoTable() {
                           ? (o.fecha as any).toDate().toLocaleString("es-CO", { hour12: false })
                           : "—";
                       return (
-                        <div 
-                          key={o.id} 
+                        <div
+                          key={o.id}
                           className={cn(
                             "rounded-lg border p-4 transition-colors",
                             index % 2 === 0 ? "bg-white border-brand-secondary/20" : "bg-brand-primary/5 border-brand-primary/20"
@@ -698,7 +706,7 @@ export default function SeguimientoTable() {
                   </div>
                 )}
 
-                {isCliente && (
+                {canCreateObs && (
                   <div className="space-y-3 pt-4 border-t border-brand-secondary/10">
                     <Typography variant="body" className="font-semibold text-brand-secondary">
                       Agregar nueva observación
@@ -710,7 +718,7 @@ export default function SeguimientoTable() {
                       placeholder="Escribe tu observación para el ejecutivo..."
                     />
                     <div className="flex justify-end">
-                      <Button 
+                      <Button
                         onClick={handleAgregarObservacion}
                         variant="brand"
                         className="gap-2"

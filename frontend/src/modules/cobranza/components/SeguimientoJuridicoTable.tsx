@@ -24,15 +24,15 @@ import { codeToLabel } from "@/shared/constants/tipoSeguimiento";
 
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { PERMS } from "@/shared/constants/acl";
-import { 
-  AlertDialog, 
-  AlertDialogAction, 
-  AlertDialogCancel, 
-  AlertDialogContent, 
-  AlertDialogDescription, 
-  AlertDialogFooter, 
-  AlertDialogHeader, 
-  AlertDialogTitle 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
 } from "@/shared/ui/alert-dialog";
 import { Typography } from "@/shared/design-system/components/Typography";
 import { cn } from "@/shared/lib/cn";
@@ -42,10 +42,31 @@ function renderTipoSeguimiento(code?: string) {
   return codeToLabel[code as keyof typeof codeToLabel] ?? code ?? "—";
 }
 
+function toDate(v: any): Date | undefined {
+  try {
+    if (!v) return undefined;
+    if (typeof v?.toDate === "function") return v.toDate();
+    if (v instanceof Date) return v;
+    if (typeof v === "number") return new Date(v);
+    if (typeof v === "string") {
+      const t = Date.parse(v);
+      return Number.isNaN(t) ? undefined : new Date(t);
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function tsToMillis(v: any): number {
+  const d = toDate(v);
+  return d ? d.getTime() : 0;
+}
+
 export default function SeguimientoJuridicoTable() {
   const { clienteId, deudorId } = useParams();
   const auth = getAuth();
-  
+
   const [deudor, setDeudor] = React.useState<Deudor | null>(null);
   const [items, setItems] = React.useState<Seguimiento[]>([]);
   const [loading, setLoading] = React.useState(false);
@@ -53,11 +74,16 @@ export default function SeguimientoJuridicoTable() {
   const [deleteId, setDeleteId] = React.useState<string | null>(null);
   const [open, setOpen] = React.useState(false);
 
+  const itemsSorted = React.useMemo(() => {
+    return [...items].sort((a, b) => tsToMillis(b.fecha) - tsToMillis(a.fecha)); // DESC: más reciente primero
+  }, [items]);
+
+
   // RBAC
   const { can, roles = [], loading: aclLoading } = useAcl();
   const isCliente = roles.includes("cliente");
-  const canView = isCliente || can(PERMS.Seguimientos_Read);
-  const canEdit = !isCliente && can(PERMS.Seguimientos_Edit);
+  const canView = isCliente || can(PERMS.Seguimientos_Ejecutivos_Read);
+  const canEdit = !isCliente && can(PERMS.Seguimientos_Ejecutivos_Edit);
   const canEditSafe = canEdit && !isCliente;
 
   React.useEffect(() => {
@@ -193,8 +219,8 @@ export default function SeguimientoJuridicoTable() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {items.map((seg, index) => (
-                  <TableRow 
+                {itemsSorted.map((seg, index) => (
+                  <TableRow
                     key={seg.id}
                     className={cn(
                       "border-brand-secondary/5 transition-colors",
@@ -267,9 +293,9 @@ export default function SeguimientoJuridicoTable() {
 
       <SeguimientoForm
         open={open}
-        onClose={() => { 
-          setOpen(false); 
-          setSeleccionado(undefined); 
+        onClose={() => {
+          setOpen(false);
+          setSeleccionado(undefined);
         }}
         seguimiento={seleccionado}
         tipificacionDeuda={deudor?.tipificacion}

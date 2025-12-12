@@ -84,7 +84,7 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/clientes-tables", 
     label: "Clientes", 
     icon: IconBriefcase, 
-    roles: ["admin", "ejecutivo", "ejecutivoAdmin", "abogado"] 
+    roles: ["admin", "ejecutivo", "ejecutivoAdmin", "dependiente", "abogado"] 
   },
 
     // ========================================
@@ -94,7 +94,7 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/notificaciones", 
     label: "Notificaciones", 
     icon: IconBell, 
-    roles: ["admin", "ejecutivo", "ejecutivoAdmin", "abogado", "cliente", "deudor"] 
+    roles: ["admin", "ejecutivo", "ejecutivoAdmin", "dependiente", "abogado", "cliente", "deudor"] 
   },
 
   // ========================================
