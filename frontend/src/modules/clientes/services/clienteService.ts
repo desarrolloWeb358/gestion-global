@@ -7,8 +7,10 @@ import {
   deleteDoc,
   doc,
   setDoc,
+  or, where,
   getDoc, orderBy, query
 } from "firebase/firestore";
+import type { Rol } from "@/shared/constants/acl";
 import { Cliente } from "@/modules/clientes/models/cliente.model";
 import { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 
@@ -71,6 +73,62 @@ export const obtenerClientes = async (): Promise<Cliente[]> => {
   const snapshot = await getDocs(clientesRef);
   return snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Cliente, "id">) }));
 };
+
+export async function obtenerClientesPorUsuario(params: {
+  uid: string;
+  roles: Rol[];
+}): Promise<Cliente[]> {
+  const { uid, roles } = params;
+
+  const isAdmin =
+    roles.includes("admin") || roles.includes("ejecutivoAdmin");
+
+  if (isAdmin) {
+    const qy = query(clientesRef, orderBy("nombre", "asc"));
+    const snap = await getDocs(qy);
+    return snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+  }
+
+  // Abogado
+  if (roles.includes("abogado")) {
+    const qy = query(
+      clientesRef,
+      where("abogadoId", "==", uid),
+      orderBy("nombre", "asc")
+    );
+    const snap = await getDocs(qy);
+    return snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+  }
+
+  // Dependiente (solo dependiente)
+  if (roles.includes("dependiente") && !roles.includes("ejecutivo")) {
+    const qy = query(
+      clientesRef,
+      where("ejecutivoDependienteId", "==", uid),
+      orderBy("nombre", "asc")
+    );
+    const snap = await getDocs(qy);
+    return snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+  }
+
+  // Ejecutivo (OR entre 3 campos)
+  if (roles.includes("ejecutivo") || roles.includes("dependiente")) {
+    const qy = query(
+      clientesRef,
+      or(
+        where("ejecutivoPrejuridicoId", "==", uid),
+        where("ejecutivoJuridicoId", "==", uid),
+        where("ejecutivoDependienteId", "==", uid)
+      ),
+      orderBy("nombre", "asc")
+    );
+    const snap = await getDocs(qy);
+    return snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+  }
+
+  // fallback: no roles que accedan a clientes
+  return [];
+}
 
 export const listarClientesBasico = async (): Promise<ClienteOption[]> => {
   // Si todos los clientes tienen `nombre`, usamos orderBy directo

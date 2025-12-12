@@ -1,22 +1,51 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye, Pencil, User, Users, Search, X, Building2 } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/shared/ui/dialog";
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/shared/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/shared/ui/dialog";
+import {
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
+} from "@/shared/ui/table";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
 import { Button } from "@/shared/ui/button";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/shared/ui/select";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/shared/ui/tooltip";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/shared/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/shared/ui/tooltip";
 import { Switch } from "@/shared/ui/switch";
+
 import { Cliente } from "@/modules/clientes/models/cliente.model";
-import { obtenerClientes, actualizarCliente } from "@/modules/clientes/services/clienteService";
+import {
+  actualizarCliente,
+  obtenerClientesPorUsuario, // ✅ usamos este
+} from "@/modules/clientes/services/clienteService";
+
 import { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 import {
-  obtenerUsuarios,
   obtenerEjecutivos,
   obtenerAbogados,
 } from "@/modules/usuarios/services/usuarioService";
+
 import { Typography } from "@/shared/design-system/components/Typography";
 import { BackButton } from "@/shared/design-system/components/BackButton";
 import { cn } from "@/shared/lib/cn";
@@ -25,17 +54,19 @@ import { useUsuarioActual } from "@/modules/auth/hooks/useUsuarioActual";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { PERMS } from "@/shared/constants/acl";
 
-
 export default function ClientesCrud() {
   const navigate = useNavigate();
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   const [ejecutivos, setEjecutivos] = useState<UsuarioSistema[]>([]);
-  const [abogados, setAbogados] = useState<UsuarioSistema[]>([]); // 👈 nuevo
+  const [abogados, setAbogados] = useState<UsuarioSistema[]>([]);
   const [clienteEditando, setClienteEditando] = useState<Cliente | null>(null);
   const [mostrarDialogo, setMostrarDialogo] = useState(false);
-  const [tipoCuentaSel, setTipoCuentaSel] = useState<"" | "ahorros" | "corriente" | "convenio">("");
+
+  const [tipoCuentaSel, setTipoCuentaSel] = useState<
+    "" | "ahorros" | "corriente" | "convenio"
+  >("");
   const [ejecutivoPreSel, setEjecutivoPreSel] = useState<string>("");
   const [ejecutivoJurSel, setEjecutivoJurSel] = useState<string>("");
   const [activoSel, setActivoSel] = useState<boolean>(true);
@@ -44,87 +75,95 @@ export default function ClientesCrud() {
   const [dependienteSel, setDependienteSel] = useState<string>("");
   const [abogadoSel, setAbogadoSel] = useState<string>("");
 
-  // Roles
+  // Auth / Roles / ACL
   const { usuario, roles, loading: userLoading } = useUsuarioActual();
   const { can, loading: aclLoading } = useAcl();
 
   const isAdmin = roles?.includes("admin") || roles?.includes("ejecutivoAdmin");
   const isEjecutivo = roles?.includes("ejecutivo");
-  const isClienteOnly = roles?.includes("cliente") && !isAdmin && !isEjecutivo; // cliente puro
+  const isClienteOnly =
+    roles?.includes("cliente") && !isAdmin && !isEjecutivo; // cliente puro
 
   const canView = can(PERMS.Clientes_Read);
   const canEdit = can(PERMS.Clientes_Edit);
-  // Carga usuarios (para mostrar nombres de cliente)
+
+  // ----------------------------
+  // 1) Catálogos (ejecutivos / abogados)
+  // ----------------------------
+  const fetchUsuarios = async () => {
+    const [execs, lawyers] = await Promise.all([
+      obtenerEjecutivos(),
+      obtenerAbogados(),
+    ]);
+    setEjecutivos(execs);
+    setAbogados(lawyers);
+  };
+
   useEffect(() => {
-    // No depende de auth; pero si quieres ahorrar, puedes moverlo después
+    // ✅ esto sí puede ir con []
     fetchUsuarios();
   }, []);
 
-  // Carga clientes SOLO cuando ya sepamos quién es (o que definitivamente no hay sesión)
-  useEffect(() => {
-    if (userLoading || aclLoading) return;     // aún cargando contexto
-    if (!roles || (!usuario && !isAdmin)) {
-      // si no hay usuario y no es admin (raro), no dispares fetch
-      return;
-    }
-    fetchClientes();                            // ahora sí
-    // re-filtra si cambian usuario/roles
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userLoading, aclLoading, usuario?.uid, isAdmin, isEjecutivo]);
-
-
-
-  function resolverNombreCliente(c: Cliente) {
-    // si algunos clientes viejos no tienen nombre, caes al id
-    return (c as any).nombre ?? c.id ?? "(Sin nombre)";
-  }
-
-
+  // ----------------------------
+  // 2) Clientes filtrados por usuario/roles (SERVER SIDE)
+  // ----------------------------
   const fetchClientes = async () => {
+    // Asegura que haya contexto
+    if (!roles) return;
+
+    // Admin puede ver todo incluso si por alguna razón usuario no está listo
+    if (!usuario?.uid && !isAdmin) return;
+
     setLoading(true);
     try {
-      const data = await obtenerClientes();
-      let lista = Array.isArray(data) ? data : [];
+      const data = await obtenerClientesPorUsuario({
+        uid: usuario?.uid ?? "", // si es admin y no hay uid por algo raro, igual no debería pasar
+        roles,
+      });
 
-      // Admin y Ejecutivo Admin: ven todo
-      if (isAdmin) {
-        setClientes(lista);
-        return;
-      }
-
-      // Ejecutivos “puros”: ver solo los asignados
-      if (isEjecutivo && usuario?.uid) {
-        const uid = usuario.uid;
-        lista = lista.filter((c) =>
-          c?.ejecutivoPrejuridicoId === uid ||
-          c?.ejecutivoJuridicoId === uid ||
-          c?.ejecutivoDependienteId === uid
-        );
-      }
-
-      // Clientes no deben ver esta página → el guard ya los bloquea arriba
-      setClientes(lista);
+      setClientes(Array.isArray(data) ? data : []);
     } finally {
       setLoading(false);
     }
   };
 
-
-
-  const fetchUsuarios = async () => {
-  const [execs, lawyers] = await Promise.all([
-    obtenerEjecutivos(),
-    obtenerAbogados(),
-  ]);
-  setEjecutivos(execs);
-  setAbogados(lawyers);
-};
-
   useEffect(() => {
+    // ✅ importantísimo: NO cargues clientes hasta que sepas roles/usuario
+    if (userLoading || aclLoading) return;
+    if (!can(PERMS.Clientes_Read)) return; // si no puede ver, ni consultes
     fetchClientes();
-    fetchUsuarios();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userLoading, aclLoading, usuario?.uid, roles?.join("|")]);
 
+  // ----------------------------
+  function resolverNombreCliente(c: Cliente) {
+    return (c as any).nombre ?? c.id ?? "(Sin nombre)";
+  }
+
+  const clientesFiltrados = useMemo(() => {
+    const qn = q.trim().toLowerCase();
+    if (!qn) return clientes;
+
+    return clientes.filter((c) => {
+      const nombre = (c as any).nombre?.toLowerCase?.() ?? "";
+      return nombre.includes(qn);
+    });
+  }, [clientes, q]);
+
+  // Guards UI
+  if (userLoading || aclLoading) {
+    return <div className="p-6 text-muted-foreground">Cargando permisos…</div>;
+  }
+  if (isClienteOnly) {
+    return <div className="p-6">No tienes acceso a esta página.</div>;
+  }
+  if (!canView) {
+    return <div className="p-6">No tienes permiso para ver clientes.</div>;
+  }
+
+  // ----------------------------
+  // Edit dialog helpers
+  // ----------------------------
   const abrirEditar = (cliente: Cliente) => {
     setClienteEditando(cliente);
     setTipoCuentaSel((cliente.tipoCuenta as any) ?? "");
@@ -141,31 +180,9 @@ export default function ClientesCrud() {
     setMostrarDialogo(false);
   };
 
-  const clientesFiltrados = useMemo(() => {
-    const qn = q.trim().toLowerCase();
-    if (!qn) return clientes;
-
-    return clientes.filter((c) => {
-      const nombre = (c as any).nombre?.toLowerCase?.() ?? "";
-      // si en clientes no guardas email, simplemente no lo uses
-      return nombre.includes(qn);
-    });
-  }, [clientes, q]);
-
-  if (userLoading || aclLoading) {
-    return <div className="p-6 text-muted-foreground">Cargando permisos…</div>;
-  }
-  if (isClienteOnly) {
-    return <div className="p-6">No tienes acceso a esta página.</div>;
-  }
-  if (!can(PERMS.Clientes_Read)) {
-    return <div className="p-6">No tienes permiso para ver clientes.</div>;
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30">
       <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
-
         <header className="space-y-4">
           <BackButton
             variant="ghost"
@@ -180,11 +197,17 @@ export default function ClientesCrud() {
                   <Users className="h-6 w-6 text-brand-primary" />
                 </div>
                 <div>
-                  <Typography variant="h2" className="!text-brand-primary font-bold">
+                  <Typography
+                    variant="h2"
+                    className="!text-brand-primary font-bold"
+                  >
                     Gestión de Clientes
                   </Typography>
                   <Typography variant="small" className="mt-0.5">
-                    {clientesFiltrados.length} {clientesFiltrados.length === 1 ? 'cliente encontrado' : 'clientes encontrados'}
+                    {clientesFiltrados.length}{" "}
+                    {clientesFiltrados.length === 1
+                      ? "cliente encontrado"
+                      : "clientes encontrados"}
                   </Typography>
                 </div>
               </div>
@@ -194,7 +217,10 @@ export default function ClientesCrud() {
 
         <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
           <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5 border-b border-brand-secondary/10">
-            <Typography variant="h3" className="!text-brand-secondary font-semibold">
+            <Typography
+              variant="h3"
+              className="!text-brand-secondary font-semibold"
+            >
               Búsqueda de clientes
             </Typography>
           </div>
@@ -202,13 +228,15 @@ export default function ClientesCrud() {
           <div className="p-4 md:p-5">
             <div className="grid gap-4 md:grid-cols-4">
               <div className="md:col-span-2">
-                <Label className="mb-2 block text-brand-secondary font-medium">Búsqueda</Label>
+                <Label className="mb-2 block text-brand-secondary font-medium">
+                  Búsqueda
+                </Label>
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-secondary/60" />
                   <Input
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
-                    placeholder="Buscar por nombre o email..."
+                    placeholder="Buscar por nombre..."
                     className="pl-9 border-brand-secondary/30 bg-white focus:border-brand-primary focus:ring-brand-primary/20"
                   />
                   {q && (
@@ -223,6 +251,7 @@ export default function ClientesCrud() {
                   )}
                 </div>
               </div>
+
               <div className="flex items-end">
                 <Button
                   variant="outline"
@@ -258,7 +287,9 @@ export default function ClientesCrud() {
                 No hay resultados
               </Typography>
               <Typography variant="small" className="text-muted max-w-md">
-                {q ? "No se encontraron clientes que coincidan con tu búsqueda." : "Aún no hay clientes registrados."}
+                {q
+                  ? "No se encontraron clientes que coincidan con tu búsqueda."
+                  : "Aún no hay clientes registrados."}
               </Typography>
             </div>
           </div>
@@ -268,10 +299,15 @@ export default function ClientesCrud() {
               <Table className="min-w-[600px]">
                 <TableHeader className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5">
                   <TableRow className="border-brand-secondary/10 hover:bg-transparent">
-                    <TableHead className="text-brand-secondary font-semibold">Nombre</TableHead>
-                    <TableHead className="text-center text-brand-secondary font-semibold">Acciones</TableHead>
+                    <TableHead className="text-brand-secondary font-semibold">
+                      Nombre
+                    </TableHead>
+                    <TableHead className="text-center text-brand-secondary font-semibold">
+                      Acciones
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
+
                 <TableBody>
                   {clientesFiltrados.map((cliente, index) => (
                     <TableRow
@@ -285,6 +321,7 @@ export default function ClientesCrud() {
                       <TableCell className="font-medium text-brand-secondary">
                         {resolverNombreCliente(cliente)}
                       </TableCell>
+
                       <TableCell>
                         <div className="flex justify-center gap-2">
                           <TooltipProvider>
@@ -293,7 +330,9 @@ export default function ClientesCrud() {
                                 <Button
                                   size="icon"
                                   variant="ghost"
-                                  onClick={() => navigate(`/deudores/${cliente.id}`)}
+                                  onClick={() =>
+                                    navigate(`/deudores/${cliente.id}`)
+                                  }
                                   className="hover:bg-blue-50 transition-colors"
                                 >
                                   <Eye className="w-4 h-4 text-blue-600" />
@@ -309,7 +348,9 @@ export default function ClientesCrud() {
                                 <Button
                                   size="icon"
                                   variant="ghost"
-                                  onClick={() => navigate(`/clientes/${cliente.id}`)}
+                                  onClick={() =>
+                                    navigate(`/clientes/${cliente.id}`)
+                                  }
                                   className="hover:bg-green-50 transition-colors"
                                 >
                                   <User className="w-4 h-4 text-green-600" />
@@ -320,21 +361,24 @@ export default function ClientesCrud() {
                               </TooltipContent>
                             </Tooltip>
 
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  onClick={() => abrirEditar(cliente)}
-                                  className="hover:bg-brand-primary/10 transition-colors"
-                                >
-                                  <Pencil className="w-4 h-4 text-brand-primary" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent className="bg-brand-secondary text-white">
-                                Editar cliente
-                              </TooltipContent>
-                            </Tooltip>
+                            {/* Editar solo si puede */}
+                            {canEdit && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => abrirEditar(cliente)}
+                                    className="hover:bg-brand-primary/10 transition-colors"
+                                  >
+                                    <Pencil className="w-4 h-4 text-brand-primary" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent className="bg-brand-secondary text-white">
+                                  Editar cliente
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
                           </TooltipProvider>
                         </div>
                       </TableCell>
@@ -371,7 +415,11 @@ export default function ClientesCrud() {
                 const banco = (formData.get("banco") as string)?.trim();
                 const numeroCuenta = (formData.get("numeroCuenta") as string)?.trim();
 
-                const tipoCuenta = tipoCuentaSel === "" ? undefined : (tipoCuentaSel as "ahorros" | "corriente" | "convenio");
+                const tipoCuenta =
+                  tipoCuentaSel === ""
+                    ? undefined
+                    : (tipoCuentaSel as "ahorros" | "corriente" | "convenio");
+
                 const ejecutivoPrejuridicoId = ejecutivoPreSel || null;
                 const ejecutivoJuridicoId = ejecutivoJurSel || null;
                 const ejecutivoDependienteId = dependienteSel || null;
@@ -393,25 +441,30 @@ export default function ClientesCrud() {
                 await actualizarCliente(clienteEditando.id, payload);
                 toast.success("✓ Cliente actualizado correctamente");
                 cerrarDialogo();
-                fetchClientes();
+                fetchClientes(); // ✅ recarga con filtro
               }}
             >
               <div className="space-y-4">
                 <div className="p-4 rounded-lg bg-brand-primary/5 border border-brand-primary/20">
-                  <Label className="text-brand-secondary font-medium">Nombre del Cliente</Label>
+                  <Label className="text-brand-secondary font-medium">
+                    Nombre del Cliente
+                  </Label>
                   <Input
-                    value={clienteEditando?.nombre ?? ""} // solo lectura igual
+                    value={clienteEditando?.nombre ?? ""}
                     readOnly
                     className="mt-1.5 bg-white/50 border-brand-secondary/30"
                   />
                   <p className="text-xs text-muted mt-1.5">
-                    Para editar el nombre, hazlo en el módulo <strong>Usuarios</strong>.
+                    Para editar el nombre, hazlo en el módulo{" "}
+                    <strong>Usuarios</strong>.
                   </p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label className="text-brand-secondary font-medium">Ejecutivo Prejurídico</Label>
+                    <Label className="text-brand-secondary font-medium">
+                      Ejecutivo Prejurídico
+                    </Label>
                     <Select value={ejecutivoPreSel} onValueChange={setEjecutivoPreSel}>
                       <SelectTrigger className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20">
                         <SelectValue placeholder="Selecciona un ejecutivo" />
@@ -427,7 +480,9 @@ export default function ClientesCrud() {
                   </div>
 
                   <div>
-                    <Label className="text-brand-secondary font-medium">Ejecutivo Jurídico</Label>
+                    <Label className="text-brand-secondary font-medium">
+                      Ejecutivo Jurídico
+                    </Label>
                     <Select value={ejecutivoJurSel} onValueChange={setEjecutivoJurSel}>
                       <SelectTrigger className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20">
                         <SelectValue placeholder="Selecciona un ejecutivo" />
@@ -443,7 +498,9 @@ export default function ClientesCrud() {
                   </div>
 
                   <div>
-                    <Label className="text-brand-secondary font-medium">Dependiente</Label>
+                    <Label className="text-brand-secondary font-medium">
+                      Dependiente
+                    </Label>
                     <Select value={dependienteSel} onValueChange={setDependienteSel}>
                       <SelectTrigger className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20">
                         <SelectValue placeholder="Selecciona un dependiente" />
@@ -459,7 +516,9 @@ export default function ClientesCrud() {
                   </div>
 
                   <div>
-                    <Label className="text-brand-secondary font-medium">Abogado</Label>
+                    <Label className="text-brand-secondary font-medium">
+                      Abogado
+                    </Label>
                     <Select value={abogadoSel} onValueChange={setAbogadoSel}>
                       <SelectTrigger className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20">
                         <SelectValue placeholder="Selecciona un abogado" />
@@ -485,7 +544,9 @@ export default function ClientesCrud() {
                   </div>
 
                   <div>
-                    <Label className="text-brand-secondary font-medium">Número de cuenta</Label>
+                    <Label className="text-brand-secondary font-medium">
+                      Número de cuenta
+                    </Label>
                     <Input
                       name="numeroCuenta"
                       defaultValue={clienteEditando?.numeroCuenta}
@@ -495,10 +556,14 @@ export default function ClientesCrud() {
                   </div>
 
                   <div>
-                    <Label className="text-brand-secondary font-medium">Tipo de cuenta</Label>
+                    <Label className="text-brand-secondary font-medium">
+                      Tipo de cuenta
+                    </Label>
                     <Select
                       value={tipoCuentaSel}
-                      onValueChange={(v) => setTipoCuentaSel(v as "ahorros" | "corriente" | "convenio" | "")}
+                      onValueChange={(v) =>
+                        setTipoCuentaSel(v as "ahorros" | "corriente" | "convenio" | "")
+                      }
                     >
                       <SelectTrigger className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20">
                         <SelectValue placeholder="Selecciona un tipo" />
@@ -512,7 +577,9 @@ export default function ClientesCrud() {
                   </div>
 
                   <div>
-                    <Label className="text-brand-secondary font-medium">Dirección</Label>
+                    <Label className="text-brand-secondary font-medium">
+                      Dirección
+                    </Label>
                     <Input
                       name="direccion"
                       defaultValue={clienteEditando?.direccion}
@@ -548,10 +615,7 @@ export default function ClientesCrud() {
                 >
                   Cancelar
                 </Button>
-                <Button
-                  type="submit"
-                  variant="brand"
-                >
+                <Button type="submit" variant="brand">
                   Guardar cambios
                 </Button>
               </DialogFooter>
