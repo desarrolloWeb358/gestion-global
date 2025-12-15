@@ -26,37 +26,6 @@ const MYSQL_CONFIG = {
 // ====== TIPIFICACION ======
 const TIP_IDS_DEMANDA = new Set([39, 47, 85]);
 
-// ====== HELPERS DE LIMPIEZA (borrar deudores y sus subcolecciones) ======
-async function deleteCollection(collRef, batchSize = 400) {
-  // El Admin SDK ignora reglas; borra en lotes para evitar límites de escritura
-  const docs = await collRef.listDocuments();
-  for (let i = 0; i < docs.length; i += batchSize) {
-    const batch = admin.firestore().batch();
-    for (const docRef of docs.slice(i, i + batchSize)) batch.delete(docRef);
-    await batch.commit();
-  }
-}
-
-async function deleteDocWithSubcollections(docRef) {
-  try {
-    const subcols = await docRef.listCollections(); // p.ej. estadosMensuales, seguimiento, seguimientoJuridico
-    for (const sub of subcols) await deleteCollection(sub);
-    await docRef.delete();
-  } catch (e) {
-    logError('WIPE_DEUDOR', { deudorIdFS: docRef.id }, e);
-  }
-}
-
-async function wipeDeudores(clienteId) {
-  try {
-    const deudoresColl = db.collection('clientes').doc(clienteId).collection('deudores');
-    const deudorRefs = await deudoresColl.listDocuments();
-    for (const ref of deudorRefs) await deleteDocWithSubcollections(ref);
-    console.log(`🧹 Limpieza de deudores completada para cliente ${clienteId}`);
-  } catch (e) {
-    logError('WIPE_DEUDORES', { clienteId }, e);
-  }
-}
 
 function computeTipificacion(rows) {
   if (!rows || rows.length === 0) return 'Gestionando';
@@ -276,9 +245,7 @@ async function main() {
         [afiliadoId]
       );      
 
-      // LIMPIEZA PREVIA DE DEUDORES
-      //await wipeDeudores(clienteId);
-
+      
       let algoMigrado = false;
 
       for (const proceso of procesos) {
