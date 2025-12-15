@@ -391,8 +391,7 @@ export default function EstadosMensualesTable() {
                           className="border-brand-secondary/30"
                         />
                       </div>
-
-                      <div className="space-y-2">
+<div className="space-y-2">
                         <Label htmlFor="porcentaje" className="text-brand-secondary font-medium flex items-center gap-2">
                           <Percent className="h-4 w-4" />
                           % Honorarios
@@ -401,11 +400,11 @@ export default function EstadosMensualesTable() {
                           id="porcentaje"
                           type="number"
                           step="0.01"
-                          value={nuevoEstadoMensual.porcentajeHonorarios ?? 15}
+                          value={nuevoEstadoMensual.porcentajeHonorarios ?? ""}
                           onChange={(e) => {
                             const val = e.target.value
-                              ? clamp(parseFloat(e.target.value), 0, 100)
-                              : 15;
+                              ? parseFloat(e.target.value)
+                              : undefined;
                             setNuevoEstadoMensual((s) => ({
                               ...s,
                               porcentajeHonorarios: val,
