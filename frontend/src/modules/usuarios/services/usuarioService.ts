@@ -53,6 +53,7 @@ export const obtenerUsuariosPorRol = async (rol: string): Promise<UsuarioSistema
 /* Helpers específicos (azúcar sintáctico) */
 export const obtenerEjecutivos = () => obtenerUsuariosPorRol("ejecutivo");
 export const obtenerAbogados = () => obtenerUsuariosPorRol("abogado");
+export const obtenerDependientes = () => obtenerUsuariosPorRol("dependiente");
 
 
 

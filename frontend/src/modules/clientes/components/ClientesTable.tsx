@@ -44,6 +44,7 @@ import { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 import {
   obtenerEjecutivos,
   obtenerAbogados,
+  obtenerDependientes,
 } from "@/modules/usuarios/services/usuarioService";
 
 import { Typography } from "@/shared/design-system/components/Typography";
@@ -61,6 +62,8 @@ export default function ClientesCrud() {
 
   const [ejecutivos, setEjecutivos] = useState<UsuarioSistema[]>([]);
   const [abogados, setAbogados] = useState<UsuarioSistema[]>([]);
+  const [dependientes, setDependientes] = useState<UsuarioSistema[]>([]);
+
   const [clienteEditando, setClienteEditando] = useState<Cliente | null>(null);
   const [mostrarDialogo, setMostrarDialogo] = useState(false);
 
@@ -91,12 +94,14 @@ export default function ClientesCrud() {
   // 1) Catálogos (ejecutivos / abogados)
   // ----------------------------
   const fetchUsuarios = async () => {
-    const [execs, lawyers] = await Promise.all([
+    const [execs, lawyers, deps] = await Promise.all([
       obtenerEjecutivos(),
       obtenerAbogados(),
+      obtenerDependientes(),
     ]);
     setEjecutivos(execs);
     setAbogados(lawyers);
+    setDependientes(deps);
   };
 
   useEffect(() => {
@@ -506,7 +511,7 @@ export default function ClientesCrud() {
                         <SelectValue placeholder="Selecciona un dependiente" />
                       </SelectTrigger>
                       <SelectContent>
-                        {ejecutivos.map((u) => (
+                        {dependientes.map((u) => (
                           <SelectItem key={u.uid} value={u.uid}>
                             {u.nombre ?? (u as any).displayName ?? u.email}
                           </SelectItem>
