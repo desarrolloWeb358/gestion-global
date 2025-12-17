@@ -76,8 +76,7 @@ export default function EstadosMensualesTable() {
   const hoyYYYYMM = new Date().toISOString().slice(0, 7);
   const clamp = (n: number, min: number, max: number) =>
     Math.min(max, Math.max(min, n));
-  const round2 = (n: number) =>
-    Math.round((n + Number.EPSILON) * 100) / 100;
+  const round0 = (n: number) => Math.round(n);
 
   const [nuevoEstadoMensual, setNuevoEstadoMensual] =
     React.useState<Partial<EstadoMensual>>({
@@ -98,9 +97,9 @@ export default function EstadosMensualesTable() {
     setNuevoEstadoMensual((s) => {
       const pct = (s.porcentajeHonorarios ?? 15) / 100;
       const hd =
-        s.deuda != null ? round2((s.deuda as number) * pct) : undefined;
+        s.deuda != null ? round0((s.deuda as number) * pct) : undefined;
       const ha =
-        s.acuerdo != null ? round2((s.acuerdo as number) * pct) : undefined;
+        s.acuerdo != null ? round0((s.acuerdo as number) * pct) : undefined;
       if (hd === s.honorariosDeuda && ha === s.honorariosAcuerdo) return s;
       return { ...s, honorariosDeuda: hd, honorariosAcuerdo: ha };
     });
@@ -167,30 +166,41 @@ export default function EstadosMensualesTable() {
   };
 
   const handleCrearOEditar = async () => {
-    if (!canEdit) return toast.error("Sin permiso para guardar.");
-    if (!clienteId || !deudorId || !nuevoEstadoMensual.mes) {
-      return toast.error("Debe seleccionar el mes.");
-    }
-    try {
-      setSaving(true);
-      await upsertEstadoMensualPorMes(
-        clienteId,
-        deudorId,
-        nuevoEstadoMensual
-      );
-      toast.success(
-        editing ? "Estado mensual actualizado" : "Estado mensual guardado"
-      );
-      await cargarEstadosMensuales();
-      setOpen(false);
-      resetForm();
-    } catch (e) {
-      console.error(e);
-      toast.error("Error al guardar el estado mensual");
-    } finally {
-      setSaving(false);
-    }
-  };
+  if (!canEdit) return toast.error("Sin permiso para guardar.");
+  if (!clienteId || !deudorId || !nuevoEstadoMensual.mes) {
+    return toast.error("Debe seleccionar el mes.");
+  }
+
+  try {
+    setSaving(true);
+
+    const pct = (nuevoEstadoMensual.porcentajeHonorarios ?? 15) / 100;
+
+    const payload: Partial<EstadoMensual> = {
+      ...nuevoEstadoMensual,
+      deuda: nuevoEstadoMensual.deuda != null ? Math.round(nuevoEstadoMensual.deuda) : undefined,
+      recaudo: nuevoEstadoMensual.recaudo != null ? Math.round(nuevoEstadoMensual.recaudo) : undefined,
+      acuerdo: nuevoEstadoMensual.acuerdo != null ? Math.round(nuevoEstadoMensual.acuerdo) : undefined,
+      honorariosDeuda:
+        nuevoEstadoMensual.deuda != null ? Math.round(nuevoEstadoMensual.deuda * pct) : undefined,
+      honorariosAcuerdo:
+        nuevoEstadoMensual.acuerdo != null ? Math.round(nuevoEstadoMensual.acuerdo * pct) : undefined,
+    };
+
+    await upsertEstadoMensualPorMes(clienteId, deudorId, payload);
+
+    toast.success(editing ? "Estado mensual actualizado" : "Estado mensual guardado");
+    await cargarEstadosMensuales();
+    setOpen(false);
+    resetForm();
+  } catch (e) {
+    console.error(e);
+    toast.error("Error al guardar el estado mensual");
+  } finally {
+    setSaving(false);
+  }
+};
+
 
   const handleEliminarEstado = async () => {
     if (!clienteId || !deudorId || !estadoToDelete?.id) return;
@@ -391,7 +401,7 @@ export default function EstadosMensualesTable() {
                           className="border-brand-secondary/30"
                         />
                       </div>
-<div className="space-y-2">
+                      <div className="space-y-2">
                         <Label htmlFor="porcentaje" className="text-brand-secondary font-medium flex items-center gap-2">
                           <Percent className="h-4 w-4" />
                           % Honorarios

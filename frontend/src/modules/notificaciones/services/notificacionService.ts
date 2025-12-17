@@ -4,6 +4,10 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
+  limit,
+  orderBy,
+  query,
   serverTimestamp,
   updateDoc,
 } from "firebase/firestore";
@@ -128,6 +132,24 @@ export async function notificarUsuarioConAlertaYCorreo(
 
 
   return { alertaId };
+}
+
+export async function obtenerUltimas10NotificacionesOrdenadas(usuarioId: string) {
+  const ref = collection(db, `usuarios/${usuarioId}/notificaciones`);
+
+  const q = query(
+    ref,
+    orderBy("visto", "asc"),     // false primero
+    orderBy("fecha", "desc"),    // más recientes dentro de cada grupo
+    limit(10)
+  );
+
+  const snap = await getDocs(q);
+
+  return snap.docs.map((d) => ({
+    id: d.id,
+    ...(d.data() as Omit<NotificacionAlerta, "id">),
+  })) as NotificacionAlerta[];
 }
 
 async function crearAlertaNotificacion({

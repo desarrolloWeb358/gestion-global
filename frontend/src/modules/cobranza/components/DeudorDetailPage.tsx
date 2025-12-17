@@ -228,7 +228,7 @@ export default function DeudorDetailPage() {
       <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30 flex items-center justify-center">
         <div className="text-center">
           <div className="h-12 w-12 mx-auto animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary mb-4" />
-          <Typography variant="body" className="text-muted">
+          <Typography variant="body" >
             Cargando información del deudor...
           </Typography>
         </div>
@@ -286,7 +286,6 @@ export default function DeudorDetailPage() {
             </div>
             <Typography
               variant="body"
-              className="text-muted-foreground ml-12"
             >
               Deudor de:{" "}
               <span className="font-semibold text-brand-secondary">
@@ -315,7 +314,7 @@ export default function DeudorDetailPage() {
                   <User className="h-5 w-5 text-brand-primary" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-muted-foreground mb-1">
+                  <p >
                     Nombre completo
                   </p>
                   <p className="text-sm font-semibold text-brand-secondary truncate">
@@ -330,7 +329,7 @@ export default function DeudorDetailPage() {
                   <Phone className="h-5 w-5 text-green-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-muted-foreground mb-1">
+                  <p className="text-xs mb-1">
                     Teléfono
                   </p>
                   {loadingUsuario ? (
@@ -351,7 +350,7 @@ export default function DeudorDetailPage() {
                   <Mail className="h-5 w-5 text-blue-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-muted-foreground mb-1">
+                  <p className="text-xs mb-1">
                     Correo electrónico
                   </p>
                   {loadingUsuario ? (
@@ -370,7 +369,7 @@ export default function DeudorDetailPage() {
                   <IdCard className="h-5 w-5 text-purple-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-muted-foreground mb-1">
+                  <p className="text-xs mb-1">
                     Documento
                   </p>
                   {loadingUsuario ? (
@@ -390,7 +389,7 @@ export default function DeudorDetailPage() {
                 </div>
                 <div className="flex-1 min-w-0 flex items-center justify-between">
                   <div>
-                    <p className="text-xs text-muted-foreground mb-1">
+                    <p className="text-xs mb-1">
                       Tipificación
                     </p>
                     <p className="text-sm font-semibold text-gray-700">
@@ -444,7 +443,7 @@ export default function DeudorDetailPage() {
                   >
                     Seguimiento
                   </Typography>
-                  <Typography variant="small" className="text-muted">
+                  <Typography variant="small" >
                     Historial de gestiones
                   </Typography>
                 </div>
@@ -470,7 +469,7 @@ export default function DeudorDetailPage() {
                   >
                     Abonos
                   </Typography>
-                  <Typography variant="small" className="text-muted">
+                  <Typography variant="small" >
                     Estados mensuales
                   </Typography>
                 </div>
@@ -491,7 +490,7 @@ export default function DeudorDetailPage() {
                     <Typography variant="h3" className="!text-brand-secondary mb-1 text-base">
                       {creandoAcceso ? "Creando acceso..." : "Crear acceso para el deudor"}
                     </Typography>
-                    <Typography variant="small" className="text-muted">
+                    <Typography variant="small" >
                       Genera un usuario y una contraseña inicial basada en la cédula del deudor.
                     </Typography>
                   </div>
@@ -500,7 +499,7 @@ export default function DeudorDetailPage() {
             </div>
 
             {mensajeAcceso && (
-              <p className="mt-4 text-xs text-muted-foreground">
+              <p className="mt-4 text-xs">
                 {mensajeAcceso}
               </p>
             )}
