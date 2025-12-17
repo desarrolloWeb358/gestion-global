@@ -112,6 +112,7 @@ export const crearUsuario = async (
       banco: "",
       numeroCuenta: "",
       tipoCuenta: "",
+      nombre: usuario.nombre ?? "",
       ejecutivoPrejuridicoId: null as any,
       ejecutivoJuridicoId: null as any,
       ejecutivoDependienteId: null as any,
