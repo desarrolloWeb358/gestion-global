@@ -656,7 +656,7 @@ export default function DeudoresTable() {
                                     <Button
                                       size="icon"
                                       variant="ghost"
-                                      onClick={() => navigate(`/clientes/${clienteId}/deudores/${deudor.id}/AcuerdoPagoPDF`)}
+                                      onClick={() => navigate(`/clientes/${clienteId}/deudores/${deudor.id}/AcuerdoPago`)}
                                       className="hover:bg-green-50 transition-colors"
                                     >
                                       <FileText className="h-4 w-4 text-green-600" />

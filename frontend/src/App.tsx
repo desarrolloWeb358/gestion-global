@@ -35,7 +35,8 @@ import ClienteDashboardPage from "@/modules/dashboard/pages/ClienteDashboardPage
 import DeudorDashboardPage from "@/modules/dashboard/pages/DeudorDashboardPage";
 import { DemandaInfoPage } from "./modules/cobranza/components/DemandaInfoPage";
 import { ThemeProvider } from "./app/providers/ThemeContext";
-import AcuerdoPagoPage from "./modules/cobranza/components/reportes/AcuerdoPagoPDF";
+import AcuerdoPagoPage from "./modules/cobranza/components/AcuerdoPagoPage";
+
 import NotificacionesPage from "./modules/notificaciones/components/NotificacionesPage";
 import MiDeudaRedirectPage from "./modules/cobranza/components/MiDeudaRedirectPage";
 
@@ -74,7 +75,7 @@ export default function App() {
             {/* valores agregados */}
             <Route path="/valores-agregados/:clienteId" element={<ValoresAgregadosTable />} />
             <Route path="/clientes/:clienteId/valores-agregados/:valorId" element={<ValorAgregadoDetailPage />} />
-            <Route path="/clientes/:clienteId/deudores/:deudorId/AcuerdoPagoPDF" element={<AcuerdoPagoPage/>} />
+            <Route path="/clientes/:clienteId/deudores/:deudorId/AcuerdoPago" element={<AcuerdoPagoPage/>} />
     
             {/* Dashboards por rol */}
             <Route path="/dashboard/admin" element={<AdminDashboardPage />} />
