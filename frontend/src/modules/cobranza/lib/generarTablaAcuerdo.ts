@@ -1,132 +1,104 @@
 import { Timestamp } from "firebase/firestore";
-import type { CuotaAcuerdo, Periodicidad } from "@/modules/cobranza/models/acuerdoPago.model";
+import type { CuotaAcuerdo } from "@/modules/cobranza/models/acuerdoPago.model";
 
-type GenerarTablaInput = {
+type Input = {
   capitalInicial: number;
-  porcentajeHonorarios: number;
-  numeroCuotas: number;
+  porcentajeHonorarios: number; // default 15
   fechaPrimeraCuota: Date;
-  periodicidad: Periodicidad;
-
-  // si el ejecutivo define una cuota “base”, se usa; si no, se calcula por total/numCuotas
-  valorCuotaBase?: number;
-
-  // opcional: si quiere que la última cuota ajuste redondeos
-  ajustarUltimaCuota?: boolean;
+  valorCuotaBase: number;       // OBLIGATORIA
+  maxMeses?: number;            // opcional “freno” por seguridad (por ejemplo 240)
 };
 
-const addPeriod = (date: Date, periodicidad: Periodicidad) => {
-  const d = new Date(date);
-  if (periodicidad === "semanal") d.setDate(d.getDate() + 7);
-  else if (periodicidad === "quincenal") d.setDate(d.getDate() + 15);
-  else d.setMonth(d.getMonth() + 1);
-  return d;
+const round = (n: number) => Math.round(n);
+
+const addMonths = (d: Date, months: number) => {
+  const x = new Date(d);
+  const day = x.getDate();
+  x.setMonth(x.getMonth() + months);
+
+  // evita saltos raros (31 -> feb)
+  if (x.getDate() < day) x.setDate(0);
+  return x;
 };
 
-const roundPesos = (n: number) => Math.round(n); // pesos enteros
+export const generarTablaAcuerdo = ({
+  capitalInicial,
+  porcentajeHonorarios,
+  fechaPrimeraCuota,
+  valorCuotaBase,
+  maxMeses = 240,
+}: Input): { cuotas: CuotaAcuerdo[]; honorariosInicial: number; totalAcordado: number } => {
+  const cap0 = round(capitalInicial);
+  const hon0 = round(capitalInicial * (porcentajeHonorarios / 100));
+  const total = round(cap0 + hon0);
 
-export function generarTablaAcuerdo(input: GenerarTablaInput) {
-  const {
-    capitalInicial,
-    porcentajeHonorarios,
-    numeroCuotas,
-    fechaPrimeraCuota,
-    periodicidad,
-    valorCuotaBase,
-    ajustarUltimaCuota = true,
-  } = input;
+  let capSaldo = cap0;
+  let honSaldo = hon0;
 
-  const honorariosInicial = capitalInicial * (porcentajeHonorarios / 100);
-  const totalAcordado = capitalInicial + honorariosInicial;
-
-  const cuotaBase = valorCuotaBase && valorCuotaBase > 0
-    ? valorCuotaBase
-    : totalAcordado / numeroCuotas;
-
-  // Distribución proporcional (como tu Excel): honorarios = cuota * (honorariosInicial/totalAcordado)
-  const ratioHon = honorariosInicial / totalAcordado;
+  const cuotaBase = round(valorCuotaBase);
+  const cuotaHonTeorica = round(cuotaBase * (porcentajeHonorarios / 100));
 
   const cuotas: CuotaAcuerdo[] = [];
-  let fecha = new Date(fechaPrimeraCuota);
 
-  let capSaldo = capitalInicial;
-  let honSaldo = honorariosInicial;
-
-  let sumCuotas = 0;
-  let sumCap = 0;
-  let sumHon = 0;
-
-  for (let i = 0; i < numeroCuotas; i++) {
+  let i = 0;
+  while ((capSaldo > 0 || honSaldo > 0) && i < maxMeses) {
     const numero = i + 1;
+    const fecha = addMonths(fechaPrimeraCuota, i);
 
-    // cuota provisional
-    let valorCuota = cuotaBase;
+    const honorariosAntes = honSaldo;
+    const capitalAntes = capSaldo;
 
-    // redondeo en pesos (cada fila) para que sea usable
-    let honCuota = roundPesos(valorCuota * ratioHon);
-    let capCuota = roundPesos(valorCuota - honCuota);
+    // 1) honorarios: se cobra hasta donde alcance (prioridad)
+    const honorariosCuota = honSaldo > 0 ? Math.min(honSaldo, cuotaHonTeorica) : 0;
 
-    // evita negativos en saldos por redondeo final
-    if (capCuota > capSaldo) capCuota = roundPesos(capSaldo);
-    if (honCuota > honSaldo) honCuota = roundPesos(honSaldo);
+    // 2) el resto de la cuota va a capital
+    let capitalCuota = cuotaBase - honorariosCuota;
 
-    valorCuota = roundPesos(capCuota + honCuota);
+    // si capital ya está en 0, no seguimos “forzando” capital
+    if (capSaldo <= 0) capitalCuota = 0;
 
-    const cuota: CuotaAcuerdo = {
+    // no cobrar más capital del que falta
+    if (capitalCuota > capSaldo) capitalCuota = capSaldo;
+
+    // si ya no hay nada por cobrar, salimos
+    const valorCuota = honorariosCuota + capitalCuota;
+    if (valorCuota <= 0) break;
+
+    honSaldo = round(honSaldo - honorariosCuota);
+    capSaldo = round(capSaldo - capitalCuota);
+
+    cuotas.push({
       numero,
-      fechaVencimiento: Timestamp.fromDate(fecha),
+      fechaPago: Timestamp.fromDate(fecha),
+      valorCuota: round(valorCuota),
+      honorariosCuota: round(honorariosCuota),
+      capitalCuota: round(capitalCuota),
 
-      valorCuota,
-      capitalCuota: capCuota,
-      honorariosCuota: honCuota,
+      honorariosSaldoAntes: round(honorariosAntes),
+      honorariosSaldoDespues: round(honSaldo),
+      capitalSaldoAntes: round(capitalAntes),
+      capitalSaldoDespues: round(capSaldo),
 
-      capitalSaldoAntes: roundPesos(capSaldo),
-      capitalSaldoDespues: roundPesos(capSaldo - capCuota),
+      pagado: false,
+    });
 
-      honorariosSaldoAntes: roundPesos(honSaldo),
-      honorariosSaldoDespues: roundPesos(honSaldo - honCuota),
-
-      estado: "pendiente",
-      observacion: "",
-    };
-
-    cuotas.push(cuota);
-
-    capSaldo = capSaldo - capCuota;
-    honSaldo = honSaldo - honCuota;
-
-    sumCuotas += valorCuota;
-    sumCap += capCuota;
-    sumHon += honCuota;
-
-    fecha = addPeriod(fecha, periodicidad);
+    i++;
   }
 
-  // Ajuste de última cuota para cerrar EXACTO (si hay redondeos)
-  if (ajustarUltimaCuota && cuotas.length > 0) {
+  // Ajuste final: si quedó saldo por rounding raro, lo absorbemos en la última cuota
+  // (esto evita terminar con 1 peso pendiente por redondeos)
+  if (cuotas.length && (capSaldo !== 0 || honSaldo !== 0)) {
     const last = cuotas[cuotas.length - 1];
+    const honExtra = Math.max(0, honSaldo);
+    const capExtra = Math.max(0, capSaldo);
 
-    const deltaCap = roundPesos(capitalInicial - sumCap);
-    const deltaHon = roundPesos(honorariosInicial - sumHon);
+    last.honorariosCuota = round(last.honorariosCuota + honExtra);
+    last.capitalCuota = round(last.capitalCuota + capExtra);
+    last.valorCuota = round(last.honorariosCuota + last.capitalCuota);
 
-    if (deltaCap !== 0 || deltaHon !== 0) {
-      // Reajusta contra saldos “antes” del last para que no se vaya negativo
-      const capNuevo = roundPesos(last.capitalCuota + deltaCap);
-      const honNuevo = roundPesos(last.honorariosCuota + deltaHon);
-
-      last.capitalCuota = Math.max(0, capNuevo);
-      last.honorariosCuota = Math.max(0, honNuevo);
-      last.valorCuota = roundPesos(last.capitalCuota + last.honorariosCuota);
-
-      last.capitalSaldoDespues = roundPesos(last.capitalSaldoAntes - last.capitalCuota);
-      last.honorariosSaldoDespues = roundPesos(last.honorariosSaldoAntes - last.honorariosCuota);
-    }
+    last.honorariosSaldoDespues = 0;
+    last.capitalSaldoDespues = 0;
   }
 
-  return {
-    capitalInicial: roundPesos(capitalInicial),
-    honorariosInicial: roundPesos(honorariosInicial),
-    totalAcordado: roundPesos(totalAcordado),
-    cuotas,
-  };
-}
+  return { cuotas, honorariosInicial: hon0, totalAcordado: total };
+};

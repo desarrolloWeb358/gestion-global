@@ -28,8 +28,7 @@ export default function TablaAmortizacionEditable({ cuotas, readOnly, onChange }
             <TableHead className="text-brand-secondary font-semibold">Capital</TableHead>
             <TableHead className="text-brand-secondary font-semibold">Honorarios</TableHead>
             <TableHead className="text-brand-secondary font-semibold">Saldo Cap.</TableHead>
-            <TableHead className="text-brand-secondary font-semibold">Saldo Hon.</TableHead>
-            <TableHead className="text-brand-secondary font-semibold">Obs.</TableHead>
+            <TableHead className="text-brand-secondary font-semibold">Saldo Hon.</TableHead>            
           </TableRow>
         </TableHeader>
 
@@ -74,15 +73,7 @@ export default function TablaAmortizacionEditable({ cuotas, readOnly, onChange }
 
               <TableCell className="min-w-[180px] text-sm text-muted-foreground">
                 {n(c.honorariosSaldoDespues).toLocaleString("es-CO")}
-              </TableCell>
-
-              <TableCell className="min-w-[240px]">
-                <Input
-                  value={c.observacion || ""}
-                  disabled={readOnly}
-                  onChange={(e) => updateRow(idx, { observacion: e.target.value })}
-                />
-              </TableCell>
+              </TableCell>              
             </TableRow>
           ))}
         </TableBody>

@@ -1,69 +1,56 @@
 import { Timestamp } from "firebase/firestore";
-
-export type EstadoAcuerdoPago = "activo" | "cumplido" | "incumplido" | "cancelado";
-
-export type Periodicidad = "mensual" | "quincenal" | "semanal";
+import type { EstadoAcuerdo } from "@/shared/constants/acuerdoEstado";
 
 export interface CuotaAcuerdo {
   numero: number;
+  fechaPago: Timestamp;
 
-  // vencimiento acordado
-  fechaVencimiento: Timestamp;
-
-  // valores acordados (tabla)
   valorCuota: number;
-  capitalCuota: number;
   honorariosCuota: number;
+  capitalCuota: number;
 
-  // saldos para mostrar tabla
-  capitalSaldoAntes: number;
-  capitalSaldoDespues: number;
   honorariosSaldoAntes: number;
   honorariosSaldoDespues: number;
+  capitalSaldoAntes: number;
+  capitalSaldoDespues: number;
 
-  // control (no es pago real; es estado del acuerdo)
-  estado: "pendiente" | "parcial" | "pagada" | "vencida";
-  pagadoAcuerdo?: number; // opcional para futuro (si aplicas estadosMensuales a cuotas)
-  observacion?: string;
+  pagado?: boolean;
+  fechaPagoReal?: Timestamp;
+  valorPagado?: number;
+}
+
+export interface ArchivoAcuerdoFirmado {
+  url: string;
+  nombre?: string;
+  contentType?: string;
+  size?: number;
+  subidoEn?: Timestamp;
+  subidoPor?: string;
 }
 
 export interface AcuerdoPago {
-  id?: string;
+  id: string;
 
-  numero: string; // ACU-2025-001
+  numero: string;
   fechaAcuerdo: Timestamp;
 
-  porcentajeHonorarios: number; // 15 / 20 etc.
-  capitalInicial: number;       // deuda capital acordada
-  honorariosInicial: number;    // capitalInicial * %/100
-  totalAcordado: number;        // capitalInicial + honorariosInicial
+  capitalInicial: number;
+  porcentajeHonorarios: number;
+  honorariosInicial: number;
+  totalAcordado: number;
 
-  numeroCuotas: number;
-  periodicidad: Periodicidad;
   fechaPrimeraCuota: Timestamp;
+  valorCuotaBase: number;
 
   detalles?: string;
-  observaciones?: string;
 
-  estado: EstadoAcuerdoPago;
+  estado: EstadoAcuerdo;
+  esActivo: boolean;
 
-  // soportes
-  archivoUrl?: string;
+  archivoFirmado?: ArchivoAcuerdoFirmado;
 
-  // metadata
   creadoPor?: string;
-  fechaCreacion?: Timestamp;
   actualizadoPor?: string;
-  fechaActualizacion?: Timestamp;
-
-  // “puntero” útil para UI/alertas (opcional)
-  cuotaSiguienteNumero?: number;
-}
-
-export interface HistorialAcuerdoPago extends AcuerdoPago {
-  historialId?: string;
-  version: number;
-  motivoCambio?: string;
-  fechaGuardado: Timestamp;
-  guardadoPor?: string;
+  fechaCreacion: Timestamp;
+  fechaActualizacion: Timestamp;
 }

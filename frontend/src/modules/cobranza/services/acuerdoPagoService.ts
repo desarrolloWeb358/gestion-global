@@ -1,24 +1,22 @@
 import {
   collection,
   doc,
-  getDoc,
   getDocs,
-  query,
+  limit,
   orderBy,
-  addDoc,
-  writeBatch,
+  query,
+  runTransaction,
   serverTimestamp,
-  Timestamp,
   updateDoc,
+  where,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "@/firebase";
-import type {
-  AcuerdoPago,
-  CuotaAcuerdo,
-  HistorialAcuerdoPago,
-  EstadoAcuerdoPago,
-} from "@/modules/cobranza/models/acuerdoPago.model";
 
+import type { AcuerdoPago, CuotaAcuerdo } from "../models/acuerdoPago.model";
+import { ACUERDO_ESTADO, normalizarEstadoAcuerdo } from "@/shared/constants/acuerdoEstado";
+
+// ================= RUTAS =================
 const acuerdosCol = (clienteId: string, deudorId: string) =>
   collection(db, `clientes/${clienteId}/deudores/${deudorId}/acuerdos`);
 
@@ -28,151 +26,152 @@ const acuerdoDoc = (clienteId: string, deudorId: string, acuerdoId: string) =>
 const cuotasCol = (clienteId: string, deudorId: string, acuerdoId: string) =>
   collection(db, `clientes/${clienteId}/deudores/${deudorId}/acuerdos/${acuerdoId}/cuotas`);
 
-const historialCol = (clienteId: string, deudorId: string) =>
-  collection(db, `clientes/${clienteId}/deudores/${deudorId}/historialAcuerdos`);
+// ================= OBTENER ACUERDO ACTUAL =================
+export async function obtenerAcuerdoActual(clienteId: string, deudorId: string) {
+  const col = acuerdosCol(clienteId, deudorId);
 
-export async function crearAcuerdo(
+  // EN FIRME activo
+  const qActivo = query(
+    col,
+    where("estado", "==", ACUERDO_ESTADO.EN_FIRME),
+    where("esActivo", "==", true),
+    limit(1)
+  );
+
+  const snapActivo = await getDocs(qActivo);
+  if (!snapActivo.empty) {
+    const docSnap = snapActivo.docs[0];
+    const acuerdo = docSnap.data() as AcuerdoPago;
+
+    const estado = normalizarEstadoAcuerdo(acuerdo.estado);
+    if (estado !== acuerdo.estado) {
+      await updateDoc(docSnap.ref, { estado });
+      acuerdo.estado = estado;
+    }
+
+    return { acuerdo, acuerdoId: docSnap.id };
+  }
+
+  // BORRADOR más reciente
+  const qBorrador = query(
+    col,
+    where("estado", "==", ACUERDO_ESTADO.BORRADOR),
+    orderBy("fechaActualizacion", "desc"),
+    limit(1)
+  );
+
+  const snapBorr = await getDocs(qBorrador);
+  if (!snapBorr.empty) {
+    const docSnap = snapBorr.docs[0];
+    const acuerdo = docSnap.data() as AcuerdoPago;
+    return { acuerdo, acuerdoId: docSnap.id };
+  }
+
+  return { acuerdo: null, acuerdoId: null };
+}
+
+// ================= GUARDAR BORRADOR =================
+export async function guardarBorrador(
   clienteId: string,
   deudorId: string,
   acuerdo: Omit<AcuerdoPago, "id" | "fechaCreacion" | "fechaActualizacion">,
   cuotas: CuotaAcuerdo[],
-  motivo: string,
-  userId?: string
+  userId?: string,
+  acuerdoId?: string
 ) {
   const batch = writeBatch(db);
+  const col = acuerdosCol(clienteId, deudorId);
 
-  const acuerdoRef = doc(acuerdosCol(clienteId, deudorId)); // auto-id
-  const acuerdoId = acuerdoRef.id;
+  const ref = acuerdoId ? acuerdoDoc(clienteId, deudorId, acuerdoId) : doc(col);
+  const id = ref.id;
 
-  batch.set(acuerdoRef, {
+  batch.set(ref, {
     ...acuerdo,
-    creadoPor: userId || null,
-    fechaCreacion: serverTimestamp(),
-    actualizadoPor: userId || null,
+    id,
+    estado: ACUERDO_ESTADO.BORRADOR,
+    esActivo: false,
+    actualizadoPor: userId ?? null,
     fechaActualizacion: serverTimestamp(),
+    ...(acuerdoId ? {} : { creadoPor: userId ?? null, fechaCreacion: serverTimestamp() }),
   });
 
-  // cuotas como docs: "001", "002" para orden natural
+  const cuotasRef = cuotasCol(clienteId, deudorId, id);
+
+  // borrar previas
+  const prev = await getDocs(cuotasRef);
+  prev.docs.forEach((d) => batch.delete(d.ref));
+
+  // escribir nuevas
   cuotas.forEach((c) => {
-    const cuotaId = String(c.numero).padStart(3, "0");
-    const cuotaRef = doc(cuotasCol(clienteId, deudorId, acuerdoId), cuotaId);
-    batch.set(cuotaRef, c);
-  });
-
-  // historial (version 1)
-  const version = 1;
-  const histRef = doc(historialCol(clienteId, deudorId));
-  batch.set(histRef, {
-    ...acuerdo,
-    id: acuerdoId,
-    version,
-    motivoCambio: motivo || "Creación de acuerdo",
-    fechaGuardado: serverTimestamp(),
-    guardadoPor: userId || null,
+    const cid = String(c.numero).padStart(3, "0");
+    batch.set(doc(cuotasRef, cid), c);
   });
 
   await batch.commit();
-
-  return { acuerdoId };
+  return { acuerdoId: id };
 }
 
-export async function actualizarAcuerdo(
+// ================= ACTIVAR EN FIRME (SIN tx.get(query)) =================
+export async function activarAcuerdoEnFirme(
   clienteId: string,
   deudorId: string,
   acuerdoId: string,
-  acuerdo: Partial<AcuerdoPago>,
-  cuotas: CuotaAcuerdo[],
-  motivo: string,
+  archivoFirmadoUrl: string,
   userId?: string
 ) {
-  const batch = writeBatch(db);
+  const col = acuerdosCol(clienteId, deudorId);
 
-  const acuerdoRef = acuerdoDoc(clienteId, deudorId, acuerdoId);
+  // 1) buscar el EN_FIRME activo FUERA de la transacción
+  const qActivo = query(
+    col,
+    where("estado", "==", ACUERDO_ESTADO.EN_FIRME),
+    where("esActivo", "==", true),
+    limit(1)
+  );
 
-  // version historial: size + 1 (simple)
-  const historialSnap = await getDocs(historialCol(clienteId, deudorId));
-  const version = historialSnap.size + 1;
+  const snapActivo = await getDocs(qActivo);
+  const prevActivoRef = snapActivo.empty ? null : snapActivo.docs[0].ref;
 
-  // guardar snapshot a historial (con merge de lo actual + cambios)
-  const actualSnap = await getDoc(acuerdoRef);
-  const actual = actualSnap.exists() ? (actualSnap.data() as AcuerdoPago) : null;
+  // 2) transacción solo con DocumentReference
+  await runTransaction(db, async (tx) => {
+    // desactivar anterior si existe
+    if (prevActivoRef) {
+      tx.update(prevActivoRef, {
+        estado: ACUERDO_ESTADO.CERRADO,
+        esActivo: false,
+        fechaActualizacion: serverTimestamp(),
+        actualizadoPor: userId ?? null,
+      });
+    }
 
-  batch.set(doc(historialCol(clienteId, deudorId)), {
-    ...(actual || {}),
-    ...(acuerdo || {}),
-    id: acuerdoId,
-    version,
-    motivoCambio: motivo || "Actualización de acuerdo",
-    fechaGuardado: serverTimestamp(),
-    guardadoPor: userId || null,
+    // activar este
+    const ref = acuerdoDoc(clienteId, deudorId, acuerdoId);
+    tx.update(ref, {
+      estado: ACUERDO_ESTADO.EN_FIRME,
+      esActivo: true,
+      archivoFirmado: { url: archivoFirmadoUrl },
+      fechaActualizacion: serverTimestamp(),
+      actualizadoPor: userId ?? null,
+    });
   });
 
-  batch.update(acuerdoRef, {
-    ...(acuerdo || {}),
-    actualizadoPor: userId || null,
-    fechaActualizacion: serverTimestamp(),
-  });
-
-  // Reescribir cuotas (simple y seguro para tu caso)
-  cuotas.forEach((c) => {
-    const cuotaId = String(c.numero).padStart(3, "0");
-    const cuotaRef = doc(cuotasCol(clienteId, deudorId, acuerdoId), cuotaId);
-    batch.set(cuotaRef, c);
-  });
-
-  await batch.commit();
+  return true;
 }
 
-export async function obtenerAcuerdo(
+// ================= OBTENER CUOTAS =================
+export async function obtenerCuotas(
   clienteId: string,
   deudorId: string,
   acuerdoId: string
-) {
-  const snap = await getDoc(acuerdoDoc(clienteId, deudorId, acuerdoId));
-  if (!snap.exists()) return null;
-  return { id: snap.id, ...(snap.data() as AcuerdoPago) } as AcuerdoPago;
-}
+): Promise<CuotaAcuerdo[]> {
+  const col = collection(
+    db,
+    `clientes/${clienteId}/deudores/${deudorId}/acuerdos/${acuerdoId}/cuotas`
+  );
 
-export async function obtenerCuotasAcuerdo(
-  clienteId: string,
-  deudorId: string,
-  acuerdoId: string
-) {
-  const q = query(cuotasCol(clienteId, deudorId, acuerdoId), orderBy("numero", "asc"));
+  const q = query(col, orderBy("numero", "asc"));
   const snap = await getDocs(q);
+
   return snap.docs.map((d) => d.data() as CuotaAcuerdo);
 }
 
-export async function listarAcuerdos(clienteId: string, deudorId: string) {
-  const q = query(acuerdosCol(clienteId, deudorId), orderBy("fechaAcuerdo", "desc"));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as AcuerdoPago) })) as AcuerdoPago[];
-}
-
-export async function obtenerHistorialAcuerdos(clienteId: string, deudorId: string) {
-  const q = query(historialCol(clienteId, deudorId), orderBy("fechaGuardado", "desc"));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ historialId: d.id, ...(d.data() as HistorialAcuerdoPago) }));
-}
-
-export async function cambiarEstadoAcuerdo(
-  clienteId: string,
-  deudorId: string,
-  acuerdoId: string,
-  nuevoEstado: EstadoAcuerdoPago,
-  motivo: string,
-  userId?: string
-) {
-  await actualizarAcuerdo(
-    clienteId,
-    deudorId,
-    acuerdoId,
-    { estado: nuevoEstado },
-    [], // no toca cuotas aquí (pero puedes cargar y reenviar si quieres)
-    `Cambio de estado a: ${nuevoEstado}. ${motivo}`,
-    userId
-  );
-
-  // Nota: si quieres que NO se creen cuotas vacías al pasar cuotas=[],
-  // en tu app llamas cambiarEstado con otra función que NO reescriba cuotas.
-}
