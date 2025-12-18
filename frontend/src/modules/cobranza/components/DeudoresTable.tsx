@@ -1,16 +1,20 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Eye, Pencil, Search, X, Users, UserPlus, Filter, FileText } from "lucide-react";
+import { createPortal } from "react-dom";
+
 import { Deudor } from "../models/deudores.model";
 import {
   obtenerDeudorPorCliente,
   crearDeudor,
   actualizarDeudorDatos
 } from "../services/deudorService";
+
 import { Cliente } from "@/modules/clientes/models/cliente.model";
 import { getClienteById } from "@/modules/clientes/services/clienteService";
 import { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 import { obtenerUsuarios } from "@/modules/usuarios/services/usuarioService";
+
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/select";
@@ -54,9 +58,13 @@ export default function DeudoresTable() {
 
   const [deudores, setDeudores] = useState<Deudor[]>([]);
   const [loading, setLoading] = useState(false);
+
   const [open, setOpen] = useState(false);
   const [deudorEditando, setDeudorEditando] = useState<Deudor | null>(null);
   const [formData, setFormData] = useState<Partial<Deudor> & { porcentajeHonorarios?: number | string }>({});
+
+  // ✅ BLOQUEO GLOBAL
+  const [saving, setSaving] = useState(false);
 
   // Estado para cliente y usuarios
   const [cliente, setCliente] = useState<Cliente | null>(null);
@@ -86,16 +94,12 @@ export default function DeudoresTable() {
       setCliente(clienteData);
 
       if (clienteData) {
-        // Opción 1: Si el cliente tiene un campo 'nombre' directamente
-        if (clienteData.nombre) {
-          setNombreCliente(clienteData.nombre);
-        }
-        // Opción 2: Si el clienteId es el mismo que el uid del usuario
-        else {
+        if ((clienteData as any).nombre) {
+          setNombreCliente((clienteData as any).nombre);
+        } else {
           const todosUsuarios = await obtenerUsuarios();
           setUsuarios(todosUsuarios);
 
-          // Buscar el usuario que tenga el mismo uid que el clienteId
           const usuarioEncontrado = todosUsuarios.find(u => u.uid === clienteId);
 
           if (usuarioEncontrado) {
@@ -123,6 +127,7 @@ export default function DeudoresTable() {
     if (!canView) return;
     fetchDeudores();
     fetchCliente();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clienteId, aclLoading, canView]);
 
   const normalizedQ = search.trim().toLowerCase();
@@ -144,14 +149,17 @@ export default function DeudoresTable() {
   });
 
   const totalPages = Math.ceil(filteredDeudores.length / itemsPerPage) || 1;
-  const paginatedDeudores = filteredDeudores.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const paginatedDeudores = filteredDeudores.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const iniciarCrear = () => {
     if (!canEdit) return;
     setDeudorEditando(null);
     setFormData({
       tipificacion: TipificacionDeuda.GESTIONANDO,
-      porcentajeHonorarios: 15, // 👈 default solo para crear
+      porcentajeHonorarios: 15,
     });
     setOpen(true);
   };
@@ -160,18 +168,10 @@ export default function DeudoresTable() {
     if (!canEdit) return;
     setDeudorEditando(deudor);
 
-    // 🔍 DEBUG: Ver qué valor viene de BD
-    console.log('Deudor completo:', deudor);
-    console.log('porcentajeHonorarios desde BD:', deudor.porcentajeHonorarios);
-    console.log('Tipo de dato:', typeof deudor.porcentajeHonorarios);
-
-    // 🔧 FIX: Convertir explícitamente a número si existe
-    const porcentaje = deudor.porcentajeHonorarios !== undefined && 
-                       deudor.porcentajeHonorarios !== null
-      ? Number(deudor.porcentajeHonorarios)
-      : 15; // Default si no hay valor
-
-    console.log('Porcentaje procesado:', porcentaje);
+    const porcentaje =
+      deudor.porcentajeHonorarios !== undefined && deudor.porcentajeHonorarios !== null
+        ? Number(deudor.porcentajeHonorarios)
+        : 15;
 
     setFormData({
       ...deudor,
@@ -186,18 +186,18 @@ export default function DeudoresTable() {
     setFormData((prev) => ({ ...prev, tipificacion: t }));
   };
 
+  // ✅ IMPORTANTE: SIEMPRE try/finally para que no se quede pegado
   const guardarDeudor = async () => {
     if (!clienteId) return;
     if (!canEdit) return;
 
-    // Convertir porcentajeHonorarios a número, usando 15 como default solo si está vacío
     const valorActual = formData.porcentajeHonorarios as number | string | undefined;
-    const porcentajeFinal = !valorActual || valorActual === ''
-      ? 15
-      : Number(valorActual);
+    const porcentajeFinal =
+      valorActual === undefined || valorActual === null || valorActual === ""
+        ? 15
+        : Number(valorActual);
 
-    console.log('Guardando con porcentaje:', porcentajeFinal);
-
+    setSaving(true);
     try {
       if (deudorEditando) {
         await actualizarDeudorDatos(clienteId, deudorEditando.id!, {
@@ -218,44 +218,57 @@ export default function DeudoresTable() {
           porcentajeHonorarios: porcentajeFinal,
           correos: formData.correos ?? [],
           telefonos: formData.telefonos ?? [],
-          tipificacion: (formData.tipificacion as TipificacionDeuda) ?? TipificacionDeuda.GESTIONANDO,
+          tipificacion:
+            (formData.tipificacion as TipificacionDeuda) ?? TipificacionDeuda.GESTIONANDO,
         });
         toast.success("✓ Deudor creado correctamente");
       }
 
       setOpen(false);
-      fetchDeudores();
-    } catch (error) {
-      toast.error("Error al guardar el deudor");
+      await fetchDeudores();
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error?.message ?? "Error al guardar el deudor");
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    const numericFields = new Set(['porcentajeHonorarios']);
-    
-    if (numericFields.has(name)) {
-      // Para campos numéricos: mantener el valor como string mientras se escribe
-      // Solo convertir a número cuando hay un valor válido
-      const numValue = value === '' ? '' : value;
-      setFormData((prev) => ({ 
-        ...prev, 
-        [name]: numValue === '' ? '' : Number(numValue)
+
+    if (name === "porcentajeHonorarios") {
+      setFormData((prev) => ({
+        ...prev,
+        porcentajeHonorarios: value === "" ? undefined : Number(value),
       }));
-    } else {
-      // Para campos de texto normales
-      setFormData((prev) => ({ ...prev, [name]: value }));
+      return;
     }
+
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
+
+  // ✅ Overlay global (portal) - bloquea toda la pantalla
+  const GlobalBlockingOverlay = saving
+    ? createPortal(
+        <div className="fixed inset-0 z-[99999] bg-black/50 backdrop-blur-sm flex items-center justify-center">
+          <div className="rounded-xl bg-white shadow-xl px-6 py-5 flex items-center gap-3">
+            <div className="h-5 w-5 animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary" />
+            <Typography variant="body" className="font-medium">
+              {deudorEditando ? "Guardando cambios..." : "Creando deudor..."}
+            </Typography>
+          </div>
+        </div>,
+        document.body
+      )
+    : null;
 
   if (aclLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30 flex items-center justify-center">
         <div className="text-center">
           <div className="h-12 w-12 mx-auto animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary mb-4" />
-          <Typography variant="body" className="text-muted">
-            Cargando permisos...
-          </Typography>
+          <Typography variant="body">Cargando permisos...</Typography>
         </div>
       </div>
     );
@@ -268,9 +281,7 @@ export default function DeudoresTable() {
           <Typography variant="h2" className="text-brand-secondary mb-2">
             Acceso denegado
           </Typography>
-          <Typography variant="body" className="text-muted">
-            No tienes permisos para ver esta sección.
-          </Typography>
+          <Typography variant="body">No tienes permisos para ver esta sección.</Typography>
         </div>
       </div>
     );
@@ -278,6 +289,8 @@ export default function DeudoresTable() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30">
+      {GlobalBlockingOverlay}
+
       <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
 
         {/* HEADER */}
@@ -302,24 +315,27 @@ export default function DeudoresTable() {
                     Deudores de {nombreCliente}
                   </Typography>
                   <Typography variant="small" className="mt-0.5">
-                    {filteredDeudores.length} {filteredDeudores.length === 1 ? 'deudor encontrado' : 'deudores encontrados'}
+                    {filteredDeudores.length}{" "}
+                    {filteredDeudores.length === 1 ? "deudor encontrado" : "deudores encontrados"}
                   </Typography>
                 </div>
               </div>
             </div>
 
             {canEdit && (
-              <Dialog open={open} onOpenChange={setOpen}>
+              <Dialog open={open} onOpenChange={(v) => !saving && setOpen(v)}>
                 <DialogTrigger asChild>
                   <Button
                     variant="brand"
                     onClick={iniciarCrear}
                     className="gap-2 shadow-md hover:shadow-lg transition-all"
+                    disabled={saving}
                   >
                     <UserPlus className="h-4 w-4" />
                     Crear Deudor
                   </Button>
                 </DialogTrigger>
+
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle className="text-brand-primary text-xl font-bold flex items-center gap-2">
@@ -330,9 +346,9 @@ export default function DeudoresTable() {
 
                   <form
                     className="space-y-6 py-4"
-                    onSubmit={(e) => {
+                    onSubmit={async (e) => {
                       e.preventDefault();
-                      if (!readOnly) guardarDeudor();
+                      if (!readOnly) await guardarDeudor();
                     }}
                   >
                     <div className="space-y-4">
@@ -343,7 +359,7 @@ export default function DeudoresTable() {
                             name="nombre"
                             value={formData.nombre ?? ""}
                             onChange={handleChange}
-                            readOnly={readOnly}
+                            readOnly={readOnly || saving}
                             className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
                             placeholder="Ej: Juan Pérez"
                           />
@@ -354,7 +370,7 @@ export default function DeudoresTable() {
                             name="cedula"
                             value={formData.cedula ?? ""}
                             onChange={handleChange}
-                            readOnly={readOnly}
+                            readOnly={readOnly || saving}
                             className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
                             placeholder="1234567890"
                           />
@@ -368,7 +384,7 @@ export default function DeudoresTable() {
                             name="ubicacion"
                             value={formData.ubicacion ?? ""}
                             onChange={handleChange}
-                            readOnly={readOnly}
+                            readOnly={readOnly || saving}
                             className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
                             placeholder="Ciudad, Departamento"
                           />
@@ -376,7 +392,7 @@ export default function DeudoresTable() {
                         <div>
                           <Label className="text-brand-secondary font-medium">Tipificación</Label>
                           <Select
-                            disabled={readOnly}
+                            disabled={readOnly || saving}
                             value={(formData.tipificacion as TipificacionDeuda) ?? TipificacionDeuda.GESTIONANDO}
                             onValueChange={onChangeTipificacion}
                           >
@@ -397,13 +413,12 @@ export default function DeudoresTable() {
                         <Input
                           type="number"
                           name="porcentajeHonorarios"
-                          value={formData.porcentajeHonorarios ?? ''}
+                          value={formData.porcentajeHonorarios ?? ""}
                           onChange={handleChange}
-                          readOnly={readOnly}
+                          readOnly={readOnly || saving}
                           className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
                           placeholder="15"
                         />
-                        <p className="text-xs text-muted mt-1">Valor actual: {formData.porcentajeHonorarios || 'vacío'}</p>
                       </div>
 
                       <div className="space-y-3 pt-4 border-t border-brand-secondary/10">
@@ -418,10 +433,10 @@ export default function DeudoresTable() {
                                 correos: e.target.value.split(",").map((c) => c.trim()).filter(Boolean),
                               }))
                             }
-                            readOnly={readOnly}
+                            readOnly={readOnly || saving}
                             className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
                           />
-                          <p className="text-xs text-muted mt-1">Separa múltiples correos con comas</p>
+                          <p className="text-xs mt-1">Separa múltiples correos con comas</p>
                         </div>
 
                         <div>
@@ -435,10 +450,10 @@ export default function DeudoresTable() {
                                 telefonos: e.target.value.split(",").map((t) => t.trim()).filter(Boolean),
                               }))
                             }
-                            readOnly={readOnly}
+                            readOnly={readOnly || saving}
                             className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
                           />
-                          <p className="text-xs text-muted mt-1">Separa múltiples teléfonos con comas</p>
+                          <p className="text-xs mt-1">Separa múltiples teléfonos con comas</p>
                         </div>
                       </div>
                     </div>
@@ -449,14 +464,16 @@ export default function DeudoresTable() {
                           <Button
                             type="button"
                             variant="outline"
-                            onClick={() => setOpen(false)}
+                            onClick={() => !saving && setOpen(false)}
                             className="border-brand-secondary/30"
+                            disabled={saving}
                           >
                             Cancelar
                           </Button>
                           <Button
                             type="submit"
                             variant="brand"
+                            disabled={saving}
                           >
                             {deudorEditando ? "Guardar cambios" : "Crear deudor"}
                           </Button>
@@ -503,7 +520,7 @@ export default function DeudoresTable() {
                     <Button
                       type="button"
                       onClick={() => setSearch("")}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted hover:bg-gray-100 transition-colors"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 hover:bg-gray-100 transition-colors"
                     >
                       <X className="h-4 w-4" />
                     </Button>
@@ -557,9 +574,7 @@ export default function DeudoresTable() {
           <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
             <div className="flex flex-col items-center gap-4">
               <div className="h-12 w-12 animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary" />
-              <Typography variant="body" className="text-muted">
-                Cargando deudores...
-              </Typography>
+              <Typography variant="body">Cargando deudores...</Typography>
             </div>
           </div>
         ) : filteredDeudores.length === 0 ? (
@@ -571,7 +586,7 @@ export default function DeudoresTable() {
               <Typography variant="h3" className="text-brand-secondary">
                 No hay resultados
               </Typography>
-              <Typography variant="small" className="text-muted max-w-md">
+              <Typography variant="small" className="max-w-md">
                 {search || tipFilter !== ALL
                   ? "No se encontraron deudores que coincidan con los filtros aplicados."
                   : "Aún no hay deudores registrados para este cliente."}
@@ -607,10 +622,12 @@ export default function DeudoresTable() {
                         {deudor.ubicacion || "—"}
                       </TableCell>
                       <TableCell>
-                        <span className={cn(
-                          "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium transition-all",
-                          getTipificacionColor(deudor.tipificacion as string)
-                        )}>
+                        <span
+                          className={cn(
+                            "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium transition-all",
+                            getTipificacionColor(deudor.tipificacion as string)
+                          )}
+                        >
                           {deudor.tipificacion}
                         </span>
                       </TableCell>
@@ -642,6 +659,7 @@ export default function DeudoresTable() {
                                       variant="ghost"
                                       onClick={() => iniciarEditar(deudor)}
                                       className="hover:bg-brand-primary/10 transition-colors"
+                                      disabled={saving}
                                     >
                                       <Pencil className="h-4 w-4 text-brand-primary" />
                                     </Button>
@@ -658,6 +676,7 @@ export default function DeudoresTable() {
                                       variant="ghost"
                                       onClick={() => navigate(`/clientes/${clienteId}/deudores/${deudor.id}/AcuerdoPago`)}
                                       className="hover:bg-green-50 transition-colors"
+                                      disabled={saving}
                                     >
                                       <FileText className="h-4 w-4 text-green-600" />
                                     </Button>

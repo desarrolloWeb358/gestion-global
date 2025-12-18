@@ -8,16 +8,9 @@ export type SidebarIcon = ComponentType<{ className?: string }>;
 
 import {
   IconUsers,
-  IconSearch,
   IconBell,
   IconLayoutDashboard,
   IconBriefcase,
-  IconGavel,
-  IconFileText,
-  IconCreditCard,
-  IconUserCircle,
-  IconChartBar,
-  IconClipboardList,
 } from "@tabler/icons-react";
 
 export type NavItem = {
