@@ -120,8 +120,10 @@ const CustomXAxisTick = (props: any) => {
 const BarValueLabel = (props: any) => {
   const { x, y, width, value } = props;
   if (value == null) return null;
+
   const cx = x + width / 2;
-  const cy = y - 6;
+  const cy = Math.max(12, y - 6); // 👈 nunca subir más allá del borde superior
+
   return (
     <text x={cx} y={cy} textAnchor="middle" style={{ fontSize: 12 }}>
       {formatCOP(Number(value))}
@@ -150,51 +152,51 @@ const capturarGraficoSVG = async (elemento: HTMLElement): Promise<string | null>
 
     // Clonar el SVG para manipularlo sin afectar el original
     const svgClone = svgElement.cloneNode(true) as SVGElement;
-    
+
     // Asegurar que tenga dimensiones
     const bbox = svgElement.getBoundingClientRect();
     svgClone.setAttribute("width", bbox.width.toString());
     svgClone.setAttribute("height", bbox.height.toString());
-    
+
     // Convertir SVG a string
     const svgString = new XMLSerializer().serializeToString(svgClone);
     const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
-    
+
     // Crear un canvas temporal
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
-    
+
     // Configurar tamaño del canvas con mejor calidad
     const scale = 2;
     canvas.width = bbox.width * scale;
     canvas.height = bbox.height * scale;
     ctx.scale(scale, scale);
-    
+
     // Crear imagen desde el blob
     const url = URL.createObjectURL(svgBlob);
     const img = new Image();
-    
+
     return new Promise((resolve) => {
       img.onload = () => {
         // Dibujar fondo blanco
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
+
         // Dibujar la imagen
         ctx.drawImage(img, 0, 0, bbox.width, bbox.height);
         URL.revokeObjectURL(url);
-        
+
         // Convertir a data URL
         resolve(canvas.toDataURL("image/png"));
       };
-      
+
       img.onerror = () => {
         console.error("Error al cargar imagen SVG");
         URL.revokeObjectURL(url);
         resolve(null);
       };
-      
+
       img.src = url;
     });
   } catch (error) {
@@ -411,7 +413,7 @@ export default function ReporteClientePage() {
 
         toast.info("Capturando gráfico de tipificación...");
         const pieImgData = await capturarGraficoSVG(pieChartRef.current);
-        
+
         if (pieImgData) {
           pdf.addImage(pieImgData, "PNG", 14, yPosition, 180, 100);
           yPosition += 110;
@@ -436,7 +438,7 @@ export default function ReporteClientePage() {
 
         toast.info("Capturando gráfico de recaudo...");
         const barImgData = await capturarGraficoSVG(barChartRef.current);
-        
+
         if (barImgData) {
           pdf.addImage(barImgData, "PNG", 14, yPosition, 180, 100);
           yPosition += 110;
@@ -787,167 +789,167 @@ export default function ReporteClientePage() {
               // Detalle de deudores
               ...(detalleTip.length > 0
                 ? [
-                    new Paragraph({
-                      text: `Detalle de deudores - ${tipSeleccionada}`,
-                      heading: HeadingLevel.HEADING_2,
-                      spacing: { before: 400, after: 200 },
-                    }),
-                    new DocxTable({
-                      width: { size: 100, type: WidthType.PERCENTAGE },
-                      rows: [
-                        new DocxTableRow({
-                          children: [
-                            new DocxTableCell({
-                              children: [
-                                new Paragraph({
-                                  children: [
-                                    new TextRun({
-                                      text: "Ubicación",
-                                      bold: true,
-                                      color: "FFFFFF",
-                                    }),
-                                  ],
-                                }),
-                              ],
-                              shading: { fill: "4F46E5" },
-                            }),
-                            new DocxTableCell({
-                              children: [
-                                new Paragraph({
-                                  children: [
-                                    new TextRun({
-                                      text: "Deudor",
-                                      bold: true,
-                                      color: "FFFFFF",
-                                    }),
-                                  ],
-                                }),
-                              ],
-                              shading: { fill: "4F46E5" },
-                            }),
-                            new DocxTableCell({
-                              children: [
-                                new Paragraph({
-                                  children: [
-                                    new TextRun({
-                                      text: "Recaudo total",
-                                      bold: true,
-                                      color: "FFFFFF",
-                                    }),
-                                  ],
-                                  alignment: AlignmentType.RIGHT,
-                                }),
-                              ],
-                              shading: { fill: "4F46E5" },
-                            }),
-                            new DocxTableCell({
-                              children: [
-                                new Paragraph({
-                                  children: [
-                                    new TextRun({
-                                      text: "Por recuperar",
-                                      bold: true,
-                                      color: "FFFFFF",
-                                    }),
-                                  ],
-                                  alignment: AlignmentType.RIGHT,
-                                }),
-                              ],
-                              shading: { fill: "4F46E5" },
-                            }),
-                          ],
-                        }),
-                        ...detalleTip.map(
-                          (fila) =>
-                            new DocxTableRow({
-                              children: [
-                                new DocxTableCell({
-                                  children: [new Paragraph(fila.ubicacion)],
-                                }),
-                                new DocxTableCell({
-                                  children: [new Paragraph(fila.nombre)],
-                                }),
-                                new DocxTableCell({
-                                  children: [
-                                    new Paragraph({
-                                      text: formatCOP(fila.recaudoTotal),
-                                      alignment: AlignmentType.RIGHT,
-                                    }),
-                                  ],
-                                }),
-                                new DocxTableCell({
-                                  children: [
-                                    new Paragraph({
-                                      text: formatCOP(fila.porRecuperar),
-                                      alignment: AlignmentType.RIGHT,
-                                    }),
-                                  ],
-                                }),
-                              ],
-                            })
-                        ),
-                        new DocxTableRow({
-                          children: [
-                            new DocxTableCell({
-                              children: [
-                                new Paragraph({
-                                  children: [
-                                    new TextRun({
-                                      text: "Total",
-                                      bold: true,
-                                    }),
-                                  ],
-                                }),
-                              ],
-                              shading: { fill: "E0E7FF" },
-                            }),
-                            new DocxTableCell({
-                              children: [
-                                new Paragraph({
-                                  children: [
-                                    new TextRun({
-                                      text: totalesDetalle.inmuebles.toString(),
-                                      bold: true,
-                                    }),
-                                  ],
-                                  alignment: AlignmentType.RIGHT,
-                                }),
-                              ],
-                              shading: { fill: "E0E7FF" },
-                            }),
-                            new DocxTableCell({
-                              children: [
-                                new Paragraph({
-                                  children: [
-                                    new TextRun({
-                                      text: formatCOP(totalesDetalle.recaudoTotal),
-                                      bold: true,
-                                    }),
-                                  ],
-                                  alignment: AlignmentType.RIGHT,
-                                }),
-                              ],
-                              shading: { fill: "E0E7FF" },
-                            }),
-                            new DocxTableCell({
-                              children: [
-                                new Paragraph({
-                                  children: [
-                                    new TextRun({
-                                      text: formatCOP(totalesDetalle.porRecuperar),
-                                      bold: true,
-                                    }),
-                                  ],
-                                  alignment: AlignmentType.RIGHT,
-                                }),
-                              ],
-                              shading: { fill: "E0E7FF" },
-                            }),
-                          ],
-                        }),
-                      ],
-                    }),
-                  ]
+                  new Paragraph({
+                    text: `Detalle de deudores - ${tipSeleccionada}`,
+                    heading: HeadingLevel.HEADING_2,
+                    spacing: { before: 400, after: 200 },
+                  }),
+                  new DocxTable({
+                    width: { size: 100, type: WidthType.PERCENTAGE },
+                    rows: [
+                      new DocxTableRow({
+                        children: [
+                          new DocxTableCell({
+                            children: [
+                              new Paragraph({
+                                children: [
+                                  new TextRun({
+                                    text: "Ubicación",
+                                    bold: true,
+                                    color: "FFFFFF",
+                                  }),
+                                ],
+                              }),
+                            ],
+                            shading: { fill: "4F46E5" },
+                          }),
+                          new DocxTableCell({
+                            children: [
+                              new Paragraph({
+                                children: [
+                                  new TextRun({
+                                    text: "Deudor",
+                                    bold: true,
+                                    color: "FFFFFF",
+                                  }),
+                                ],
+                              }),
+                            ],
+                            shading: { fill: "4F46E5" },
+                          }),
+                          new DocxTableCell({
+                            children: [
+                              new Paragraph({
+                                children: [
+                                  new TextRun({
+                                    text: "Recaudo total",
+                                    bold: true,
+                                    color: "FFFFFF",
+                                  }),
+                                ],
+                                alignment: AlignmentType.RIGHT,
+                              }),
+                            ],
+                            shading: { fill: "4F46E5" },
+                          }),
+                          new DocxTableCell({
+                            children: [
+                              new Paragraph({
+                                children: [
+                                  new TextRun({
+                                    text: "Por recuperar",
+                                    bold: true,
+                                    color: "FFFFFF",
+                                  }),
+                                ],
+                                alignment: AlignmentType.RIGHT,
+                              }),
+                            ],
+                            shading: { fill: "4F46E5" },
+                          }),
+                        ],
+                      }),
+                      ...detalleTip.map(
+                        (fila) =>
+                          new DocxTableRow({
+                            children: [
+                              new DocxTableCell({
+                                children: [new Paragraph(fila.ubicacion)],
+                              }),
+                              new DocxTableCell({
+                                children: [new Paragraph(fila.nombre)],
+                              }),
+                              new DocxTableCell({
+                                children: [
+                                  new Paragraph({
+                                    text: formatCOP(fila.recaudoTotal),
+                                    alignment: AlignmentType.RIGHT,
+                                  }),
+                                ],
+                              }),
+                              new DocxTableCell({
+                                children: [
+                                  new Paragraph({
+                                    text: formatCOP(fila.porRecuperar),
+                                    alignment: AlignmentType.RIGHT,
+                                  }),
+                                ],
+                              }),
+                            ],
+                          })
+                      ),
+                      new DocxTableRow({
+                        children: [
+                          new DocxTableCell({
+                            children: [
+                              new Paragraph({
+                                children: [
+                                  new TextRun({
+                                    text: "Total",
+                                    bold: true,
+                                  }),
+                                ],
+                              }),
+                            ],
+                            shading: { fill: "E0E7FF" },
+                          }),
+                          new DocxTableCell({
+                            children: [
+                              new Paragraph({
+                                children: [
+                                  new TextRun({
+                                    text: totalesDetalle.inmuebles.toString(),
+                                    bold: true,
+                                  }),
+                                ],
+                                alignment: AlignmentType.RIGHT,
+                              }),
+                            ],
+                            shading: { fill: "E0E7FF" },
+                          }),
+                          new DocxTableCell({
+                            children: [
+                              new Paragraph({
+                                children: [
+                                  new TextRun({
+                                    text: formatCOP(totalesDetalle.recaudoTotal),
+                                    bold: true,
+                                  }),
+                                ],
+                                alignment: AlignmentType.RIGHT,
+                              }),
+                            ],
+                            shading: { fill: "E0E7FF" },
+                          }),
+                          new DocxTableCell({
+                            children: [
+                              new Paragraph({
+                                children: [
+                                  new TextRun({
+                                    text: formatCOP(totalesDetalle.porRecuperar),
+                                    bold: true,
+                                  }),
+                                ],
+                                alignment: AlignmentType.RIGHT,
+                              }),
+                            ],
+                            shading: { fill: "E0E7FF" },
+                          }),
+                        ],
+                      }),
+                    ],
+                  }),
+                ]
                 : []),
             ],
           },
@@ -1168,7 +1170,7 @@ export default function ReporteClientePage() {
             <ResponsiveContainer>
               <BarChart
                 data={bars}
-                margin={{ top: 10, right: 16, left: 0, bottom: 48 }}
+                margin={{ top: 40, right: 16, left: 0, bottom: 48 }}
               >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
@@ -1178,7 +1180,11 @@ export default function ReporteClientePage() {
                   tickMargin={8}
                   tick={<CustomXAxisTick />}
                 />
-                <YAxis width={100} tickFormatter={formatCOP} />
+                <YAxis
+                  width={100}
+                  tickFormatter={formatCOP}
+                  domain={[0, (dataMax: number) => Math.ceil(dataMax * 1.15)]} // 👈 15% extra
+                />
                 <Tooltip formatter={(v: any) => formatCOP(Number(v))} />
                 <Legend />
                 <Bar dataKey="total" name="Recaudo" fill="#4F46E5">

@@ -2,6 +2,7 @@
 import { db } from "@/firebase";
 import { collection, getDocs } from "firebase/firestore";
 import type { FilaReporte } from "./tipos";
+import { TipificacionDeuda } from "../../../../shared/constants/tipificacionDeuda";
 
 export async function obtenerReporteDeudoresPorAnio(
   clienteId: string,
@@ -14,8 +15,15 @@ export async function obtenerReporteDeudoresPorAnio(
 
   const filasPromises = deudoresSnap.docs.map(async (deudorDoc) => {
     const d = deudorDoc.data() as any;
+
+    const tipificacion = (d?.tipificacion ?? "").trim();
+
+    // ✅ EXCLUIR INACTIVOS (y opcionalmente vacíos)
+    if (tipificacion === TipificacionDeuda.INACTIVO) return null;
+    // si también quieres excluir “sin tipificación”:
+    // if (!tipificacion) return null;
+
     const nombre = d?.nombre ?? "";
-    const tipificacion = d?.tipificacion ?? "";
     const inmueble = d?.ubicacion ?? d?.inmueble ?? "";
 
     const estadosRef = collection(
@@ -24,41 +32,30 @@ export async function obtenerReporteDeudoresPorAnio(
     );
     const estadosSnap = await getDocs(estadosRef);
 
-    // Inicializar recaudado por mes
     const rec: Record<string, number> = {};
     for (let m = 1; m <= 12; m++) rec[String(m).padStart(2, "0")] = 0;
 
-    // 👇 este campo ahora será "Por Recaudar"
     let porRecaudar = 0;
-    let ultimoMesConDatos: string | null = null; // "YYYY-MM"
+    let ultimoMesConDatos: string | null = null;
 
     estadosSnap.forEach((mDoc) => {
       const data = mDoc.data() as { mes?: string; deuda?: number; recaudo?: number };
-      const mesId = (data.mes || mDoc.id || "").trim(); // "YYYY-MM"
-
-      // Solo meses del año seleccionado
+      const mesId = (data.mes || mDoc.id || "").trim();
       if (!mesId.startsWith(`${yearStr}-`)) return;
 
       const [, mm] = mesId.split("-");
       const deudaNum = Number(data.deuda ?? 0);
       const recVal = Number(data.recaudo ?? 0);
 
-      // Acumular recaudo mensual
-      if (Number.isFinite(recVal)) {
-        rec[mm] = (rec[mm] ?? 0) + recVal;
-      }
+      if (Number.isFinite(recVal)) rec[mm] = (rec[mm] ?? 0) + recVal;
 
-      // Determinar si este mes "tiene datos"
       const tieneDatos =
         (Number.isFinite(deudaNum) && deudaNum !== 0) ||
         (Number.isFinite(recVal) && recVal !== 0);
 
-      // Si tiene datos y es más reciente que el último que teníamos, lo tomamos
-      if (tieneDatos) {
-        if (!ultimoMesConDatos || mesId > ultimoMesConDatos) {
-          ultimoMesConDatos = mesId;
-          porRecaudar = Number.isFinite(deudaNum) ? deudaNum : 0;
-        }
+      if (tieneDatos && (!ultimoMesConDatos || mesId > ultimoMesConDatos)) {
+        ultimoMesConDatos = mesId;
+        porRecaudar = Number.isFinite(deudaNum) ? deudaNum : 0;
       }
     });
 
@@ -68,7 +65,6 @@ export async function obtenerReporteDeudoresPorAnio(
       tipificacion,
       inmueble,
       nombre,
-      // 👇 ahora significa "Por Recaudar" (último mes con datos)
       porRecaudar,
       rec_01: rec["01"],
       rec_02: rec["02"],
@@ -88,7 +84,10 @@ export async function obtenerReporteDeudoresPorAnio(
     return fila;
   });
 
-  const filas = await Promise.all(filasPromises);
+  const filasAll = await Promise.all(filasPromises);
+
+  // ✅ quitar nulls
+  const filas = filasAll.filter(Boolean) as FilaReporte[];
 
   filas.sort(
     (a, b) =>

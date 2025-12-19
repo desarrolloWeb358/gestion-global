@@ -63,7 +63,7 @@ export async function getClienteById(clienteId: string): Promise<Cliente | null>
 
 
 export const setUsuarioClinte = async (clienteId: string, uid: string | null) => {
-  const ref = doc(db, "clientes", clienteId); 
+  const ref = doc(db, "clientes", clienteId);
   await updateDoc(ref, { usuarioUid: uid });
 }
 // ===============================
@@ -79,6 +79,13 @@ export async function obtenerClientesPorUsuario(params: {
   roles: Rol[];
 }): Promise<Cliente[]> {
   const { uid, roles } = params;
+
+  // temporalmente pueden ver todos los clientes sin importar el rol
+  const qy = query(clientesRef, orderBy("nombre", "asc"));
+  const snap = await getDocs(qy);
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+
+  /* despues se habilita nuevamente el control por roles
 
   const isAdmin =
     roles.includes("admin") || roles.includes("ejecutivoAdmin");
@@ -128,6 +135,7 @@ export async function obtenerClientesPorUsuario(params: {
 
   // fallback: no roles que accedan a clientes
   return [];
+  */
 }
 
 export const listarClientesBasico = async (): Promise<ClienteOption[]> => {
@@ -205,7 +213,7 @@ export const eliminarCliente = async (id: string): Promise<void> => {
 export type ClienteView = Cliente & {
   usuario?: Pick<
     UsuarioSistema,
-    "uid" | "email" | "nombre"  | "tipoDocumento" | "numeroDocumento"
+    "uid" | "email" | "nombre" | "tipoDocumento" | "numeroDocumento"
   >;
 };
 
@@ -215,16 +223,16 @@ export function hidratarClientesConUsuarios(clientes: Cliente[], usuarios: Usuar
     const usuario = usuarios.find((u) => u.uid === uid);
     return usuario
       ? {
-          ...c,
-          usuario: {
-            uid: usuario.uid,
-            email: usuario.email,
-            nombre: usuario.nombre ?? "",
-            telefono: (usuario as any).telefono, // asegúrate que tu modelo tenga 'telefono'
-            tipoDocumento: (usuario as any).tipoDocumento,
-            numeroDocumento: (usuario as any).numeroDocumento,
-          },
-        }
+        ...c,
+        usuario: {
+          uid: usuario.uid,
+          email: usuario.email,
+          nombre: usuario.nombre ?? "",
+          telefono: (usuario as any).telefono, // asegúrate que tu modelo tenga 'telefono'
+          tipoDocumento: (usuario as any).tipoDocumento,
+          numeroDocumento: (usuario as any).numeroDocumento,
+        },
+      }
       : { ...c };
   });
 }

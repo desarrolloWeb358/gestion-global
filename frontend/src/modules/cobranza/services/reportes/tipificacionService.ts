@@ -42,6 +42,12 @@ export const CATEGORIAS: TipificacionKey[] = [
   // TipificacionDeuda.INACTIVO,
 ];
 
+const ES_CATEGORIA = new Set<TipificacionKey>(CATEGORIAS);
+
+function isCategoriaValida(cat: any): cat is TipificacionKey {
+  return ES_CATEGORIA.has(cat);
+}
+
 // --- helper interno para normalizar la tipificación de un deudor ---
 /*
 function normalizarTipificacion(rawTip?: string): TipificacionKey {
@@ -88,8 +94,12 @@ export async function contarTipificacionPorCliente(
 
   snap.forEach((doc) => {
     const data = doc.data() as { tipificacion?: string };
-    //const cat = normalizarTipificacion(data.tipificacion);
+
     const cat = data.tipificacion as TipificacionKey;
+
+    // ✅ Ignorar INACTIVO y cualquier cosa que no esté en CATEGORIAS
+    if (!isCategoriaValida(cat)) return;
+
     counts.set(cat, (counts.get(cat) || 0) + 1);
   });
 
@@ -126,15 +136,20 @@ export async function obtenerResumenPorTipificacion(
   );
 
   // primero definimos deudores con su categoría normalizada
-  const deudores = deudoresSnap.docs.map((doc) => {
-    const data = doc.data() as { tipificacion?: string };
-    //const cat = normalizarTipificacion(data.tipificacion);
-    const cat = data.tipificacion as TipificacionKey;
-    // ya contamos el inmueble
-    const acc = acumulado.get(cat)!;
-    acc.inmuebles += 1;
-    return { id: doc.id, cat };
-  });
+  const deudores = deudoresSnap.docs
+    .map((doc) => {
+      const data = doc.data() as { tipificacion?: string };
+      const cat = data.tipificacion as TipificacionKey;
+
+      // ✅ Ignorar INACTIVO / undefined / valores fuera de CATEGORIAS
+      if (!isCategoriaValida(cat)) return null;
+
+      const acc = acumulado.get(cat)!;
+      acc.inmuebles += 1;
+
+      return { id: doc.id, cat };
+    })
+    .filter(Boolean) as { id: string; cat: TipificacionKey }[];
 
   // luego leemos estadosMensuales de cada deudor en paralelo
   const estadosPromises = deudores.map(async ({ id, cat }) => {
@@ -213,10 +228,11 @@ export async function obtenerDetalleDeudoresPorTipificacion(
         ubicacion?: string;
       };
 
-      //const cat = normalizarTipificacion(data.tipificacion);
-      const cat = data.tipificacion as TipificacionKey;
 
+      const cat = data.tipificacion as TipificacionKey;
+      if (!isCategoriaValida(cat)) return null;
       if (cat !== tipificacion) return null;
+
 
       return {
         deudorId: doc.id,

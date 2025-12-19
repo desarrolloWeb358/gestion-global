@@ -132,7 +132,9 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
 
   dependiente: [
     PERMS.Clientes_Read,
-    PERMS.Deudores_Read,   
+    PERMS.Clientes_Edit,
+    PERMS.Deudores_Read, 
+    PERMS.Deudores_Edit,  
     PERMS.Seguimientos_Ejecutivos_Read,
     PERMS.Seguimientos_Dependientes_Read,
     PERMS.Seguimientos_Dependientes_Edit,
