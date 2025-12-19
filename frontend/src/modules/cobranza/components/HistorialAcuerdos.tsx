@@ -1,4 +1,5 @@
 // src/modules/cobranza/components/HistorialAcuerdos.tsx
+/*
 import { useState, useEffect } from "react";
 import { Clock, FileText, Eye, Download } from "lucide-react";
 import { Button } from "@/shared/ui/button";
@@ -18,9 +19,8 @@ import {
 } from "@/shared/ui/table";
 import { Typography } from "@/shared/design-system/components/Typography";
 import { cn } from "@/shared/lib/cn";
-import { obtenerHistorialAcuerdos, type HistorialAcuerdoPago } from "../services/acuerdoPagoService";
 import { toast } from "sonner";
-import { cambiarEstadoAcuerdo } from "../services/acuerdoPagoService";
+
 interface HistorialAcuerdosProps {
   clienteId: string;
   deudorId: string;
@@ -207,7 +207,7 @@ export default function HistorialAcuerdos({
         </DialogContent>
       </Dialog>
 
-      {/* Diálogo de detalle */}
+      {// Diálogo de detalle 
       {acuerdoSeleccionado && (
         <Dialog open={detalleOpen} onOpenChange={setDetalleOpen}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -218,7 +218,7 @@ export default function HistorialAcuerdos({
             </DialogHeader>
 
             <div className="space-y-6">
-              {/* Información básica */}
+              {// Información básica 
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <Typography variant="small" className="text-muted-foreground">
@@ -275,7 +275,7 @@ export default function HistorialAcuerdos({
                 </div>
               </div>
 
-              {/* Descripción */}
+              {// Descripción *
               {acuerdoSeleccionado.descripcion && (
                 <div className="space-y-2">
                   <Typography variant="small" className="text-muted-foreground font-medium">
@@ -287,7 +287,7 @@ export default function HistorialAcuerdos({
                 </div>
               )}
 
-              {/* Tabla de cuotas */}
+              {// Tabla de cuotas *
               {acuerdoSeleccionado.cuotas && acuerdoSeleccionado.cuotas.length > 0 && (
                 <div className="space-y-3">
                   <Typography variant="h3" className="!text-brand-secondary font-semibold">
@@ -343,7 +343,7 @@ export default function HistorialAcuerdos({
                 </div>
               )}
 
-              {/* Motivo del cambio */}
+              {// Motivo del cambio *
               {acuerdoSeleccionado.motivoCambio && (
                 <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
                   <Typography variant="small" className="text-blue-600 font-medium">
@@ -355,7 +355,7 @@ export default function HistorialAcuerdos({
                 </div>
               )}
 
-              {/* Archivo adjunto */}
+              {// Archivo adjunto *
               {acuerdoSeleccionado.archivoUrl && (
                 <div className="flex items-center gap-2">
                   <Button
@@ -375,3 +375,4 @@ export default function HistorialAcuerdos({
     </>
   );
 }
+  */

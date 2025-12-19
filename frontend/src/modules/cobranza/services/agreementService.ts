@@ -1,7 +1,7 @@
 // src/modules/cobranza/services/agreementService.ts
 import { doc, collection, writeBatch, getDocs } from "firebase/firestore";
 import { db } from "../../../firebase";
-import { Cuota, AcuerdoPago } from "../models/acuerdoPago.model";
+import { CuotaAcuerdo, AcuerdoPago } from "../models/acuerdoPago.model";
 
 /**
  * Guarda el acuerdo completo:
@@ -13,7 +13,7 @@ export async function guardarAcuerdoCompleto(
   clienteId: string,
   inmuebleId: string,
   metadata: AcuerdoPago, // metadatos SIN el array de cuotas
-  cuotas: Cuota[]
+  cuotas: CuotaAcuerdo[]
 ) {
   if (!clienteId || !inmuebleId) {
     throw new Error("clienteId e inmuebleId son obligatorios.");

@@ -14,7 +14,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../../../firebase";
 import { Deudor } from "../models/deudores.model";
-import { Cuota, AcuerdoPago } from "../models/acuerdoPago.model";
+import { AcuerdoPago } from "../models/acuerdoPago.model";
 import { EstadoMensual } from "../models/estadoMensual.model";
 import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 import type {
@@ -223,16 +223,17 @@ export async function eliminarDeudor(clienteId: string, deudorId: string): Promi
   await deleteDoc(ref);
 }
 
+/*
 // ------------ Acuerdos ------------
 export function mapDocToAcuerdoPago(id: string, data: DocumentData): AcuerdoPago {
   return {
     id,
     numero: data.numero ?? "",
-    fechaCreacion: data.fechaCreacion,
-    descripcion: data.descripcion ?? "",
-    valorTotal: Number(data.valorTotal ?? 0),
+    fechaCreacion: data.fechaCreacion,   
+    detalles: data.detalles ?? "", 
+    totalAcordado: Number(data.totalAcordado ?? 0),   
     porcentajeHonorarios: Number(data.porcentajeHonorarios ?? 0),
-    archivoUrl: data.archivoUrl,
+    //archivoUrl: data.archivoUrl,
     cuotas: Array.isArray(data.cuotas)
       ? data.cuotas.map((c: any) => ({
         numero: c.numero,
@@ -244,6 +245,7 @@ export function mapDocToAcuerdoPago(id: string, data: DocumentData): AcuerdoPago
       : [],
   };
 }
+  */
 
 export async function guardarAcuerdoPorReferencia(
   clienteId: string,
@@ -281,6 +283,7 @@ export async function guardarAcuerdoEnSubcoleccion(
   return acuerdoId;
 }
 
+/*
 export async function obtenerAcuerdoActivo(
   clienteId: string,
   deudorId: string,
@@ -290,6 +293,7 @@ export async function obtenerAcuerdoActivo(
   const snap = await getDoc(ref);
   return snap.exists() ? mapDocToAcuerdoPago(snap.id, snap.data()) : null;
 }
+*/
 
 // ------------ Estados Mensuales (sin tipificación) ------------
 
