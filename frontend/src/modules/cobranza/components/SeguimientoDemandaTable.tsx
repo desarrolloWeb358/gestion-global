@@ -170,12 +170,15 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
   });
   const [savingInfo, setSavingInfo] = React.useState(false);
 
+  const [esInterno, setEsInterno] = React.useState<boolean>(false);
+
   const resetForm = () => {
     setEdit(null);
     setConsecutivo("");
     setFecha(undefined);
     setDescripcion("");
     setArchivo(undefined);
+    setEsInterno(false);
     setSaving(false);
   };
 
@@ -237,10 +240,14 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
   }));
 
   const filteredSorted = React.useMemo(() => {
-    const arr = rows.filter((r) => inRange(tsToMillis(r.fecha), filters.fecha));
+    const arr = rows
+      .filter((r) => inRange(tsToMillis(r.fecha), filters.fecha))
+      .filter((r) => (isCliente ? !(r as any).esInterno : true)); // ✅ ocultar internos al cliente
+
     const dir = filters.order === "desc" ? -1 : 1;
     return arr.sort((a, b) => (tsToMillis(a.fecha) - tsToMillis(b.fecha)) * dir);
-  }, [rows, filters]);
+  }, [rows, filters, isCliente]);
+
 
   const openNew = () => { resetForm(); setOpen(true); };
 
@@ -253,6 +260,7 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
     setConsecutivo(row.consecutivo ?? "");
     setFecha(toDate(row.fecha));
     setDescripcion(row.descripcion ?? "");
+    setEsInterno(!!(row as any).esInterno);
     setArchivo(undefined);
     setOpen(true);
   };
@@ -277,6 +285,7 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
       consecutivo: consecutivo.trim(),
       fecha,
       descripcion: (descripcion || "").trim(),
+      esInterno,
     };
 
     try {
@@ -480,6 +489,12 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
                       <TableHead className="w-[140px] text-brand-secondary font-semibold">Consecutivo</TableHead>
                       <TableHead className="w-[140px] text-brand-secondary font-semibold">Fecha</TableHead>
                       <TableHead className="text-brand-secondary font-semibold">Descripción</TableHead>
+                      {!isCliente && (
+                        <TableHead className="w-[110px] text-brand-secondary font-semibold text-center">
+                          Interno
+                        </TableHead>
+                      )}
+
                       <TableHead className="w-[120px] text-brand-secondary font-semibold">Archivo</TableHead>
                       {puedeEditar && (
                         <TableHead className="w-[180px] text-center text-brand-secondary font-semibold">
@@ -493,6 +508,7 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
                     {filteredSorted.map((row, index) => {
                       const d = toDate(row.fecha);
                       const fechaStr = d ? fmt.format(d) : "—";
+                      const interno = !!(row as any).esInterno;
                       return (
                         <TableRow
                           key={row.id}
@@ -516,6 +532,18 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
                               {row.descripcion || "—"}
                             </div>
                           </TableCell>
+                          {!isCliente && (
+                            <TableCell className="text-center">
+                              <span
+                                className={cn(
+                                  "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold",
+                                  interno ? "bg-orange-100 text-orange-900" : "bg-gray-100 text-gray-700"
+                                )}
+                              >
+                                {interno ? "Sí" : "No"}
+                              </span>
+                            </TableCell>
+                          )}
                           <TableCell>
                             {row.archivoUrl ? (
                               <a
@@ -767,6 +795,28 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
                 </Popover>
               </div>
             </div>
+
+            <div className="space-y-2">
+              <Label className="text-brand-secondary font-medium">¿Es interno?</Label>
+
+              <Select
+                value={esInterno ? "si" : "no"}
+                onValueChange={(v) => setEsInterno(v === "si")}
+              >
+                <SelectTrigger className="w-full border-brand-secondary/30">
+                  <SelectValue placeholder="Selecciona" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="si">Sí</SelectItem>
+                  <SelectItem value="no">No</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <p className="text-xs text-muted-foreground">
+                Interno: visible para el equipo (no para cliente).
+              </p>
+            </div>
+
 
             <div className="space-y-2">
               <Label htmlFor="descripcion" className="text-brand-secondary font-medium">

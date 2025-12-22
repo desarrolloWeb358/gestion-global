@@ -29,6 +29,7 @@ export interface SeguimientoDemanda {
   consecutivo: string;
   fecha: Timestamp | Date;
   descripcion?: string;
+  esInterno?: boolean;
   archivoPath?: string;
   archivoUrl?: string;
 }
@@ -111,6 +112,7 @@ export async function addSeguimientoDemanda(
     clienteUID: clienteId,
     fecha: (data.fecha as any) ?? Timestamp.fromDate(new Date()),
     descripcion: data.descripcion,
+    esInterno: !!data.esInterno,
     ...(archivoPath ? { archivoPath } : {}),
     ...(archivoUrl ? { archivoUrl } : {}),
   });
@@ -148,6 +150,7 @@ export async function updateSeguimientoDemanda(
     consecutivo: data.consecutivo,
     fecha: data.fecha,
     descripcion: data.descripcion,
+    esInterno: !!data.esInterno,
   });
 
   const payloadArchivo = archivo
