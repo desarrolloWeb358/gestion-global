@@ -22,11 +22,10 @@ import {
 
 /** ============================================
  *  Modelo de Seguimiento de Demanda
- *  Campos: consecutivo, fecha, descripcion, archivoPath, archivoUrl
+ *  Campos: fecha, descripcion, archivoPath, archivoUrl
  *  ============================================ */
 export interface SeguimientoDemanda {
   id?: string;
-  consecutivo: string;
   fecha: Timestamp | Date;
   descripcion?: string;
   esInterno?: boolean;
@@ -106,7 +105,6 @@ export async function addSeguimientoDemanda(
 
   // se modifica para que reciba la fecha de creacion, ejecutivoUID y clienteUID
   const payload = stripUndefined({
-    consecutivo: data.consecutivo,
     fechaCreacion: Timestamp.fromDate(new Date()),
     ejecutivoUID: ejecutivoUID,
     clienteUID: clienteId,
@@ -147,7 +145,6 @@ export async function updateSeguimientoDemanda(
   }
 
   const payloadBase = stripUndefined({
-    consecutivo: data.consecutivo,
     fecha: data.fecha,
     descripcion: data.descripcion,
     esInterno: !!data.esInterno,

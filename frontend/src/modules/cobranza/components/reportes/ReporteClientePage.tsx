@@ -55,6 +55,10 @@ import {
   TipificacionKey,
 } from "../../services/reportes/tipificacionService";
 
+import SeguimientoDemandasClienteSection from "../../components/reportes/SeguimientoDemandasClienteSection";
+// ajusta la ruta según tu ubicación real del file ReporteClientePage.tsx
+
+
 import {
   Select,
   SelectTrigger,
@@ -1368,6 +1372,10 @@ export default function ReporteClientePage() {
           )}
         </div>
       </section>
+
+      {clienteId && (
+        <SeguimientoDemandasClienteSection clienteId={clienteId} />
+      )}
     </div>
   );
 }

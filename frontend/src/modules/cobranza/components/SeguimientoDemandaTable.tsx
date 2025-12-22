@@ -150,7 +150,6 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
 
   const [open, setOpen] = React.useState(false);
   const [edit, setEdit] = React.useState<SeguimientoDemanda | null>(null);
-  const [consecutivo, setConsecutivo] = React.useState("");
   const [fecha, setFecha] = React.useState<Date | undefined>(undefined);
   const [descripcion, setDescripcion] = React.useState("");
   const [archivo, setArchivo] = React.useState<File | undefined>(undefined);
@@ -174,7 +173,6 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
 
   const resetForm = () => {
     setEdit(null);
-    setConsecutivo("");
     setFecha(undefined);
     setDescripcion("");
     setArchivo(undefined);
@@ -257,7 +255,6 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
       return;
     }
     setEdit(row);
-    setConsecutivo(row.consecutivo ?? "");
     setFecha(toDate(row.fecha));
     setDescripcion(row.descripcion ?? "");
     setEsInterno(!!(row as any).esInterno);
@@ -272,17 +269,12 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
     }
     if (!clienteId || !deudorId) return;
     if (saving) return;
-    if (!consecutivo.trim()) {
-      toast.error("El consecutivo es obligatorio");
-      return;
-    }
     if (!fecha) {
       toast.error("La fecha es obligatoria");
       return;
     }
 
     const payload = {
-      consecutivo: consecutivo.trim(),
       fecha,
       descripcion: (descripcion || "").trim(),
       esInterno,
@@ -485,8 +477,7 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
               <div className="overflow-x-auto">
                 <Table className="min-w-[800px]">
                   <TableHeader className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5">
-                    <TableRow className="border-brand-secondary/10 hover:bg-transparent">
-                      <TableHead className="w-[140px] text-brand-secondary font-semibold">Consecutivo</TableHead>
+                    <TableRow className="border-brand-secondary/10 hover:bg-transparent">                      
                       <TableHead className="w-[140px] text-brand-secondary font-semibold">Fecha</TableHead>
                       <TableHead className="text-brand-secondary font-semibold">Descripción</TableHead>
                       {!isCliente && (
@@ -518,12 +509,7 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
                             "hover:bg-brand-primary/5"
                           )}
                         >
-                          <TableCell>
-                            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-secondary">
-                              <Hash className="h-3.5 w-3.5" />
-                              {row.consecutivo || "—"}
-                            </span>
-                          </TableCell>
+                          
                           <TableCell className="text-gray-700 font-medium">
                             {fechaStr}
                           </TableCell>
@@ -756,19 +742,7 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
 
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="consecutivo" className="text-brand-secondary font-medium">
-                  Consecutivo *
-                </Label>
-                <Input
-                  id="consecutivo"
-                  value={consecutivo}
-                  onChange={(e) => setConsecutivo(e.target.value)}
-                  placeholder="Ej: 001"
-                  className="border-brand-secondary/30"
-                />
-              </div>
-
+              
               <div className="space-y-2">
                 <Label className="text-brand-secondary font-medium">Fecha *</Label>
                 <Popover>
