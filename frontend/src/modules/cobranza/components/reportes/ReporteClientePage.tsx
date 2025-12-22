@@ -35,12 +35,7 @@ import {
   Download,
   FileDown,
 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/shared/ui/dropdown-menu";
+
 import TablaDeudoresReporte from "./TablaDeudoresReporte";
 import { Typography } from "@/shared/design-system/components/Typography";
 import { cn } from "@/shared/lib/cn";
@@ -56,8 +51,6 @@ import {
 } from "../../services/reportes/tipificacionService";
 
 import SeguimientoDemandasClienteSection from "../../components/reportes/SeguimientoDemandasClienteSection";
-// ajusta la ruta según tu ubicación real del file ReporteClientePage.tsx
-
 
 import {
   Select,
@@ -78,12 +71,22 @@ import {
 
 import { obtenerRecaudosMensuales, MesTotal } from "../../services/reportes/recaudosService";
 
-// Imports para generación de reportes
+// PDF
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import { Document, Packer, Paragraph, Table as DocxTable, TableCell as DocxTableCell, TableRow as DocxTableRow, WidthType, AlignmentType, HeadingLevel, TextRun } from "docx";
+
+// Word (nuevo servicio)
 import { saveAs } from "file-saver";
 import { toast } from "sonner";
+import {
+  buildReporteClienteDocx,
+  formatFechaLargaES,
+} from "../../services/reportes/reporteClienteWord";
+
+// Servicios para data adicional (ya existen por tus componentes)
+import { obtenerDemandasConSeguimientoCliente } from "../../services/reportes/seguimientoDemandaService";
+import { obtenerReporteDeudoresPorAnio } from "../../services/reportes/reporteDeudoresService";
+import type { FilaReporte } from "../../services/reportes/tipos";
 
 const COLORS = [
   "#4F46E5",
@@ -101,7 +104,6 @@ const DETALLE_ROW_H = 44;
 const DETALLE_HEADER_H = 40;
 const DETALLE_CONTAINER_H = DETALLE_HEADER_H + DETALLE_ROW_H * DETALLE_VISIBLE_ROWS;
 
-// Tick de eje X rotado -45°
 const CustomXAxisTick = (props: any) => {
   const { x, y, payload } = props;
   return (
@@ -120,83 +122,54 @@ const CustomXAxisTick = (props: any) => {
   );
 };
 
-// Etiqueta arriba de cada barra con formato COP
-const BarValueLabel = (props: any) => {
-  const { x, y, width, value } = props;
-  if (value == null) return null;
-
-  const cx = x + width / 2;
-  const cy = Math.max(12, y - 6); // 👈 nunca subir más allá del borde superior
-
-  return (
-    <text x={cx} y={cy} textAnchor="middle" style={{ fontSize: 12 }}>
-      {formatCOP(Number(value))}
-    </text>
-  );
-};
-
 const formatCOP = (v: number) => `$ ${v.toLocaleString("es-CO")}`;
 
-// "YYYY-MM" -> "Mes" (enero, febrero, …)
+// "YYYY-MM" -> "Mes"
 function monthNameES(ym: string) {
   const [y, mm] = ym.split("-");
   const d = new Date(Number(y), Number(mm) - 1, 1);
   return d.toLocaleDateString("es-CO", { month: "long" });
 }
 
-// Función mejorada para capturar SVG
+// ===== Captura SVG->PNG (la tuya) =====
 const capturarGraficoSVG = async (elemento: HTMLElement): Promise<string | null> => {
   try {
-    // Buscar el SVG dentro del elemento
     const svgElement = elemento.querySelector("svg");
-    if (!svgElement) {
-      console.warn("No se encontró elemento SVG");
-      return null;
-    }
+    if (!svgElement) return null;
 
-    // Clonar el SVG para manipularlo sin afectar el original
     const svgClone = svgElement.cloneNode(true) as SVGElement;
 
-    // Asegurar que tenga dimensiones
     const bbox = svgElement.getBoundingClientRect();
     svgClone.setAttribute("width", bbox.width.toString());
     svgClone.setAttribute("height", bbox.height.toString());
 
-    // Convertir SVG a string
     const svgString = new XMLSerializer().serializeToString(svgClone);
     const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
 
-    // Crear un canvas temporal
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
 
-    // Configurar tamaño del canvas con mejor calidad
     const scale = 2;
     canvas.width = bbox.width * scale;
     canvas.height = bbox.height * scale;
     ctx.scale(scale, scale);
 
-    // Crear imagen desde el blob
     const url = URL.createObjectURL(svgBlob);
     const img = new Image();
 
     return new Promise((resolve) => {
       img.onload = () => {
-        // Dibujar fondo blanco
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Dibujar la imagen
         ctx.drawImage(img, 0, 0, bbox.width, bbox.height);
         URL.revokeObjectURL(url);
 
-        // Convertir a data URL
         resolve(canvas.toDataURL("image/png"));
       };
 
       img.onerror = () => {
-        console.error("Error al cargar imagen SVG");
         URL.revokeObjectURL(url);
         resolve(null);
       };
@@ -220,14 +193,15 @@ export default function ReporteClientePage() {
 
   const [resumenTip, setResumenTip] = useState<ResumenTipificacion[]>([]);
 
-  // tipificación seleccionada en el combo
   const [tipSeleccionada, setTipSeleccionada] = useState<TipificacionKey | "">("");
-
-  // detalle de deudores para esa tipificación
   const [detalleTip, setDetalleTip] = useState<DeudorTipificacionDetalle[]>([]);
   const [loadingDetalle, setLoadingDetalle] = useState(false);
 
-  // Referencias para los gráficos
+  // año tabla anual (para Word y para que te quede controlado si luego lo quieres sincronizar)
+  const hoy = new Date();
+  const [yearTabla] = useState<number>(hoy.getFullYear());
+
+  // refs gráficos
   const pieChartRef = useRef<HTMLDivElement>(null);
   const barChartRef = useRef<HTMLDivElement>(null);
 
@@ -236,7 +210,6 @@ export default function ReporteClientePage() {
     [resumenTip]
   );
 
-  // pieData + color fijo por item
   const pieWithColors = useMemo(
     () =>
       pieData.map((d, i) => ({
@@ -288,7 +261,6 @@ export default function ReporteClientePage() {
     })();
   }, [clienteId, tipSeleccionada]);
 
-  // Cuando cambie el resumen, escoger tipificación por defecto
   useEffect(() => {
     if (!resumenFiltrado.length) return;
 
@@ -311,8 +283,7 @@ export default function ReporteClientePage() {
   }, [resumenFiltrado]);
 
   const chartData = useMemo(
-    () =>
-      pieWithColors.filter((d) => d.value > 0).sort((a, b) => b.value - a.value),
+    () => pieWithColors.filter((d) => d.value > 0).sort((a, b) => b.value - a.value),
     [pieWithColors]
   );
 
@@ -350,621 +321,101 @@ export default function ReporteClientePage() {
     return `${name} ${(percent * 100).toFixed(0)}%`;
   };
 
-  // Función para descargar en PDF
-  const handleDownloadPDF = async () => {
-    try {
-      setDownloading(true);
-      toast.info("Generando PDF...");
+  
 
-      const pdf = new jsPDF("p", "mm", "a4");
-      let yPosition = 20;
-
-      // Título
-      pdf.setFontSize(20);
-      pdf.setTextColor(79, 70, 229);
-      pdf.text("Reporte de Cliente", 105, yPosition, { align: "center" });
-      yPosition += 10;
-
-      pdf.setFontSize(10);
-      pdf.setTextColor(100, 100, 100);
-      pdf.text("Análisis de tipificación y recaudo mensual", 105, yPosition, { align: "center" });
-      yPosition += 15;
-
-      // Resumen por tipificación
-      pdf.setFontSize(14);
-      pdf.setTextColor(0, 0, 0);
-      pdf.text("Resumen por tipificación", 14, yPosition);
-      yPosition += 8;
-
-      const resumenData = resumenFiltrado.map((fila) => [
-        fila.tipificacion,
-        fila.inmuebles.toLocaleString("es-CO"),
-        formatCOP(fila.recaudoTotal),
-        formatCOP(fila.porRecuperar),
-      ]);
-
-      resumenData.push([
-        "Total",
-        totalesResumen.inmuebles.toLocaleString("es-CO"),
-        formatCOP(totalesResumen.recaudoTotal),
-        formatCOP(totalesResumen.porRecuperar),
-      ]);
-
-      autoTable(pdf, {
-        head: [["Tipificación", "Inmueble", "Recaudo total", "Por recuperar"]],
-        body: resumenData,
-        startY: yPosition,
-        headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255] },
-        styles: { fontSize: 9 },
-        columnStyles: {
-          1: { halign: "right" },
-          2: { halign: "right" },
-          3: { halign: "right" },
-        },
-        alternateRowStyles: { fillColor: [249, 250, 251] },
-      });
-
-      yPosition = (pdf as any).lastAutoTable.finalY + 15;
-
-      // Capturar y agregar gráfico de pie
-      if (pieChartRef.current) {
-        pdf.addPage();
-        yPosition = 20;
-        pdf.setFontSize(14);
-        pdf.setTextColor(0, 0, 0);
-        pdf.text("Tipificación de inmuebles", 14, yPosition);
-        yPosition += 10;
-
-        toast.info("Capturando gráfico de tipificación...");
-        const pieImgData = await capturarGraficoSVG(pieChartRef.current);
-
-        if (pieImgData) {
-          pdf.addImage(pieImgData, "PNG", 14, yPosition, 180, 100);
-          yPosition += 110;
-        } else {
-          pdf.setFontSize(10);
-          pdf.setTextColor(150, 150, 150);
-          pdf.text("(Gráfico no disponible en el PDF)", 14, yPosition);
-          yPosition += 10;
-        }
-      }
-
-      // Capturar y agregar gráfico de barras
-      if (barChartRef.current) {
-        if (yPosition > 200) {
-          pdf.addPage();
-          yPosition = 20;
-        }
-        pdf.setFontSize(14);
-        pdf.setTextColor(0, 0, 0);
-        pdf.text("Recaudo mes a mes", 14, yPosition);
-        yPosition += 10;
-
-        toast.info("Capturando gráfico de recaudo...");
-        const barImgData = await capturarGraficoSVG(barChartRef.current);
-
-        if (barImgData) {
-          pdf.addImage(barImgData, "PNG", 14, yPosition, 180, 100);
-          yPosition += 110;
-        } else {
-          pdf.setFontSize(10);
-          pdf.setTextColor(150, 150, 150);
-          pdf.text("(Gráfico no disponible en el PDF)", 14, yPosition);
-          yPosition += 10;
-        }
-      }
-
-      // Tabla de recaudo mensual (alternativa textual)
-      pdf.addPage();
-      yPosition = 20;
-      pdf.setFontSize(14);
-      pdf.setTextColor(0, 0, 0);
-      pdf.text("Recaudo mensual detallado", 14, yPosition);
-      yPosition += 8;
-
-      const recaudoData = bars.map((bar) => [
-        bar.nombreMes.charAt(0).toUpperCase() + bar.nombreMes.slice(1),
-        formatCOP(bar.total),
-      ]);
-
-      autoTable(pdf, {
-        head: [["Mes", "Recaudo"]],
-        body: recaudoData,
-        startY: yPosition,
-        headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255] },
-        styles: { fontSize: 9 },
-        columnStyles: {
-          0: { cellWidth: 80 },
-          1: { halign: "right" },
-        },
-        alternateRowStyles: { fillColor: [249, 250, 251] },
-      });
-
-      // Detalle de deudores por tipificación
-      if (detalleTip.length > 0) {
-        pdf.addPage();
-        yPosition = 20;
-        pdf.setFontSize(14);
-        pdf.setTextColor(0, 0, 0);
-        pdf.text(`Detalle de deudores - ${tipSeleccionada}`, 14, yPosition);
-        yPosition += 8;
-
-        const detalleData = detalleTip.map((fila) => [
-          fila.ubicacion,
-          fila.nombre,
-          formatCOP(fila.recaudoTotal),
-          formatCOP(fila.porRecuperar),
-        ]);
-
-        detalleData.push([
-          "Total",
-          `${totalesDetalle.inmuebles} inmuebles`,
-          formatCOP(totalesDetalle.recaudoTotal),
-          formatCOP(totalesDetalle.porRecuperar),
-        ]);
-
-        autoTable(pdf, {
-          head: [["Ubicación", "Deudor", "Recaudo total", "Por recuperar"]],
-          body: detalleData,
-          startY: yPosition,
-          headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255] },
-          styles: { fontSize: 8, cellPadding: 2 },
-          columnStyles: {
-            0: { cellWidth: 25 },
-            1: { cellWidth: 70 },
-            2: { halign: "right", cellWidth: 45 },
-            3: { halign: "right", cellWidth: 45 },
-          },
-          alternateRowStyles: { fillColor: [249, 250, 251] },
-        });
-      }
-
-      pdf.save(`reporte-cliente-${new Date().toISOString().split("T")[0]}.pdf`);
-      toast.success("PDF descargado correctamente");
-    } catch (error) {
-      console.error("Error al generar PDF:", error);
-      toast.error("Error al generar el PDF");
-    } finally {
-      setDownloading(false);
-    }
-  };
-
-  // Función para descargar en Word
+  // ======= WORD (NUEVO: con TODO y estilo INFORME) =======
   const handleDownloadWord = async () => {
+    if (!clienteId) return;
+
     try {
       setDownloading(true);
       toast.info("Generando documento Word...");
 
-      const doc = new Document({
-        sections: [
-          {
-            properties: {},
-            children: [
-              // Título
-              new Paragraph({
-                text: "Reporte de Cliente",
-                heading: HeadingLevel.HEADING_1,
-                alignment: AlignmentType.CENTER,
-                spacing: { after: 200 },
-              }),
-              new Paragraph({
-                text: "Análisis de tipificación y recaudo mensual",
-                alignment: AlignmentType.CENTER,
-                spacing: { after: 400 },
-              }),
+      // 1) Capturar gráficos como PNG (nítido)
+      const piePng = pieChartRef.current ? await capturarGraficoSVG(pieChartRef.current) : null;
+      const barPng = barChartRef.current ? await capturarGraficoSVG(barChartRef.current) : null;
 
-              // Sección: Resumen por tipificación
-              new Paragraph({
-                text: "Resumen por tipificación",
-                heading: HeadingLevel.HEADING_2,
-                spacing: { before: 300, after: 200 },
-              }),
+      // 2) Traer data adicional (misma que ve la página)
+      // Seguimiento demandas
+      const demandasRaw = await obtenerDemandasConSeguimientoCliente(clienteId);
 
-              // Tabla de resumen
-              new DocxTable({
-                width: { size: 100, type: WidthType.PERCENTAGE },
-                rows: [
-                  // Header
-                  new DocxTableRow({
-                    children: [
-                      new DocxTableCell({
-                        children: [
-                          new Paragraph({
-                            children: [
-                              new TextRun({
-                                text: "Tipificación",
-                                bold: true,
-                                color: "FFFFFF",
-                              }),
-                            ],
-                          }),
-                        ],
-                        shading: { fill: "4F46E5" },
-                      }),
-                      new DocxTableCell({
-                        children: [
-                          new Paragraph({
-                            children: [
-                              new TextRun({
-                                text: "Inmueble",
-                                bold: true,
-                                color: "FFFFFF",
-                              }),
-                            ],
-                            alignment: AlignmentType.RIGHT,
-                          }),
-                        ],
-                        shading: { fill: "4F46E5" },
-                      }),
-                      new DocxTableCell({
-                        children: [
-                          new Paragraph({
-                            children: [
-                              new TextRun({
-                                text: "Recaudo total",
-                                bold: true,
-                                color: "FFFFFF",
-                              }),
-                            ],
-                            alignment: AlignmentType.RIGHT,
-                          }),
-                        ],
-                        shading: { fill: "4F46E5" },
-                      }),
-                      new DocxTableCell({
-                        children: [
-                          new Paragraph({
-                            children: [
-                              new TextRun({
-                                text: "Por recuperar",
-                                bold: true,
-                                color: "FFFFFF",
-                              }),
-                            ],
-                            alignment: AlignmentType.RIGHT,
-                          }),
-                        ],
-                        shading: { fill: "4F46E5" },
-                      }),
-                    ],
-                  }),
-                  // Datos
-                  ...resumenFiltrado.map(
-                    (fila) =>
-                      new DocxTableRow({
-                        children: [
-                          new DocxTableCell({
-                            children: [new Paragraph(fila.tipificacion)],
-                          }),
-                          new DocxTableCell({
-                            children: [
-                              new Paragraph({
-                                text: fila.inmuebles.toLocaleString("es-CO"),
-                                alignment: AlignmentType.RIGHT,
-                              }),
-                            ],
-                          }),
-                          new DocxTableCell({
-                            children: [
-                              new Paragraph({
-                                text: formatCOP(fila.recaudoTotal),
-                                alignment: AlignmentType.RIGHT,
-                              }),
-                            ],
-                          }),
-                          new DocxTableCell({
-                            children: [
-                              new Paragraph({
-                                text: formatCOP(fila.porRecuperar),
-                                alignment: AlignmentType.RIGHT,
-                              }),
-                            ],
-                          }),
-                        ],
-                      })
-                  ),
-                  // Total
-                  new DocxTableRow({
-                    children: [
-                      new DocxTableCell({
-                        children: [
-                          new Paragraph({
-                            children: [
-                              new TextRun({
-                                text: "Total",
-                                bold: true,
-                              }),
-                            ],
-                          }),
-                        ],
-                        shading: { fill: "E0E7FF" },
-                      }),
-                      new DocxTableCell({
-                        children: [
-                          new Paragraph({
-                            children: [
-                              new TextRun({
-                                text: totalesResumen.inmuebles.toLocaleString("es-CO"),
-                                bold: true,
-                              }),
-                            ],
-                            alignment: AlignmentType.RIGHT,
-                          }),
-                        ],
-                        shading: { fill: "E0E7FF" },
-                      }),
-                      new DocxTableCell({
-                        children: [
-                          new Paragraph({
-                            children: [
-                              new TextRun({
-                                text: formatCOP(totalesResumen.recaudoTotal),
-                                bold: true,
-                              }),
-                            ],
-                            alignment: AlignmentType.RIGHT,
-                          }),
-                        ],
-                        shading: { fill: "E0E7FF" },
-                      }),
-                      new DocxTableCell({
-                        children: [
-                          new Paragraph({
-                            children: [
-                              new TextRun({
-                                text: formatCOP(totalesResumen.porRecuperar),
-                                bold: true,
-                              }),
-                            ],
-                            alignment: AlignmentType.RIGHT,
-                          }),
-                        ],
-                        shading: { fill: "E0E7FF" },
-                      }),
-                    ],
-                  }),
-                ],
-              }),
+      // Tabla anual
+      const tablaAnualRaw: FilaReporte[] = await obtenerReporteDeudoresPorAnio(clienteId, yearTabla);
 
-              // Sección: Recaudo mes a mes
-              new Paragraph({
-                text: "Recaudo mes a mes",
-                heading: HeadingLevel.HEADING_2,
-                spacing: { before: 400, after: 200 },
-              }),
+      // 3) Mapear a formato Word (mismo orden de tu UI: seguimientos DESC + observación al final)
+      const demandasWord = demandasRaw.map((d) => {
+        const seguimientosOrdenados = [...d.seguimientos]
+          .sort((a, b) => {
+            const fa = a.fecha ? a.fecha.getTime() : 0;
+            const fb = b.fecha ? b.fecha.getTime() : 0;
+            return fb - fa; // DESC (más reciente primero)
+          })
+          .map((s) => ({
+            fecha: s.fecha
+              ? `${String(s.fecha.getDate()).padStart(2, "0")}/${String(s.fecha.getMonth() + 1).padStart(2, "0")}/${s.fecha.getFullYear()}`
+              : null,
+            texto: s.descripcion || "Sin descripción",
+          }));
 
-              new DocxTable({
-                width: { size: 100, type: WidthType.PERCENTAGE },
-                rows: [
-                  new DocxTableRow({
-                    children: [
-                      new DocxTableCell({
-                        children: [
-                          new Paragraph({
-                            children: [
-                              new TextRun({
-                                text: "Mes",
-                                bold: true,
-                                color: "FFFFFF",
-                              }),
-                            ],
-                          }),
-                        ],
-                        shading: { fill: "4F46E5" },
-                      }),
-                      new DocxTableCell({
-                        children: [
-                          new Paragraph({
-                            children: [
-                              new TextRun({
-                                text: "Recaudo",
-                                bold: true,
-                                color: "FFFFFF",
-                              }),
-                            ],
-                            alignment: AlignmentType.RIGHT,
-                          }),
-                        ],
-                        shading: { fill: "4F46E5" },
-                      }),
-                    ],
-                  }),
-                  ...bars.map(
-                    (bar) =>
-                      new DocxTableRow({
-                        children: [
-                          new DocxTableCell({
-                            children: [new Paragraph(bar.nombreMes)],
-                          }),
-                          new DocxTableCell({
-                            children: [
-                              new Paragraph({
-                                text: formatCOP(bar.total),
-                                alignment: AlignmentType.RIGHT,
-                              }),
-                            ],
-                          }),
-                        ],
-                      })
-                  ),
-                ],
-              }),
-
-              // Detalle de deudores
-              ...(detalleTip.length > 0
-                ? [
-                  new Paragraph({
-                    text: `Detalle de deudores - ${tipSeleccionada}`,
-                    heading: HeadingLevel.HEADING_2,
-                    spacing: { before: 400, after: 200 },
-                  }),
-                  new DocxTable({
-                    width: { size: 100, type: WidthType.PERCENTAGE },
-                    rows: [
-                      new DocxTableRow({
-                        children: [
-                          new DocxTableCell({
-                            children: [
-                              new Paragraph({
-                                children: [
-                                  new TextRun({
-                                    text: "Ubicación",
-                                    bold: true,
-                                    color: "FFFFFF",
-                                  }),
-                                ],
-                              }),
-                            ],
-                            shading: { fill: "4F46E5" },
-                          }),
-                          new DocxTableCell({
-                            children: [
-                              new Paragraph({
-                                children: [
-                                  new TextRun({
-                                    text: "Deudor",
-                                    bold: true,
-                                    color: "FFFFFF",
-                                  }),
-                                ],
-                              }),
-                            ],
-                            shading: { fill: "4F46E5" },
-                          }),
-                          new DocxTableCell({
-                            children: [
-                              new Paragraph({
-                                children: [
-                                  new TextRun({
-                                    text: "Recaudo total",
-                                    bold: true,
-                                    color: "FFFFFF",
-                                  }),
-                                ],
-                                alignment: AlignmentType.RIGHT,
-                              }),
-                            ],
-                            shading: { fill: "4F46E5" },
-                          }),
-                          new DocxTableCell({
-                            children: [
-                              new Paragraph({
-                                children: [
-                                  new TextRun({
-                                    text: "Por recuperar",
-                                    bold: true,
-                                    color: "FFFFFF",
-                                  }),
-                                ],
-                                alignment: AlignmentType.RIGHT,
-                              }),
-                            ],
-                            shading: { fill: "4F46E5" },
-                          }),
-                        ],
-                      }),
-                      ...detalleTip.map(
-                        (fila) =>
-                          new DocxTableRow({
-                            children: [
-                              new DocxTableCell({
-                                children: [new Paragraph(fila.ubicacion)],
-                              }),
-                              new DocxTableCell({
-                                children: [new Paragraph(fila.nombre)],
-                              }),
-                              new DocxTableCell({
-                                children: [
-                                  new Paragraph({
-                                    text: formatCOP(fila.recaudoTotal),
-                                    alignment: AlignmentType.RIGHT,
-                                  }),
-                                ],
-                              }),
-                              new DocxTableCell({
-                                children: [
-                                  new Paragraph({
-                                    text: formatCOP(fila.porRecuperar),
-                                    alignment: AlignmentType.RIGHT,
-                                  }),
-                                ],
-                              }),
-                            ],
-                          })
-                      ),
-                      new DocxTableRow({
-                        children: [
-                          new DocxTableCell({
-                            children: [
-                              new Paragraph({
-                                children: [
-                                  new TextRun({
-                                    text: "Total",
-                                    bold: true,
-                                  }),
-                                ],
-                              }),
-                            ],
-                            shading: { fill: "E0E7FF" },
-                          }),
-                          new DocxTableCell({
-                            children: [
-                              new Paragraph({
-                                children: [
-                                  new TextRun({
-                                    text: totalesDetalle.inmuebles.toString(),
-                                    bold: true,
-                                  }),
-                                ],
-                                alignment: AlignmentType.RIGHT,
-                              }),
-                            ],
-                            shading: { fill: "E0E7FF" },
-                          }),
-                          new DocxTableCell({
-                            children: [
-                              new Paragraph({
-                                children: [
-                                  new TextRun({
-                                    text: formatCOP(totalesDetalle.recaudoTotal),
-                                    bold: true,
-                                  }),
-                                ],
-                                alignment: AlignmentType.RIGHT,
-                              }),
-                            ],
-                            shading: { fill: "E0E7FF" },
-                          }),
-                          new DocxTableCell({
-                            children: [
-                              new Paragraph({
-                                children: [
-                                  new TextRun({
-                                    text: formatCOP(totalesDetalle.porRecuperar),
-                                    bold: true,
-                                  }),
-                                ],
-                                alignment: AlignmentType.RIGHT,
-                              }),
-                            ],
-                            shading: { fill: "E0E7FF" },
-                          }),
-                        ],
-                      }),
-                    ],
-                  }),
-                ]
-                : []),
-            ],
-          },
-        ],
+        return {
+          ubicacion: d.ubicacion || "Sin ubicación",
+          demandados: d.demandados || "",
+          numeroRadicado: d.numeroRadicado || "",
+          juzgado: d.juzgado || "",
+          observacionCliente: d.observacionCliente || "",
+          seguimientos: seguimientosOrdenados,
+        };
       });
 
-      const blob = await Packer.toBlob(doc);
+      // 4) Construir docx bonito (tipo INFORME)
+      const blob = await buildReporteClienteDocx({
+        ciudad: "Bogotá D.C.",
+        fechaGeneracion: new Date(),
+        clienteNombre: "Reporte de Cliente", // si tienes nombre real del cliente, aquí lo pones
+
+        resumenTipificacion: resumenFiltrado.map((r) => ({
+          tipificacion: r.tipificacion,
+          inmuebles: r.inmuebles,
+          recaudoTotal: r.recaudoTotal,
+          porRecuperar: r.porRecuperar,
+        })),
+        totalesResumen,
+
+        recaudosMensuales: bars.map((b) => ({
+          mesLabel: b.nombreMes.charAt(0).toUpperCase() + b.nombreMes.slice(1),
+          total: b.total,
+        })),
+
+        tipSeleccionada: tipSeleccionada || undefined,
+        detalleTip: detalleTip.map((d) => ({
+          ubicacion: d.ubicacion,
+          nombre: d.nombre,
+          recaudoTotal: d.recaudoTotal,
+          porRecuperar: d.porRecuperar,
+        })),
+        totalesDetalle,
+
+        yearTabla,
+        tablaDeudoresAnual: tablaAnualRaw.map((r) => ({
+          tipificacion: r.tipificacion,
+          inmueble: r.inmueble,
+          nombre: r.nombre,
+          porRecaudar: r.porRecaudar,
+          rec_01: r.rec_01, rec_02: r.rec_02, rec_03: r.rec_03, rec_04: r.rec_04, rec_05: r.rec_05, rec_06: r.rec_06,
+          rec_07: r.rec_07, rec_08: r.rec_08, rec_09: r.rec_09, rec_10: r.rec_10, rec_11: r.rec_11, rec_12: r.rec_12,
+          recaudoTotal: r.recaudoTotal,
+        })),
+
+        demandas: demandasWord,
+
+        pieChartPngDataUrl: piePng ?? undefined,
+        barChartPngDataUrl: barPng ?? undefined,
+      });
+
       saveAs(blob, `reporte-cliente-${new Date().toISOString().split("T")[0]}.docx`);
       toast.success("Documento Word descargado correctamente");
     } catch (error) {
-      console.error("Error al generar Word:", error);
+      console.error("Error Word:", error);
       toast.error("Error al generar el documento Word");
     } finally {
       setDownloading(false);
@@ -999,37 +450,25 @@ export default function ReporteClientePage() {
           Volver
         </Button>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="brand"
-              disabled={downloading}
-              className="gap-2 shadow-md hover:shadow-lg transition-all"
-            >
-              {downloading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Generando...
-                </>
-              ) : (
-                <>
-                  <Download className="h-4 w-4" />
-                  Descargar reporte
-                </>
-              )}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={handleDownloadPDF}>
-              <FileDown className="h-4 w-4 mr-2" />
-              Descargar como PDF
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleDownloadWord}>
-              <FileText className="h-4 w-4 mr-2" />
-              Descargar como Word
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <Button
+          variant="brand"
+          disabled={downloading}
+          onClick={handleDownloadWord}
+          className="gap-2 shadow-md hover:shadow-lg transition-all"
+        >
+          {downloading ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Generando Word...
+            </>
+          ) : (
+            <>
+              <FileText className="h-4 w-4" />
+              Descargar reporte (Word)
+            </>
+          )}
+        </Button>
+
       </div>
 
       {/* Header */}
@@ -1105,7 +544,6 @@ export default function ReporteClientePage() {
                   </TableRow>
                 ))}
 
-                {/* fila total */}
                 <TableRow className="font-semibold bg-gradient-to-r from-brand-primary/10 to-brand-secondary/10 border-t-2 border-brand-primary/20">
                   <TableCell className="text-brand-secondary">Total</TableCell>
                   <TableCell className="text-right text-brand-secondary">
@@ -1172,10 +610,7 @@ export default function ReporteClientePage() {
         <div className="p-4 md:p-5">
           <div ref={barChartRef} className="h-[340px]">
             <ResponsiveContainer>
-              <BarChart
-                data={bars}
-                margin={{ top: 40, right: 16, left: 0, bottom: 48 }}
-              >
+              <BarChart data={bars} margin={{ top: 40, right: 16, left: 0, bottom: 48 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
                   dataKey="nombreMes"
@@ -1187,12 +622,22 @@ export default function ReporteClientePage() {
                 <YAxis
                   width={100}
                   tickFormatter={formatCOP}
-                  domain={[0, (dataMax: number) => Math.ceil(dataMax * 1.15)]} // 👈 15% extra
+                  domain={[0, (dataMax: number) => Math.ceil(dataMax * 1.15)]}
                 />
                 <Tooltip formatter={(v: any) => formatCOP(Number(v))} />
                 <Legend />
                 <Bar dataKey="total" name="Recaudo" fill="#4F46E5">
-                  <LabelList dataKey="total" content={<BarValueLabel />} />
+                  <LabelList dataKey="total" content={(props: any) => {
+                    const { x, y, width, value } = props;
+                    if (value == null) return null;
+                    const cx = x + width / 2;
+                    const cy = Math.max(12, y - 6);
+                    return (
+                      <text x={cx} y={cy} textAnchor="middle" style={{ fontSize: 12 }}>
+                        {formatCOP(Number(value))}
+                      </text>
+                    );
+                  }} />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -1241,7 +686,6 @@ export default function ReporteClientePage() {
             </div>
           ) : (
             <>
-              {/* Selector de tipificación */}
               <div className="rounded-xl border border-brand-secondary/20 bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4">
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="flex items-center gap-2">
@@ -1250,12 +694,7 @@ export default function ReporteClientePage() {
                       Filtrar por tipificación:
                     </Typography>
                   </div>
-                  <Select
-                    value={tipSeleccionada}
-                    onValueChange={(value) =>
-                      setTipSeleccionada(value as TipificacionKey)
-                    }
-                  >
+                  <Select value={tipSeleccionada} onValueChange={(value) => setTipSeleccionada(value as TipificacionKey)}>
                     <SelectTrigger className="w-64 border-brand-secondary/30 bg-white">
                       <SelectValue placeholder="Selecciona una tipificación" />
                     </SelectTrigger>
@@ -1270,7 +709,6 @@ export default function ReporteClientePage() {
                 </div>
               </div>
 
-              {/* Título dinámico */}
               {tipSeleccionada && (
                 <div className="flex items-center gap-2 px-1">
                   <DollarSign className="h-4 w-4 text-brand-primary" />
@@ -1280,7 +718,6 @@ export default function ReporteClientePage() {
                 </div>
               )}
 
-              {/* Tabla o loader */}
               {loadingDetalle ? (
                 <div className="rounded-xl border border-brand-secondary/20 bg-white p-12 text-center">
                   <div className="flex flex-col items-center gap-4">
@@ -1300,10 +737,7 @@ export default function ReporteClientePage() {
                 <div
                   className="rounded-lg border border-brand-secondary/10 overflow-hidden"
                   style={{
-                    height:
-                      detalleTip.length > DETALLE_VISIBLE_ROWS
-                        ? DETALLE_CONTAINER_H
-                        : "auto",
+                    height: detalleTip.length > DETALLE_VISIBLE_ROWS ? DETALLE_CONTAINER_H : "auto",
                     maxHeight: DETALLE_CONTAINER_H,
                     overflowY: "auto",
                   }}
@@ -1311,18 +745,10 @@ export default function ReporteClientePage() {
                   <Table className="w-full">
                     <TableHeader className="sticky top-0 z-10 bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5">
                       <TableRow className="border-brand-secondary/10 hover:bg-transparent">
-                        <TableHead className="w-24 text-brand-secondary font-semibold">
-                          Ubicación
-                        </TableHead>
-                        <TableHead className="text-brand-secondary font-semibold">
-                          Deudor
-                        </TableHead>
-                        <TableHead className="text-right text-brand-secondary font-semibold">
-                          Recaudo total
-                        </TableHead>
-                        <TableHead className="text-right text-brand-secondary font-semibold">
-                          Por recuperar
-                        </TableHead>
+                        <TableHead className="w-24 text-brand-secondary font-semibold">Ubicación</TableHead>
+                        <TableHead className="text-brand-secondary font-semibold">Deudor</TableHead>
+                        <TableHead className="text-right text-brand-secondary font-semibold">Recaudo total</TableHead>
+                        <TableHead className="text-right text-brand-secondary font-semibold">Por recuperar</TableHead>
                       </TableRow>
                     </TableHeader>
 
@@ -1348,21 +774,14 @@ export default function ReporteClientePage() {
                         </TableRow>
                       ))}
 
-                      {/* FILA TOTAL */}
                       <TableRow
                         className="bg-gradient-to-r from-brand-primary/10 to-brand-secondary/10 font-semibold border-t-2 border-brand-primary/20"
                         style={{ height: DETALLE_ROW_H }}
                       >
                         <TableCell className="text-brand-secondary">Total</TableCell>
-                        <TableCell className="text-right text-brand-secondary">
-                          {totalesDetalle.inmuebles}
-                        </TableCell>
-                        <TableCell className="text-right text-brand-secondary">
-                          {formatCOP(totalesDetalle.recaudoTotal)}
-                        </TableCell>
-                        <TableCell className="text-right text-brand-secondary">
-                          {formatCOP(totalesDetalle.porRecuperar)}
-                        </TableCell>
+                        <TableCell className="text-right text-brand-secondary">{totalesDetalle.inmuebles}</TableCell>
+                        <TableCell className="text-right text-brand-secondary">{formatCOP(totalesDetalle.recaudoTotal)}</TableCell>
+                        <TableCell className="text-right text-brand-secondary">{formatCOP(totalesDetalle.porRecuperar)}</TableCell>
                       </TableRow>
                     </TableBody>
                   </Table>
@@ -1373,9 +792,7 @@ export default function ReporteClientePage() {
         </div>
       </section>
 
-      {clienteId && (
-        <SeguimientoDemandasClienteSection clienteId={clienteId} />
-      )}
+      {clienteId && <SeguimientoDemandasClienteSection clienteId={clienteId} />}
     </div>
   );
 }
