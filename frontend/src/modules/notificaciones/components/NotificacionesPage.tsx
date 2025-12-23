@@ -87,7 +87,7 @@ export default function NotificacionesPage() {
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="flex flex-col items-center gap-4">
           <div className="h-12 w-12 animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary" />
-          <Typography variant="body" className="text-muted">
+          <Typography variant="body" >
             Cargando notificaciones...
           </Typography>
         </div>
@@ -105,7 +105,7 @@ export default function NotificacionesPage() {
           <Typography variant="h3" className="text-brand-secondary mb-2">
             Acceso restringido
           </Typography>
-          <Typography variant="small" className="text-muted">
+          <Typography variant="small" >
             Debes iniciar sesión para ver tus notificaciones.
           </Typography>
         </div>
@@ -139,7 +139,7 @@ export default function NotificacionesPage() {
                 <Typography variant="h2" className="!text-brand-secondary">
                   Notificaciones
                 </Typography>
-                <Typography variant="small" className="text-muted mt-0.5">
+                <Typography variant="small" className=" mt-0.5">
                   Centro de alertas y actualizaciones
                 </Typography>
               </div>
@@ -167,7 +167,7 @@ export default function NotificacionesPage() {
             <Typography variant="h3" className="text-brand-secondary">
               Todo al día
             </Typography>
-            <Typography variant="small" className="text-muted max-w-sm">
+            <Typography variant="small" className="max-w-sm">
               No tienes notificaciones pendientes. Te avisaremos cuando haya novedades.
             </Typography>
           </div>
@@ -221,7 +221,7 @@ export default function NotificacionesPage() {
                       )}
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                    <div className="flex flex-wrap items-center gap-3 text-xs">
                       <span className="inline-flex items-center gap-1.5">
                         <Package className="h-3.5 w-3.5" />
                         {notif.modulo}
@@ -241,7 +241,7 @@ export default function NotificacionesPage() {
                       <ChevronRight 
                         className={cn(
                           "h-5 w-5 transition-all",
-                          "text-muted-foreground group-hover:text-brand-primary",
+                          " group-hover:text-brand-primary",
                           "group-hover:translate-x-0.5"
                         )}
                       />

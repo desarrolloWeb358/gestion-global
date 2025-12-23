@@ -13,6 +13,7 @@ import {
   Trash2,
   Download,
   Filter as FilterIcon,
+  Loader2,
 } from "lucide-react";
 
 import { Button } from "@/shared/ui/button";
@@ -140,6 +141,7 @@ export default function SeguimientoTable() {
   const [refreshJuridicoKey, setRefreshJuridicoKey] = React.useState(0);
 
   const { can, loading: aclLoading } = useAcl();
+  const [busyObs, setBusyObs] = React.useState(false);
 
   // Editar por sección
   const canEditPre = can(PERMS.Seguimientos_Ejecutivos_Edit);        // PRE (ejecutivo)
@@ -278,26 +280,37 @@ export default function SeguimientoTable() {
   };
 
   const handleAgregarObservacion = async () => {
+    if (busyObs) return;
     if (!clienteId || !deudorId) return;
+
     if (!canCreateObs) {
       toast.error("No tienes permiso para agregar observaciones.");
       return;
     }
+
     const texto = obsTexto.trim();
     if (!texto) {
       toast.error("Escribe la observación.");
       return;
     }
+
     try {
+      setBusyObs(true); // ✅ ACTIVA overlay
+
       await addObservacionCliente(clienteId, deudorId, texto);
+
       setObsTexto("");
       setObsCliente(await getObservacionesCliente(clienteId, deudorId));
+
       toast.success("✓ Observación agregada");
     } catch (e) {
       console.error(e);
       toast.error("⚠️ No se pudo agregar la observación");
+    } finally {
+      setBusyObs(false); // ✅ DESACTIVA overlay
     }
   };
+
 
   if (aclLoading) {
     return (
@@ -707,23 +720,31 @@ export default function SeguimientoTable() {
                 )}
 
                 {canCreateObs && (
-                  <div className="space-y-3 pt-4 border-t border-brand-secondary/10">
+                  <div className="relative space-y-3 pt-4 border-t border-brand-secondary/10">
                     <Typography variant="body" className="font-semibold text-brand-secondary">
                       Agregar nueva observación
                     </Typography>
+
                     <Textarea
                       value={obsTexto}
                       onChange={(e) => setObsTexto(e.target.value)}
+                      disabled={busyObs}
                       className="min-h-28 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
                       placeholder="Escribe tu observación para el ejecutivo..."
                     />
+
                     <div className="flex justify-end">
                       <Button
                         onClick={handleAgregarObservacion}
                         variant="brand"
                         className="gap-2"
+                        disabled={busyObs}
                       >
-                        <Plus className="h-4 w-4" />
+                        {busyObs ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Plus className="h-4 w-4" />
+                        )}
                         Agregar observación
                       </Button>
                     </div>
@@ -734,6 +755,17 @@ export default function SeguimientoTable() {
           </TabsContent>
         </Tabs>
       </div>
+      {busyObs && (
+        <div className="fixed inset-0 z-[1000] bg-black/40 backdrop-blur-sm flex items-center justify-center">
+          <div className="rounded-xl bg-white shadow-lg px-6 py-5 flex items-center gap-3">
+            <Loader2 className="h-5 w-5 animate-spin text-brand-primary" />
+            <Typography variant="body" className="font-medium">
+              Agregando observación...
+            </Typography>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
