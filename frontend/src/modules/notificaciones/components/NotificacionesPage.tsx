@@ -2,14 +2,15 @@
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
 import { onAuthStateChanged, type User } from "firebase/auth";
-import { 
-  Bell, 
-  BellOff, 
-  Check, 
+import {
+  Bell,
+  BellOff,
+  Check,
   ChevronRight,
   Calendar,
   Package,
-  ArrowLeft
+  ArrowLeft,
+  AlertTriangle,
 } from "lucide-react";
 
 import { auth } from "@/firebase";
@@ -17,44 +18,51 @@ import { Typography } from "@/shared/design-system/components/Typography";
 import { Button } from "@/shared/ui/button";
 import { cn } from "@/shared/lib/cn";
 import { useNotificacionesUsuario } from "@/modules/notificaciones/hooks/useNotificacionesUsuario";
-import { NotificacionAlerta } from "../models/notificacion.model";
+import type { NotificacionAlerta } from "../models/notificacion.model";
 import { marcarNotificacionComoVista } from "../services/notificacionService";
 
-const fmt = new Intl.DateTimeFormat("es-CO", { 
-  year: "numeric", 
-  month: "short", 
+const fmt = new Intl.DateTimeFormat("es-CO", {
+  year: "numeric",
+  month: "short",
   day: "2-digit",
   hour: "2-digit",
   minute: "2-digit",
-  hour12: true
+  hour12: true,
 });
 
 export default function NotificacionesPage() {
-  const [user, setUser] = React.useState<User | null>(null);
+  const [user, setUser] = React.useState<User | null>(() => auth.currentUser);
   const [authLoading, setAuthLoading] = React.useState(true);
   const navigate = useNavigate();
 
-  // Escuchar cambios de autenticación
   React.useEffect(() => {
     const unsub = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
+      setAuthLoading(false);
+
       if (!firebaseUser) {
         navigate("/signin");
-      } else {
-        setUser(firebaseUser);
       }
-      setAuthLoading(false);
     });
 
     return () => unsub();
   }, [navigate]);
 
-  const { todas, totalNoVistas, loading } = useNotificacionesUsuario(user?.uid);
+  // ✅ IMPORTANTÍSIMO: solo pasar uid cuando exista
+  const uid = user?.uid;
+
+  const { todas, totalNoVistas, loading, error } = useNotificacionesUsuario(uid);
 
   const handleClickNotif = async (notif: NotificacionAlerta) => {
-    if (!notif.id) return;
+    if (!uid) return; // ✅ no revienta si aún no hay user
+    if (!notif?.id) return;
 
-    if (!notif.visto) {
-      await marcarNotificacionComoVista(user!.uid, notif.id);
+    try {
+      if (!notif.visto) {
+        await marcarNotificacionComoVista(uid, notif.id);
+      }
+    } catch (e) {
+      console.error("[NotificacionesPage] marcar vista error:", e);
     }
 
     if (notif.ruta) {
@@ -72,8 +80,9 @@ export default function NotificacionesPage() {
     }
   };
 
-  const getModuloIcon = (modulo: string) => {
-    switch (modulo.toLowerCase()) {
+  const getModuloIcon = (modulo?: string) => {
+    const m = (modulo || "").toLowerCase();
+    switch (m) {
       case "cobranza":
       case "deudor":
         return Package;
@@ -82,12 +91,13 @@ export default function NotificacionesPage() {
     }
   };
 
+  // ✅ Loader global (auth + hook)
   if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="flex flex-col items-center gap-4">
           <div className="h-12 w-12 animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary" />
-          <Typography variant="body" >
+          <Typography variant="body" className="text-muted">
             Cargando notificaciones...
           </Typography>
         </div>
@@ -95,7 +105,8 @@ export default function NotificacionesPage() {
     );
   }
 
-  if (!user) {
+  // ✅ Si no hay usuario, ya estamos redirigiendo, pero por seguridad:
+  if (!uid) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm max-w-md">
@@ -105,7 +116,7 @@ export default function NotificacionesPage() {
           <Typography variant="h3" className="text-brand-secondary mb-2">
             Acceso restringido
           </Typography>
-          <Typography variant="small" >
+          <Typography variant="small" className="text-muted">
             Debes iniciar sesión para ver tus notificaciones.
           </Typography>
         </div>
@@ -115,7 +126,7 @@ export default function NotificacionesPage() {
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-5xl">
-      {/* Botón volver */}
+      {/* Volver */}
       <div className="mb-4">
         <Button
           variant="ghost"
@@ -139,12 +150,12 @@ export default function NotificacionesPage() {
                 <Typography variant="h2" className="!text-brand-secondary">
                   Notificaciones
                 </Typography>
-                <Typography variant="small" className=" mt-0.5">
+                <Typography variant="small" className="text-muted mt-0.5">
                   Centro de alertas y actualizaciones
                 </Typography>
               </div>
             </div>
-            
+
             {totalNoVistas > 0 && (
               <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-50 border border-blue-200">
                 <div className="h-2.5 w-2.5 rounded-full bg-blue-500 animate-pulse" />
@@ -157,7 +168,7 @@ export default function NotificacionesPage() {
         </div>
       </section>
 
-      {/* Lista de notificaciones */}
+      {/* Lista */}
       {todas.length === 0 ? (
         <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
           <div className="flex flex-col items-center gap-3">
@@ -167,17 +178,17 @@ export default function NotificacionesPage() {
             <Typography variant="h3" className="text-brand-secondary">
               Todo al día
             </Typography>
-            <Typography variant="small" className="max-w-sm">
+            <Typography variant="small" className="text-muted max-w-sm">
               No tienes notificaciones pendientes. Te avisaremos cuando haya novedades.
             </Typography>
           </div>
         </div>
       ) : (
         <div className="space-y-2">
-          {todas.map((notif, index) => {
-            const ModuloIcon = getModuloIcon(notif.modulo);
-            const fechaStr = formatFecha((notif as any).fechaCreacion ?? (notif as any).createdAt ?? (notif as any).fecha);
-            
+          {todas.map((notif) => {
+            const ModuloIcon = getModuloIcon((notif as any).modulo);
+            const fechaStr = formatFecha((notif as any).fecha);
+
             return (
               <div
                 key={notif.id}
@@ -191,11 +202,10 @@ export default function NotificacionesPage() {
                 )}
               >
                 <div className="flex items-start gap-4 p-4 md:p-5">
-                  {/* Icono del módulo */}
-                  <div 
+                  <div
                     className={cn(
                       "flex-shrink-0 p-2.5 rounded-lg transition-colors",
-                      notif.visto 
+                      notif.visto
                         ? "bg-brand-primary/10 text-brand-primary"
                         : "bg-blue-100 text-blue-600"
                     )}
@@ -203,29 +213,29 @@ export default function NotificacionesPage() {
                     <ModuloIcon className="h-5 w-5" />
                   </div>
 
-                  {/* Contenido */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-3 mb-2">
-                      <Typography 
-                        variant="body" 
+                      <Typography
+                        variant="body"
                         className={cn(
                           "font-medium leading-snug",
                           notif.visto ? "text-gray-700" : "text-gray-900"
                         )}
                       >
-                        {notif.descripcion}
+                        {notif.descripcion || "(Sin descripción)"}
                       </Typography>
-                      
+
                       {!notif.visto && (
                         <span className="flex-shrink-0 h-2.5 w-2.5 rounded-full bg-blue-500 mt-1.5" />
                       )}
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-3 text-xs">
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                       <span className="inline-flex items-center gap-1.5">
                         <Package className="h-3.5 w-3.5" />
-                        {notif.modulo}
+                        {notif.modulo || "general"}
                       </span>
+
                       {fechaStr && (
                         <span className="inline-flex items-center gap-1.5">
                           <Calendar className="h-3.5 w-3.5" />
@@ -235,13 +245,12 @@ export default function NotificacionesPage() {
                     </div>
                   </div>
 
-                  {/* Indicador de navegación */}
-                  {notif.ruta && (
+                  {!!notif.ruta && (
                     <div className="flex-shrink-0">
-                      <ChevronRight 
+                      <ChevronRight
                         className={cn(
                           "h-5 w-5 transition-all",
-                          " group-hover:text-brand-primary",
+                          "text-muted-foreground group-hover:text-brand-primary",
                           "group-hover:translate-x-0.5"
                         )}
                       />
