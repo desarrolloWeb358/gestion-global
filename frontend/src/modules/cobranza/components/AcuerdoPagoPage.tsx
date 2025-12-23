@@ -44,6 +44,8 @@ import numeroALetras from "@/shared/numeroALetras";
 import type { AcuerdoPago, CuotaAcuerdo } from "@/modules/cobranza/models/acuerdoPago.model";
 import { generarTablaAcuerdo } from "@/modules/cobranza/lib/generarTablaAcuerdo";
 import TablaAmortizacionEditable from "@/modules/cobranza/components/TablaAmortizacionEditable";
+import { descargarAcuerdoPagoWord } from "@/modules/cobranza/services/acuerdoPagoWordService";
+
 
 import {
     obtenerAcuerdoActual,
@@ -108,6 +110,84 @@ export default function AcuerdoPagoPage() {
     const [motivoCambio, setMotivoCambio] = useState("");
 
     const readOnly = acuerdoEstado === ACUERDO_ESTADO.EN_FIRME;
+
+    const [downloadingWord, setDownloadingWord] = useState(false);
+
+    const handleExportWord = async () => {
+        if (!clienteId || !deudorId) return;
+
+        try {
+            setDownloadingWord(true);
+            toast.info("Generando Word del acuerdo...");
+
+            // ========= Datos que YA tienes en pantalla =========
+            const honorariosInicial = totales.honorariosInicial;
+            const totalAcordado = totales.totalAcordado;
+
+            // ========= Datos que recomiendo TRAER de BD (si ya existen) =========
+            // Cliente: nit, representante, direccion, telefonos, email, web
+            // Deudor: documento, ciudad doc, celular, email, direccion exacta
+            // Inmueble: torre/apto, dirección
+            //
+            // Por ahora, si no los tienes: se irán como XXXXX (rojo).
+
+            await descargarAcuerdoPagoWord({
+                // Encabezado/firma
+                ciudadFirma: "Bogotá D.C.",              // si no lo tienes en BD, déjalo fijo o XXXXX
+                fechaFirma: form.fechaAcuerdo,
+
+                // Partes
+                empresaNombre: "GESTION GLOBAL ACG S.A.S",
+                empresaNit: "900.042.908-7",
+                empresaRepresentante: "JAVIER MAURICIO GARCIA",
+                //empresaDireccion: "Calle 24 sur # 68 h 52 segundo piso",
+                //empresaTelefonos: "(601) 4631148 – 3017566868 – 3123152594",
+                //empresaEmail: "gestionglobalacg@gestionglobalacg.com",
+                //empresaWeb: "www.gestionglobalacg.com",
+
+                entidadAcreedoraNombre: clienteNombre,  // en tu caso clienteNombre es el conjunto
+                entidadAcreedoraDireccion: "XXXXX (Dirección administración / sede)",
+
+                deudorNombre: deudorNombre,
+                deudorDocumento: "XXXXX",
+                deudorCiudadDoc: "XXXXX",
+                //deudorDireccion: "XXXXX",
+                deudorCelular: "XXXXX",
+                deudorEmail: "XXXXX",
+
+                inmuebleEtiqueta: "XXXXX (Torre/Apto)",
+                inmuebleDireccion: "XXXXX (Dirección inmueble)",
+
+                // Valores
+                numeroAcuerdo: form.numero,
+                capitalInicial: form.capitalInicial,
+                //porcentajeHonorarios: form.porcentajeHonorarios,
+                //honorariosInicial,
+                totalAcordado,
+                fechaEstadoDeuda: form.fechaAcuerdo,     // o la fecha real del “estado de deuda”
+                //fechaPrimeraCuota: form.fechaPrimeraCuota,
+                //valorCuotaBase: form.valorCuotaBase,
+
+                // Pago
+                bancoPagoTexto:
+                    "CUOTA ACUERDO DE PAGO EN EL BANCO AV VILLAS CUENTA DE AHORROS NÚMERO 688003268 (XXXX) SEGUIDO DE LA TORRE Y APARTAMENTO...",
+                canalSoportesTexto:
+                    "Enviar soporte de pago al email XXXXX o al WhatsApp XXXXX de manera inmediata.",
+
+                // Notas
+                detalles: form.detalles,
+
+                cuotas,
+            });
+
+            toast.success("Word generado correctamente");
+        } catch (e) {
+            console.error(e);
+            toast.error("Error generando el Word del acuerdo");
+        } finally {
+            setDownloadingWord(false);
+        }
+    };
 
     // ==============================
     // Totales
@@ -443,10 +523,16 @@ export default function AcuerdoPagoPage() {
                                 Historial
                             </Button>
 
-                            <Button variant="outline" disabled className="gap-2">
+                            <Button
+                                variant="outline"
+                                onClick={handleExportWord}
+                                disabled={downloadingWord}
+                                className="gap-2"
+                            >
                                 <FileDown className="h-4 w-4" />
-                                Exportar Word
+                                {downloadingWord ? "Generando..." : "Exportar Word"}
                             </Button>
+
 
                             <Button variant="brand" onClick={handlePrint} className="gap-2" disabled={!cuotas.length}>
                                 <Printer className="h-4 w-4" />
