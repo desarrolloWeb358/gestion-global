@@ -19,11 +19,11 @@ import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 import { Button } from "@/shared/ui/button";
 import { Typography } from "@/shared/design-system/components/Typography";
 import { BackButton } from "@/shared/design-system/components/BackButton";
-import { cn } from "@/shared/lib/cn";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { PERMS } from "@/shared/constants/acl";
 import { Deudor } from "@/modules/cobranza/models/deudores.model";
 import { obtenerDeudorPorCliente } from "@/modules/cobranza/services/deudorService";
+import { useUsuarioActual } from "@/modules/auth/hooks/useUsuarioActual";
 
 
 export default function ClientePage() {
@@ -40,6 +40,8 @@ export default function ClientePage() {
     const [ejecutivos, setEjecutivos] = useState<UsuarioSistema[]>([]);
     const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([]);
     const [loading, setLoading] = useState(true);
+    const { roles, loading: userLoading } = useUsuarioActual();
+    const isCliente = roles?.includes("cliente");
 
     // Obtener nombre del cliente desde usuarios
     const nombreCliente = useMemo(() => {
@@ -89,7 +91,7 @@ export default function ClientePage() {
         cargarDatos();
     }, [clienteId]);
 
-    if (!clienteId || loading || aclLoading) {
+    if (!clienteId || loading || aclLoading || userLoading) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30 flex items-center justify-center">
                 <div className="text-center">
@@ -133,13 +135,13 @@ export default function ClientePage() {
 
                 {/* HEADER */}
                 <header className="space-y-4">
-                    <div className="flex items-center gap-2">
-                        <BackButton
+                    <div className="flex items-center gap-2">   
+                        {!isCliente && (<BackButton
                             variant="ghost"
                             size="sm"
                             to="/clientes-tables"
                             className="text-brand-secondary hover:text-brand-primary hover:bg-brand-primary/5 transition-all"
-                        />
+                        />)}
                     </div>
 
                     <div className="flex items-center gap-3">

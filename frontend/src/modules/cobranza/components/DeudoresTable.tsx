@@ -14,7 +14,7 @@ import { Cliente } from "@/modules/clientes/models/cliente.model";
 import { getClienteById } from "@/modules/clientes/services/clienteService";
 import { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 import { obtenerUsuarios } from "@/modules/usuarios/services/usuarioService";
-
+import { BadgeTipificacion } from "@/shared/components/BadgeTipificacion";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/select";
@@ -34,18 +34,7 @@ import { PERMS } from "@/shared/constants/acl";
 
 const ALL = "__ALL__";
 
-// Helper para colores de tipificación
-const getTipificacionColor = (tipificacion?: string) => {
-  const colors: Record<string, string> = {
-    GESTIONANDO: "bg-blue-100 text-blue-700 border-blue-200",
-    PROMESA_PAGO: "bg-yellow-100 text-yellow-700 border-yellow-200",
-    PAGADO: "bg-green-100 text-green-700 border-green-200",
-    INACTIVO: "bg-gray-100 text-gray-700 border-gray-200",
-    PREJURIDICO: "bg-orange-100 text-orange-700 border-orange-200",
-    JURIDICO: "bg-red-100 text-red-700 border-red-200",
-  };
-  return colors[tipificacion || ""] || "bg-gray-100 text-gray-700 border-gray-200";
-};
+
 
 export default function DeudoresTable() {
   const navigate = useNavigate();
@@ -58,6 +47,7 @@ export default function DeudoresTable() {
 
   const [deudores, setDeudores] = useState<Deudor[]>([]);
   const [loading, setLoading] = useState(false);
+  const [prevPorcentaje, setPrevPorcentaje] = useState<number | null>(null);
 
   const [open, setOpen] = useState(false);
   const [deudorEditando, setDeudorEditando] = useState<Deudor | null>(null);
@@ -182,9 +172,25 @@ export default function DeudoresTable() {
   };
 
   const onChangeTipificacion = (val: string) => {
-    const t = val as TipificacionDeuda;
-    setFormData((prev) => ({ ...prev, tipificacion: t }));
-  };
+  const t = val as TipificacionDeuda;
+
+  setFormData((prev) => {
+    const esDemanda =
+      t === TipificacionDeuda.DEMANDA ||
+      t === TipificacionDeuda.DEMANDA_ACUERDO ||
+      t === TipificacionDeuda.DEMANDA_TERMINADO ||
+      t === TipificacionDeuda.DEMANDA_INSOLVENCIA;
+
+    return {
+      ...prev,
+      tipificacion: t,
+      porcentajeHonorarios: esDemanda ? 20 : (prev.porcentajeHonorarios ?? 15),
+    };
+  });
+};
+
+
+
 
   // ✅ IMPORTANTE: SIEMPRE try/finally para que no se quede pegado
   const guardarDeudor = async () => {
@@ -248,19 +254,20 @@ export default function DeudoresTable() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+
   // ✅ Overlay global (portal) - bloquea toda la pantalla
   const GlobalBlockingOverlay = saving
     ? createPortal(
-        <div className="fixed inset-0 z-[99999] bg-black/50 backdrop-blur-sm flex items-center justify-center">
-          <div className="rounded-xl bg-white shadow-xl px-6 py-5 flex items-center gap-3">
-            <div className="h-5 w-5 animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary" />
-            <Typography variant="body" className="font-medium">
-              {deudorEditando ? "Guardando cambios..." : "Creando deudor..."}
-            </Typography>
-          </div>
-        </div>,
-        document.body
-      )
+      <div className="fixed inset-0 z-[99999] bg-black/50 backdrop-blur-sm flex items-center justify-center">
+        <div className="rounded-xl bg-white shadow-xl px-6 py-5 flex items-center gap-3">
+          <div className="h-5 w-5 animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary" />
+          <Typography variant="body" className="font-medium">
+            {deudorEditando ? "Guardando cambios..." : "Creando deudor..."}
+          </Typography>
+        </div>
+      </div>,
+      document.body
+    )
     : null;
 
   if (aclLoading) {
@@ -414,10 +421,8 @@ export default function DeudoresTable() {
                           type="number"
                           name="porcentajeHonorarios"
                           value={formData.porcentajeHonorarios ?? ""}
-                          onChange={handleChange}
                           readOnly={readOnly || saving}
-                          className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
-                          placeholder="15"
+                          onChange={handleChange}
                         />
                       </div>
 
@@ -622,14 +627,7 @@ export default function DeudoresTable() {
                         {deudor.ubicacion || "—"}
                       </TableCell>
                       <TableCell>
-                        <span
-                          className={cn(
-                            "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium transition-all",
-                            getTipificacionColor(deudor.tipificacion as string)
-                          )}
-                        >
-                          {deudor.tipificacion}
-                        </span>
+                        <BadgeTipificacion value={deudor.tipificacion} />
                       </TableCell>
                       <TableCell>
                         <div className="flex justify-center gap-2">
