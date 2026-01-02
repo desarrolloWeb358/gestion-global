@@ -44,6 +44,8 @@ import numeroALetras from "@/shared/numeroALetras";
 import type { AcuerdoPago, CuotaAcuerdo } from "@/modules/cobranza/models/acuerdoPago.model";
 import { generarTablaAcuerdo } from "@/modules/cobranza/lib/generarTablaAcuerdo";
 import TablaAmortizacionEditable from "@/modules/cobranza/components/TablaAmortizacionEditable";
+import { descargarAcuerdoPagoWord } from "@/modules/cobranza/services/acuerdoPagoWordService";
+
 
 import {
     obtenerAcuerdoActual,
@@ -65,6 +67,23 @@ type FormBase = {
 
     detalles: string;
 };
+
+type DatosWord = {
+    // Cliente
+    clienteDireccion?: string;
+    clienteBanco?: string;
+    clienteNumeroCuenta?: string;
+    clienteTipoCuenta?: string;
+
+    // Deudor
+    deudorCedula?: string;
+    deudorDireccion?: string;
+    deudorUbicacion?: string;
+    deudorEmails?: string[];
+    deudorTelefonos?: string[];
+};
+
+
 
 function toDateSafe(v: any): Date {
     if (!v) return new Date();
@@ -94,6 +113,18 @@ export default function AcuerdoPagoPage() {
         documentTitle: "Acuerdo_Pago",
     });
 
+    const [datosWord, setDatosWord] = useState<DatosWord>({
+        clienteDireccion: "",
+        clienteBanco: "",
+        clienteNumeroCuenta: "",
+        clienteTipoCuenta: "",
+        deudorCedula: "",
+        deudorDireccion: "",
+        deudorUbicacion: "",
+        deudorEmails: [],
+        deudorTelefonos: [],
+    });
+
     const [form, setForm] = useState<FormBase>({
         numero: "",
         fechaAcuerdo: new Date(),
@@ -108,6 +139,99 @@ export default function AcuerdoPagoPage() {
     const [motivoCambio, setMotivoCambio] = useState("");
 
     const readOnly = acuerdoEstado === ACUERDO_ESTADO.EN_FIRME;
+
+    const [downloadingWord, setDownloadingWord] = useState(false);
+
+    const handleExportWord = async () => {
+        if (!clienteId || !deudorId) return;
+
+        try {
+            setDownloadingWord(true);
+            toast.info("Generando Word del acuerdo...");
+
+            // ========= Datos que YA tienes en pantalla =========
+            const totalAcordado = totales.totalAcordado;
+
+            // ========= Datos que vienen de Firestore (cargados en cargarClienteDeudor) =========
+            // Si no tienes aún datosWord en state, esto evita que truene.
+            const dw = (datosWord ?? {}) as any;
+
+            const clienteDireccion = String(dw.clienteDireccion || "").trim();
+            const clienteBanco = String(dw.clienteBanco || "").trim();
+            const clienteNumeroCuenta = String(dw.clienteNumeroCuenta || "").trim();
+            const clienteTipoCuenta = String(dw.clienteTipoCuenta || "").trim();
+
+            const deudorCedula = String(dw.deudorCedula || "").trim();
+            const deudorDireccion = String(dw.deudorDireccion || "").trim();
+            const deudorUbicacion = String(dw.deudorUbicacion || "").trim();
+
+            const deudorEmailsArr: string[] = Array.isArray(dw.deudorEmails) ? dw.deudorEmails : [];
+            const deudorTelefonosArr: string[] = Array.isArray(dw.deudorTelefonos) ? dw.deudorTelefonos : [];
+
+            // Tomamos el primero (si hay varios) — si prefieres concatenarlos, te lo ajusto.
+            const deudorEmail = String(deudorEmailsArr[0] || "").trim();
+            const deudorCelular = String(deudorTelefonosArr[0] || "").trim();
+
+            // ========= Texto banco armado con datos del cliente =========
+            const bancoPagoTexto =
+                clienteBanco && clienteNumeroCuenta
+                    ? `CUOTA ACUERDO DE PAGO EN EL BANCO ${clienteBanco} CUENTA ${clienteTipoCuenta || "XXXXX"
+                    } NÚMERO ${clienteNumeroCuenta} (XXXXX) SEGUIDO DE LA TORRE Y APARTAMENTO...`
+                    : "XXXXX (TEXTO BANCO / REFERENCIA DE PAGO)";
+
+            await descargarAcuerdoPagoWord({
+                // Encabezado/firma
+                ciudadFirma: "Bogotá D.C.",
+                fechaFirma: form.fechaAcuerdo,
+
+                // Partes (fijas)
+                empresaNombre: "GESTION GLOBAL ACG S.A.S",
+                empresaNit: "900.042.908-7",
+                empresaRepresentante: "JAVIER MAURICIO GARCIA",
+
+                // Cliente (Firestore)
+                entidadAcreedoraNombre: clienteNombre,
+                entidadAcreedoraDireccion: clienteDireccion || "XXXXX",
+
+                // Deudor (Firestore)
+                deudorNombre: deudorNombre,
+                deudorDocumento: deudorCedula || "XXXXX",
+                deudorCiudadDoc: "XXXXX", // no lo tienes
+                deudorDireccion: deudorDireccion || "XXXXX",
+                deudorCelular: deudorCelular || "XXXXX",
+                deudorEmail: deudorEmail || "XXXXX",
+
+                // Inmueble (NO lo tienes -> rojo)
+                deudorUbicacion: deudorUbicacion || "XXXXX",
+
+                // Valores
+                numeroAcuerdo: form.numero,
+                capitalInicial: form.capitalInicial,
+                totalAcordado,
+                totalAcordadoLetras: numeroALetras(Math.round(totalAcordado)),
+                fechaEstadoDeuda: form.fechaAcuerdo,
+
+                // Tabla amortización
+                cuotas,
+
+                // Pago
+                bancoPagoTexto,
+                canalSoportesTexto:
+                    "Enviar soporte de pago al email XXXXX o al WhatsApp XXXXX de manera inmediata.",
+
+                // Notas
+                detalles: form.detalles,
+            });
+
+            toast.success("Word generado correctamente");
+        } catch (e) {
+            console.error(e);
+            toast.error("Error generando el Word del acuerdo");
+        } finally {
+            setDownloadingWord(false);
+        }
+    };
+
 
     // ==============================
     // Totales
@@ -161,26 +285,76 @@ export default function AcuerdoPagoPage() {
     // ==============================
     // Cargar datos base (cliente/deudor)
     // ==============================
+    // ==============================
+    // Cargar datos base (cliente/deudor)
+    // ==============================
     const cargarClienteDeudor = async () => {
         if (!clienteId || !deudorId) return;
 
+        // -------- Deudor --------
         const deudorRef = doc(db, `clientes/${clienteId}/deudores/${deudorId}`);
         const deudorSnap = await getDoc(deudorRef);
+
         if (!deudorSnap.exists()) {
             toast.error("⚠️ Deudor no encontrado");
             throw new Error("Deudor no encontrado");
         }
 
         const dd = deudorSnap.data() as any;
-        setDeudorNombre(dd?.nombre || dd?.nombreResponsable || "Deudor");
 
+        const nombreDeudor = dd?.nombre || dd?.nombreResponsable || "Deudor";
+        setDeudorNombre(nombreDeudor);
+
+        const deudorCedula = String(dd?.cedula || "").trim();
+        const deudorDireccion = String(dd?.direccion || "").trim();
+        const deudorUbicacion = String(dd?.ubicacion || "").trim();
+
+        const correos = Array.isArray(dd?.correos) ? dd.correos : [];
+        const telefonos = Array.isArray(dd?.telefonos) ? dd.telefonos : [];
+
+        // Normaliza arrays (solo strings válidos)
+        const deudorEmails = correos
+            .map((x: any) => String(x || "").trim())
+            .filter((x: string) => x.length > 0);
+
+        const deudorTelefonos = telefonos
+            .map((x: any) => String(x || "").trim())
+            .filter((x: string) => x.length > 0);
+
+        // -------- Cliente --------
         const clienteRef = doc(db, `clientes/${clienteId}`);
         const clienteSnap = await getDoc(clienteRef);
-        if (clienteSnap.exists()) {
-            const cd = clienteSnap.data() as any;
-            setClienteNombre(cd?.nombre || "Cliente");
+
+        if (!clienteSnap.exists()) {
+            toast.error("⚠️ Cliente no encontrado");
+            throw new Error("Cliente no encontrado");
         }
+
+        const cd = clienteSnap.data() as any;
+
+        const nombreCliente = String(cd?.nombre || "Cliente").trim();
+        setClienteNombre(nombreCliente);
+
+        const clienteDireccion = String(cd?.direccion || "").trim();
+        const clienteBanco = String(cd?.banco || "").trim();
+        const clienteNumeroCuenta = String(cd?.numeroCuenta || "").trim();
+        const clienteTipoCuenta = String(cd?.tipoCuenta || "").trim();
+
+        // -------- Guardar todo junto --------
+        setDatosWord({
+            clienteDireccion,
+            clienteBanco,
+            clienteNumeroCuenta,
+            clienteTipoCuenta,
+
+            deudorCedula,
+            deudorDireccion,
+            deudorUbicacion,
+            deudorEmails,
+            deudorTelefonos,
+        });
     };
+
 
     // ==============================
     // Cargar acuerdo actual (EN_FIRME > BORRADOR)
@@ -443,10 +617,16 @@ export default function AcuerdoPagoPage() {
                                 Historial
                             </Button>
 
-                            <Button variant="outline" disabled className="gap-2">
+                            <Button
+                                variant="outline"
+                                onClick={handleExportWord}
+                                disabled={downloadingWord}
+                                className="gap-2"
+                            >
                                 <FileDown className="h-4 w-4" />
-                                Exportar Word
+                                {downloadingWord ? "Generando..." : "Exportar Word"}
                             </Button>
+
 
                             <Button variant="brand" onClick={handlePrint} className="gap-2" disabled={!cuotas.length}>
                                 <Printer className="h-4 w-4" />
