@@ -80,8 +80,5 @@ functions/node_modules/
 # TypeScript build output (opcional, si llegas a compilar manualmente)
 functions/lib/
 
-# Ignorar por completo las funciones 
-functions/
-
 # Ignorar por completo la 
 migracion/serviceAccountKey.json
