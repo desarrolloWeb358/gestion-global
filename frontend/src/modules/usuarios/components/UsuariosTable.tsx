@@ -1,6 +1,7 @@
 // src/modules/usuarios/components/UsuariosCrud.tsx
 import { useEffect, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
+import { crearUsuarioDesdeAdmin } from "@/shared/services/crearUsuarioService";
 import {
   Check,
   ChevronDown,
@@ -688,12 +689,12 @@ export default function UsuariosCrud() {
                       <TableCell className="text-gray-600">
                         {usuario.fecha_registro instanceof Timestamp
                           ? (() => {
-                              const d = usuario.fecha_registro.toDate();
-                              const dia = String(d.getDate()).padStart(2, "0");
-                              const mes = String(d.getMonth() + 1).padStart(2, "0");
-                              const anio = d.getFullYear();
-                              return `${dia}/${mes}/${anio}`;
-                            })()
+                            const d = usuario.fecha_registro.toDate();
+                            const dia = String(d.getDate()).padStart(2, "0");
+                            const mes = String(d.getMonth() + 1).padStart(2, "0");
+                            const anio = d.getFullYear();
+                            return `${dia}/${mes}/${anio}`;
+                          })()
                           : "—"}
                       </TableCell>
 
@@ -812,21 +813,29 @@ export default function UsuariosCrud() {
                     toast.success("✓ Usuario actualizado correctamente");
                     cerrarDialogo();
                   } else {
-                    const usuarioSinUid: UsuarioSistema & { password: string } = {
-                      uid: "",
+                    // 1) Crear en Auth + Firestore desde Admin (Cloud Function)
+                    const res = await crearUsuarioDesdeAdmin({
+                      email,
+                      password,
+                      nombre,
+                      rol: rolesSeleccionados?.[0] ?? "usuario", // si tu sistema usa 1 rol principal
+                      asociadoA: null,
+                      activo: Boolean(activo),
+                    });
+
+                    // 2) Guardar datos extra en tu colección (si manejas campos adicionales)
+                    // Si tu function ya los guarda, puedes omitir esto.
+                    const nuevo: UsuarioSistema = {
+                      uid: res.uid,
                       email,
                       nombre,
                       telefonoUsuario,
                       tipoDocumento,
                       numeroDocumento,
                       roles: rolesSeleccionados,
-                      activo,
+                      activo: Boolean(activo),
                       fecha_registro,
-                      password,
                     };
-
-                    const uid = await crearUsuario(usuarioSinUid);
-                    const nuevo: UsuarioSistema = { ...usuarioSinUid, uid };
 
                     setUsuarios((prev) => [...prev, nuevo]);
                     toast.success("✓ Usuario creado exitosamente");
