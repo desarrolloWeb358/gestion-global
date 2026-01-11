@@ -158,6 +158,12 @@ export default function AcuerdoPagoPage() {
     const [historialLoading, setHistorialLoading] = useState(false);
     const [historial, setHistorial] = useState<any[]>([]);
 
+    const historialFiltrado = useMemo(() => {
+        // No mostrar el acuerdo actual (sea BORRADOR o EN_FIRME)
+        if (!currentAcuerdoId) return historial;
+        return historial.filter((a: any) => a.id !== currentAcuerdoId);
+    }, [historial, currentAcuerdoId]);
+
     const [openIncumplio, setOpenIncumplio] = useState(false);
     const [incumpliendo, setIncumpliendo] = useState(false);
 
@@ -759,34 +765,7 @@ export default function AcuerdoPagoPage() {
 
                         {/* Acciones header */}
                         <div className="flex gap-2 flex-wrap items-center">
-                            {/* Ver acuerdo firmado (si existe) */}
-                            {acuerdoURL && (
-                                <Button
-                                    variant="outline"
-                                    className="gap-2"
-                                    onClick={() => window.open(acuerdoURL, "_blank")}
-                                >
-                                    <ExternalLink className="h-4 w-4" />
-                                    Ver acuerdo firmado
-                                </Button>
-                            )}
-
-                            {/* Botón Acuerdo firmado: solo si existe acuerdo y no está en firme */}
-                            {!readOnly && currentAcuerdoId && (
-                                <label className="inline-flex">
-                                    <input
-                                        type="file"
-                                        accept="application/pdf,.pdf"
-                                        className="hidden"
-                                        onChange={(e) => onPickFirmado(e.target.files?.[0])}
-                                        disabled={firmando}
-                                    />
-                                    <Button variant="brand" className="gap-2" disabled={firmando}>
-                                        <Upload className="h-4 w-4" />
-                                        {firmando ? "Subiendo..." : "Acuerdo firmado"}
-                                    </Button>
-                                </label>
-                            )}
+                                                        
 
                             {/* Exportar Word (siempre disponible) */}
                             {!readOnly && (
@@ -1247,21 +1226,33 @@ export default function AcuerdoPagoPage() {
                             <div className="py-10 text-center text-sm text-muted-foreground">Cargando historial...</div>
                         ) : (
                             <div className="space-y-2 max-h-[60vh] overflow-auto pr-1">
-                                {historial.length === 0 && (
-                                    <div className="py-10 text-center text-sm text-muted-foreground">No hay acuerdos en el historial.</div>
+                                {historialFiltrado.length === 0 && (
+                                    <div className="py-10 text-center text-sm text-muted-foreground">
+                                        No hay acuerdos anteriores en el historial.
+                                    </div>
                                 )}
 
-                                {historial.map((a: any) => {
-                                    const fecha = a?.fechaAcuerdo?.toDate ? a.fechaAcuerdo.toDate() : null;
+                                {historialFiltrado.map((a: any) => {
+                                    const fecha =
+                                        a?.fechaAcuerdo?.toDate ? a.fechaAcuerdo.toDate()
+                                            : a?.fechaAcuerdo ? new Date(a.fechaAcuerdo)
+                                                : null;
+
                                     const estado = String(a?.estado || "");
-                                    const numero = String(a?.numero || "");
                                     const url = String(a?.acuerdoURL || "");
+                                    const nombreArchivo = String(a?.acuerdoNombre || "").trim();
+
+                                    // Título: nombre del archivo, si no existe, fallback
+                                    const titulo = nombreArchivo || (url ? "Acuerdo firmado" : "Acuerdo sin PDF");
 
                                     return (
-                                        <div key={a.id} className="rounded-lg border border-brand-secondary/20 p-3 flex items-center justify-between gap-3 flex-wrap">
+                                        <div
+                                            key={a.id}
+                                            className="rounded-lg border border-brand-secondary/20 p-3 flex items-center justify-between gap-3 flex-wrap"
+                                        >
                                             <div className="min-w-[240px]">
                                                 <div className="text-sm font-semibold text-brand-secondary">
-                                                    {numero ? `No. ${numero}` : `Acuerdo ${a.id}`}
+                                                    {titulo}
                                                 </div>
                                                 <div className="text-xs text-muted-foreground">
                                                     {fecha ? fecha.toLocaleDateString("es-CO") : "Sin fecha"} • Estado: {estado}
@@ -1282,6 +1273,7 @@ export default function AcuerdoPagoPage() {
                                         </div>
                                     );
                                 })}
+
                             </div>
                         )}
 

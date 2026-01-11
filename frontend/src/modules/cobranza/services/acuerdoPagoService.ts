@@ -97,7 +97,9 @@ export async function guardarBorrador(
     actualizadoPor: userId ?? null,
     fechaActualizacion: serverTimestamp(),
     ...(acuerdoId ? {} : { creadoPor: userId ?? null, fechaCreacion: serverTimestamp() }),
-  });
+  },
+    { merge: true }
+  );
 
   const cuotasRef = cuotasCol(clienteId, deudorId, id);
 
