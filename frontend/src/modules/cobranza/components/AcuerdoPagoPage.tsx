@@ -1,18 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+// src/modules/cobranza/pages/AcuerdoPagoPage.tsx
+import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
-import {
-    collection,
-    doc,
-    getDoc,
-    getDocs,
-    limit,
-    orderBy,
-    query,
-    Timestamp,
-} from "firebase/firestore";
+import { doc, getDoc, Timestamp } from "firebase/firestore";
 import { db } from "@/firebase";
-import { useReactToPrint } from "react-to-print";
 import {
     FileText,
     Save,
@@ -20,9 +11,10 @@ import {
     DollarSign,
     Hash,
     Calculator,
-    Printer,
     FileDown,
-    History,
+    Upload,
+    ExternalLink,
+    Trash2,
 } from "lucide-react";
 
 import { Button } from "@/shared/ui/button";
@@ -31,7 +23,6 @@ import { Label } from "@/shared/ui/label";
 import { Textarea } from "@/shared/ui/textarea";
 import { Calendar } from "@/shared/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/shared/ui/tabs";
 import { Typography } from "@/shared/design-system/components/Typography";
 import { cn } from "@/shared/lib/cn";
 import { BackButton } from "@/shared/design-system/components/BackButton";
@@ -46,14 +37,27 @@ import { generarTablaAcuerdo } from "@/modules/cobranza/lib/generarTablaAcuerdo"
 import TablaAmortizacionEditable from "@/modules/cobranza/components/TablaAmortizacionEditable";
 import { descargarAcuerdoPagoWord } from "@/modules/cobranza/services/acuerdoPagoWordService";
 
-
 import {
     obtenerAcuerdoActual,
     obtenerCuotas,
     guardarBorrador,
+    firmarAcuerdoConPdf,
 } from "@/modules/cobranza/services/acuerdoPagoService";
 
 import { ACUERDO_ESTADO } from "@/shared/constants/acuerdoEstado";
+
+import { subirYGuardarPdfFirmadoBorrador, activarAcuerdoEnFirme } from "@/modules/cobranza/services/acuerdoPagoService";
+
+import { AlertTriangle, List } from "lucide-react";
+import { listarAcuerdos, incumplirAcuerdoYCrearNuevoBorrador } from "@/modules/cobranza/services/acuerdoPagoService";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogFooter,
+} from "@/shared/ui/dialog";
 
 type FormBase = {
     numero: string;
@@ -83,8 +87,6 @@ type DatosWord = {
     deudorTelefonos?: string[];
 };
 
-
-
 function toDateSafe(v: any): Date {
     if (!v) return new Date();
     if (v instanceof Date) return v;
@@ -97,9 +99,22 @@ export default function AcuerdoPagoPage() {
     const { can, loading: aclLoading } = useAcl();
     const canEdit = can(PERMS.Deudores_Edit);
 
+    const MAX_FILE_MB = 15;
+
+    const [archivoFirmadoFile, setArchivoFirmadoFile] = useState<File | undefined>(undefined);
+    const [subiendoFirmado, setSubiendoFirmado] = useState(false);
+
+    function formatBytes(bytes: number) {
+        if (!bytes && bytes !== 0) return "";
+        const sizes = ["B", "KB", "MB", "GB"];
+        const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), sizes.length - 1);
+        const value = bytes / Math.pow(1024, i);
+        return `${value.toFixed(value >= 10 || i === 0 ? 0 : 1)} ${sizes[i]}`;
+    }
+
+
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [tab, setTab] = useState<"datos" | "vista">("datos");
 
     const [clienteNombre, setClienteNombre] = useState("Cargando...");
     const [deudorNombre, setDeudorNombre] = useState("Cargando...");
@@ -107,11 +122,7 @@ export default function AcuerdoPagoPage() {
     const [currentAcuerdoId, setCurrentAcuerdoId] = useState<string | null>(null);
     const [acuerdoEstado, setAcuerdoEstado] = useState<string | null>(null); // EN_FIRME/BORRADOR/etc
 
-    const printRef = useRef<HTMLDivElement>(null);
-    const handlePrint = useReactToPrint({
-        contentRef: printRef,
-        documentTitle: "Acuerdo_Pago",
-    });
+    const [acuerdoURL, setAcuerdoURL] = useState<string>("");
 
     const [datosWord, setDatosWord] = useState<DatosWord>({
         clienteDireccion: "",
@@ -141,94 +152,130 @@ export default function AcuerdoPagoPage() {
     const readOnly = acuerdoEstado === ACUERDO_ESTADO.EN_FIRME;
 
     const [downloadingWord, setDownloadingWord] = useState(false);
+    const [firmando, setFirmando] = useState(false);
 
-    const handleExportWord = async () => {
+    const [openHistorial, setOpenHistorial] = useState(false);
+    const [historialLoading, setHistorialLoading] = useState(false);
+    const [historial, setHistorial] = useState<any[]>([]);
+
+    const historialFiltrado = useMemo(() => {
+        // No mostrar el acuerdo actual (sea BORRADOR o EN_FIRME)
+        if (!currentAcuerdoId) return historial;
+        return historial.filter((a: any) => a.id !== currentAcuerdoId);
+    }, [historial, currentAcuerdoId]);
+
+    const [openIncumplio, setOpenIncumplio] = useState(false);
+    const [incumpliendo, setIncumpliendo] = useState(false);
+
+
+    const cargarHistorial = async () => {
         if (!clienteId || !deudorId) return;
-
         try {
-            setDownloadingWord(true);
-            toast.info("Generando Word del acuerdo...");
-
-            // ========= Datos que YA tienes en pantalla =========
-            const totalAcordado = totales.totalAcordado;
-
-            // ========= Datos que vienen de Firestore (cargados en cargarClienteDeudor) =========
-            // Si no tienes aún datosWord en state, esto evita que truene.
-            const dw = (datosWord ?? {}) as any;
-
-            const clienteDireccion = String(dw.clienteDireccion || "").trim();
-            const clienteBanco = String(dw.clienteBanco || "").trim();
-            const clienteNumeroCuenta = String(dw.clienteNumeroCuenta || "").trim();
-            const clienteTipoCuenta = String(dw.clienteTipoCuenta || "").trim();
-
-            const deudorCedula = String(dw.deudorCedula || "").trim();
-            const deudorDireccion = String(dw.deudorDireccion || "").trim();
-            const deudorUbicacion = String(dw.deudorUbicacion || "").trim();
-
-            const deudorEmailsArr: string[] = Array.isArray(dw.deudorEmails) ? dw.deudorEmails : [];
-            const deudorTelefonosArr: string[] = Array.isArray(dw.deudorTelefonos) ? dw.deudorTelefonos : [];
-
-            // Tomamos el primero (si hay varios) — si prefieres concatenarlos, te lo ajusto.
-            const deudorEmail = String(deudorEmailsArr[0] || "").trim();
-            const deudorCelular = String(deudorTelefonosArr[0] || "").trim();
-
-            // ========= Texto banco armado con datos del cliente =========
-            const bancoPagoTexto =
-                clienteBanco && clienteNumeroCuenta
-                    ? `CUOTA ACUERDO DE PAGO EN EL BANCO ${clienteBanco} CUENTA ${clienteTipoCuenta || "XXXXX"
-                    } NÚMERO ${clienteNumeroCuenta} (XXXXX) SEGUIDO DE LA TORRE Y APARTAMENTO...`
-                    : "XXXXX (TEXTO BANCO / REFERENCIA DE PAGO)";
-
-            await descargarAcuerdoPagoWord({
-                // Encabezado/firma
-                ciudadFirma: "Bogotá D.C.",
-                fechaFirma: form.fechaAcuerdo,
-
-                // Partes (fijas)
-                empresaNombre: "GESTION GLOBAL ACG S.A.S",
-                empresaNit: "900.042.908-7",
-                empresaRepresentante: "JAVIER MAURICIO GARCIA",
-
-                // Cliente (Firestore)
-                entidadAcreedoraNombre: clienteNombre,
-                entidadAcreedoraDireccion: clienteDireccion || "XXXXX",
-
-                // Deudor (Firestore)
-                deudorNombre: deudorNombre,
-                deudorDocumento: deudorCedula || "XXXXX",
-                deudorCiudadDoc: "XXXXX", // no lo tienes
-                deudorDireccion: deudorDireccion || "XXXXX",
-                deudorCelular: deudorCelular || "XXXXX",
-                deudorEmail: deudorEmail || "XXXXX",
-
-                // Inmueble (NO lo tienes -> rojo)
-                deudorUbicacion: deudorUbicacion || "XXXXX",
-
-                // Valores
-                numeroAcuerdo: form.numero,
-                capitalInicial: form.capitalInicial,
-                totalAcordado,
-                totalAcordadoLetras: numeroALetras(Math.round(totalAcordado)),
-                fechaEstadoDeuda: form.fechaAcuerdo,
-
-                // Tabla amortización
-                cuotas,
-
-                // Pago
-                bancoPagoTexto,
-                canalSoportesTexto:
-                    "Enviar soporte de pago al email XXXXX o al WhatsApp XXXXX de manera inmediata.",
-
-                // Notas
-                detalles: form.detalles,
-            });
-
-            toast.success("Word generado correctamente");
+            setHistorialLoading(true);
+            const data = await listarAcuerdos(clienteId, deudorId);
+            setHistorial(data);
         } catch (e) {
             console.error(e);
-            toast.error("Error generando el Word del acuerdo");
+            toast.error("Error cargando historial de acuerdos");
         } finally {
-            setDownloadingWord(false);
+            setHistorialLoading(false);
+        }
+    };
+
+    const handleConfirmIncumplio = async () => {
+        if (!clienteId || !deudorId) return;
+        if (!currentAcuerdoId) return toast.error("No hay acuerdo actual");
+        if (!readOnly) return;
+
+        try {
+            setIncumpliendo(true);
+            const auth = getAuth();
+
+            await incumplirAcuerdoYCrearNuevoBorrador({
+                clienteId,
+                deudorId,
+                acuerdoIdEnFirme: currentAcuerdoId,
+                userId: auth.currentUser?.uid,
+            });
+
+            toast.success("Acuerdo marcado como INCUMPLIDO y se creó un nuevo BORRADOR.");
+            setOpenIncumplio(false);
+
+            // recargar: obtenerAcuerdoActual te va a traer el nuevo borrador (porque ya no hay EN_FIRME activo)
+            await cargarAcuerdoActual();
+        } catch (e: any) {
+            console.error(e);
+            toast.error(e?.message || "Error marcando incumplimiento");
+        } finally {
+            setIncumpliendo(false);
+        }
+    };
+
+
+
+    const handleSubirPdfFirmado = async () => {
+        if (!clienteId || !deudorId) return;
+        if (!currentAcuerdoId) return toast.error("Primero guarda el acuerdo (BORRADOR).");
+        if (!archivoFirmadoFile) return toast.error("Selecciona el PDF firmado.");
+        if (readOnly) return;
+
+        try {
+            setSubiendoFirmado(true);
+            const auth = getAuth();
+            toast.info("Subiendo PDF firmado...");
+
+            const up = await subirYGuardarPdfFirmadoBorrador({
+                clienteId,
+                deudorId,
+                acuerdoId: currentAcuerdoId,
+                file: archivoFirmadoFile,
+                userId: auth.currentUser?.uid,
+            });
+
+            setAcuerdoURL(up.url);
+            setArchivoFirmadoFile(undefined);
+
+            toast.success("✓ PDF firmado cargado. (Aún puedes reemplazarlo mientras esté en BORRADOR)");
+            await cargarAcuerdoActual(); // para refrescar estado/URL
+        } catch (e: any) {
+            console.error(e);
+            toast.error(e?.message || "Error subiendo el PDF firmado");
+        } finally {
+            setSubiendoFirmado(false);
+        }
+    };
+
+    const handleDejarEnFirme = async () => {
+        if (!clienteId || !deudorId) return;
+        if (!currentAcuerdoId) return toast.error("No hay acuerdo para dejar en firme.");
+        if (!acuerdoURL) return toast.error("Primero sube el PDF firmado.");
+        if (readOnly) return;
+
+        const ok = window.confirm(
+            "¿Confirmas dejar este acuerdo EN FIRME?\n\nDespués no podrás editar ni reemplazar el PDF."
+        );
+        if (!ok) return;
+
+        try {
+            setSaving(true);
+            const auth = getAuth();
+            toast.info("Dejando acuerdo EN FIRME...");
+
+            await activarAcuerdoEnFirme(
+                clienteId,
+                deudorId,
+                currentAcuerdoId,
+                acuerdoURL,
+                auth.currentUser?.uid
+            );
+
+            toast.success("✓ Acuerdo EN FIRME. Solo consulta.");
+            await cargarAcuerdoActual(); // esto hará readOnly=true
+        } catch (e: any) {
+            console.error(e);
+            toast.error(e?.message || "Error dejando el acuerdo en firme");
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -248,8 +295,7 @@ export default function AcuerdoPagoPage() {
     }, [form.capitalInicial, form.porcentajeHonorarios, cuotas]);
 
     // ==============================
-    // Recalcular saldos (arreglado)
-    // - si no pasas base, usa el form actual
+    // Recalcular saldos
     // ==============================
     const recalcularSaldos = (
         cuotasEdit: CuotaAcuerdo[],
@@ -283,8 +329,83 @@ export default function AcuerdoPagoPage() {
     };
 
     // ==============================
-    // Cargar datos base (cliente/deudor)
+    // Exportar Word
     // ==============================
+    const handleExportWord = async () => {
+        if (!clienteId || !deudorId) return;
+
+        try {
+            setDownloadingWord(true);
+            toast.info("Generando Word del acuerdo...");
+
+            const totalAcordado = totales.totalAcordado;
+
+            const dw = (datosWord ?? {}) as any;
+
+            const clienteDireccion = String(dw.clienteDireccion || "").trim();
+            const clienteBanco = String(dw.clienteBanco || "").trim();
+            const clienteNumeroCuenta = String(dw.clienteNumeroCuenta || "").trim();
+            const clienteTipoCuenta = String(dw.clienteTipoCuenta || "").trim();
+
+            const deudorCedula = String(dw.deudorCedula || "").trim();
+            const deudorDireccion = String(dw.deudorDireccion || "").trim();
+            const deudorUbicacion = String(dw.deudorUbicacion || "").trim();
+
+            const deudorEmailsArr: string[] = Array.isArray(dw.deudorEmails) ? dw.deudorEmails : [];
+            const deudorTelefonosArr: string[] = Array.isArray(dw.deudorTelefonos) ? dw.deudorTelefonos : [];
+
+            const deudorEmail = String(deudorEmailsArr[0] || "").trim();
+            const deudorCelular = String(deudorTelefonosArr[0] || "").trim();
+
+            const bancoPagoTexto =
+                clienteBanco && clienteNumeroCuenta
+                    ? `CUOTA ACUERDO DE PAGO EN EL BANCO ${clienteBanco} CUENTA ${clienteTipoCuenta || "XXXXX"
+                    } NÚMERO ${clienteNumeroCuenta} (XXXXX) SEGUIDO DE LA TORRE Y APARTAMENTO...`
+                    : "XXXXX (TEXTO BANCO / REFERENCIA DE PAGO)";
+
+            await descargarAcuerdoPagoWord({
+                ciudadFirma: "Bogotá D.C.",
+                fechaFirma: form.fechaAcuerdo,
+
+                empresaNombre: "GESTION GLOBAL ACG S.A.S",
+                empresaNit: "900.042.908-7",
+                empresaRepresentante: "JAVIER MAURICIO GARCIA",
+
+                entidadAcreedoraNombre: clienteNombre,
+                entidadAcreedoraDireccion: clienteDireccion || "XXXXX",
+
+                deudorNombre: deudorNombre,
+                deudorDocumento: deudorCedula || "XXXXX",
+                deudorCiudadDoc: "XXXXX",
+                deudorDireccion: deudorDireccion || "XXXXX",
+                deudorCelular: deudorCelular || "XXXXX",
+                deudorEmail: deudorEmail || "XXXXX",
+
+                deudorUbicacion: deudorUbicacion || "XXXXX",
+
+                numeroAcuerdo: form.numero,
+                capitalInicial: form.capitalInicial,
+                totalAcordado,
+                totalAcordadoLetras: numeroALetras(Math.round(totalAcordado)),
+                fechaEstadoDeuda: form.fechaAcuerdo,
+
+                cuotas,
+
+                bancoPagoTexto,
+                canalSoportesTexto: "Enviar soporte de pago al email XXXXX o al WhatsApp XXXXX de manera inmediata.",
+
+                detalles: form.detalles,
+            });
+
+            toast.success("Word generado correctamente");
+        } catch (e) {
+            console.error(e);
+            toast.error("Error generando el Word del acuerdo");
+        } finally {
+            setDownloadingWord(false);
+        }
+    };
+
     // ==============================
     // Cargar datos base (cliente/deudor)
     // ==============================
@@ -312,7 +433,6 @@ export default function AcuerdoPagoPage() {
         const correos = Array.isArray(dd?.correos) ? dd.correos : [];
         const telefonos = Array.isArray(dd?.telefonos) ? dd.telefonos : [];
 
-        // Normaliza arrays (solo strings válidos)
         const deudorEmails = correos
             .map((x: any) => String(x || "").trim())
             .filter((x: string) => x.length > 0);
@@ -340,13 +460,11 @@ export default function AcuerdoPagoPage() {
         const clienteNumeroCuenta = String(cd?.numeroCuenta || "").trim();
         const clienteTipoCuenta = String(cd?.tipoCuenta || "").trim();
 
-        // -------- Guardar todo junto --------
         setDatosWord({
             clienteDireccion,
             clienteBanco,
             clienteNumeroCuenta,
             clienteTipoCuenta,
-
             deudorCedula,
             deudorDireccion,
             deudorUbicacion,
@@ -354,7 +472,6 @@ export default function AcuerdoPagoPage() {
             deudorTelefonos,
         });
     };
-
 
     // ==============================
     // Cargar acuerdo actual (EN_FIRME > BORRADOR)
@@ -365,20 +482,19 @@ export default function AcuerdoPagoPage() {
         const { acuerdo, acuerdoId } = await obtenerAcuerdoActual(clienteId, deudorId);
 
         if (!acuerdo || !acuerdoId) {
-            // nuevo
             setCurrentAcuerdoId(null);
             setAcuerdoEstado(null);
+            setAcuerdoURL("");
             setCuotas([]);
-            setForm((p) => ({
-                ...p,
-                numero: "",
-                detalles: "",
-            }));
+            setForm((p) => ({ ...p, numero: "", detalles: "" }));
             return;
         }
 
         setCurrentAcuerdoId(acuerdoId);
         setAcuerdoEstado(acuerdo.estado);
+
+        // ✅ lee acuerdoURL si existe
+        setAcuerdoURL(String((acuerdo as any)?.acuerdoURL || ""));
 
         setForm({
             numero: acuerdo.numero || "",
@@ -426,8 +542,10 @@ export default function AcuerdoPagoPage() {
     const onGenerarTabla = () => {
         if (readOnly) return;
 
-        if (!form.capitalInicial || form.capitalInicial <= 0) return toast.error("Ingresa el capital (deuda) inicial");
-        if (!form.valorCuotaBase || form.valorCuotaBase <= 0) return toast.error("Ingresa la cuota base (mensual)");
+        if (!form.capitalInicial || form.capitalInicial <= 0)
+            return toast.error("Ingresa el capital (deuda) inicial");
+        if (!form.valorCuotaBase || form.valorCuotaBase <= 0)
+            return toast.error("Ingresa la cuota base (mensual)");
 
         const { cuotas: gen } = generarTablaAcuerdo({
             capitalInicial: form.capitalInicial,
@@ -531,6 +649,45 @@ export default function AcuerdoPagoPage() {
     };
 
     // ==============================
+    // Firmar acuerdo: subir PDF + pasar a EN_FIRME
+    // ==============================
+    const onPickFirmado = async (file?: File | null) => {
+        if (!file) return;
+        if (!clienteId || !deudorId) return;
+        if (!currentAcuerdoId) return toast.error("Primero guarda el acuerdo (BORRADOR) para poder firmarlo.");
+        if (readOnly) return;
+
+        const isPdf =
+            file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+        if (!isPdf) return toast.error("El archivo debe ser PDF");
+
+        try {
+            setFirmando(true);
+            toast.info("Subiendo PDF firmado...");
+
+            const auth = getAuth();
+            const { url } = await firmarAcuerdoConPdf({
+                clienteId,
+                deudorId,
+                acuerdoId: currentAcuerdoId,
+                file,
+                userId: auth.currentUser?.uid,
+            });
+
+            setAcuerdoURL(url);
+            toast.success("✓ Acuerdo firmado y activado EN FIRME");
+
+            // recarga para bloquear UI
+            await cargarAcuerdoActual();
+        } catch (e: any) {
+            console.error(e);
+            toast.error(e?.message || "Error subiendo el PDF firmado");
+        } finally {
+            setFirmando(false);
+        }
+    };
+
+    // ==============================
     // UI
     // ==============================
     if (aclLoading || loading) {
@@ -569,14 +726,19 @@ export default function AcuerdoPagoPage() {
                 : "Nuevo Acuerdo de Pago";
 
     return (
+
+
+
+
+
         <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30">
             <div className="max-w-6xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
-                {saving && (
+                {(saving || firmando) && (
                     <div className="fixed inset-0 z-[1000] bg-black/40 backdrop-blur-sm flex items-center justify-center">
                         <div className="rounded-xl bg-white shadow-lg px-6 py-5 flex items-center gap-3">
                             <div className="h-5 w-5 animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary" />
                             <Typography variant="body" className="font-medium">
-                                Guardando acuerdo...
+                                {saving ? "Guardando acuerdo..." : "Subiendo PDF firmado..."}
                             </Typography>
                         </div>
                     </div>
@@ -601,335 +763,529 @@ export default function AcuerdoPagoPage() {
                             </div>
                         </div>
 
-                        <div className="flex gap-2 flex-wrap">
-                            <Button variant="outline" onClick={onGenerarTabla} className="gap-2" disabled={readOnly}>
-                                <Calculator className="h-4 w-4" />
-                                Generar tabla
-                            </Button>
+                        {/* Acciones header */}
+                        <div className="flex gap-2 flex-wrap items-center">
+                                                        
 
-                            <Button variant="outline" onClick={handleSave} disabled={saving || readOnly} className="gap-2">
-                                <Save className="h-4 w-4" />
-                                Guardar
-                            </Button>
+                            {/* Exportar Word (siempre disponible) */}
+                            {!readOnly && (
+                                <Button
+                                    variant="outline"
+                                    onClick={handleExportWord}
+                                    disabled={downloadingWord}
+                                    className="gap-2"
+                                >
+                                    <FileDown className="h-4 w-4" />
+                                    {downloadingWord ? "Generando..." : "Exportar Word"}
+                                </Button>
+                            )}
 
-                            <Button variant="outline" disabled className="gap-2">
-                                <History className="h-4 w-4" />
-                                Historial
-                            </Button>
 
+                            {/* Historial: SIEMPRE disponible */}
                             <Button
                                 variant="outline"
-                                onClick={handleExportWord}
-                                disabled={downloadingWord}
                                 className="gap-2"
+                                onClick={async () => {
+                                    setOpenHistorial(true);
+                                    await cargarHistorial();
+                                }}
                             >
-                                <FileDown className="h-4 w-4" />
-                                {downloadingWord ? "Generando..." : "Exportar Word"}
+                                <List className="h-4 w-4" />
+                                Historial
                             </Button>
+                            {readOnly && (
+                                <>
 
-
-                            <Button variant="brand" onClick={handlePrint} className="gap-2" disabled={!cuotas.length}>
-                                <Printer className="h-4 w-4" />
-                                Imprimir
-                            </Button>
+                                    <Button
+                                        variant="destructive"
+                                        className="gap-2"
+                                        onClick={() => setOpenIncumplio(true)}
+                                    >
+                                        <AlertTriangle className="h-4 w-4" />
+                                        Incumplió acuerdo
+                                    </Button>
+                                </>
+                            )}
                         </div>
                     </div>
 
                     {readOnly && (
-                        <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
+                        <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
                             <Typography variant="small" className="text-orange-800">
-                                Este acuerdo está <b>EN FIRME</b>. No se puede editar desde aquí.
+                                Este acuerdo está <b>EN FIRME</b>. Solo se puede consultar.
                             </Typography>
+                            {acuerdoURL ? (
+                                <Button
+                                    variant="outline"
+                                    className="gap-2"
+                                    onClick={() => window.open(acuerdoURL, "_blank")}
+                                >
+                                    <ExternalLink className="h-4 w-4" />
+                                    Abrir PDF firmado
+                                </Button>
+                            ) : null}
                         </div>
                     )}
                 </header>
 
-                {/* Tabs */}
-                <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="w-full">
-                    <TabsList className="grid grid-cols-2 w-full bg-white border border-brand-secondary/20 p-1 rounded-xl">
-                        <TabsTrigger value="datos" className="data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg">
-                            <FileText className="h-4 w-4 mr-2" />
-                            Datos
-                        </TabsTrigger>
-                        <TabsTrigger value="vista" className="data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg">
-                            <Printer className="h-4 w-4 mr-2" />
-                            Vista previa
-                        </TabsTrigger>
-                    </TabsList>
+                {/* Vista Datos */}
+                <div className="mt-6 space-y-6">
+                    {/* Información del acuerdo */}
+                    <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
+                        <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5 border-b border-brand-secondary/10">
+                            <Typography variant="h3" className="!text-brand-secondary font-semibold">
+                                Información del acuerdo
+                            </Typography>
+                        </div>
 
-                    <TabsContent value="datos" className="mt-6 space-y-6">
+                        <div className="p-4 md:p-5 space-y-4">
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div className="space-y-2">
+                                    <Label className="text-brand-secondary font-medium flex items-center gap-2">
+                                        <Hash className="h-4 w-4" />
+                                        Número de acuerdo *
+                                    </Label>
+                                    <Input
+                                        value={form.numero}
+                                        disabled={readOnly}
+                                        onChange={(e) => setForm((p) => ({ ...p, numero: e.target.value }))}
+                                        placeholder="Ej: ACU-2025-001"
+                                        className="border-brand-secondary/30"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label className="text-brand-secondary font-medium flex items-center gap-2">
+                                        <CalendarIcon className="h-4 w-4" />
+                                        Fecha del acuerdo
+                                    </Label>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button
+                                                variant="outline"
+                                                disabled={readOnly}
+                                                className={cn("w-full justify-start border-brand-secondary/30")}
+                                            >
+                                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                                {form.fechaAcuerdo.toLocaleDateString("es-CO")}
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0" align="start">
+                                            <Calendar
+                                                mode="single"
+                                                selected={form.fechaAcuerdo}
+                                                onSelect={(date) => date && setForm((p) => ({ ...p, fechaAcuerdo: date }))}
+                                                initialFocus
+                                            />
+                                        </PopoverContent>
+                                    </Popover>
+                                </div>
+                            </div>
+
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div className="space-y-2">
+                                    <Label className="text-brand-secondary font-medium flex items-center gap-2">
+                                        <DollarSign className="h-4 w-4" />
+                                        Capital inicial (deuda) *
+                                    </Label>
+                                    <Input
+                                        type="number"
+                                        value={form.capitalInicial || ""}
+                                        disabled={readOnly}
+                                        onChange={(e) => setForm((p) => ({ ...p, capitalInicial: Number(e.target.value || 0) }))}
+                                        className="border-brand-secondary/30"
+                                    />
+                                    <Typography variant="small" className="text-muted-foreground">
+                                        {form.capitalInicial ? numeroALetras(Math.round(form.capitalInicial)) : ""}
+                                    </Typography>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label className="text-brand-secondary font-medium">% Honorarios</Label>
+                                    <Input
+                                        type="number"
+                                        value={form.porcentajeHonorarios}
+                                        disabled={readOnly}
+                                        onChange={(e) => setForm((p) => ({ ...p, porcentajeHonorarios: Number(e.target.value || 0) }))}
+                                        className="border-brand-secondary/30"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid gap-4 md:grid-cols-3">
+                                <div className="space-y-2">
+                                    <Label className="text-brand-secondary font-medium">Fecha primera cuota</Label>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button
+                                                variant="outline"
+                                                disabled={readOnly}
+                                                className={cn("w-full justify-start border-brand-secondary/30")}
+                                            >
+                                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                                {form.fechaPrimeraCuota.toLocaleDateString("es-CO")}
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0" align="start">
+                                            <Calendar
+                                                mode="single"
+                                                selected={form.fechaPrimeraCuota}
+                                                onSelect={(date) => date && setForm((p) => ({ ...p, fechaPrimeraCuota: date }))}
+                                                initialFocus
+                                                captionLayout="dropdown"
+                                                fromYear={new Date().getFullYear()}
+                                                toYear={new Date().getFullYear() + 5}
+                                            />
+                                        </PopoverContent>
+                                    </Popover>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label className="text-brand-secondary font-medium">Cuota base (mensual) *</Label>
+                                    <Input
+                                        type="number"
+                                        value={form.valorCuotaBase || ""}
+                                        disabled={readOnly}
+                                        onChange={(e) => setForm((p) => ({ ...p, valorCuotaBase: Number(e.target.value || 0) }))}
+                                        className="border-brand-secondary/30"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="rounded-lg bg-brand-primary/5 border border-brand-primary/10 p-4">
+                                <div className="grid md:grid-cols-3 gap-3">
+                                    <div>
+                                        <p className="text-xs text-muted-foreground">Honorarios iniciales</p>
+                                        <p className="font-semibold text-orange-600">
+                                            ${totales.honorariosInicial.toLocaleString("es-CO")}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-muted-foreground">Total acordado</p>
+                                        <p className="font-semibold text-green-600">
+                                            ${totales.totalAcordado.toLocaleString("es-CO")}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Botón Generar tabla (solo si NO está en firme) */}
+                            {!readOnly && (
+                                <div className="pt-2 flex justify-end">
+                                    <Button variant="outline" onClick={onGenerarTabla} className="gap-2" disabled={readOnly}>
+                                        <Calculator className="h-4 w-4" />
+                                        Generar tabla
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+                    </section>
+
+                    {/* Tabla amortización */}
+                    {cuotas.length > 0 && (
                         <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
                             <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5 border-b border-brand-secondary/10">
                                 <Typography variant="h3" className="!text-brand-secondary font-semibold">
-                                    Información del acuerdo
+                                    Tabla de amortización {readOnly ? "(solo lectura)" : "(editable)"}
+                                </Typography>
+                                <Typography variant="small" className="text-muted-foreground">
+                                    Puedes ajustar cuotas/capital/honorarios. El sistema recalcula saldos.
                                 </Typography>
                             </div>
-
-                            <div className="p-4 md:p-5 space-y-4">
-                                <div className="grid gap-4 md:grid-cols-2">
-                                    <div className="space-y-2">
-                                        <Label className="text-brand-secondary font-medium flex items-center gap-2">
-                                            <Hash className="h-4 w-4" />
-                                            Número de acuerdo *
-                                        </Label>
-                                        <Input
-                                            value={form.numero}
-                                            disabled={readOnly}
-                                            onChange={(e) => setForm((p) => ({ ...p, numero: e.target.value }))}
-                                            placeholder="Ej: ACU-2025-001"
-                                            className="border-brand-secondary/30"
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label className="text-brand-secondary font-medium flex items-center gap-2">
-                                            <CalendarIcon className="h-4 w-4" />
-                                            Fecha del acuerdo
-                                        </Label>
-                                        <Popover>
-                                            <PopoverTrigger asChild>
-                                                <Button variant="outline" disabled={readOnly} className={cn("w-full justify-start border-brand-secondary/30")}>
-                                                    <CalendarIcon className="mr-2 h-4 w-4" />
-                                                    {form.fechaAcuerdo.toLocaleDateString("es-CO")}
-                                                </Button>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-auto p-0" align="start">
-                                                <Calendar
-                                                    mode="single"
-                                                    selected={form.fechaAcuerdo}
-                                                    onSelect={(date) => date && setForm((p) => ({ ...p, fechaAcuerdo: date }))}
-                                                    initialFocus
-                                                />
-                                            </PopoverContent>
-                                        </Popover>
-                                    </div>
-                                </div>
-
-                                <div className="grid gap-4 md:grid-cols-2">
-                                    <div className="space-y-2">
-                                        <Label className="text-brand-secondary font-medium flex items-center gap-2">
-                                            <DollarSign className="h-4 w-4" />
-                                            Capital inicial (deuda) *
-                                        </Label>
-                                        <Input
-                                            type="number"
-                                            value={form.capitalInicial || ""}
-                                            disabled={readOnly}
-                                            onChange={(e) => setForm((p) => ({ ...p, capitalInicial: Number(e.target.value || 0) }))}
-                                            className="border-brand-secondary/30"
-                                        />
-                                        <Typography variant="small" className="text-muted-foreground">
-                                            {form.capitalInicial ? numeroALetras(Math.round(form.capitalInicial)) : ""}
-                                        </Typography>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label className="text-brand-secondary font-medium">% Honorarios</Label>
-                                        <Input
-                                            type="number"
-                                            value={form.porcentajeHonorarios}
-                                            disabled={readOnly}
-                                            onChange={(e) => setForm((p) => ({ ...p, porcentajeHonorarios: Number(e.target.value || 0) }))}
-                                            className="border-brand-secondary/30"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="grid gap-4 md:grid-cols-3">
-                                    <div className="space-y-2">
-                                        <Label className="text-brand-secondary font-medium">Fecha primera cuota</Label>
-                                        <Popover>
-                                            <PopoverTrigger asChild>
-                                                <Button variant="outline" disabled={readOnly} className={cn("w-full justify-start border-brand-secondary/30")}>
-                                                    <CalendarIcon className="mr-2 h-4 w-4" />
-                                                    {form.fechaPrimeraCuota.toLocaleDateString("es-CO")}
-                                                </Button>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-auto p-0" align="start">
-                                                <Calendar
-                                                    mode="single"
-                                                    selected={form.fechaPrimeraCuota}
-                                                    onSelect={(date) => date && setForm((p) => ({ ...p, fechaPrimeraCuota: date }))}
-                                                    initialFocus
-                                                    captionLayout="dropdown"
-                                                    fromYear={new Date().getFullYear()}
-                                                    toYear={new Date().getFullYear() + 5}
-                                                />
-                                            </PopoverContent>
-                                        </Popover>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label className="text-brand-secondary font-medium">Cuota base (mensual) *</Label>
-                                        <Input
-                                            type="number"
-                                            value={form.valorCuotaBase || ""}
-                                            disabled={readOnly}
-                                            onChange={(e) => setForm((p) => ({ ...p, valorCuotaBase: Number(e.target.value || 0) }))}
-                                            className="border-brand-secondary/30"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="rounded-lg bg-brand-primary/5 border border-brand-primary/10 p-4">
-                                    <div className="grid md:grid-cols-3 gap-3">
-                                        <div>
-                                            <p className="text-xs text-muted-foreground">Honorarios iniciales</p>
-                                            <p className="font-semibold text-orange-600">${totales.honorariosInicial.toLocaleString("es-CO")}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs text-muted-foreground">Total acordado</p>
-                                            <p className="font-semibold text-green-600">${totales.totalAcordado.toLocaleString("es-CO")}</p>
-                                        </div>
-                                    </div>
-                                </div>
+                            <div className="p-4 md:p-5">
+                                <TablaAmortizacionEditable cuotas={cuotas} onChange={onCuotasChange} readOnly={readOnly} />
                             </div>
                         </section>
+                    )}
 
-                        {cuotas.length > 0 && (
-                            <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
-                                <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5 border-b border-brand-secondary/10">
-                                    <Typography variant="h3" className="!text-brand-secondary font-semibold">
-                                        Tabla de amortización {readOnly ? "(solo lectura)" : "(editable)"}
-                                    </Typography>
-                                    <Typography variant="small" className="text-muted-foreground">
-                                        Puedes ajustar cuotas/capital/honorarios. El sistema recalcula saldos.
-                                    </Typography>
+                    {/* Notas */}
+                    <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
+                        <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5 border-b border-brand-secondary/10">
+                            <Typography variant="h3" className="!text-brand-secondary font-semibold">
+                                Notas
+                            </Typography>
+                        </div>
+                        <div className="p-4 md:p-5 space-y-4">
+                            <div className="space-y-2">
+                                <Label className="text-brand-secondary font-medium">Detalles</Label>
+                                <Textarea
+                                    value={form.detalles}
+                                    disabled={readOnly}
+                                    onChange={(e) => setForm((p) => ({ ...p, detalles: e.target.value }))}
+                                    className="min-h-28 border-brand-secondary/30"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label className="text-brand-secondary font-medium">Motivo del cambio (historial)</Label>
+                                <Input
+                                    value={motivoCambio}
+                                    disabled={readOnly}
+                                    onChange={(e) => setMotivoCambio(e.target.value)}
+                                    className="border-brand-secondary/30"
+                                    placeholder="Ej: Ajuste negociado con el deudor"
+                                />
+                            </div>
+
+                            {/* Guardar (solo si NO está en firme) */}
+                            {!readOnly && (
+                                <div className="pt-2 flex justify-end">
+                                    <Button variant="outline" onClick={handleSave} disabled={saving || readOnly} className="gap-2">
+                                        <Save className="h-4 w-4" />
+                                        Guardar
+                                    </Button>
                                 </div>
-                                <div className="p-4 md:p-5">
-                                    <TablaAmortizacionEditable cuotas={cuotas} onChange={onCuotasChange} readOnly={readOnly} />
+                            )}
+                        </div>
+                    </section>
+
+                    {/* ===================== PDF ACUERDO FIRMADO ===================== */}
+                    <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
+                        <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5 border-b border-brand-secondary/10">
+                            <Typography variant="h3" className="!text-brand-secondary font-semibold">
+                                Acuerdo firmado (PDF)
+                            </Typography>
+                            <Typography variant="small" className="text-muted-foreground">
+                                Puedes subir/reemplazar el PDF mientras esté en BORRADOR. Cuando confirmes “Dejar en firme”, ya no se podrá cambiar.
+                            </Typography>
+                        </div>
+
+                        <div className="p-4 md:p-5 space-y-3">
+                            <div className="space-y-2">
+                                <Label className="text-brand-secondary font-medium flex items-center gap-2">
+                                    <Upload className="h-4 w-4" />
+                                    Archivo adjunto
+                                </Label>
+
+                                {/* Si ya hay URL guardada (pdf cargado) */}
+                                {acuerdoURL && !archivoFirmadoFile && (
+                                    <div className="text-xs text-muted-foreground p-3 rounded-lg bg-blue-50 border border-blue-100 flex items-start justify-between gap-3 flex-wrap">
+                                        <div>
+                                            Hay un PDF firmado cargado.
+                                            {!readOnly && (
+                                                <>
+                                                    <br />
+                                                    <span>Si seleccionas y subes uno nuevo, reemplazará el actual (mientras esté en BORRADOR).</span>
+                                                </>
+                                            )}
+                                        </div>
+
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            className="gap-2"
+                                            onClick={() => window.open(acuerdoURL, "_blank")}
+                                        >
+                                            <ExternalLink className="h-4 w-4" />
+                                            Ver PDF
+                                        </Button>
+                                    </div>
+                                )}
+
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <Input
+                                        id="archivo-acuerdo-firmado"
+                                        type="file"
+                                        className="hidden"
+                                        accept=".pdf"
+                                        disabled={saving || subiendoFirmado || readOnly}
+                                        onChange={(e) => {
+                                            const f = e.target.files?.[0];
+                                            if (!f) {
+                                                setArchivoFirmadoFile(undefined);
+                                                return;
+                                            }
+
+                                            const tooBig = f.size > MAX_FILE_MB * 1024 * 1024;
+                                            if (tooBig) {
+                                                toast.error(`El archivo supera ${MAX_FILE_MB} MB`);
+                                                e.currentTarget.value = "";
+                                                return;
+                                            }
+
+                                            const isPdf =
+                                                f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
+                                            if (!isPdf) {
+                                                toast.error("Solo se permite PDF");
+                                                e.currentTarget.value = "";
+                                                return;
+                                            }
+
+                                            setArchivoFirmadoFile(f);
+                                        }}
+                                    />
+
+                                    {/* Seleccionar archivo */}
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        disabled={saving || subiendoFirmado || readOnly}
+                                        onClick={() => document.getElementById("archivo-acuerdo-firmado")?.click()}
+                                        className="border-brand-secondary/30"
+                                    >
+                                        <Upload className="h-4 w-4 mr-2" />
+                                        Seleccionar archivo
+                                    </Button>
+
+                                    {/* Estado seleccionado */}
+                                    {archivoFirmadoFile ? (
+                                        <div className="text-sm flex items-center gap-2 flex-1 min-w-[220px]">
+                                            <FileText className="h-4 w-4 text-brand-primary" />
+                                            <span className="font-medium">{archivoFirmadoFile.name}</span>
+                                            <span className="text-muted-foreground">({formatBytes(archivoFirmadoFile.size)})</span>
+                                        </div>
+                                    ) : (
+                                        <div className="text-sm text-muted-foreground flex-1 min-w-[220px]">
+                                            No hay archivo seleccionado
+                                        </div>
+                                    )}
+
+                                    {/* Quitar seleccionado */}
+                                    {archivoFirmadoFile && !readOnly && (
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => setArchivoFirmadoFile(undefined)}
+                                            disabled={saving || subiendoFirmado}
+                                            className="hover:bg-red-50"
+                                        >
+                                            <Trash2 className="h-4 w-4 text-red-600" />
+                                        </Button>
+                                    )}
                                 </div>
-                            </section>
+
+                                <p className="text-xs text-muted-foreground">
+                                    Formato permitido: PDF. Tamaño máximo: {MAX_FILE_MB} MB.
+                                </p>
+                            </div>
+
+                            {/* Botones acción */}
+                            {!readOnly && (
+                                <div className="flex gap-2 flex-wrap justify-end pt-2">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        disabled={subiendoFirmado || saving || !archivoFirmadoFile || !currentAcuerdoId}
+                                        onClick={handleSubirPdfFirmado}
+                                        className="gap-2"
+                                    >
+                                        <Upload className="h-4 w-4" />
+                                        {subiendoFirmado ? "Subiendo..." : "Subir archivo"}
+                                    </Button>
+
+                                    <Button
+                                        type="button"
+                                        variant="brand"
+                                        disabled={saving || subiendoFirmado || !acuerdoURL || !currentAcuerdoId}
+                                        onClick={handleDejarEnFirme}
+                                        className="gap-2"
+                                    >
+                                        <FileText className="h-4 w-4" />
+                                        Dejar en firme (Acuerdo listo)
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+                    </section>
+
+
+                </div>
+
+                <Dialog open={openIncumplio} onOpenChange={setOpenIncumplio}>
+                    <DialogContent className="sm:max-w-lg">
+                        <DialogHeader>
+                            <DialogTitle>Marcar acuerdo como INCUMPLIDO</DialogTitle>
+                            <DialogDescription>
+                                ¿Confirmas que el deudor incumplió este acuerdo? <br />
+                                Se marcará como <b>INCUMPLIDO</b> y se creará un <b>nuevo borrador</b> para generar otro acuerdo.
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <DialogFooter className="gap-2">
+                            <Button variant="outline" onClick={() => setOpenIncumplio(false)} disabled={incumpliendo}>
+                                Cancelar
+                            </Button>
+                            <Button variant="destructive" onClick={handleConfirmIncumplio} disabled={incumpliendo}>
+                                {incumpliendo ? "Procesando..." : "Sí, incumplió"}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                <Dialog open={openHistorial} onOpenChange={setOpenHistorial}>
+                    <DialogContent className="sm:max-w-3xl">
+                        <DialogHeader>
+                            <DialogTitle>Historial de acuerdos</DialogTitle>
+                            <DialogDescription>
+                                Aquí puedes consultar acuerdos anteriores y abrir sus PDF firmados.
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        {historialLoading ? (
+                            <div className="py-10 text-center text-sm text-muted-foreground">Cargando historial...</div>
+                        ) : (
+                            <div className="space-y-2 max-h-[60vh] overflow-auto pr-1">
+                                {historialFiltrado.length === 0 && (
+                                    <div className="py-10 text-center text-sm text-muted-foreground">
+                                        No hay acuerdos anteriores en el historial.
+                                    </div>
+                                )}
+
+                                {historialFiltrado.map((a: any) => {
+                                    const fecha =
+                                        a?.fechaAcuerdo?.toDate ? a.fechaAcuerdo.toDate()
+                                            : a?.fechaAcuerdo ? new Date(a.fechaAcuerdo)
+                                                : null;
+
+                                    const estado = String(a?.estado || "");
+                                    const url = String(a?.acuerdoURL || "");
+                                    const nombreArchivo = String(a?.acuerdoNombre || "").trim();
+
+                                    // Título: nombre del archivo, si no existe, fallback
+                                    const titulo = nombreArchivo || (url ? "Acuerdo firmado" : "Acuerdo sin PDF");
+
+                                    return (
+                                        <div
+                                            key={a.id}
+                                            className="rounded-lg border border-brand-secondary/20 p-3 flex items-center justify-between gap-3 flex-wrap"
+                                        >
+                                            <div className="min-w-[240px]">
+                                                <div className="text-sm font-semibold text-brand-secondary">
+                                                    {titulo}
+                                                </div>
+                                                <div className="text-xs text-muted-foreground">
+                                                    {fecha ? fecha.toLocaleDateString("es-CO") : "Sin fecha"} • Estado: {estado}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex gap-2">
+                                                <Button
+                                                    variant="outline"
+                                                    className="gap-2"
+                                                    disabled={!url}
+                                                    onClick={() => url && window.open(url, "_blank")}
+                                                >
+                                                    <ExternalLink className="h-4 w-4" />
+                                                    Ver PDF
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+
+                            </div>
                         )}
 
-                        <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
-                            <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5 border-b border-brand-secondary/10">
-                                <Typography variant="h3" className="!text-brand-secondary font-semibold">
-                                    Notas
-                                </Typography>
-                            </div>
-                            <div className="p-4 md:p-5 space-y-4">
-                                <div className="space-y-2">
-                                    <Label className="text-brand-secondary font-medium">Detalles</Label>
-                                    <Textarea
-                                        value={form.detalles}
-                                        disabled={readOnly}
-                                        onChange={(e) => setForm((p) => ({ ...p, detalles: e.target.value }))}
-                                        className="min-h-28 border-brand-secondary/30"
-                                    />
-                                </div>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setOpenHistorial(false)}>
+                                Cerrar
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
 
-                                <div className="space-y-2">
-                                    <Label className="text-brand-secondary font-medium">Motivo del cambio (historial)</Label>
-                                    <Input
-                                        value={motivoCambio}
-                                        disabled={readOnly}
-                                        onChange={(e) => setMotivoCambio(e.target.value)}
-                                        className="border-brand-secondary/30"
-                                        placeholder="Ej: Ajuste negociado con el deudor"
-                                    />
-                                </div>
-                            </div>
-                        </section>
-                    </TabsContent>
 
-                    <TabsContent value="vista" className="mt-6">
-                        <div className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
-                            <div ref={printRef} className="p-8 md:p-12 print:p-8">
-                                <div className="text-center mb-8">
-                                    <Typography variant="h1" className="!text-2xl font-bold text-brand-primary mb-2">
-                                        ACUERDO DE PAGO
-                                    </Typography>
-                                    <Typography variant="body" className="text-muted-foreground">
-                                        No. {form.numero || "___________"}
-                                    </Typography>
-                                </div>
-
-                                <div className="grid md:grid-cols-2 gap-6 mb-6">
-                                    <div className="p-4 rounded-lg bg-brand-primary/5 border border-brand-primary/10">
-                                        <Typography variant="small" className="text-muted-foreground">
-                                            Acreedor
-                                        </Typography>
-                                        <Typography variant="body" className="font-semibold">
-                                            {clienteNombre}
-                                        </Typography>
-                                    </div>
-                                    <div className="p-4 rounded-lg bg-blue-50 border border-blue-100">
-                                        <Typography variant="small" className="text-muted-foreground">
-                                            Deudor
-                                        </Typography>
-                                        <Typography variant="body" className="font-semibold">
-                                            {deudorNombre}
-                                        </Typography>
-                                    </div>
-                                </div>
-
-                                <div className="grid md:grid-cols-3 gap-6 mb-8">
-                                    <div>
-                                        <Typography variant="small" className="text-muted-foreground">
-                                            Capital
-                                        </Typography>
-                                        <Typography variant="body" className="font-bold text-blue-600">
-                                            ${Math.round(form.capitalInicial).toLocaleString("es-CO")}
-                                        </Typography>
-                                    </div>
-                                    <div>
-                                        <Typography variant="small" className="text-muted-foreground">
-                                            Honorarios ({form.porcentajeHonorarios}%)
-                                        </Typography>
-                                        <Typography variant="body" className="font-bold text-orange-600">
-                                            ${totales.honorariosInicial.toLocaleString("es-CO")}
-                                        </Typography>
-                                    </div>
-                                    <div>
-                                        <Typography variant="small" className="text-muted-foreground">
-                                            Total acuerdo
-                                        </Typography>
-                                        <Typography variant="body" className="font-bold text-green-600">
-                                            ${totales.totalAcordado.toLocaleString("es-CO")}
-                                        </Typography>
-                                    </div>
-                                </div>
-
-                                {cuotas.length > 0 && (
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full border-collapse text-sm">
-                                            <thead>
-                                                <tr className="bg-brand-primary/10 border-b-2 border-brand-primary/20">
-                                                    <th className="p-2 text-center">#</th>
-                                                    <th className="p-2 text-right">Cuota</th>
-                                                    <th className="p-2 text-right">Honorarios</th>
-                                                    <th className="p-2 text-right">Capital</th>
-                                                    <th className="p-2 text-right">Saldo Cap.</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {cuotas.map((c) => (
-                                                    <tr key={c.numero} className="border-b">
-                                                        <td className="p-2 text-center">{c.numero}</td>
-                                                        <td className="p-2 text-right">${Math.round(c.valorCuota).toLocaleString("es-CO")}</td>
-                                                        <td className="p-2 text-right">${Math.round(c.honorariosCuota).toLocaleString("es-CO")}</td>
-                                                        <td className="p-2 text-right">${Math.round(c.capitalCuota).toLocaleString("es-CO")}</td>
-                                                        <td className="p-2 text-right">${Math.round(c.capitalSaldoDespues).toLocaleString("es-CO")}</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                )}
-
-                                {form.detalles && (
-                                    <div className="mt-6">
-                                        <Typography variant="small" className="text-muted-foreground">
-                                            Detalles
-                                        </Typography>
-                                        <Typography variant="body">{form.detalles}</Typography>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </TabsContent>
-                </Tabs>
             </div>
         </div>
     );
