@@ -2,13 +2,13 @@
 import { auth } from "@/firebase";
 import {
   signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
   signOut,
   GoogleAuthProvider,
   signInWithPopup,
   sendPasswordResetEmail,
   setPersistence,
   browserLocalPersistence,
+  createUserWithEmailAndPassword,
 } from "firebase/auth";
 
 /** Mapea códigos de Firebase Auth a mensajes cortos en español */
@@ -56,6 +56,8 @@ export const registroConCorreo = async (email: string, password: string) => {
     throw new Error(normalizeAuthError(err?.code));
   }
 };
+
+
 
 export const loginConGoogle = async () => {
   try {

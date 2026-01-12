@@ -1,15 +1,15 @@
 // src/modules/usuarios/services/deudorUserService.ts
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth, db } from "@/firebase";
+import { db } from "@/firebase";
 import { doc, setDoc } from "firebase/firestore";
 import type { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
+import { crearUsuarioDesdeAdmin } from "@/shared/services/crearUsuarioService"; // ajusta ruta real
 
 type CrearUsuarioDeudorInput = {
   email: string;
   nombre?: string;
   clienteId: string;
   deudorId: string;
-  numeroDocumento: string; // 👈 cédula (password)
+  numeroDocumento: string; // contraseña (mín 6)
 };
 
 export async function crearUsuarioParaDeudor({
@@ -19,7 +19,7 @@ export async function crearUsuarioParaDeudor({
   deudorId,
   numeroDocumento,
 }: CrearUsuarioDeudorInput): Promise<UsuarioSistema> {
-  const password = numeroDocumento; // 👈 contraseña = cédula
+  const password = numeroDocumento;
 
   if (!password || password.length < 6) {
     throw new Error(
@@ -27,16 +27,21 @@ export async function crearUsuarioParaDeudor({
     );
   }
 
-  console.log("[crearUsuarioParaDeudor] Creando usuario:", {
+  // 1) Crear en Auth desde Admin (NO cambia sesión)
+  const { uid } = await crearUsuarioDesdeAdmin({
     email,
     password,
-    clienteId,
-    deudorId,
+    nombre: nombre ?? "",
+    roles: ["deudor"],          // 👈 manda el rol real
+    activo: true,
+    asociadoA: clienteId,       // opcional si lo usas en tu modelo
+    clienteIdAsociado: clienteId,
+    deudorIdAsociado: deudorId,
+    numeroDocumento,
+    tipoDocumento: "CC",
   });
 
-  const cred = await createUserWithEmailAndPassword(auth, email, password);
-  const uid = cred.user.uid;
-
+  // 2) Guardar perfil en Firestore (si tu Function NO lo guarda)
   const usuarioSistema: UsuarioSistema = {
     uid,
     email,
@@ -45,14 +50,8 @@ export async function crearUsuarioParaDeudor({
     clienteIdAsociado: clienteId,
     deudorIdAsociado: deudorId,
     numeroDocumento,
-    tipoDocumento: "CC", // 👈 aquí el valor por defecto
+    tipoDocumento: "CC",
   };
-  await setDoc(doc(db, "usuarios", uid), usuarioSistema);
-
-  console.log(
-    "[crearUsuarioParaDeudor] UsuarioSistema guardado:",
-    usuarioSistema
-  );
 
   return usuarioSistema;
 }

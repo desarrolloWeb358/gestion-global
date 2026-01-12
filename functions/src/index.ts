@@ -7,7 +7,10 @@ import { GMAIL_USER, GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN }
 import { sendEmail } from "./notificaciones/sendEmail";
 import { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN } from "./twilio/client";
 import { consultarPersonasService } from "./consultas/consultarPersonas";
+import * as admin from "firebase-admin";
+import { onCall, HttpsError } from "firebase-functions/v2/https";
 
+admin.initializeApp();
 
 export const consultarPersonas = onRequest(async (req, res) => {
 
@@ -119,6 +122,120 @@ export const pruebaMensajes = onRequest({
     res.status(500).send('Fallo al enviar el SMS');
   }
 });
+
+export const borrarDeudorCompleto = onCall(
+  {
+    region: "us-central1",
+    cors: ["http://localhost:5173", "http://127.0.0.1:5173"], // ✅ importante
+  },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+
+    const { clienteId, deudorId } = request.data as { clienteId?: string; deudorId?: string };
+    if (!clienteId || !deudorId) {
+      throw new HttpsError("invalid-argument", "clienteId y deudorId son requeridos.");
+    }
+
+    const db = admin.firestore();
+    const deudorRef = db.collection("clientes").doc(clienteId).collection("deudores").doc(deudorId);
+
+    await db.recursiveDelete(deudorRef);
+
+    return { ok: true };
+  }
+);
+
+
+async function requireAuth(req: any) {
+  const authHeader = req.headers.authorization || "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  if (!token) throw new Error("UNAUTHENTICATED");
+  return admin.auth().verifyIdToken(token);
+}
+
+async function requireAdmin(decoded: admin.auth.DecodedIdToken) {
+  if (!decoded.admin) throw new Error("FORBIDDEN");
+}
+
+export const crearUsuarioDesdeAdmin = onRequest(async (req, res) => {
+  try {
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "Method not allowed" });
+      return;
+    }
+
+    const decoded = await requireAuth(req);
+    await requireAdmin(decoded);
+
+    const {
+      email,
+      password,
+      nombre,
+      telefonoUsuario,
+      tipoDocumento,
+      numeroDocumento,
+      roles,
+      activo = true,
+      fecha_registro,
+      asociadoA = null,
+    } = req.body ?? {};
+
+    if (!email || !password) {
+      res.status(400).json({ error: "Faltan email o password" });
+      return;
+    }
+    if (!Array.isArray(roles) || roles.length === 0) {
+      res.status(400).json({ error: "Debes enviar roles[]" });
+      return;
+    }
+
+    const user = await admin.auth().createUser({
+      email,
+      password,
+      displayName: nombre ?? "",
+      disabled: !Boolean(activo),
+    });
+
+    // Opcional: guardar roles como custom claims (recomendado para seguridad)
+    await admin.auth().setCustomUserClaims(user.uid, { roles, activo: Boolean(activo) });
+
+    // Guardar perfil en Firestore
+    await admin.firestore().collection("usuarios").doc(user.uid).set(
+      {
+        uid: user.uid,
+        email,
+        nombre: nombre ?? "",
+        telefonoUsuario: telefonoUsuario ?? "",
+        tipoDocumento: tipoDocumento ?? null,
+        numeroDocumento: numeroDocumento ?? "",
+        roles,
+        activo: Boolean(activo),
+        asociadoA,
+        fecha_registro: fecha_registro ? admin.firestore.Timestamp.fromDate(new Date(fecha_registro)) : admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdBy: decoded.uid,
+      },
+      { merge: true }
+    );
+
+    res.status(200).json({ uid: user.uid });
+  } catch (e: any) {
+    console.error(e);
+    if (e?.message === "UNAUTHENTICATED") {
+      res.status(401).json({ error: "No autenticado" });
+    } else if (e?.message === "FORBIDDEN") {
+      res.status(403).json({ error: "No autorizado" });
+    } else {
+      res.status(500).json({ error: e?.message ?? "Error creando usuario" });
+    }
+  }
+});
+
+
+
+
+
+
 
 
 /*
@@ -266,3 +383,5 @@ export const enviarNotificacionAnterior = onRequest(
 );
 
 */
+
+

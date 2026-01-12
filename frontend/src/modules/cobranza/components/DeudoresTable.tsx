@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Eye, Pencil, Search, X, Users, UserPlus, Filter, FileText } from "lucide-react";
+import { Eye, Pencil, Search, X, Users, UserPlus, Filter, FileText, Trash2 } from "lucide-react";
 import { createPortal } from "react-dom";
 
 import { Deudor } from "../models/deudores.model";
 import {
   obtenerDeudorPorCliente,
   crearDeudor,
-  actualizarDeudorDatos
+  actualizarDeudorDatos,
+  borrarDeudorCompleto
 } from "../services/deudorService";
 
 import { Cliente } from "@/modules/clientes/models/cliente.model";
@@ -44,10 +45,12 @@ export default function DeudoresTable() {
   const canView = can(PERMS.Deudores_Read);
   const canEdit = can(PERMS.Deudores_Edit);
   const readOnly = !canEdit && canView;
-
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [deudorAEliminar, setDeudorAEliminar] = useState<Deudor | null>(null);
+  const [busyAction, setBusyAction] = useState<"save" | "delete" | null>(null);
   const [deudores, setDeudores] = useState<Deudor[]>([]);
   const [loading, setLoading] = useState(false);
-  const [prevPorcentaje, setPrevPorcentaje] = useState<number | null>(null);
+  //const [prevPorcentaje, setPrevPorcentaje] = useState<number | null>(null);
 
   const [open, setOpen] = useState(false);
   const [deudorEditando, setDeudorEditando] = useState<Deudor | null>(null);
@@ -65,6 +68,35 @@ export default function DeudoresTable() {
   const [tipFilter, setTipFilter] = useState<string>(ALL);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 300;
+
+  const eliminarDeudor = async () => {
+    if (!clienteId || !deudorAEliminar?.id) return;
+    if (!canEdit) return;
+
+    setBusyAction("delete");
+    setSaving(true);
+
+    try {
+      await borrarDeudorCompleto(clienteId, deudorAEliminar.id);
+      toast.success("✓ Deudor eliminado junto con toda su información asociada.");
+      setConfirmDeleteOpen(false);
+      setDeudorAEliminar(null);
+      await fetchDeudores();
+    } catch (e: any) {
+  console.error("Eliminar deudor error:", e);
+
+  // callable errors normalmente vienen con .code y .message
+  const code = e?.code;
+  const msg = e?.message;
+
+  toast.error(code ? `${code}: ${msg}` : (msg ?? "Error interno"));
+}
+    finally {
+      setSaving(false);
+      setBusyAction(null);
+    }
+  };
+
 
   const fetchDeudores = async () => {
     if (!clienteId) return;
@@ -172,22 +204,22 @@ export default function DeudoresTable() {
   };
 
   const onChangeTipificacion = (val: string) => {
-  const t = val as TipificacionDeuda;
+    const t = val as TipificacionDeuda;
 
-  setFormData((prev) => {
-    const esDemanda =
-      t === TipificacionDeuda.DEMANDA ||
-      t === TipificacionDeuda.DEMANDA_ACUERDO ||
-      t === TipificacionDeuda.DEMANDA_TERMINADO ||
-      t === TipificacionDeuda.DEMANDA_INSOLVENCIA;
+    setFormData((prev) => {
+      const esDemanda =
+        t === TipificacionDeuda.DEMANDA ||
+        t === TipificacionDeuda.DEMANDA_ACUERDO ||
+        t === TipificacionDeuda.DEMANDA_TERMINADO ||
+        t === TipificacionDeuda.DEMANDA_INSOLVENCIA;
 
-    return {
-      ...prev,
-      tipificacion: t,
-      porcentajeHonorarios: esDemanda ? 20 : (prev.porcentajeHonorarios ?? 15),
-    };
-  });
-};
+      return {
+        ...prev,
+        tipificacion: t,
+        porcentajeHonorarios: esDemanda ? 20 : (prev.porcentajeHonorarios ?? 15),
+      };
+    });
+  };
 
 
 
@@ -202,7 +234,8 @@ export default function DeudoresTable() {
       valorActual === undefined || valorActual === null || valorActual === ""
         ? 15
         : Number(valorActual);
-
+    setBusyAction("save");
+    setSaving(true);
     setSaving(true);
     try {
       if (deudorEditando) {
@@ -237,6 +270,8 @@ export default function DeudoresTable() {
       toast.error(error?.message ?? "Error al guardar el deudor");
     } finally {
       setSaving(false);
+      setBusyAction(null);
+      setSaving(false);
     }
   };
 
@@ -262,7 +297,11 @@ export default function DeudoresTable() {
         <div className="rounded-xl bg-white shadow-xl px-6 py-5 flex items-center gap-3">
           <div className="h-5 w-5 animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary" />
           <Typography variant="body" className="font-medium">
-            {deudorEditando ? "Guardando cambios..." : "Creando deudor..."}
+            {busyAction === "delete"
+              ? "Eliminando deudor y toda su información..."
+              : deudorEditando
+                ? "Guardando cambios..."
+                : "Creando deudor..."}
           </Typography>
         </div>
       </div>,
@@ -683,6 +722,27 @@ export default function DeudoresTable() {
                                     Acuerdo de pago
                                   </TooltipContent>
                                 </Tooltip>
+
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      onClick={() => {
+                                        setDeudorAEliminar(deudor);
+                                        setConfirmDeleteOpen(true);
+                                      }}
+                                      className="hover:bg-red-50 transition-colors"
+                                      disabled={saving}
+                                    >
+                                      <Trash2 className="h-4 w-4 text-red-600" />
+                                    </Button>
+
+                                  </TooltipTrigger>
+                                  <TooltipContent className="bg-brand-secondary text-white">
+                                    Eliminar
+                                  </TooltipContent>
+                                </Tooltip>
                               </>
                             )}
                           </TooltipProvider>
@@ -692,6 +752,63 @@ export default function DeudoresTable() {
                   ))}
                 </TableBody>
               </Table>
+              <Dialog
+                open={confirmDeleteOpen}
+                onOpenChange={(v) => !saving && setConfirmDeleteOpen(v)}
+              >
+                <DialogContent className="max-w-lg">
+                  <DialogHeader>
+                    <DialogTitle className="text-red-700 text-lg font-bold">
+                      Confirmar eliminación definitiva
+                    </DialogTitle>
+                  </DialogHeader>
+
+                  <div className="space-y-3 text-sm">
+                    <p>
+                      Vas a eliminar el deudor{" "}
+                      <span className="font-semibold">
+                        {deudorAEliminar?.nombre ?? "—"}
+                      </span>.
+                    </p>
+
+                    <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-800">
+                      <p className="font-semibold">Atención:</p>
+                      <p>
+                        Esta acción eliminará definitivamente:
+                      </p>
+                      <ul className="list-disc ml-5 mt-2 space-y-1">
+                        <li>El deudor</li>
+                        <li>Todo el seguimiento</li>
+                        <li>Estados mensuales</li>
+                        <li>Acuerdos de pago</li>
+                        <li>Cualquier subcolección asociada</li>
+                      </ul>
+                      <p className="mt-2 font-semibold">
+                        Esta acción no se puede deshacer.
+                      </p>
+                    </div>
+                  </div>
+
+                  <DialogFooter className="gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setConfirmDeleteOpen(false)}
+                      disabled={saving}
+                    >
+                      Cancelar
+                    </Button>
+
+                    <Button
+                      className="text-white bg-red-600 hover:bg-red-700"
+                      onClick={eliminarDeudor}
+                      disabled={saving || !deudorAEliminar?.id}
+                    >
+                      Sí, borrar definitivamente
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
             </div>
           </div>
         )}

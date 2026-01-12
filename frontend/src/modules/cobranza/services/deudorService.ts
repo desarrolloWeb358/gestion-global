@@ -12,7 +12,8 @@ import {
   orderBy,
   query,
 } from "firebase/firestore";
-import { db } from "../../../firebase";
+import { getFunctions, httpsCallable } from "firebase/functions";
+import { app, db, functions } from "../../../firebase";
 import { Deudor } from "../models/deudores.model";
 import { AcuerdoPago } from "../models/acuerdoPago.model";
 import { EstadoMensual } from "../models/estadoMensual.model";
@@ -21,7 +22,7 @@ import type {
   DocumentReference,
   UpdateData,
 } from "firebase/firestore";
-
+import { getAuth } from "firebase/auth";
 // ------------ Tipos DTO para crear/actualizar Deudor ------------
 export type DeudorCreateInput = {
   nombre: string;
@@ -69,6 +70,18 @@ function normalizeTipificacion(input: unknown): TipificacionDeuda {
   if ((Object.values(TipificacionDeuda) as string[]).includes(v)) return v as TipificacionDeuda;
   const lower = v.toLowerCase();
   return map[lower] ?? TipificacionDeuda.GESTIONANDO;
+}
+
+export async function borrarDeudorCompleto(clienteId: string, deudorId: string) {
+  const user = getAuth().currentUser;
+  if (!user) throw new Error("Debes iniciar sesión para eliminar.");
+
+  await user.getIdToken(true);
+
+  const functions = getFunctions(app, "us-central1");
+  const fn = httpsCallable(functions, "borrarDeudorCompleto"); // ✅ nombre, no URL
+  const { data } = await fn({ clienteId, deudorId });
+  return data;
 }
 
 export function toMesId(fecha: string | Date) {
@@ -218,9 +231,8 @@ export async function actualizarDeudorDatos(
   await updateDoc(ref, sanitized);
 }
 
-export async function eliminarDeudor(clienteId: string, deudorId: string): Promise<void> {
-  const ref = doc(db, `clientes/${clienteId}/deudores/${deudorId}`);
-  await deleteDoc(ref);
+export async function eliminarDeudor(clienteId: string, deudorId: string) {
+  await borrarDeudorCompleto(clienteId, deudorId);
 }
 
 /*

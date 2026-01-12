@@ -2,6 +2,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getFunctions } from "firebase/functions";
 import { getStorage } from "firebase/storage";
 
 // 🔐 Reemplaza estos valores con los de tu proyecto en Firebase Console > Configuración > SDK de Firebase para Web
@@ -15,8 +16,9 @@ const firebaseConfig = {
     measurementId: "G-WZQ7TRGHM4"  
 };
 
-const app = initializeApp(firebaseConfig);
+export const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app); 
+export const functions = getFunctions(app, "us-central1");  

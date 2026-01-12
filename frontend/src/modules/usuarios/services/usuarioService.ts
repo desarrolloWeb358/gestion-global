@@ -12,10 +12,9 @@ import {
   query,           // ⬅️ opcional (para búsqueda por documento)
   where,           // ⬅️ opcional (para búsqueda por documento)
 } from "firebase/firestore";
-import { createUserWithEmailAndPassword } from "firebase/auth";
 import { UsuarioSistema } from "../models/usuarioSistema.model";
 import { Cliente } from "@/modules/clientes/models/cliente.model";
-
+import { crearUsuarioDesdeAdmin } from "@/shared/services/crearUsuarioService";
 /* ============================================
    Utilidad: elimina claves con undefined
    ============================================ */
@@ -82,14 +81,29 @@ export const getUsuarioByDocumento = async (
 /* ============================================
    Crear usuario (Auth + Firestore) y, si aplica, crear cliente
    ============================================ */
+/* ============================================
+   Crear usuario (Auth por Admin + Firestore) y, si aplica, crear cliente
+   ============================================ */
 export const crearUsuario = async (
   usuario: UsuarioSistema & { password: string }
 ): Promise<string> => {
-  const cred = await createUserWithEmailAndPassword(auth, usuario.email, usuario.password);
-  const uid = cred.user.uid;
+  // 1) Crear en Auth desde Admin (NO cambia sesión)
+  const { uid } = await crearUsuarioDesdeAdmin({
+    email: usuario.email,
+    password: usuario.password,
+    nombre: usuario.nombre ?? "",
+    roles: Array.isArray(usuario.roles) ? usuario.roles : [],
+    activo: usuario.activo ?? true,
+    telefonoUsuario: usuario.telefonoUsuario ?? "",
+    tipoDocumento: usuario.tipoDocumento ?? null,
+    numeroDocumento: usuario.numeroDocumento ?? "",
+    // opcional:
+    // fecha_registro: new Date().toISOString(),
+  });
 
   const roles = Array.isArray(usuario.roles) ? usuario.roles : [];
 
+  // 2) Guardar perfil en Firestore (si tu function NO lo guarda)
   const usuarioFirestore: UsuarioSistema = {
     uid,
     email: usuario.email,
@@ -98,13 +112,13 @@ export const crearUsuario = async (
     tipoDocumento: usuario.tipoDocumento,
     numeroDocumento: usuario.numeroDocumento,
     roles,
-    activo: true,
+    activo: usuario.activo ?? true,
     fecha_registro: serverTimestamp(),
   };
 
-  await setDoc(doc(db, "usuarios", uid), usuarioFirestore);
+  await setDoc(doc(db, "usuarios", uid), usuarioFirestore, { merge: true });
 
-  // Si también es cliente, creamos el doc en "clientes"
+  // 3) Si también es cliente, creamos el doc en "clientes"
   if (roles.includes("cliente" as any)) {
     const clienteData: Cliente = {
       id: uid,
@@ -120,11 +134,12 @@ export const crearUsuario = async (
       activo: true as any,
     };
 
-    await setDoc(doc(db, "clientes", uid), clienteData);
+    await setDoc(doc(db, "clientes", uid), clienteData, { merge: true });
   }
 
   return uid;
 };
+
 
 
 /* ============================================
