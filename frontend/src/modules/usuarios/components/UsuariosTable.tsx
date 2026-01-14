@@ -818,9 +818,12 @@ export default function UsuariosCrud() {
                       email,
                       password,
                       nombre,
-                      rol: [rolesSeleccionados?.[0] ?? "usuario"], // si tu sistema usa 1 rol principal
-                      asociadoA: null,
+                      telefonoUsuario,
+                      tipoDocumento,
+                      numeroDocumento,
+                      roles: [rolesSeleccionados?.[0] ?? "ejecutivo"], // si tu sistema usa 1 rol principal
                       activo: Boolean(activo),
+                      asociadoA: null,
                     });
 
                     // 2) Guardar datos extra en tu colección (si manejas campos adicionales)

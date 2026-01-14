@@ -183,9 +183,6 @@ async function requireAdminFromFirestore(uid: string) {
   }
 }
 
-
-const ROLES_VALIDOS = new Set(["admin", "ejecutivo", "cliente", "deudor"]);
-
 export const crearUsuarioDesdeAdmin = onRequest(
   { region: "us-central1" },
   async (req, res): Promise<void> => {
@@ -202,6 +199,7 @@ export const crearUsuarioDesdeAdmin = onRequest(
       return;
     }
 
+    
     try {
       const decoded = await requireAuth(req);
       await requireAdminFromFirestore(decoded.uid);
@@ -229,18 +227,11 @@ export const crearUsuarioDesdeAdmin = onRequest(
         return;
       }
 
-      for (const r of roles) {
-        if (!ROLES_VALIDOS.has(r)) {
-          res.status(400).json({ error: `Rol inválido: ${r}` });
-          return;
-        }
-      }
-
       const user = await admin.auth().createUser({
         email,
         password,
         displayName: nombre ?? "",
-        disabled: !Boolean(activo),
+        disabled: false,
       });
 
       await admin.auth().setCustomUserClaims(user.uid, {
@@ -256,23 +247,42 @@ export const crearUsuarioDesdeAdmin = onRequest(
         }
       }
 
-      await admin.firestore().collection("usuarios").doc(user.uid).set(
-        {
-          uid: user.uid,
-          email,
+      const db = admin.firestore();
+      const batch = db.batch();
+      const userDoc = db.collection("usuarios").doc(user.uid);
+      batch.set(userDoc, {
+        uid: user.uid,
+        email,
+        nombre: nombre ?? "",
+        telefonoUsuario: telefonoUsuario ?? "",
+        tipoDocumento: tipoDocumento ?? null,
+        numeroDocumento: numeroDocumento ?? "",
+        roles,
+        activo: true as any,
+        asociadoA,
+        fecha_registro: fechaRegistro,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdBy: decoded.uid,
+      }, { merge: true });
+
+      // guardar tambien en coleccion clientes si trae el rol de cliente
+      if (roles.includes("cliente")) {
+        const clienteDoc = db.collection("clientes").doc(user.uid);
+        batch.set(clienteDoc, {
           nombre: nombre ?? "",
-          telefonoUsuario: telefonoUsuario ?? "",
-          tipoDocumento: tipoDocumento ?? null,
-          numeroDocumento: numeroDocumento ?? "",
-          roles,
-          activo: Boolean(activo),
-          asociadoA,
-          fecha_registro: fechaRegistro,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          createdBy: decoded.uid,
-        },
-        { merge: true }
-      );
+          direccion: "",
+          banco: "",
+          numeroCuenta: "",
+          tipoCuenta: "",
+          ejecutivoPrejuridicoId: null as any,
+          ejecutivoJuridicoId: null as any,
+          ejecutivoDependienteId: null as any,
+          abogadoId: null as any,
+          activo: true as any,
+          fecha_creacion: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });        
+      }
+      await batch.commit();
 
       res.status(200).json({ uid: user.uid });
       return;
