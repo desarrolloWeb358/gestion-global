@@ -818,7 +818,7 @@ export default function UsuariosCrud() {
                       email,
                       password,
                       nombre,
-                      rol: rolesSeleccionados?.[0] ?? "usuario", // si tu sistema usa 1 rol principal
+                      rol: [rolesSeleccionados?.[0] ?? "usuario"], // si tu sistema usa 1 rol principal
                       asociadoA: null,
                       activo: Boolean(activo),
                     });

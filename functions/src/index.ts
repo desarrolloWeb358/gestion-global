@@ -12,6 +12,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 
 admin.initializeApp();
 
+
 export const consultarPersonas = onRequest(async (req, res) => {
 
   // Habilitar CORS manualmente
@@ -126,18 +127,30 @@ export const pruebaMensajes = onRequest({
 export const borrarDeudorCompleto = onCall(
   {
     region: "us-central1",
-    cors: ["http://localhost:5173", "http://127.0.0.1:5173"], // ✅ importante
+    invoker: "public", // ✅ IMPORTANTÍSIMO para que Cloud Run no bloquee
   },
   async (request) => {
-    if (!request.auth) throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+    logger.info("borrarDeudorCompleto called", { uid: request.auth?.uid, data: request.data });
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+    }
+    const { clienteId, deudorId } = request.data as {
+      clienteId?: string;
+      deudorId?: string;
+    };
 
-    const { clienteId, deudorId } = request.data as { clienteId?: string; deudorId?: string };
     if (!clienteId || !deudorId) {
       throw new HttpsError("invalid-argument", "clienteId y deudorId son requeridos.");
     }
 
     const db = admin.firestore();
-    const deudorRef = db.collection("clientes").doc(clienteId).collection("deudores").doc(deudorId);
+    const deudorRef = db
+      .collection("clientes")
+      .doc(clienteId)
+      .collection("deudores")
+      .doc(deudorId);
+
+    logger.info("recursiveDelete", { path: deudorRef.path, uid: request.auth.uid });
 
     await db.recursiveDelete(deudorRef);
 
@@ -146,6 +159,14 @@ export const borrarDeudorCompleto = onCall(
 );
 
 
+function setCors(req: any, res: any) {
+  const origin = req.headers.origin || "*";
+  res.set("Access-Control-Allow-Origin", origin);
+  res.set("Vary", "Origin");
+  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+}
+
 async function requireAuth(req: any) {
   const authHeader = req.headers.authorization || "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
@@ -153,83 +174,134 @@ async function requireAuth(req: any) {
   return admin.auth().verifyIdToken(token);
 }
 
-async function requireAdmin(decoded: admin.auth.DecodedIdToken) {
-  if (!decoded.admin) throw new Error("FORBIDDEN");
+async function requireAdminFromFirestore(uid: string) {
+  const snap = await admin.firestore().collection("usuarios").doc(uid).get();
+  const roles = snap.data()?.roles;
+
+  if (!Array.isArray(roles) || !roles.includes("admin")) {
+    throw new Error("FORBIDDEN");
+  }
 }
 
-export const crearUsuarioDesdeAdmin = onRequest(async (req, res) => {
-  try {
+
+const ROLES_VALIDOS = new Set(["admin", "ejecutivo", "cliente", "deudor"]);
+
+export const crearUsuarioDesdeAdmin = onRequest(
+  { region: "us-central1" },
+  async (req, res): Promise<void> => {
+    setCors(req, res);
+
+    // Preflight CORS
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
+      return;
+    }
+
     if (req.method !== "POST") {
       res.status(405).json({ error: "Method not allowed" });
       return;
     }
 
-    const decoded = await requireAuth(req);
-    await requireAdmin(decoded);
+    try {
+      const decoded = await requireAuth(req);
+      await requireAdminFromFirestore(decoded.uid);
 
-    const {
-      email,
-      password,
-      nombre,
-      telefonoUsuario,
-      tipoDocumento,
-      numeroDocumento,
-      roles,
-      activo = true,
-      fecha_registro,
-      asociadoA = null,
-    } = req.body ?? {};
-
-    if (!email || !password) {
-      res.status(400).json({ error: "Faltan email o password" });
-      return;
-    }
-    if (!Array.isArray(roles) || roles.length === 0) {
-      res.status(400).json({ error: "Debes enviar roles[]" });
-      return;
-    }
-
-    const user = await admin.auth().createUser({
-      email,
-      password,
-      displayName: nombre ?? "",
-      disabled: !Boolean(activo),
-    });
-
-    // Opcional: guardar roles como custom claims (recomendado para seguridad)
-    await admin.auth().setCustomUserClaims(user.uid, { roles, activo: Boolean(activo) });
-
-    // Guardar perfil en Firestore
-    await admin.firestore().collection("usuarios").doc(user.uid).set(
-      {
-        uid: user.uid,
+      const {
         email,
-        nombre: nombre ?? "",
-        telefonoUsuario: telefonoUsuario ?? "",
-        tipoDocumento: tipoDocumento ?? null,
-        numeroDocumento: numeroDocumento ?? "",
+        password,
+        nombre,
+        telefonoUsuario,
+        tipoDocumento,
+        numeroDocumento,
+        roles,
+        activo = true,
+        fecha_registro,
+        asociadoA = null,
+      } = req.body ?? {};
+
+      if (!email || !password) {
+        res.status(400).json({ error: "Faltan email o password" });
+        return;
+      }
+
+      if (!Array.isArray(roles) || roles.length === 0) {
+        res.status(400).json({ error: "Debes enviar roles[]" });
+        return;
+      }
+
+      for (const r of roles) {
+        if (!ROLES_VALIDOS.has(r)) {
+          res.status(400).json({ error: `Rol inválido: ${r}` });
+          return;
+        }
+      }
+
+      const user = await admin.auth().createUser({
+        email,
+        password,
+        displayName: nombre ?? "",
+        disabled: !Boolean(activo),
+      });
+
+      await admin.auth().setCustomUserClaims(user.uid, {
         roles,
         activo: Boolean(activo),
-        asociadoA,
-        fecha_registro: fecha_registro ? admin.firestore.Timestamp.fromDate(new Date(fecha_registro)) : admin.firestore.FieldValue.serverTimestamp(),
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        createdBy: decoded.uid,
-      },
-      { merge: true }
-    );
+      });
 
-    res.status(200).json({ uid: user.uid });
-  } catch (e: any) {
-    console.error(e);
-    if (e?.message === "UNAUTHENTICATED") {
-      res.status(401).json({ error: "No autenticado" });
-    } else if (e?.message === "FORBIDDEN") {
-      res.status(403).json({ error: "No autorizado" });
-    } else {
+      let fechaRegistro: any = admin.firestore.FieldValue.serverTimestamp();
+      if (fecha_registro) {
+        const d = new Date(fecha_registro);
+        if (!isNaN(d.getTime())) {
+          fechaRegistro = admin.firestore.Timestamp.fromDate(d);
+        }
+      }
+
+      await admin.firestore().collection("usuarios").doc(user.uid).set(
+        {
+          uid: user.uid,
+          email,
+          nombre: nombre ?? "",
+          telefonoUsuario: telefonoUsuario ?? "",
+          tipoDocumento: tipoDocumento ?? null,
+          numeroDocumento: numeroDocumento ?? "",
+          roles,
+          activo: Boolean(activo),
+          asociadoA,
+          fecha_registro: fechaRegistro,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdBy: decoded.uid,
+        },
+        { merge: true }
+      );
+
+      res.status(200).json({ uid: user.uid });
+      return;
+    } catch (e: any) {
+      console.error(e);
+
+      const code = e?.code || "";
+      if (e?.message === "UNAUTHENTICATED") {
+        res.status(401).json({ error: "No autenticado" });
+        return;
+      }
+      if (e?.message === "FORBIDDEN") {
+        res.status(403).json({ error: "No autorizado" });
+        return;
+      }
+      if (code === "auth/email-already-exists") {
+        res.status(409).json({ error: "El email ya existe" });
+        return;
+      }
+      if (code === "auth/invalid-password") {
+        res.status(400).json({ error: "Password inválido (mínimo 6 caracteres)" });
+        return;
+      }
+
       res.status(500).json({ error: e?.message ?? "Error creando usuario" });
+      return;
     }
   }
-});
+);
 
 
 

@@ -76,13 +76,19 @@ export async function borrarDeudorCompleto(clienteId: string, deudorId: string) 
   const user = getAuth().currentUser;
   if (!user) throw new Error("Debes iniciar sesión para eliminar.");
 
-  await user.getIdToken(true);
-
+  
   const functions = getFunctions(app, "us-central1");
-  const fn = httpsCallable(functions, "borrarDeudorCompleto"); // ✅ nombre, no URL
-  const { data } = await fn({ clienteId, deudorId });
-  return data;
+  const fn = httpsCallable(functions, "borrarDeudorCompleto");
+
+  try {
+    const { data } = await fn({ clienteId, deudorId });
+    return data;
+  } catch (e: any) {
+    console.error("Callable error:", e?.code, e?.message, e?.details);
+    throw new Error(e?.message || "No se pudo eliminar el deudor.");
+  }
 }
+
 
 export function toMesId(fecha: string | Date) {
   const d = typeof fecha === "string" ? new Date(fecha) : fecha;

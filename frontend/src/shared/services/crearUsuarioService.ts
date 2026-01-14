@@ -1,10 +1,12 @@
 import { getAuth } from "firebase/auth";
 
 export async function crearUsuarioDesdeAdmin(payload: any) {
+  console.log("PAYLOAD crearUsuarioDesdeAdmin:", payload);
   const auth = getAuth();
-  const token = await auth.currentUser?.getIdToken();
+  const user = auth.currentUser;
+  if (!user) throw new Error("No hay usuario autenticado.");
 
-  if (!token) throw new Error("No hay usuario autenticado.");
+  const token = await user.getIdToken(true);
 
   const resp = await fetch(
     "https://us-central1-gestionglobal-9eac8.cloudfunctions.net/crearUsuarioDesdeAdmin",
@@ -18,10 +20,11 @@ export async function crearUsuarioDesdeAdmin(payload: any) {
     }
   );
 
+  const json = await resp.json().catch(() => ({}));
+
   if (!resp.ok) {
-    const err = await resp.json().catch(() => ({}));
-    throw new Error(err?.error ?? "Error creando usuario");
+    throw new Error(json?.error ?? `Error creando usuario (${resp.status})`);
   }
 
-  return resp.json() as Promise<{ uid: string }>;
+  return json as { uid: string };
 }
