@@ -214,7 +214,8 @@ export const crearUsuarioDesdeAdmin = onRequest(
         roles,
         activo = true,
         fecha_registro,
-        asociadoA = null,
+        clienteIdAsociado,
+        deudorIdAsociado,
       } = req.body ?? {};
 
       if (!email || !password) {
@@ -259,7 +260,8 @@ export const crearUsuarioDesdeAdmin = onRequest(
         numeroDocumento: numeroDocumento ?? "",
         roles,
         activo: true as any,
-        asociadoA,
+        clienteIdAsociado: clienteIdAsociado ?? null,
+        deudorIdAsociado: deudorIdAsociado ?? null,
         fecha_registro: fechaRegistro,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         createdBy: decoded.uid,

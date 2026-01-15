@@ -9,6 +9,7 @@ export interface EstadoMensual {
   porcentajeHonorarios?: number; 
   honorariosDeuda?: number;
   honorariosAcuerdo?: number;
+  honorariosRecaudo?: number;
 
   recibo?: string | null;
   observaciones?: string | null;

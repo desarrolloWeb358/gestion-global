@@ -33,8 +33,7 @@ export async function crearUsuarioParaDeudor({
     password,
     nombre: nombre ?? "",
     roles: ["deudor"],          // 👈 manda el rol real
-    activo: true,
-    asociadoA: clienteId,       // opcional si lo usas en tu modelo
+    activo: true,    
     clienteIdAsociado: clienteId,
     deudorIdAsociado: deudorId,
     numeroDocumento,

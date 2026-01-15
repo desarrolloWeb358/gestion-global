@@ -88,26 +88,49 @@ export default function EstadosMensualesTable() {
       porcentajeHonorarios: 15,
       honorariosDeuda: undefined,
       honorariosAcuerdo: undefined,
+      honorariosRecaudo: undefined,
       recibo: "",
       observaciones: "",
     });
 
   // Recalcular honorarios cuando cambien deuda/acuerdo/%.
+  // Recalcular honorarios cuando cambien deuda/recaudo/acuerdo/%.
   React.useEffect(() => {
     setNuevoEstadoMensual((s) => {
       const pct = (s.porcentajeHonorarios ?? 15) / 100;
-      const hd =
-        s.deuda != null ? round0((s.deuda as number) * pct) : undefined;
-      const ha =
-        s.acuerdo != null ? round0((s.acuerdo as number) * pct) : undefined;
-      if (hd === s.honorariosDeuda && ha === s.honorariosAcuerdo) return s;
-      return { ...s, honorariosDeuda: hd, honorariosAcuerdo: ha };
+
+      const deudaVal = s.deuda ?? undefined;
+      const acuerdoVal = s.acuerdo ?? undefined;
+      const recaudoVal = s.recaudo ?? undefined;
+
+      const hd = deudaVal != null ? round0(deudaVal * pct) : undefined;
+
+      const acuerdoNum = acuerdoVal != null ? Number(acuerdoVal) : 0;
+      const recaudoNum = recaudoVal != null ? Number(recaudoVal) : 0;
+
+      const tieneAcuerdo = acuerdoNum > 0;
+
+      // Si hay acuerdo, calculo honorarios de acuerdo y NO recaudo
+      const ha = tieneAcuerdo ? round0(acuerdoNum * pct) : undefined;
+
+      // Si NO hay acuerdo (0 o vacío), calculo honorarios de recaudo
+      const hr = !tieneAcuerdo && recaudoVal != null ? round0(recaudoNum * pct) : undefined;
+
+      if (
+        hd === s.honorariosDeuda &&
+        ha === s.honorariosAcuerdo &&
+        hr === s.honorariosRecaudo
+      ) return s;
+
+      return { ...s, honorariosDeuda: hd, honorariosAcuerdo: ha, honorariosRecaudo: hr };
     });
   }, [
     nuevoEstadoMensual.deuda,
+    nuevoEstadoMensual.recaudo,              // 👈 NUEVO
     nuevoEstadoMensual.acuerdo,
     nuevoEstadoMensual.porcentajeHonorarios,
   ]);
+
 
   const { can, roles = [], loading: aclLoading } = useAcl();
 
@@ -140,6 +163,7 @@ export default function EstadosMensualesTable() {
       porcentajeHonorarios: 15,
       honorariosDeuda: undefined,
       honorariosAcuerdo: undefined,
+      honorariosRecaudo: undefined,
       recibo: "",
       observaciones: "",
     });
@@ -158,6 +182,7 @@ export default function EstadosMensualesTable() {
       porcentajeHonorarios: estado.porcentajeHonorarios ?? 15,
       honorariosDeuda: estado.honorariosDeuda ?? undefined,
       honorariosAcuerdo: estado.honorariosAcuerdo ?? undefined,
+      honorariosRecaudo: estado.honorariosRecaudo ?? undefined,
       recibo: estado.recibo ?? "",
       observaciones: estado.observaciones ?? "",
     });
@@ -166,40 +191,52 @@ export default function EstadosMensualesTable() {
   };
 
   const handleCrearOEditar = async () => {
-  if (!canEdit) return toast.error("Sin permiso para guardar.");
-  if (!clienteId || !deudorId || !nuevoEstadoMensual.mes) {
-    return toast.error("Debe seleccionar el mes.");
-  }
+    if (!canEdit) return toast.error("Sin permiso para guardar.");
+    if (!clienteId || !deudorId || !nuevoEstadoMensual.mes) {
+      return toast.error("Debe seleccionar el mes.");
+    }
 
-  try {
-    setSaving(true);
+    try {
+      setSaving(true);
 
-    const pct = (nuevoEstadoMensual.porcentajeHonorarios ?? 15) / 100;
+      const pct = (nuevoEstadoMensual.porcentajeHonorarios ?? 15) / 100;
 
-    const payload: Partial<EstadoMensual> = {
-      ...nuevoEstadoMensual,
-      deuda: nuevoEstadoMensual.deuda != null ? Math.round(nuevoEstadoMensual.deuda) : undefined,
-      recaudo: nuevoEstadoMensual.recaudo != null ? Math.round(nuevoEstadoMensual.recaudo) : undefined,
-      acuerdo: nuevoEstadoMensual.acuerdo != null ? Math.round(nuevoEstadoMensual.acuerdo) : undefined,
-      honorariosDeuda:
-        nuevoEstadoMensual.deuda != null ? Math.round(nuevoEstadoMensual.deuda * pct) : undefined,
-      honorariosAcuerdo:
-        nuevoEstadoMensual.acuerdo != null ? Math.round(nuevoEstadoMensual.acuerdo * pct) : undefined,
-    };
+      const deuda = nuevoEstadoMensual.deuda != null ? Math.round(nuevoEstadoMensual.deuda) : undefined;
+      const recaudo = nuevoEstadoMensual.recaudo != null ? Math.round(nuevoEstadoMensual.recaudo) : undefined;
+      const acuerdo = nuevoEstadoMensual.acuerdo != null ? Math.round(nuevoEstadoMensual.acuerdo) : undefined;
 
-    await upsertEstadoMensualPorMes(clienteId, deudorId, payload);
+      const acuerdoNum = acuerdo ?? 0;
+      const tieneAcuerdo = acuerdoNum > 0;
 
-    toast.success(editing ? "Estado mensual actualizado" : "Estado mensual guardado");
-    await cargarEstadosMensuales();
-    setOpen(false);
-    resetForm();
-  } catch (e) {
-    console.error(e);
-    toast.error("Error al guardar el estado mensual");
-  } finally {
-    setSaving(false);
-  }
-};
+      const payload: Partial<EstadoMensual> = {
+        ...nuevoEstadoMensual,
+        deuda,
+        recaudo,
+        acuerdo,
+
+        honorariosDeuda: deuda != null ? Math.round(deuda * pct) : undefined,
+
+        // Si hay acuerdo -> honorariosAcuerdo, si no -> undefined
+        honorariosAcuerdo: tieneAcuerdo ? Math.round(acuerdoNum * pct) : undefined,
+
+        // Si NO hay acuerdo -> honorariosRecaudo, si no -> undefined
+        honorariosRecaudo: !tieneAcuerdo && recaudo != null ? Math.round(recaudo * pct) : undefined,
+      };
+
+
+      await upsertEstadoMensualPorMes(clienteId, deudorId, payload);
+
+      toast.success(editing ? "Estado mensual actualizado" : "Estado mensual guardado");
+      await cargarEstadosMensuales();
+      setOpen(false);
+      resetForm();
+    } catch (e) {
+      console.error(e);
+      toast.error("Error al guardar el estado mensual");
+    } finally {
+      setSaving(false);
+    }
+  };
 
 
   const handleEliminarEstado = async () => {
@@ -431,34 +468,23 @@ export default function EstadosMensualesTable() {
                       <Typography variant="small" className="font-semibold text-brand-secondary">
                         Honorarios calculados automáticamente
                       </Typography>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        {/* Hon. Deuda */}
                         <div className="space-y-2">
-                          <Label className="text-brand-secondary font-medium">
-                            Hon. Deuda
-                          </Label>
-                          <Input
-                            readOnly
-                            value={
-                              nuevoEstadoMensual.honorariosDeuda != null
-                                ? `$${nuevoEstadoMensual.honorariosDeuda.toLocaleString()}`
-                                : ""
-                            }
-                            className="bg-white border-brand-secondary/30 cursor-not-allowed"
-                          />
+                          <Label className="text-brand-secondary font-medium">Hon. Deuda</Label>
+                          <Input readOnly value={nuevoEstadoMensual.honorariosDeuda != null ? `$${nuevoEstadoMensual.honorariosDeuda.toLocaleString()}` : ""} className="bg-white border-brand-secondary/30 cursor-not-allowed" />
                         </div>
+
+                        {/* Hon. Acuerdo */}
                         <div className="space-y-2">
-                          <Label className="text-brand-secondary font-medium">
-                            Hon. Acuerdo
-                          </Label>
-                          <Input
-                            readOnly
-                            value={
-                              nuevoEstadoMensual.honorariosAcuerdo != null
-                                ? `$${nuevoEstadoMensual.honorariosAcuerdo.toLocaleString()}`
-                                : ""
-                            }
-                            className="bg-white border-brand-secondary/30 cursor-not-allowed"
-                          />
+                          <Label className="text-brand-secondary font-medium">Hon. Acuerdo</Label>
+                          <Input readOnly value={nuevoEstadoMensual.honorariosAcuerdo != null ? `$${nuevoEstadoMensual.honorariosAcuerdo.toLocaleString()}` : ""} className="bg-white border-brand-secondary/30 cursor-not-allowed" />
+                        </div>
+
+                        {/* Hon. Recaudo */}
+                        <div className="space-y-2">
+                          <Label className="text-brand-secondary font-medium">Hon. Recaudo</Label>
+                          <Input readOnly value={nuevoEstadoMensual.honorariosRecaudo != null ? `$${nuevoEstadoMensual.honorariosRecaudo.toLocaleString()}` : ""} className="bg-white border-brand-secondary/30 cursor-not-allowed" />
                         </div>
                       </div>
                     </div>
@@ -583,6 +609,9 @@ export default function EstadosMensualesTable() {
                   <TableHead className="text-brand-secondary font-semibold">
                     Hon. Acuerdo
                   </TableHead>
+                  <TableHead className="text-brand-secondary font-semibold">
+                    Hon. Recaudo
+                  </TableHead>
                   {canEdit && (
                     <TableHead className="text-center text-brand-secondary font-semibold">
                       Acciones
@@ -628,6 +657,9 @@ export default function EstadosMensualesTable() {
                     </TableCell>
                     <TableCell className="text-gray-700">
                       ${Number(estado.honorariosAcuerdo ?? 0).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-gray-700">
+                      ${Number(estado.honorariosRecaudo ?? 0).toLocaleString()}
                     </TableCell>
 
                     {canEdit && (
