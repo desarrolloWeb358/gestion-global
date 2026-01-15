@@ -321,7 +321,7 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
   const footer = buildFooter(input);
 
   const empresaNombre = input.empresaNombre ?? "GESTION GLOBAL ACG S.A.S";
-  const empresaNit = input.empresaNit ?? "900.042.908-7";
+  const empresaNit = input.empresaNit ?? "901.662.783-7";
   const empresaRepresentante = input.empresaRepresentante ?? "XXXXX";
 
   const fechaFirma = input.fechaFirma ?? new Date();

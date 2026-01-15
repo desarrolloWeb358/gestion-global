@@ -368,7 +368,7 @@ export default function AcuerdoPagoPage() {
                 fechaFirma: form.fechaAcuerdo,
 
                 empresaNombre: "GESTION GLOBAL ACG S.A.S",
-                empresaNit: "900.042.908-7",
+                empresaNit: "901.662.783-7",
                 empresaRepresentante: "JAVIER MAURICIO GARCIA",
 
                 entidadAcreedoraNombre: clienteNombre,
@@ -896,7 +896,7 @@ export default function AcuerdoPagoPage() {
                                         className="border-brand-secondary/30"
                                     />
                                     <Typography variant="small" className="text-muted-foreground">
-                                        {form.capitalInicial ? numeroALetras(Math.round(form.capitalInicial)) : ""}
+                                        {form.capitalInicial ? `${numeroALetras(Math.round(form.capitalInicial))} PESOS` : ""}
                                     </Typography>
                                 </div>
 
