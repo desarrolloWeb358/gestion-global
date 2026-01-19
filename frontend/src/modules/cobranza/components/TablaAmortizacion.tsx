@@ -1,5 +1,4 @@
-// src/modules/cobranza/components/TablaAmortizacion.tsx
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
@@ -71,6 +70,20 @@ const formatFecha = (fecha: Date) => {
   });
 };
 
+// Helpers para <input type="date">
+const toInputDate = (d: Date) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
+const fromInputDate = (value: string) => {
+  const [y, m, d] = value.split("-").map(Number);
+  // mediodía local para evitar corrimientos por timezone
+  return new Date(y, (m ?? 1) - 1, d ?? 1, 12, 0, 0);
+};
+
 export default function TablaAmortizacion({
   deudorId,
   clienteId,
@@ -90,14 +103,27 @@ export default function TablaAmortizacion({
   const [fechaInicial, setFechaInicial] = useState<Date>(
     datosIniciales?.fechaInicial ?? new Date()
   );
-  const [periodicidad, setPeriodicidad] = useState<"mensual" | "quincenal" | "semanal">(
-    datosIniciales?.periodicidad ?? "mensual"
-  );
+  const [periodicidad, setPeriodicidad] = useState<
+    "mensual" | "quincenal" | "semanal"
+  >(datosIniciales?.periodicidad ?? "mensual");
 
+  // ✅ SOLO UNA VEZ (sin duplicados y dentro del componente)
   const [cuotasGeneradas, setCuotasGeneradas] = useState<CuotaAmortizacion[]>(
     datosIniciales?.cuotas ?? []
   );
+
   const [guardando, setGuardando] = useState<boolean>(false);
+
+  // ✅ Handler dentro del componente (ya tiene acceso al state)
+  const handleChangeFechaCuota = (numeroCuota: number, value: string) => {
+    setCuotasGeneradas((prev) =>
+      prev.map((c) =>
+        c.numero === numeroCuota
+          ? { ...c, fechaPago: fromInputDate(value) }
+          : c
+      )
+    );
+  };
 
   // Calcular la siguiente fecha según la periodicidad
   const calcularSiguienteFecha = (
@@ -143,16 +169,10 @@ export default function TablaAmortizacion({
     }
 
     // Cálculo simple:
-    // 1. Calcular interés total sobre el capital inicial
     const interesTotal = capitalInicial * (tasaPorcentaje / 100);
-    
-    // 2. Calcular el total a pagar (capital + intereses)
     const totalAPagar = capitalInicial + interesTotal;
-    
-    // 3. Calcular cuota fija dividiendo el total entre número de cuotas
     const cuotaFija = totalAPagar / cuotas;
-    
-    // 4. Distribuir proporcionalmente intereses y capital en cada cuota
+
     const interesPorCuota = interesTotal / cuotas;
     const capitalPorCuota = capitalInicial / cuotas;
 
@@ -161,12 +181,9 @@ export default function TablaAmortizacion({
     let fechaActual = new Date(fechaInicial);
 
     for (let i = 1; i <= cuotas; i++) {
-      // Para la última cuota, ajustar para que saldo final sea exactamente 0
       const esUltimaCuota = i === cuotas;
       const capital = esUltimaCuota ? saldoCapitalPendiente : capitalPorCuota;
-      const interes = esUltimaCuota 
-        ? cuotaFija - capital 
-        : interesPorCuota;
+      const interes = esUltimaCuota ? cuotaFija - capital : interesPorCuota;
       const saldoFinal = saldoCapitalPendiente - capital;
 
       tablaCuotas.push({
@@ -174,8 +191,8 @@ export default function TablaAmortizacion({
         fechaPago: new Date(fechaActual),
         saldoInicial: saldoCapitalPendiente,
         cuota: cuotaFija,
-        interes: interes,
-        capital: capital,
+        interes,
+        capital,
         saldoFinal: Math.max(0, saldoFinal),
       });
 
@@ -310,7 +327,10 @@ export default function TablaAmortizacion({
               />
               {valorTotal && tasaInteres && (
                 <Typography variant="small" className="text-muted-foreground">
-                  Interés total: {formatCOP(parseFloat(valorTotal) * (parseFloat(tasaInteres) / 100))}
+                  Interés total:{" "}
+                  {formatCOP(
+                    parseFloat(valorTotal) * (parseFloat(tasaInteres) / 100)
+                  )}
                 </Typography>
               )}
             </div>
@@ -393,7 +413,8 @@ export default function TablaAmortizacion({
                 <div className="h-10 rounded-md border border-green-200 bg-green-50 px-3 flex items-center">
                   <Typography variant="body" className="font-bold text-green-700">
                     {formatCOP(
-                      parseFloat(valorTotal) * (1 + parseFloat(tasaInteres) / 100)
+                      parseFloat(valorTotal) *
+                      (1 + parseFloat(tasaInteres) / 100)
                     )}
                   </Typography>
                 </div>
@@ -434,9 +455,12 @@ export default function TablaAmortizacion({
                     <TableHead className="text-center text-brand-secondary font-semibold">
                       #
                     </TableHead>
+
+                    {/* ✅ Fecha justo después del número */}
                     <TableHead className="text-center text-brand-secondary font-semibold">
                       Fecha de pago
                     </TableHead>
+
                     <TableHead className="text-right text-brand-secondary font-semibold">
                       Saldo inicial
                     </TableHead>
@@ -454,6 +478,8 @@ export default function TablaAmortizacion({
                     </TableHead>
                   </TableRow>
                 </TableHeader>
+
+
                 <TableBody>
                   {cuotasGeneradas.map((cuota, index) => (
                     <TableRow
@@ -467,9 +493,33 @@ export default function TablaAmortizacion({
                       <TableCell className="text-center font-medium">
                         {cuota.numero}
                       </TableCell>
+
                       <TableCell className="text-center">
-                        {formatFecha(cuota.fechaPago)}
+                        <Input
+                          type="date"
+                          value={toInputDate(cuota.fechaPago)}
+                          onChange={(e) =>
+                            handleChangeFechaCuota(cuota.numero, e.target.value)
+                          }
+                          className="mx-auto w-[150px] border-brand-secondary/30"
+                        />
                       </TableCell>
+
+                      {/* ✅ Fecha editable */}
+                      <TableCell className="text-center">
+                        <Input
+                          type="date"
+                          value={toInputDate(cuota.fechaPago)}
+                          onChange={(e) =>
+                            handleChangeFechaCuota(
+                              cuota.numero,
+                              e.target.value
+                            )
+                          }
+                          className="mx-auto w-[150px] border-brand-secondary/30"
+                        />
+                      </TableCell>
+
                       <TableCell className="text-right font-medium">
                         {formatCOP(cuota.saldoInicial)}
                       </TableCell>
@@ -490,10 +540,7 @@ export default function TablaAmortizacion({
 
                   {/* Fila de totales */}
                   <TableRow className="font-semibold bg-gradient-to-r from-brand-primary/10 to-brand-secondary/10 border-t-2 border-brand-primary/20">
-                    <TableCell
-                      colSpan={3}
-                      className="text-right text-brand-secondary"
-                    >
+                    <TableCell colSpan={3} className="text-right text-brand-secondary">
                       TOTALES
                     </TableCell>
                     <TableCell className="text-right text-brand-secondary">
@@ -505,9 +552,7 @@ export default function TablaAmortizacion({
                     <TableCell className="text-right text-brand-secondary">
                       {formatCOP(totales.totalCapital)}
                     </TableCell>
-                    <TableCell className="text-right text-brand-secondary">
-                      $ 0
-                    </TableCell>
+                    <TableCell className="text-right text-brand-secondary">$ 0</TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
