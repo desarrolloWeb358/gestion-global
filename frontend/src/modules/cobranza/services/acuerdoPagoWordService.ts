@@ -13,12 +13,15 @@ import {
   TableRow,
   TextRun,
   WidthType,
+  TableLayoutType,
+  VerticalAlign,
+  TextDirection,
 } from "docx";
 
 import type { IRunOptions, IParagraphOptions } from "docx";
 import { saveAs } from "file-saver";
 import type { CuotaAcuerdo } from "@/modules/cobranza/models/acuerdoPago.model";
-import { TableLayoutType } from "docx";
+
 
 
 // =====================
@@ -180,6 +183,120 @@ function tdText(text: string, align: DocxAlignment = AlignmentType.LEFT) {
   });
 }
 
+const COLOR_HEADER = "BDD7EE";  // azul claro tipo Excel
+const COLOR_TOTAL = "9DC3E6";   // azul más fuerte para totales
+const COLOR_YELLOW = "FFF200";  // amarillo columna vertical
+const BORDER_COLOR = "000000";
+
+function cellBorders() {
+  return {
+    top: { style: BorderStyle.SINGLE, size: 8, color: BORDER_COLOR },
+    bottom: { style: BorderStyle.SINGLE, size: 8, color: BORDER_COLOR },
+    left: { style: BorderStyle.SINGLE, size: 8, color: BORDER_COLOR },
+    right: { style: BorderStyle.SINGLE, size: 8, color: BORDER_COLOR },
+  };
+}
+
+function th2(text: string) {
+  return new TableCell({
+    shading: { fill: COLOR_HEADER },
+    verticalAlign: VerticalAlign.CENTER,
+    borders: cellBorders(),
+    children: [
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [new TextRun({ text, bold: true, font: FONT, size: 20 })],
+      }),
+    ],
+  });
+}
+
+function tdMoney(v: number, align: DocxAlignment = AlignmentType.RIGHT) {
+  const text = formatCOP(v || 0);
+  return new TableCell({
+    borders: cellBorders(),
+    verticalAlign: VerticalAlign.CENTER,
+    children: [
+      new Paragraph({
+        alignment: align,
+        children: [new TextRun({ text, font: FONT, size: 20 })],
+      }),
+    ],
+  });
+}
+
+function tdPlain(text: string, align: DocxAlignment = AlignmentType.LEFT) {
+  const isX = text === "XXXXX";
+  return new TableCell({
+    borders: cellBorders(),
+    verticalAlign: VerticalAlign.CENTER,
+    children: [
+      new Paragraph({
+        alignment: align,
+        children: [
+          new TextRun({
+            text,
+            font: FONT,
+            size: 20,
+            color: isX ? COLOR_RED : undefined,
+            bold: isX ? true : undefined,
+          }),
+        ],
+      }),
+    ],
+  });
+}
+
+function totalCell(title: string, value: number) {
+  return new TableCell({
+    borders: cellBorders(),
+    shading: { fill: COLOR_TOTAL },
+    verticalAlign: VerticalAlign.CENTER,
+    children: [
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [new TextRun({ text: title, bold: true, font: FONT, size: 20 })],
+      }),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [new TextRun({ text: formatCOP(value), bold: true, font: FONT, size: 20 })],
+      }),
+    ],
+  });
+}
+
+function emptyCell(colSpan = 1) {
+  return new TableCell({
+    columnSpan: colSpan,
+    borders: cellBorders(),
+    verticalAlign: VerticalAlign.CENTER,
+    children: [new Paragraph({ text: "" })],
+  });
+}
+
+function totalBoxCell(text: string, shaded = true) {
+  return new TableCell({
+    borders: cellBorders(),
+    shading: shaded ? { fill: COLOR_TOTAL } : undefined,
+    verticalAlign: VerticalAlign.CENTER,
+    children: [
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [
+          new TextRun({
+            text,
+            bold: true,
+            font: FONT,
+            size: 20,
+          }),
+        ],
+      }),
+    ],
+  });
+}
+
+
+
 function toDateFromFirestore(v: any): Date | null {
   if (!v) return null;
   if (v instanceof Date) return v;
@@ -187,35 +304,128 @@ function toDateFromFirestore(v: any): Date | null {
   return null;
 }
 
+function buildAmortTableExcelStyle(input: AcuerdoPagoWordInput) {
+  const cuotas = input.cuotas || [];
 
-function buildAmortTable(cuotas: CuotaAcuerdo[]) {
+  const totalCapital = Math.round(input.capitalInicial || 0);
+  const totalHonorarios = Math.round((input.totalAcordado || 0) - (input.capitalInicial || 0));
+  const totalAcuerdo = Math.round(input.totalAcordado || 0);
+
+  // Header (como imagen)
   const header = new TableRow({
-    children: [th("#"), th("Fecha"), th("Valor cuota"), th("Honorarios"), th("Capital"), th("Saldo capital")],
+    children: [
+      th2("No.\nCUOTAS"),
+      th2("FECHA DE\nPAGOS"),
+      th2("DEUDA\nCAPITAL"),
+      th2("CUOTA\nCAPITAL"),
+      th2("DEUDA\nHONORARIOS"),
+      th2("CUOTA\nHONORARIOS"),
+      th2("CUOTA\nACUERDO"),
+      th2("CUOTA\nADMON\nMENSUAL"),
+    ],
   });
 
-  const rows = (cuotas || []).map((c) => {
-    const fechaObj = 
-      toDateFromFirestore((c as any).fechaPago)
-
+  const rows: TableRow[] = cuotas.map((c, idx) => {
+    const fechaObj = toDateFromFirestore((c as any).fechaPago);
     const fechaTxt = fechaObj ? formatDateDDMMYYYY(fechaObj) : "XXXXX";
 
-    return new TableRow({
-      children: [
-        tdText(String(c.numero ?? ""), AlignmentType.CENTER),
-        tdText(fechaTxt, AlignmentType.CENTER),
-        tdText(formatCOP(c.valorCuota || 0), AlignmentType.RIGHT),
-        tdText(formatCOP(c.honorariosCuota || 0), AlignmentType.RIGHT),
-        tdText(formatCOP(c.capitalCuota || 0), AlignmentType.RIGHT),
-        tdText(formatCOP((c as any).capitalSaldoDespues || 0), AlignmentType.RIGHT),
-      ],
-    });
+    const baseCells: TableCell[] = [
+      tdPlain(String(c.numero ?? ""), AlignmentType.CENTER),
+      tdPlain(fechaTxt, AlignmentType.CENTER),
+
+      // Deuda capital (capitalSaldoAntes)
+      tdMoney(Math.round((c as any).capitalSaldoAntes || 0), AlignmentType.RIGHT),
+
+      // Cuota capital
+      tdMoney(Math.round(c.capitalCuota || 0), AlignmentType.RIGHT),
+
+      // Deuda honorarios (honorariosSaldoAntes)
+      tdMoney(Math.round((c as any).honorariosSaldoAntes || 0), AlignmentType.RIGHT),
+
+      // Cuota honorarios
+      tdMoney(Math.round(c.honorariosCuota || 0), AlignmentType.RIGHT),
+
+      // Cuota acuerdo
+      tdMoney(Math.round(c.valorCuota || 0), AlignmentType.RIGHT),
+    ];
+
+    // Última columna amarilla: 1 sola celda con rowSpan que cubre:
+    // - filas de cuotas
+    // - +2 filas de totales (las que vamos a agregar abajo)
+    if (idx === 0) {
+      baseCells.push(
+        new TableCell({
+          rowSpan: Math.max(cuotas.length, 1) + 2, // 👈 clave (antes era solo cuotas.length)
+          shading: { fill: COLOR_YELLOW },
+          borders: cellBorders(),
+          verticalAlign: VerticalAlign.CENTER,
+          textDirection: TextDirection.BOTTOM_TO_TOP_LEFT_TO_RIGHT,
+          children: [
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              children: [
+                new TextRun({
+                  text: "MAS CUOTA DE ADMINISTRACION MENSUAL",
+                  bold: true,
+                  font: FONT,
+                  size: 20,
+                }),
+              ],
+            }),
+          ],
+        })
+      );
+    }
+
+    return new TableRow({ children: baseCells });
   });
 
-  return new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
-    rows: [header, ...rows],
+  // ==========================
+  // ✅ FILAS DE TOTALES (DENTRO DE LA MISMA TABLA)
+  // ==========================
+  // Columnas:
+  // 1 No
+  // 2 Fecha
+  // 3 Deuda capital
+  // 4 Cuota capital      <-- TOTAL CAPITAL aquí
+  // 5 Deuda honorarios
+  // 6 Cuota honorarios   <-- TOTAL HONORARIOS aquí
+  // 7 Cuota acuerdo      <-- TOTAL ACUERDO aquí
+  // 8 Cuota admon mensual (amarillo) <-- NO se agrega aquí porque ya está "rowSpan" desde la primera fila
+
+  const totalsRowLabels = new TableRow({
+    children: [
+      emptyCell(3),                    // cols 1-3 vacías
+      totalBoxCell("TOTAL\nCAPITAL"),   // col 4
+      emptyCell(1),                    // col 5 vacía
+      totalBoxCell("TOTAL\nHONORARIOS"),// col 6
+      totalBoxCell("TOTAL\nACUERDO"),   // col 7
+      // col 8 NO VA (porque está combinada con rowSpan)
+    ],
   });
+
+  const totalsRowValues = new TableRow({
+    children: [
+      emptyCell(3),
+      totalBoxCell(formatCOP(totalCapital), true),
+      emptyCell(1),
+      totalBoxCell(formatCOP(totalHonorarios), true),
+      totalBoxCell(formatCOP(totalAcuerdo), true),
+      // col 8 NO VA (rowSpan)
+    ],
+  });
+
+  const mainTable = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    layout: TableLayoutType.FIXED,
+    rows: [header, ...rows, totalsRowLabels, totalsRowValues],
+  });
+
+  return { mainTable };
 }
+
+
+
 
 // =====================
 // Header / Footer
@@ -463,8 +673,30 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
 
           // TABLA AMORTIZACION
           ...(input.cuotas?.length
-            ? [buildAmortTable(input.cuotas)]
+            ? (() => {
+              const { mainTable } = buildAmortTableExcelStyle(input);
+
+              return [
+                new Paragraph({
+                  alignment: AlignmentType.CENTER,
+                  spacing: { before: 120, after: 180 },
+                  children: [
+                    new TextRun({
+                      text: "TABLA DE AMORTIZACIÓN SEGÚN ACUERDO\nEXTRAPROCESO",
+                      font: FONT,
+                      bold: true,
+                      size: 36,
+                    }),
+                  ],
+                }),
+
+                mainTable,
+
+                new Paragraph({ text: "", spacing: { after: 180 } }),
+              ];
+            })()
             : [p([rRed("XXXXX (Aca va la tabla de amortización - NO HAY CUOTAS)")])]),
+
 
           new Paragraph({ text: "", spacing: { after: 180 } }),
 

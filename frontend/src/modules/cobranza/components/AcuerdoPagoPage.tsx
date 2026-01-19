@@ -765,7 +765,7 @@ export default function AcuerdoPagoPage() {
 
                         {/* Acciones header */}
                         <div className="flex gap-2 flex-wrap items-center">
-                                                        
+
 
                             {/* Exportar Word (siempre disponible) */}
                             {!readOnly && (
@@ -874,8 +874,12 @@ export default function AcuerdoPagoPage() {
                                             <Calendar
                                                 mode="single"
                                                 selected={form.fechaAcuerdo}
+                                                defaultMonth={form.fechaAcuerdo} // ✅ al abrir, se posiciona en el mes/año elegido
                                                 onSelect={(date) => date && setForm((p) => ({ ...p, fechaAcuerdo: date }))}
                                                 initialFocus
+                                                captionLayout="dropdown"
+                                                fromYear={new Date().getFullYear() - 20} // ✅ permite pasado
+                                                toYear={new Date().getFullYear() + 20}   // ✅ permite futuro
                                             />
                                         </PopoverContent>
                                     </Popover>
@@ -930,11 +934,12 @@ export default function AcuerdoPagoPage() {
                                             <Calendar
                                                 mode="single"
                                                 selected={form.fechaPrimeraCuota}
+                                                defaultMonth={form.fechaPrimeraCuota} // ✅ al abrir, se posiciona en el mes/año elegido
                                                 onSelect={(date) => date && setForm((p) => ({ ...p, fechaPrimeraCuota: date }))}
                                                 initialFocus
                                                 captionLayout="dropdown"
-                                                fromYear={new Date().getFullYear()}
-                                                toYear={new Date().getFullYear() + 5}
+                                                fromYear={new Date().getFullYear() - 20} // ✅ pasado
+                                                toYear={new Date().getFullYear() + 20}   // ✅ futuro
                                             />
                                         </PopoverContent>
                                     </Popover>

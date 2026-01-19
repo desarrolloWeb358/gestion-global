@@ -96,8 +96,12 @@ export default function TablaAmortizacionEditable({
                         <Calendar
                           mode="single"
                           selected={fecha}
+                          defaultMonth={fecha} // ✅ al abrir, se posiciona en el mes/año de la fecha seleccionada
                           onSelect={(d) => handleChangeFecha(idx, d)}
-                          initialFocus
+                          autoFocus // ✅ reemplaza initialFocus (evita deprecated)
+                          captionLayout="dropdown"
+                          startMonth={new Date(new Date().getFullYear() - 20, 0)} // ✅ pasado
+                          endMonth={new Date(new Date().getFullYear() + 20, 11)}  // ✅ futuro
                         />
                       </PopoverContent>
                     )}
@@ -162,7 +166,7 @@ export default function TablaAmortizacionEditable({
       </Table>
 
       <p className="mt-2 text-xs text-muted-foreground">
-        Selecciona la fecha de cada cuota desde el calendario.  
+        Selecciona la fecha de cada cuota desde el calendario.
         El orden de columnas y valores financieros no se recalculan.
       </p>
     </div>
