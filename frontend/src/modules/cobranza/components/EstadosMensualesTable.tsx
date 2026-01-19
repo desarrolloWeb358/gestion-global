@@ -377,6 +377,7 @@ export default function EstadosMensualesTable() {
                           type="number"
                           step="0.01"
                           value={nuevoEstadoMensual.deuda ?? ""}
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
                           onChange={(e) => {
                             const val = e.target.value
                               ? clamp(parseFloat(e.target.value), 0, 1e15)
@@ -401,6 +402,7 @@ export default function EstadosMensualesTable() {
                           type="number"
                           step="0.01"
                           value={nuevoEstadoMensual.recaudo ?? ""}
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
                           onChange={(e) => {
                             const val = e.target.value
                               ? clamp(parseFloat(e.target.value), 0, 1e15)
@@ -425,6 +427,7 @@ export default function EstadosMensualesTable() {
                           type="number"
                           step="0.01"
                           value={nuevoEstadoMensual.acuerdo ?? ""}
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
                           onChange={(e) => {
                             const val = e.target.value
                               ? clamp(parseFloat(e.target.value), 0, 1e15)
@@ -448,6 +451,7 @@ export default function EstadosMensualesTable() {
                           type="number"
                           step="0.01"
                           value={nuevoEstadoMensual.porcentajeHonorarios ?? ""}
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
                           onChange={(e) => {
                             const val = e.target.value
                               ? parseFloat(e.target.value)

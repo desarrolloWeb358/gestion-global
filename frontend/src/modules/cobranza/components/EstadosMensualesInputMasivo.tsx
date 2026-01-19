@@ -384,6 +384,7 @@ export default function EstadosMensualesInputMasivo() {
                           min={0}
                           max={20}
                           value={fila.porcentajeHonorarios ?? ""}
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
                           onChange={(e) =>
                             handleChangePorcentaje(
                               i,
@@ -399,6 +400,7 @@ export default function EstadosMensualesInputMasivo() {
                           type="number"
                           inputMode="decimal"
                           value={fila.deuda ?? ""}
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
                           onChange={(e) =>
                             handleChange(i, "deuda", e.target.value)
                           }
@@ -411,6 +413,7 @@ export default function EstadosMensualesInputMasivo() {
                           type="number"
                           inputMode="decimal"
                           value={fila.recaudo ?? ""}
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
                           onChange={(e) =>
                             handleChange(i, "recaudo", e.target.value)
                           }
@@ -423,6 +426,7 @@ export default function EstadosMensualesInputMasivo() {
                           type="number"
                           inputMode="decimal"
                           value={fila.acuerdo ?? ""}
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
                           onChange={(e) =>
                             handleChange(i, "acuerdo", e.target.value)
                           }

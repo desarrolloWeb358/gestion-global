@@ -36,9 +36,11 @@ import DeudorDashboardPage from "@/modules/dashboard/pages/DeudorDashboardPage";
 import { DemandaInfoPage } from "./modules/cobranza/components/DemandaInfoPage";
 import { ThemeProvider } from "./app/providers/ThemeContext";
 import AcuerdoPagoPage from "./modules/cobranza/components/AcuerdoPagoPage";
-
+import ProtectedRoute from "@/modules/auth/components/ProtectedRoute";
 import NotificacionesPage from "./modules/notificaciones/components/NotificacionesPage";
 import MiDeudaRedirectPage from "./modules/cobranza/components/MiDeudaRedirectPage";
+import RootRedirect from "./modules/auth/pages/RootRedirect";
+import AuthLayout from "./modules/auth/components/AuthLayout";
 
 
 export default function App() {
@@ -49,16 +51,24 @@ export default function App() {
         <Routes>
 
           {/* Redirección inicial a SignIn */}
-          <Route path="/" element={<Navigate to="/signin" replace />} />
-          
+          <Route path="/" element={<RootRedirect />} />
+
           {/* Auth Routes */}
-          <Route path="/signin" element={<SignIn />} />
-          <Route path="/sign-up" element={<SignUp />} />
-          <Route path="/forgot-password" element={<ResetPasswordForm />} />
+          <Route element={<AuthLayout />}>
+            <Route path="/signin" element={<SignIn />} />
+            <Route path="/sign-up" element={<SignUp />} />
+            <Route path="/forgot-password" element={<ResetPasswordForm />} />
+          </Route>
           <Route path="/home" element={<RedirectByRol />} />
 
           {/* Layout protegido */}
-          <Route element={<AppLayout />}>
+          <Route
+            element={
+              <ProtectedRoute>
+                <AppLayout />
+              </ProtectedRoute>
+            }
+          >
             <Route path="/notificaciones" element={<NotificacionesPage />} />
             <Route path="/deudores/:clienteId/:deudorId/seguimiento" element={<SeguimientoTable />} />
             <Route path="/clientes/:clienteId/deudores/:deudorId" element={<DeudorDetailPage />} />
@@ -75,8 +85,8 @@ export default function App() {
             {/* valores agregados */}
             <Route path="/valores-agregados/:clienteId" element={<ValoresAgregadosTable />} />
             <Route path="/clientes/:clienteId/valores-agregados/:valorId" element={<ValorAgregadoDetailPage />} />
-            <Route path="/clientes/:clienteId/deudores/:deudorId/AcuerdoPago" element={<AcuerdoPagoPage/>} />
-    
+            <Route path="/clientes/:clienteId/deudores/:deudorId/AcuerdoPago" element={<AcuerdoPagoPage />} />
+
             {/* Dashboards por rol */}
             <Route path="/dashboard/admin" element={<AdminDashboardPage />} />
             <Route path="/dashboard/ejecutivo" element={<EjecutivoDashboardPage />} />

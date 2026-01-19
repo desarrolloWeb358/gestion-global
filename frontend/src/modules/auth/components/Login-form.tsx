@@ -1,15 +1,16 @@
-import { cn } from "@/shared/lib/cn"
-import { Button } from "@/shared/ui/button"
-import { Input } from "@/shared/ui/input"
-import { Label } from "@/shared/ui/label"
-import { Spinner } from "@/shared/ui/spinner"
-import { useState } from "react"
-import { useNavigate, Link } from "react-router-dom"
+import { cn } from "@/shared/lib/cn";
+import { Button } from "@/shared/ui/button";
+import { Input } from "@/shared/ui/input";
+import { Label } from "@/shared/ui/label";
+import { Spinner } from "@/shared/ui/spinner";
+import { useMemo, useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import { loginConCorreo, loginConGoogle } from "@/modules/auth/services/authService";
 import { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 import { getDoc, doc } from "firebase/firestore";
-import { db } from "@/firebase"
-import { toast } from "sonner"
+import { db } from "@/firebase";
+import { toast } from "sonner";
+import { getAuthErrorMessage } from "@/modules/auth/utils/authErrors";
 
 export function LoginForm({
   className,
@@ -20,44 +21,77 @@ export function LoginForm({
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
 
+  // Si lo pones true, no revela si el correo existe o no.
+  const secureAuthMessages = useMemo(() => false, []);
+
+  const isEmailValid = (value: string) => {
+    // Validación simple (suficiente para UX; Firebase valida de todas formas)
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+
     try {
       const credenciales = await loginConCorreo(email.trim(), password);
       const uid = credenciales.user.uid;
 
       const docSnap = await getDoc(doc(db, "usuarios", uid));
       if (!docSnap.exists()) {
-        toast("El usuario no está registrado en la base de datos.");
+        toast.error(
+          "Tu usuario existe, pero no está habilitado en el sistema. Contacta al administrador.",
+          { id: "login-error" }
+        );
         return;
       }
 
       const usuario = docSnap.data() as UsuarioSistema;
-
-      // Guarda el usuario si quieres reutilizarlo
       localStorage.setItem("usuarioLogeado", JSON.stringify(usuario));
 
+      toast.success("Bienvenido", { id: "login-success" });
       navigate("/home");
-      
     } catch (error: any) {
-      toast("Correo o contraseña incorrectos");
-      console.error(error);
+      console.error("LOGIN ERROR =>", error?.code);
+      toast.error(error?.message ?? "No se pudo iniciar sesión", {
+        id: "login-error",
+      });
     } finally {
       setLoading(false);
     }
   };
+
+
   const handleLoginGoogle = async () => {
     setLoading(true);
     try {
-      await loginConGoogle();
+      const cred = await loginConGoogle();
+
+      // Si tu loginConGoogle retorna credenciales, úsalo:
+      // const uid = cred.user.uid;
+
+      // 🔥 Si tu flujo requiere que exista doc en Firestore también, hazlo igual:
+      const uid = (cred as any)?.user?.uid;
+      if (uid) {
+        const docSnap = await getDoc(doc(db, "usuarios", uid));
+        if (!docSnap.exists()) {
+          toast.error("Tu usuario no está habilitado en el sistema. Contacta al administrador.");
+          return;
+        }
+        const usuario = docSnap.data() as UsuarioSistema;
+        localStorage.setItem("usuarioLogeado", JSON.stringify(usuario));
+      }
+
+      toast.success("Ingreso con Google exitoso.");
       navigate("/home");
-    } catch (error) {
-      toast("Error al iniciar sesión con Google");
+    } catch (error: any) {
+      console.error(error);
+      toast.error(getAuthErrorMessage(error, { secure: secureAuthMessages }));
     } finally {
       setLoading(false);
     }
   };
+
   return (
     <form onSubmit={handleLogin} className={cn("flex flex-col gap-6", className)} {...props}>
       <div className="flex flex-col items-center gap-2 text-center">
@@ -66,12 +100,22 @@ export function LoginForm({
           Ingresa tu correo y contraseña para iniciar sesión
         </p>
       </div>
+
       <div className="grid gap-6">
         <div className="grid gap-3">
           <Label htmlFor="email">Email</Label>
-          <Input id="email" type="email" placeholder="m@example.com" value={email}
-            onChange={(e) => setEmail(e.target.value)} required />
+          <Input
+            id="email"
+            type="email"
+            placeholder="m@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+            required
+            disabled={loading}
+          />
         </div>
+
         <div className="grid gap-3">
           <div className="flex items-center">
             <Label htmlFor="password">Contraseña</Label>
@@ -79,17 +123,29 @@ export function LoginForm({
               Olvidaste tu contraseña?
             </Link>
           </div>
-          <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <Input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            required
+            disabled={loading}
+          />
         </div>
+
         <Button type="submit" disabled={loading} className="w-full">
           {loading ? <Spinner className="h-5 w-5" /> : "Ingresar"}
         </Button>
+
         <div className="after:border-border relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t">
           <span className="bg-background text-muted-foreground relative z-10 px-2">
             Continuar con
           </span>
         </div>
-        <Button onClick={handleLoginGoogle} disabled={loading} variant="outline" className="w-full">
+
+        <Button onClick={handleLoginGoogle} disabled={loading} variant="outline" className="w-full" type="button">
+          {/* icon */}
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
             <g clipPath="url(#clip0_9914_10)">
               <path d="M19.805 10.23c0-.68-.06-1.36-.18-2.02H10v3.83h5.5a4.72 4.72 0 01-2.05 3.1v2.57h3.32c1.95-1.8 3.04-4.45 3.04-7.48z" fill="#4285F4" />
@@ -106,6 +162,7 @@ export function LoginForm({
           Ingresar con Google
         </Button>
       </div>
+
       <div className="text-center text-sm">
         No tienes cuenta{" "}
         <Link to="/sign-up" className="underline underline-offset-4">
@@ -113,5 +170,5 @@ export function LoginForm({
         </Link>
       </div>
     </form>
-  )
+  );
 }

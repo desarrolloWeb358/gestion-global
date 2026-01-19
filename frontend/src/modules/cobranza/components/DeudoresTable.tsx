@@ -83,14 +83,14 @@ export default function DeudoresTable() {
       setDeudorAEliminar(null);
       await fetchDeudores();
     } catch (e: any) {
-  console.error("Eliminar deudor error:", e);
+      console.error("Eliminar deudor error:", e);
 
-  // callable errors normalmente vienen con .code y .message
-  const code = e?.code;
-  const msg = e?.message;
+      // callable errors normalmente vienen con .code y .message
+      const code = e?.code;
+      const msg = e?.message;
 
-  toast.error(code ? `${code}: ${msg}` : (msg ?? "Error interno"));
-}
+      toast.error(code ? `${code}: ${msg}` : (msg ?? "Error interno"));
+    }
     finally {
       setSaving(false);
       setBusyAction(null);
@@ -157,18 +157,34 @@ export default function DeudoresTable() {
   const isInactivo = (t?: string) =>
     t === (TipificacionDeuda as any).INACTIVO || t === "INACTIVO";
 
-  const filteredDeudores = deudores.filter((d) => {
-    if (normalizedQ) {
-      const hay = `${d.nombre ?? ""} ${d.cedula ?? ""} ${d.ubicacion ?? ""}`.toLowerCase();
-      if (!hay.includes(normalizedQ)) return false;
-    }
-    if (tipFilter === ALL) {
-      if (isInactivo(d.tipificacion as string)) return false;
-    } else {
-      if ((d.tipificacion as string) !== tipFilter) return false;
-    }
-    return true;
-  });
+  const filteredDeudores = deudores
+    .filter((d) => {
+      if (normalizedQ) {
+        const hay = `${d.nombre ?? ""} ${d.cedula ?? ""} ${d.ubicacion ?? ""}`.toLowerCase();
+        if (!hay.includes(normalizedQ)) return false;
+      }
+      if (tipFilter === ALL) {
+        if (isInactivo(d.tipificacion as string)) return false;
+      } else {
+        if ((d.tipificacion as string) !== tipFilter) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      const ua = (a.ubicacion ?? "").trim();
+      const ub = (b.ubicacion ?? "").trim();
+
+      // Vacíos al final
+      if (!ua && ub) return 1;
+      if (ua && !ub) return -1;
+      if (!ua && !ub) return 0;
+
+      // ✅ Orden natural: números bien ordenados (11 antes que 102)
+      return ua.localeCompare(ub, "es", {
+        sensitivity: "base",
+        numeric: true,
+      });
+    });
 
   const totalPages = Math.ceil(filteredDeudores.length / itemsPerPage) || 1;
   const paginatedDeudores = filteredDeudores.slice(
