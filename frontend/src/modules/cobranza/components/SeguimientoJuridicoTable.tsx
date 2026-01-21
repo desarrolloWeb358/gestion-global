@@ -2,7 +2,7 @@
 import * as React from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Scale, Edit, Trash2, Download, FileText } from "lucide-react";
+import { Scale, Edit, Trash2, Download } from "lucide-react";
 
 import { Button } from "@/shared/ui/button";
 import {
@@ -37,6 +37,7 @@ import {
 import { Typography } from "@/shared/design-system/components/Typography";
 import { cn } from "@/shared/lib/cn";
 import { getAuth } from "firebase/auth";
+import { ExpandableCell } from "@/shared/components/expandable-cell";
 
 function renderTipoSeguimiento(code?: string) {
   return codeToLabel[code as keyof typeof codeToLabel] ?? code ?? "—";
@@ -80,11 +81,29 @@ export default function SeguimientoJuridicoTable() {
 
 
   // RBAC
+  // RBAC
   const { can, roles = [], loading: aclLoading } = useAcl();
+
   const isCliente = roles.includes("cliente");
-  const canView = isCliente || can(PERMS.Seguimientos_Ejecutivos_Read);
-  const canEdit = !isCliente && can(PERMS.Seguimientos_Ejecutivos_Edit);
-  const canEditSafe = canEdit && !isCliente;
+  const isDeudor = roles.includes("deudor");
+  const isAdmin = roles.includes("admin");
+  const isEjecutivo = roles.includes("ejecutivo");
+
+  // Ver: cliente y deudor pueden VER (solo lectura)
+  // Admin/Ejecutivo/otros con permiso también ven
+  const canView =
+    isCliente ||
+    isDeudor ||
+    can(PERMS.Seguimientos_Ejecutivos_Read);
+
+  // Editar: solo admin/ejecutivo (o quien tenga el permiso) y NO cliente/deudor
+  const canEdit =
+    !isCliente &&
+    !isDeudor &&
+    can(PERMS.Seguimientos_Ejecutivos_Edit);
+
+  const canEditSafe = canEdit; // ya quedó “safe” por la condición anterior
+
 
   React.useEffect(() => {
     if (!clienteId || !deudorId) return;
@@ -158,7 +177,7 @@ export default function SeguimientoJuridicoTable() {
     return (
       <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
         <div className="h-8 w-8 mx-auto animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary mb-3" />
-        <Typography variant="small" className="text-muted">
+        <Typography variant="small" >
           Cargando permisos...
         </Typography>
       </div>
@@ -171,7 +190,7 @@ export default function SeguimientoJuridicoTable() {
         <div className="p-3 rounded-full bg-red-100 inline-block mb-3">
           <Scale className="h-6 w-6 text-red-600" />
         </div>
-        <Typography variant="body" className="text-muted">
+        <Typography variant="body" >
           No tienes acceso a seguimientos jurídicos
         </Typography>
       </div>
@@ -184,7 +203,7 @@ export default function SeguimientoJuridicoTable() {
         <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
           <div className="flex flex-col items-center gap-4">
             <div className="h-12 w-12 animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary" />
-            <Typography variant="body" className="text-muted">
+            <Typography variant="body" >
               Cargando seguimientos jurídicos...
             </Typography>
           </div>
@@ -198,7 +217,7 @@ export default function SeguimientoJuridicoTable() {
             <Typography variant="h3" className="text-brand-secondary">
               No hay seguimientos jurídicos
             </Typography>
-            <Typography variant="small" className="text-muted">
+            <Typography variant="small">
               Aún no se han registrado seguimientos jurídicos para este deudor
             </Typography>
           </div>
@@ -239,9 +258,7 @@ export default function SeguimientoJuridicoTable() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <div className="whitespace-pre-wrap leading-relaxed text-sm text-gray-700">
-                        {seg.descripcion}
-                      </div>
+                      <ExpandableCell text={seg.descripcion} />
                     </TableCell>
                     <TableCell>
                       {seg.archivoUrl ? (
@@ -255,7 +272,7 @@ export default function SeguimientoJuridicoTable() {
                           Ver
                         </a>
                       ) : (
-                        <span className="text-muted-foreground text-sm">—</span>
+                        <span className=" text-sm">—</span>
                       )}
                     </TableCell>
                     {canEditSafe && (

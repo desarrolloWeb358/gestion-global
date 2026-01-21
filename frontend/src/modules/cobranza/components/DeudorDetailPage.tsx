@@ -58,6 +58,11 @@ export default function DeudorDetailPage() {
   const { roles, usuarioSistema } = useUsuarioActual();
   const userRoles = roles && roles.length ? roles : usuarioSistema?.roles ?? [];
   const esDeudor = userRoles.includes("deudor");
+  const esCliente = userRoles.includes("cliente");
+  const esEjecutivo = userRoles.includes("ejecutivo");
+  const esAdmin = userRoles.includes("admin");
+  const puedeCrearAccesoDeudor = !esDeudor && !esCliente && (esAdmin || esEjecutivo);
+  const puedeGestionarAccesos = puedeCrearAccesoDeudor;
   const [deudor, setDeudor] = React.useState<Deudor | null>(null);
   const [usuario, setUsuario] = React.useState<UsuarioSistema | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -246,7 +251,7 @@ export default function DeudorDetailPage() {
           <Typography variant="h2" className="text-red-600 mb-2">
             Deudor no encontrado
           </Typography>
-          <Typography variant="body" className="text-muted mb-4">
+          <Typography variant="body" className="mb-4">
             No se pudo encontrar la información del deudor
           </Typography>
         </div>
@@ -254,7 +259,7 @@ export default function DeudorDetailPage() {
     );
   }
 
-  // ===========================
+  // ===========================a
   // Render principal
   // ===========================
   return (
@@ -478,6 +483,25 @@ export default function DeudorDetailPage() {
               {/* Crear acceso para el deudor */}
               {!esDeudor && (
                 <button
+                  onClick={() => navigate(`/clientes/${clienteId}/deudores/${deudor.id}/AcuerdoPago`)}
+                  className="group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-5 text-left transition-all hover:border-indigo-500 hover:shadow-lg hover:-translate-y-1"
+                >
+                  <div className="absolute top-0 right-0 h-20 w-20 translate-x-8 -translate-y-8 rounded-full bg-indigo-500/5 transition-transform group-hover:scale-150" />
+                  <div className="relative">
+                    <div className="mb-3 inline-flex rounded-lg bg-indigo-500/10 p-3 transition-colors group-hover:bg-indigo-500/20">
+                      <CreditCard className="h-5 w-5 text-indigo-600" />
+                    </div>
+                    <Typography variant="h3" className="!text-brand-secondary mb-1 text-base">
+                      Ver acuerdo de pago
+                    </Typography>
+                    <Typography variant="small">
+                      Consulta el acuerdo activo, cuotas y detalle del compromiso.
+                    </Typography>
+                  </div>
+                </button>
+              )}
+              {puedeCrearAccesoDeudor && !esCliente && !esDeudor && (
+                <button
                   onClick={handleCrearAccesoDeudor}
                   disabled={creandoAcceso}
                   className="group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-5 text-left transition-all hover:border-indigo-500 hover:shadow-lg hover:-translate-y-1 disabled:opacity-60 disabled:cursor-not-allowed"
@@ -490,7 +514,7 @@ export default function DeudorDetailPage() {
                     <Typography variant="h3" className="!text-brand-secondary mb-1 text-base">
                       {creandoAcceso ? "Creando acceso..." : "Crear acceso para el deudor"}
                     </Typography>
-                    <Typography variant="small" >
+                    <Typography variant="small">
                       Genera un usuario y una contraseña inicial basada en la cédula del deudor.
                     </Typography>
                   </div>

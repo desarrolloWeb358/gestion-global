@@ -137,9 +137,11 @@ export default function ValoresAgregadosTable() {
   const { clienteId } = useParams<{ clienteId: string }>();
 
   const { can, roles = [], loading: aclLoading } = useAcl();
-  const canView = can(PERMS.Valores_agregados_Read);
-  const isCliente = roles.includes("cliente");
-  const canEdit = canView && (isCliente || can(PERMS.Valores_agregados_Edit as any));
+const canView = can(PERMS.Valores_agregados_Read);
+
+// ✅ SOLO cliente puede crear/editar
+const isCliente = roles.includes("cliente");
+const canEdit = canView && isCliente;
 
   const [items, setItems] = React.useState<ValorAgregado[]>([]);
   const [loading, setLoading] = React.useState(false);

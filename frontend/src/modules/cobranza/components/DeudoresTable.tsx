@@ -264,7 +264,7 @@ export default function DeudoresTable() {
           tipificacion: formData.tipificacion as TipificacionDeuda,
           porcentajeHonorarios: porcentajeFinal,
         });
-        toast.success("✓ Deudor actualizado correctamente");
+        toast.success("Deudor actualizado correctamente");
       } else {
         await crearDeudor(clienteId, {
           nombre: formData.nombre ?? "",
@@ -276,7 +276,7 @@ export default function DeudoresTable() {
           tipificacion:
             (formData.tipificacion as TipificacionDeuda) ?? TipificacionDeuda.GESTIONANDO,
         });
-        toast.success("✓ Deudor creado correctamente");
+        toast.success("Deudor creado correctamente");
       }
 
       setOpen(false);

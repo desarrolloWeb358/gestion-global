@@ -80,6 +80,7 @@ import SeguimientoDemandaTable from "./SeguimientoDemandaTable";
 import { Typography } from "@/shared/design-system/components/Typography";
 import { BackButton } from "@/shared/design-system/components/BackButton";
 import { cn } from "@/shared/lib/cn";
+import { ExpandableCell } from "@/shared/components/expandable-cell";
 
 type SortDir = "desc" | "asc";
 
@@ -525,9 +526,7 @@ export default function SeguimientoTable() {
                             </span>
                           </TableCell>
                           <TableCell>
-                            <div className="whitespace-pre-wrap leading-relaxed text-sm text-gray-700">
-                              {seg.descripcion}
-                            </div>
+                            <ExpandableCell text={seg.descripcion} />
                           </TableCell>
                           <TableCell>
                             {seg.archivoUrl ? (

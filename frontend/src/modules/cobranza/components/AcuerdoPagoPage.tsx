@@ -16,7 +16,7 @@ import {
     ExternalLink,
     Trash2,
 } from "lucide-react";
-
+import { useUsuarioActual } from "@/modules/auth/hooks/useUsuarioActual";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
@@ -95,8 +95,18 @@ function toDateSafe(v: any): Date {
 }
 
 export default function AcuerdoPagoPage() {
+    const { roles, usuarioSistema } = useUsuarioActual();
+    const userRoles = roles && roles.length ? roles : usuarioSistema?.roles ?? [];
+    const esCliente = userRoles.includes("cliente");
+    const esDeudor = userRoles.includes("deudor");
+
+    // Permisos
     const { clienteId, deudorId } = useParams();
     const { can, loading: aclLoading } = useAcl();
+
+    const puedeEditar = can(PERMS.Deudores_Edit); // admin/ejecutivo normalmente
+    const puedeVerHistorial = puedeEditar || esCliente || esDeudor; // cliente sí
+    const puedeMarcarIncumplido = puedeEditar; // cliente NO
     const canEdit = can(PERMS.Deudores_Edit);
 
     const MAX_FILE_MB = 15;
@@ -695,7 +705,7 @@ export default function AcuerdoPagoPage() {
             <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30 flex items-center justify-center">
                 <div className="text-center">
                     <div className="h-12 w-12 mx-auto animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary mb-4" />
-                    <Typography variant="body" className="text-muted">
+                    <Typography variant="body" >
                         Cargando información...
                     </Typography>
                 </div>
@@ -703,15 +713,35 @@ export default function AcuerdoPagoPage() {
         );
     }
 
-    if (!canEdit) {
+    if ((esCliente || esDeudor) && acuerdoEstado !== ACUERDO_ESTADO.EN_FIRME) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30">
+                <div className="max-w-4xl mx-auto p-6 space-y-4">
+                    <BackButton />
+                    <div className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
+                        <div className="p-6">
+                            <Typography variant="h2" className="text-brand-secondary mb-2">
+                                No hay acuerdo en firme
+                            </Typography>
+                            <Typography variant="body">
+                                Este deudor aún no tiene un acuerdo de pago <b>EN FIRME</b> para consulta.
+                            </Typography>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (!puedeEditar && !esCliente && !esDeudor) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30 flex items-center justify-center">
                 <div className="text-center">
                     <Typography variant="h2" className="text-brand-secondary mb-2">
                         Acceso denegado
                     </Typography>
-                    <Typography variant="body" className="text-muted">
-                        No tienes permisos para crear/editar acuerdos.
+                    <Typography variant="body">
+                        No tienes permisos para acceder al acuerdo.
                     </Typography>
                 </div>
             </div>
@@ -724,6 +754,7 @@ export default function AcuerdoPagoPage() {
             : acuerdoEstado === ACUERDO_ESTADO.BORRADOR
                 ? "Acuerdo de Pago (Borrador)"
                 : "Nuevo Acuerdo de Pago";
+
 
     return (
 
@@ -757,7 +788,7 @@ export default function AcuerdoPagoPage() {
                                 <Typography variant="h1" className="!text-brand-primary font-bold">
                                     {titulo}
                                 </Typography>
-                                <Typography variant="body" className="text-muted-foreground">
+                                <Typography variant="body">
                                     {deudorNombre} - {clienteNombre}
                                 </Typography>
                             </div>
@@ -793,18 +824,15 @@ export default function AcuerdoPagoPage() {
                                 <List className="h-4 w-4" />
                                 Historial
                             </Button>
-                            {readOnly && (
-                                <>
-
-                                    <Button
-                                        variant="destructive"
-                                        className="gap-2"
-                                        onClick={() => setOpenIncumplio(true)}
-                                    >
-                                        <AlertTriangle className="h-4 w-4" />
-                                        Incumplió acuerdo
-                                    </Button>
-                                </>
+                            {readOnly && puedeEditar && (
+                                <Button
+                                    variant="destructive"
+                                    className="gap-2"
+                                    onClick={() => setOpenIncumplio(true)}
+                                >
+                                    <AlertTriangle className="h-4 w-4" />
+                                    Incumplió acuerdo
+                                </Button>
                             )}
                         </div>
                     </div>
@@ -899,7 +927,7 @@ export default function AcuerdoPagoPage() {
                                         onChange={(e) => setForm((p) => ({ ...p, capitalInicial: Number(e.target.value || 0) }))}
                                         className="border-brand-secondary/30"
                                     />
-                                    <Typography variant="small" className="text-muted-foreground">
+                                    <Typography variant="small" >
                                         {form.capitalInicial ? `${numeroALetras(Math.round(form.capitalInicial))} PESOS` : ""}
                                     </Typography>
                                 </div>
@@ -960,13 +988,13 @@ export default function AcuerdoPagoPage() {
                             <div className="rounded-lg bg-brand-primary/5 border border-brand-primary/10 p-4">
                                 <div className="grid md:grid-cols-3 gap-3">
                                     <div>
-                                        <p className="text-xs text-muted-foreground">Honorarios iniciales</p>
+                                        <p className="text-xs ">Honorarios iniciales</p>
                                         <p className="font-semibold text-orange-600">
                                             ${totales.honorariosInicial.toLocaleString("es-CO")}
                                         </p>
                                     </div>
                                     <div>
-                                        <p className="text-xs text-muted-foreground">Total acordado</p>
+                                        <p className="text-xs">Total acordado</p>
                                         <p className="font-semibold text-green-600">
                                             ${totales.totalAcordado.toLocaleString("es-CO")}
                                         </p>
@@ -993,7 +1021,7 @@ export default function AcuerdoPagoPage() {
                                 <Typography variant="h3" className="!text-brand-secondary font-semibold">
                                     Tabla de amortización {readOnly ? "(solo lectura)" : "(editable)"}
                                 </Typography>
-                                <Typography variant="small" className="text-muted-foreground">
+                                <Typography variant="small">
                                     Puedes ajustar cuotas/capital/honorarios. El sistema recalcula saldos.
                                 </Typography>
                             </div>

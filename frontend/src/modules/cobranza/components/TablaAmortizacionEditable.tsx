@@ -165,7 +165,7 @@ export default function TablaAmortizacionEditable({
         </TableBody>
       </Table>
 
-      <p className="mt-2 text-xs text-muted-foreground">
+      <p className="mt-2 text-xs">
         Selecciona la fecha de cada cuota desde el calendario.
         El orden de columnas y valores financieros no se recalculan.
       </p>

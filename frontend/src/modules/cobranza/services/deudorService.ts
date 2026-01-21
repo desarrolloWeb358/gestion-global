@@ -13,7 +13,7 @@ import {
   query,
 } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
-import { app, db, functions } from "../../../firebase";
+import { app, db } from "../../../firebase";
 import { Deudor } from "../models/deudores.model";
 import { AcuerdoPago } from "../models/acuerdoPago.model";
 import { EstadoMensual } from "../models/estadoMensual.model";
@@ -24,6 +24,21 @@ import type {
 } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 // ------------ Tipos DTO para crear/actualizar Deudor ------------
+
+const TIPIFICACION_ORDER: Record<TipificacionDeuda, number> = {
+  [TipificacionDeuda.GESTIONANDO]: 1,
+  [TipificacionDeuda.DEMANDA]: 2,
+  [TipificacionDeuda.ACUERDO]: 3,
+  [TipificacionDeuda.DEMANDA_ACUERDO]: 4,
+
+  // Estados NO operativos (van al final o se excluyen)
+  [TipificacionDeuda.PREJURIDICO_INSOLVENCIA]: 90,
+  [TipificacionDeuda.DEMANDA_INSOLVENCIA]: 91,
+  [TipificacionDeuda.DEMANDA_TERMINADO]: 95,
+  [TipificacionDeuda.DEVUELTO]: 98,
+  [TipificacionDeuda.TERMINADO]: 99,
+  [TipificacionDeuda.INACTIVO]: 0
+};
 export type DeudorCreateInput = {
   nombre: string;
   cedula?: string;
@@ -52,25 +67,51 @@ export function resolverPorcentajeHonorarios(
   */
 
 function normalizeTipificacion(input: unknown): TipificacionDeuda {
-  const v = String(input ?? "").trim();
-  const map: Record<string, TipificacionDeuda> = {
-    "gestionando": TipificacionDeuda.GESTIONANDO,
-    "gestionando/": TipificacionDeuda.GESTIONANDO,
-    "acuerdo": TipificacionDeuda.ACUERDO,
-    "acuerdo de pago": TipificacionDeuda.ACUERDO,
-    "demanda": TipificacionDeuda.DEMANDA,
-    "demanda/acuerdo": TipificacionDeuda.DEMANDA_ACUERDO,
-    "acuerdo demanda": TipificacionDeuda.DEMANDA_ACUERDO,
-    "demanda terminado": TipificacionDeuda.DEMANDA_TERMINADO,
-    "prejurídico/insolvencia": TipificacionDeuda.PREJURIDICO_INSOLVENCIA,
-    "demanda/insolvencia": TipificacionDeuda.DEMANDA_INSOLVENCIA,
-    "devuelto": TipificacionDeuda.DEVUELTO,
-    "terminado": TipificacionDeuda.TERMINADO,
-  };
-  if ((Object.values(TipificacionDeuda) as string[]).includes(v)) return v as TipificacionDeuda;
-  const lower = v.toLowerCase();
-  return map[lower] ?? TipificacionDeuda.GESTIONANDO;
+  const raw = String(input ?? "").trim();
+  const lower = raw.toLowerCase();
+
+  // Si viene exactamente uno de los enums, lo respetamos
+  if ((Object.values(TipificacionDeuda) as string[]).includes(raw)) {
+    return raw as TipificacionDeuda;
+  }
+
+  // Normalización por contains (más robusta)
+  if (lower.includes("terminad")) return TipificacionDeuda.TERMINADO;
+  if (lower.includes("devuelt")) return TipificacionDeuda.DEVUELTO;
+
+  if (lower.includes("prejur") || lower.includes("pre-jur")) {
+    return TipificacionDeuda.PREJURIDICO_INSOLVENCIA;
+  }
+  if (lower.includes("insolv")) {
+    // Si habla de demanda + insolvencia
+    if (lower.includes("demanda")) return TipificacionDeuda.DEMANDA_INSOLVENCIA;
+    return TipificacionDeuda.PREJURIDICO_INSOLVENCIA;
+  }
+
+  // Demanda + acuerdo
+  if (lower.includes("demanda") && lower.includes("acuerdo")) {
+    return TipificacionDeuda.DEMANDA_ACUERDO;
+  }
+
+  // Demanda (incluye "demandado", "demanda/")
+  if (lower.includes("demanda") || lower.includes("demandad")) {
+    // Si explícitamente dice "demanda terminado"
+    if (lower.includes("terminad")) return TipificacionDeuda.DEMANDA_TERMINADO;
+    return TipificacionDeuda.DEMANDA;
+  }
+
+  // Acuerdo
+  if (lower.includes("acuerdo")) return TipificacionDeuda.ACUERDO;
+
+  // Gestionando
+  if (lower.includes("gestion")) return TipificacionDeuda.GESTIONANDO;
+
+  // ✅ Importante: si no reconoce, NO lo fuerces a Gestionando
+  // Mejor mantenerlo como Gestionando solo si está vacío, si no, déjalo en "Gestionando" es tu elección.
+  // Yo recomiendo:
+  return raw ? TipificacionDeuda.GESTIONANDO : TipificacionDeuda.GESTIONANDO;
 }
+
 
 export async function borrarDeudorCompleto(clienteId: string, deudorId: string) {
   const user = getAuth().currentUser;
@@ -174,8 +215,29 @@ export function mapDocToDeudor(id: string, data: DocumentData): Deudor {
 export async function obtenerDeudorPorCliente(clienteId: string): Promise<Deudor[]> {
   const ref = collection(db, `clientes/${clienteId}/deudores`);
   const snap = await getDocs(ref);
-  return snap.docs.map((d) => mapDocToDeudor(d.id, d.data()));
+
+  const deudores = snap.docs.map((d) =>
+    mapDocToDeudor(d.id, d.data())
+  );
+
+  // ❌ estados que NO deben aparecer
+  const EXCLUIR = new Set<TipificacionDeuda>([
+    TipificacionDeuda.TERMINADO,
+    TipificacionDeuda.DEVUELTO,
+    TipificacionDeuda.DEMANDA_TERMINADO,
+    TipificacionDeuda.PREJURIDICO_INSOLVENCIA,
+    TipificacionDeuda.DEMANDA_INSOLVENCIA,
+  ]);
+
+  return deudores
+    .filter((d) => !EXCLUIR.has(d.tipificacion))
+    .sort(
+      (a, b) =>
+        (TIPIFICACION_ORDER[a.tipificacion] ?? 50) -
+        (TIPIFICACION_ORDER[b.tipificacion] ?? 50)
+    );
 }
+
 
 // ------------ Crear / Actualizar / Eliminar Deudor ------------
 export async function crearDeudor(clienteId: string, data: DeudorCreateInput): Promise<string> {

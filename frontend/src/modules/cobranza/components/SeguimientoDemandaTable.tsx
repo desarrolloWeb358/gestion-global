@@ -47,6 +47,7 @@ import { cn } from "@/shared/lib/cn";
 import { PERMS, sanitizeRoles, type Rol, type Perm } from "@/shared/constants/acl";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { Deudor } from "../models/deudores.model";
+import { ExpandableCell } from "@/shared/components/expandable-cell";
 
 type SortDir = "desc" | "asc";
 
@@ -125,13 +126,16 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
     loading: boolean;
   };
 
-  const can = (p: Perm) => acl.can(p);
 
-  // ✅ El único permiso que habilita edición en TODA esta pantalla (Demanda)
-  const puedeEditar = can(PERMS.Seguimientos_Dependientes_Edit);
-  const { roles = [] } = useAcl();
-  // ✅ Solo para ocultar UI
-  const isCliente = Array.isArray(roles) && roles.includes("cliente");
+
+  const roles = Array.isArray(acl.roles) ? acl.roles : [];
+  const isCliente = roles.includes("cliente");
+  const isDeudor = roles.includes("deudor");
+  const isExterno = isCliente || isDeudor;
+  const puedeEditar = acl.can(PERMS.Seguimientos_Dependientes_Edit);
+
+  // ✅ si quieres limitar creación solo a admin/ejecutivo:
+  const puedeCrear = roles.includes("admin") || roles.includes("ejecutivo");
 
   // Tab activo
   const [tab, setTab] = React.useState<"seguimientos" | "info">("seguimientos");
@@ -228,7 +232,7 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
 
   React.useImperativeHandle(ref, () => ({
     openForm: () => {
-      if (!puedeEditar) {
+      if (!puedeCrear) {
         toast.error("No tienes permiso para crear seguimientos de demanda.");
         return;
       }
@@ -240,7 +244,7 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
   const filteredSorted = React.useMemo(() => {
     const arr = rows
       .filter((r) => inRange(tsToMillis(r.fecha), filters.fecha))
-      .filter((r) => (isCliente ? !(r as any).esInterno : true)); // ✅ ocultar internos al cliente
+      .filter((r) => (isExterno ? !(r as any).esInterno : true));// ✅ ocultar internos al cliente
 
     const dir = filters.order === "desc" ? -1 : 1;
     return arr.sort((a, b) => (tsToMillis(a.fecha) - tsToMillis(b.fecha)) * dir);
@@ -453,7 +457,7 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
             <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
               <div className="flex flex-col items-center gap-4">
                 <div className="h-12 w-12 animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary" />
-                <Typography variant="body" className="text-muted">
+                <Typography variant="body" >
                   Cargando registros...
                 </Typography>
               </div>
@@ -467,7 +471,7 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
                 <Typography variant="h3" className="text-brand-secondary">
                   No hay registros
                 </Typography>
-                <Typography variant="small" className="text-muted">
+                <Typography variant="small" >
                   Aún no se han registrado seguimientos de demanda
                 </Typography>
               </div>
@@ -477,10 +481,10 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
               <div className="overflow-x-auto">
                 <Table className="min-w-[800px]">
                   <TableHeader className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5">
-                    <TableRow className="border-brand-secondary/10 hover:bg-transparent">                      
+                    <TableRow className="border-brand-secondary/10 hover:bg-transparent">
                       <TableHead className="w-[140px] text-brand-secondary font-semibold">Fecha</TableHead>
                       <TableHead className="text-brand-secondary font-semibold">Descripción</TableHead>
-                      {!isCliente && (
+                      {!isExterno && (
                         <TableHead className="w-[110px] text-brand-secondary font-semibold text-center">
                           Interno
                         </TableHead>
@@ -509,16 +513,16 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
                             "hover:bg-brand-primary/5"
                           )}
                         >
-                          
+
                           <TableCell className="text-gray-700 font-medium">
                             {fechaStr}
                           </TableCell>
                           <TableCell>
-                            <div className="whitespace-pre-wrap text-sm leading-relaxed text-gray-700">
-                              {row.descripcion || "—"}
-                            </div>
+                            <TableCell>
+                              <ExpandableCell text={row.descripcion} />
+                            </TableCell>
                           </TableCell>
-                          {!isCliente && (
+                          {!isExterno && (
                             <TableCell className="text-center">
                               <span
                                 className={cn(
@@ -542,7 +546,7 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
                                 Ver
                               </a>
                             ) : (
-                              <span className="text-muted-foreground text-sm">—</span>
+                              <span className="text-sm">—</span>
                             )}
                           </TableCell>
                           {puedeEditar && (
@@ -578,7 +582,7 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
           )}
 
           {/* Observaciones internas */}
-          {!loadingInfo && !isCliente && (
+          {!loadingInfo && !isExterno && (
             <section className="rounded-2xl border border-orange-200 bg-white shadow-sm overflow-hidden">
               <div className="bg-gradient-to-r from-orange-50 to-orange-100/50 p-4 md:p-5 border-b border-orange-200/50">
                 <Typography variant="h3" className="!text-orange-900 font-semibold">
@@ -659,7 +663,7 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
           {loadingInfo ? (
             <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
               <div className="h-8 w-8 mx-auto animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary mb-3" />
-              <Typography variant="small" className="text-muted">
+              <Typography variant="small" >
                 Cargando información...
               </Typography>
             </div>
@@ -742,7 +746,7 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
 
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              
+
               <div className="space-y-2">
                 <Label className="text-brand-secondary font-medium">Fecha *</Label>
                 <Popover>

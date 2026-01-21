@@ -295,9 +295,9 @@ export default function ObservacionesClientePanel2() {
           </div>
 
           {loading ? (
-            <p className="text-sm text-muted-foreground">Cargando...</p>
+            <p className="text-sm ">Cargando...</p>
           ) : itemsFilteredSorted.length === 0 ? (
-            <div className="text-sm text-muted-foreground">
+            <div className="text-sm ">
               No hay seguimientos pre-jurídicos registrados.
             </div>
           ) : (
@@ -340,7 +340,7 @@ export default function ObservacionesClientePanel2() {
                           Ver archivo
                         </a>
                       ) : (
-                        <span className="text-muted-foreground">—</span>
+                        <span>—</span>
                       )}
                     </TableCell>
                     {canEditSafeEjecutivo && (
