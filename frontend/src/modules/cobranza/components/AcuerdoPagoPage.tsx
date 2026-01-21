@@ -44,6 +44,11 @@ import {
     firmarAcuerdoConPdf,
 } from "@/modules/cobranza/services/acuerdoPagoService";
 
+import {
+    recalcularTablaDesdeValorCuota,
+    recalcularTablaDesdeValorCuotaDesdeIndice,
+} from "@/modules/cobranza/lib/recalcularTablaAcuerdo";
+
 import { ACUERDO_ESTADO } from "@/shared/constants/acuerdoEstado";
 
 import { subirYGuardarPdfFirmadoBorrador, activarAcuerdoEnFirme } from "@/modules/cobranza/services/acuerdoPagoService";
@@ -133,6 +138,8 @@ export default function AcuerdoPagoPage() {
     const [acuerdoEstado, setAcuerdoEstado] = useState<string | null>(null); // EN_FIRME/BORRADOR/etc
 
     const [acuerdoURL, setAcuerdoURL] = useState<string>("");
+
+    const [tablaKey, setTablaKey] = useState(0);
 
     const [datosWord, setDatosWord] = useState<DatosWord>({
         clienteDireccion: "",
@@ -518,7 +525,7 @@ export default function AcuerdoPagoPage() {
 
         const cuotasDb = await obtenerCuotas(clienteId, deudorId, acuerdoId);
         setCuotas(
-            recalcularSaldos(cuotasDb, {
+            recalcularTablaDesdeValorCuota(cuotasDb, {
                 capitalInicial: Number(acuerdo.capitalInicial || 0),
                 porcentajeHonorarios: Number(acuerdo.porcentajeHonorarios || 15),
             })
@@ -565,25 +572,30 @@ export default function AcuerdoPagoPage() {
             maxMeses: 240,
         });
 
-        setCuotas(
-            recalcularSaldos(gen, {
-                capitalInicial: form.capitalInicial,
-                porcentajeHonorarios: form.porcentajeHonorarios,
-            })
-        );
+        const recalculada = recalcularTablaDesdeValorCuota(gen, {
+            capitalInicial: form.capitalInicial,
+            porcentajeHonorarios: form.porcentajeHonorarios,
+        });
+
+        setCuotas(recalculada);
+        setTablaKey((k) => k + 1); // ✅ fuerza reset del draft
 
         toast.success("✓ Tabla generada. Puedes editarla antes de guardar.");
     };
 
-    const onCuotasChange = (next: CuotaAcuerdo[]) => {
+    const onCuotasChange = (next: CuotaAcuerdo[], meta?: { changedIndex?: number }) => {
         if (readOnly) return;
-        setCuotas(
-            recalcularSaldos(next, {
-                capitalInicial: form.capitalInicial,
-                porcentajeHonorarios: form.porcentajeHonorarios,
-            })
-        );
+
+        const base = {
+            capitalInicial: form.capitalInicial,
+            porcentajeHonorarios: form.porcentajeHonorarios,
+        };
+
+        const idx = meta?.changedIndex ?? 0;
+
+        setCuotas(recalcularTablaDesdeValorCuotaDesdeIndice(next, idx, base));
     };
+
 
     // ==============================
     // Guardar (solo BORRADOR)
@@ -1026,7 +1038,12 @@ export default function AcuerdoPagoPage() {
                                 </Typography>
                             </div>
                             <div className="p-4 md:p-5">
-                                <TablaAmortizacionEditable cuotas={cuotas} onChange={onCuotasChange} readOnly={readOnly} />
+                                <TablaAmortizacionEditable
+                                    key={tablaKey}
+                                    cuotas={cuotas}
+                                    onChange={onCuotasChange}
+                                    readOnly={readOnly}
+                                />
                             </div>
                         </section>
                     )}
