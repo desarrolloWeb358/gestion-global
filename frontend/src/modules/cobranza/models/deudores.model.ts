@@ -21,8 +21,7 @@
     acuerdoActivoId?: string;
     historialAcuerdos?: AcuerdoPago[];
 
-
-
+    fechaTerminado?: Timestamp | { seconds: number; nanoseconds: number } | Date | FieldValue | null;
 
     demandados?: string; 
     juzgado?: string; 

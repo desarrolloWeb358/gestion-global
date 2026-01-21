@@ -11,6 +11,7 @@ import {
   setDoc,
   orderBy,
   query,
+  Timestamp,
 } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { app, db } from "../../../firebase";
@@ -47,6 +48,7 @@ export type DeudorCreateInput = {
   telefonos?: string[];
   porcentajeHonorarios?: number;
   tipificacion?: TipificacionDeuda;
+  fechaTerminado?: Date | Timestamp | null;
 };
 export type DeudorPatch = Partial<DeudorCreateInput>;
 
@@ -66,58 +68,56 @@ export function resolverPorcentajeHonorarios(
 }
   */
 
+function toTimestampOrNull(v: unknown): Timestamp | null | undefined {
+  if (v === undefined) return undefined;
+  if (v === null) return null;
+
+  if (v instanceof Date) return Timestamp.fromDate(v);
+
+  // ya viene como Timestamp
+  if (typeof v === "object" && v && "toDate" in (v as any)) return v as Timestamp;
+
+  return undefined;
+}
+
+
 function normalizeTipificacion(input: unknown): TipificacionDeuda {
   const raw = String(input ?? "").trim();
   const lower = raw.toLowerCase();
 
-  // Si viene exactamente uno de los enums, lo respetamos
   if ((Object.values(TipificacionDeuda) as string[]).includes(raw)) {
     return raw as TipificacionDeuda;
   }
 
-  // Normalización por contains (más robusta)
-  if (lower.includes("terminad")) return TipificacionDeuda.TERMINADO;
-  if (lower.includes("devuelt")) return TipificacionDeuda.DEVUELTO;
+  // primero casos específicos
+  if (lower.includes("demanda") && lower.includes("terminad")) return TipificacionDeuda.DEMANDA_TERMINADO;
+  if (lower.includes("demanda") && lower.includes("insolv")) return TipificacionDeuda.DEMANDA_INSOLVENCIA;
+  if (lower.includes("demanda") && lower.includes("acuerdo")) return TipificacionDeuda.DEMANDA_ACUERDO;
 
-  if (lower.includes("prejur") || lower.includes("pre-jur")) {
-    return TipificacionDeuda.PREJURIDICO_INSOLVENCIA;
-  }
-  if (lower.includes("insolv")) {
-    // Si habla de demanda + insolvencia
-    if (lower.includes("demanda")) return TipificacionDeuda.DEMANDA_INSOLVENCIA;
-    return TipificacionDeuda.PREJURIDICO_INSOLVENCIA;
-  }
+  // demanda general
+  if (lower.includes("demanda") || lower.includes("demandad")) return TipificacionDeuda.DEMANDA;
 
-  // Demanda + acuerdo
-  if (lower.includes("demanda") && lower.includes("acuerdo")) {
-    return TipificacionDeuda.DEMANDA_ACUERDO;
-  }
-
-  // Demanda (incluye "demandado", "demanda/")
-  if (lower.includes("demanda") || lower.includes("demandad")) {
-    // Si explícitamente dice "demanda terminado"
-    if (lower.includes("terminad")) return TipificacionDeuda.DEMANDA_TERMINADO;
-    return TipificacionDeuda.DEMANDA;
-  }
-
-  // Acuerdo
+  // otros
+  if (lower.includes("prejur") || lower.includes("pre-jur")) return TipificacionDeuda.PREJURIDICO_INSOLVENCIA;
+  if (lower.includes("insolv")) return TipificacionDeuda.PREJURIDICO_INSOLVENCIA;
   if (lower.includes("acuerdo")) return TipificacionDeuda.ACUERDO;
-
-  // Gestionando
   if (lower.includes("gestion")) return TipificacionDeuda.GESTIONANDO;
+  if (lower.includes("devuelt")) return TipificacionDeuda.DEVUELTO;
+  if (lower.includes("inactiv")) return TipificacionDeuda.INACTIVO;
 
-  // ✅ Importante: si no reconoce, NO lo fuerces a Gestionando
-  // Mejor mantenerlo como Gestionando solo si está vacío, si no, déjalo en "Gestionando" es tu elección.
-  // Yo recomiendo:
-  return raw ? TipificacionDeuda.GESTIONANDO : TipificacionDeuda.GESTIONANDO;
+  // terminado al final
+  if (lower.includes("terminad")) return TipificacionDeuda.TERMINADO;
+
+  return TipificacionDeuda.GESTIONANDO;
 }
+
 
 
 export async function borrarDeudorCompleto(clienteId: string, deudorId: string) {
   const user = getAuth().currentUser;
   if (!user) throw new Error("Debes iniciar sesión para eliminar.");
 
-  
+
   const functions = getFunctions(app, "us-central1");
   const fn = httpsCallable(functions, "borrarDeudorCompleto");
 
@@ -200,7 +200,7 @@ export function mapDocToDeudor(id: string, data: DocumentData): Deudor {
     uidUsuario: data.uidUsuario ?? "",
     ubicacion: data.ubicacion ?? "",
     nombre: data.nombre ?? "",
-    cedula: data.cedula ?? "",    
+    cedula: data.cedula ?? "",
     correos: Array.isArray(data.correos) ? data.correos : [],
     telefonos: Array.isArray(data.telefonos) ? data.telefonos : [],
     porcentajeHonorarios: data.porcentajeHonorarios ?? 15, // 🔧 AGREGADO: mapear porcentajeHonorarios desde Firestore
@@ -209,6 +209,7 @@ export function mapDocToDeudor(id: string, data: DocumentData): Deudor {
     numeroProceso: data.numeroProceso,
     anoProceso: data.anoProceso,
     tipificacion: normalizeTipificacion(data.tipificacion),
+    fechaTerminado: data.fechaTerminado ?? null
   };
 }
 
@@ -216,32 +217,28 @@ export async function obtenerDeudorPorCliente(clienteId: string): Promise<Deudor
   const ref = collection(db, `clientes/${clienteId}/deudores`);
   const snap = await getDocs(ref);
 
-  const deudores = snap.docs.map((d) =>
-    mapDocToDeudor(d.id, d.data())
+  const deudores = snap.docs.map((d) => mapDocToDeudor(d.id, d.data()));
+
+  // Si quieres: excluir solo INACTIVO a nivel backend (opcional)
+  // return deudores.filter(d => d.tipificacion !== TipificacionDeuda.INACTIVO);
+
+  // Mejor: no excluir nada, y que la UI decida
+  return deudores.sort(
+    (a, b) =>
+      (TIPIFICACION_ORDER[a.tipificacion] ?? 50) -
+      (TIPIFICACION_ORDER[b.tipificacion] ?? 50)
   );
-
-  // ❌ estados que NO deben aparecer
-  const EXCLUIR = new Set<TipificacionDeuda>([
-    TipificacionDeuda.TERMINADO,
-    TipificacionDeuda.DEVUELTO,
-    TipificacionDeuda.DEMANDA_TERMINADO,
-    TipificacionDeuda.PREJURIDICO_INSOLVENCIA,
-    TipificacionDeuda.DEMANDA_INSOLVENCIA,
-  ]);
-
-  return deudores
-    .filter((d) => !EXCLUIR.has(d.tipificacion))
-    .sort(
-      (a, b) =>
-        (TIPIFICACION_ORDER[a.tipificacion] ?? 50) -
-        (TIPIFICACION_ORDER[b.tipificacion] ?? 50)
-    );
 }
+
 
 
 // ------------ Crear / Actualizar / Eliminar Deudor ------------
 export async function crearDeudor(clienteId: string, data: DeudorCreateInput): Promise<string> {
   const ref = collection(db, `clientes/${clienteId}/deudores`);
+
+  const tip = data.tipificacion ?? TipificacionDeuda.GESTIONANDO;
+  const fechaT = tip === TipificacionDeuda.TERMINADO ? toTimestampOrNull(data.fechaTerminado) ?? null : null;
+
   const payload = {
     nombre: data.nombre,
     cedula: data.cedula ?? "",
@@ -249,9 +246,10 @@ export async function crearDeudor(clienteId: string, data: DeudorCreateInput): P
     correos: data.correos ?? [],
     telefonos: data.telefonos ?? [],
     porcentajeHonorarios: data.porcentajeHonorarios ?? 15,
-    tipificacion: data.tipificacion ?? TipificacionDeuda.GESTIONANDO,
-    
+    tipificacion: tip,
+    fechaTerminado: fechaT,
   };
+
   const docRef = await addDoc(ref, payload);
   return docRef.id;
 }
@@ -273,6 +271,7 @@ type DeudorDoc = {
   telefonos: string[];
   porcentajeHonorarios: number;
   tipificacion: TipificacionDeuda;
+  fechaTerminado?: Timestamp | null;
   acuerdoActivoId?: string;
   juzgadoId?: string;
   numeroProceso?: string;
@@ -287,17 +286,28 @@ export async function actualizarDeudorDatos(
   deudorId: string,
   patch: DeudorPatch
 ): Promise<void> {
-  const ref = doc(
-    db,
-    `clientes/${clienteId}/deudores/${deudorId}`
-  ) as DocumentReference<DeudorDoc>;
+  const ref = doc(db, `clientes/${clienteId}/deudores/${deudorId}`) as DocumentReference<DeudorDoc>;
+
+  // ✅ Normalización especial para fechaTerminado
+  const next: any = { ...patch };
+
+  // Si viene fechaTerminado, conviértela a Timestamp/null
+  if ("fechaTerminado" in patch) {
+    next.fechaTerminado = toTimestampOrNull(patch.fechaTerminado);
+  }
+
+  // Si tipificacion cambia y NO es TERMINADO, limpia fechaTerminado
+  if (patch.tipificacion && patch.tipificacion !== TipificacionDeuda.TERMINADO) {
+    next.fechaTerminado = null;
+  }
 
   const sanitized = Object.fromEntries(
-    Object.entries(patch).filter(([, v]) => v !== undefined)
+    Object.entries(next).filter(([, v]) => v !== undefined)
   ) as UpdateData<DeudorDoc>;
 
   await updateDoc(ref, sanitized);
 }
+
 
 export async function eliminarDeudor(clienteId: string, deudorId: string) {
   await borrarDeudorCompleto(clienteId, deudorId);
