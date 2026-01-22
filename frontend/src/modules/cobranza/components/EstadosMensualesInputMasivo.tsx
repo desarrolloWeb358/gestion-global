@@ -163,28 +163,27 @@ export default function EstadosMensualesInputMasivo() {
         ubicacionToSortableNumber(b.ubicacion)
     );
 
-  const handleChange = (
-    index: number,
-    field: keyof FilaEstadoBase,
-    value: string
-  ) => {
-    setFilas((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], [field]: value };
-      return next;
-    });
-  };
+  const handleChangeById = (
+  deudorId: string,
+  field: keyof FilaEstadoBase,
+  value: string
+) => {
+  setFilas((prev) =>
+    prev.map((f) => (f.deudorId === deudorId ? { ...f, [field]: value } : f))
+  );
+};
 
-  const handleChangePorcentaje = (index: number, raw: string) => {
-    if (raw === "") {
-      handleChange(index, "porcentajeHonorarios", "");
-      return;
-    }
-    let num = Number(raw);
-    if (Number.isNaN(num)) num = 0;
-    num = Math.max(0, Math.min(20, num));
-    handleChange(index, "porcentajeHonorarios", String(num));
-  };
+const handleChangePorcentajeById = (deudorId: string, raw: string) => {
+  if (raw === "") {
+    handleChangeById(deudorId, "porcentajeHonorarios", "");
+    return;
+  }
+  let num = Number(raw);
+  if (Number.isNaN(num)) num = 0;
+  num = Math.max(0, Math.min(20, num));
+  handleChangeById(deudorId, "porcentajeHonorarios", String(num));
+};
+
 
   const guardarTodos = async () => {
     if (!clienteId) return;
@@ -487,7 +486,7 @@ export default function EstadosMensualesInputMasivo() {
                           value={fila.porcentajeHonorarios ?? ""}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
                           onChange={(e) =>
-                            handleChangePorcentaje(i, e.target.value)
+                            handleChangePorcentajeById(fila.deudorId, e.target.value)
                           }
                           className="text-right border-brand-secondary/30"
                           placeholder="0–20"
@@ -500,7 +499,7 @@ export default function EstadosMensualesInputMasivo() {
                           inputMode="decimal"
                           value={fila.deuda ?? ""}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          onChange={(e) => handleChange(i, "deuda", e.target.value)}
+                          onChange={(e) => handleChangeById(fila.deudorId, "deuda", e.target.value)}
                           className="text-right border-brand-secondary/30"
                           placeholder="0.00"
                         />
@@ -513,7 +512,7 @@ export default function EstadosMensualesInputMasivo() {
                           value={fila.recaudo ?? ""}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
                           onChange={(e) =>
-                            handleChange(i, "recaudo", e.target.value)
+                            handleChangeById(fila.deudorId, "recaudo", e.target.value)
                           }
                           className="text-right border-brand-secondary/30"
                           placeholder="0.00"
@@ -526,9 +525,7 @@ export default function EstadosMensualesInputMasivo() {
                           inputMode="decimal"
                           value={fila.acuerdo ?? ""}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          onChange={(e) =>
-                            handleChange(i, "acuerdo", e.target.value)
-                          }
+                          onChange={(e) => handleChangeById(fila.deudorId, "acuerdo", e.target.value)}
                           className="text-right border-brand-secondary/30"
                           placeholder="0.00"
                         />

@@ -122,6 +122,5 @@ export async function listarEstadosMensualesSinCliente(mesYYYYMM: string) {
     }
   });
 
-  console.log("Estados sin clienteUID:", malos);
   return malos;
 }
