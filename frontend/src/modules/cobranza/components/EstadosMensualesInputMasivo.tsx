@@ -132,7 +132,7 @@ export default function EstadosMensualesInputMasivo() {
           tipificacion: d.tipificacion ?? TipificacionDeuda.GESTIONANDO,
           porcentajeHonorarios:
             d.porcentajeHonorarios !== undefined &&
-            d.porcentajeHonorarios !== null
+              d.porcentajeHonorarios !== null
               ? String(d.porcentajeHonorarios)
               : "15",
           deuda: "",
@@ -194,13 +194,16 @@ export default function EstadosMensualesInputMasivo() {
       return;
     }
 
-    const porGuardar = filas.filter(
-      (f) => f.deuda.trim() !== "" && f.recaudo.trim() !== ""
-    );
+    const porGuardar = filas.filter((f) => {
+      const deudaOk = f.deuda.trim() !== "";
+      const acuerdoOk = (f.acuerdo ?? "").trim() !== "" && Number(f.acuerdo) > 0;
+      const recaudoOk = f.recaudo.trim() !== "" && Number(f.recaudo) > 0;
+      return deudaOk && (acuerdoOk || recaudoOk);
+    });
     const omitidas = filas.length - porGuardar.length;
 
     if (porGuardar.length === 0) {
-      toast.error("No hay filas completas (deuda y recaudo) para guardar.");
+      toast.error("No hay filas válidas: debes tener Deuda y (Acuerdo > 0 o Recaudo > 0).");
       return;
     }
 
@@ -225,26 +228,38 @@ export default function EstadosMensualesInputMasivo() {
           let porc = Number.isNaN(porcentajeParse) ? 15 : porcentajeParse;
           porc = Math.max(0, Math.min(20, porc));
 
-          const honorariosDeuda = (deuda * porc) / 100;
-          const honorariosAcuerdo = (acuerdo * porc) / 100;
+          const round0 = (n: number) => Math.round(n);
+
+          const pct = porc / 100;
+          const tieneAcuerdo = acuerdo > 0;
+
+          const honorariosDeuda = deuda > 0 ? round0(deuda * pct) : 0;
+
+          const honorariosAcuerdo = tieneAcuerdo ? round0(acuerdo * pct) : null;
+          const honorariosRecaudo = !tieneAcuerdo && recaudo > 0 ? round0(recaudo * pct) : null;
 
           await upsertEstadoMensualPorMes(clienteId, fila.deudorId, {
             mes: mesGlobal,
-            deuda,
-            recaudo,
-            acuerdo,
+            deuda: round0(deuda),
+            recaudo: round0(recaudo),
+            acuerdo: round0(acuerdo),
             porcentajeHonorarios: porc,
+
             honorariosDeuda,
             honorariosAcuerdo,
+            honorariosRecaudo,
+
             recibo: "",
             observaciones: "",
           });
+
+
         })
       );
 
       toast.success(
         `Se guardaron ${porGuardar.length} fila(s).` +
-          (omitidas > 0 ? ` Omitidas ${omitidas} sin deuda y/o recaudo.` : "")
+        (omitidas > 0 ? ` Omitidas ${omitidas} sin deuda y/o recaudo.` : "")
       );
     } catch (err: any) {
       console.error(err);
@@ -369,9 +384,8 @@ export default function EstadosMensualesInputMasivo() {
                     />
                     <span
                       className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold border
-                        ${
-                          tipificacionColorMap[t] ??
-                          "bg-gray-100 text-gray-700 border-gray-300"
+                        ${tipificacionColorMap[t] ??
+                        "bg-gray-100 text-gray-700 border-gray-300"
                         }
                       `}
                     >
@@ -455,9 +469,8 @@ export default function EstadosMensualesInputMasivo() {
                       <TableCell>
                         <span
                           className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold border
-                            ${
-                              tipificacionColorMap[fila.tipificacion] ??
-                              "bg-gray-100 text-gray-700 border-gray-300"
+                            ${tipificacionColorMap[fila.tipificacion] ??
+                            "bg-gray-100 text-gray-700 border-gray-300"
                             }
                           `}
                         >

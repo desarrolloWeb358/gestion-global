@@ -157,7 +157,7 @@ export default function ClientesCrud() {
 
   // Guards UI
   if (userLoading || aclLoading) {
-    return <div className="p-6 text-muted-foreground">Cargando permisos…</div>;
+    return <div className="p-6">Cargando permisos…</div>;
   }
   if (isClienteOnly) {
     return <div className="p-6">No tienes acceso a esta página.</div>;
@@ -249,7 +249,7 @@ export default function ClientesCrud() {
                       type="button"
                       onClick={() => setQ("")}
                       aria-label="Limpiar búsqueda"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted hover:bg-gray-100 transition-colors"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1  hover:bg-gray-100 transition-colors"
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -277,7 +277,7 @@ export default function ClientesCrud() {
           <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
             <div className="flex flex-col items-center gap-4">
               <div className="h-12 w-12 animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary" />
-              <Typography variant="body" className="text-muted">
+              <Typography variant="body" >
                 Cargando clientes...
               </Typography>
             </div>
@@ -291,7 +291,7 @@ export default function ClientesCrud() {
               <Typography variant="h3" className="text-brand-secondary">
                 No hay resultados
               </Typography>
-              <Typography variant="small" className="text-muted max-w-md">
+              <Typography variant="small" className=" max-w-md">
                 {q
                   ? "No se encontraron clientes que coincidan con tu búsqueda."
                   : "Aún no hay clientes registrados."}
@@ -459,7 +459,7 @@ export default function ClientesCrud() {
                     readOnly
                     className="mt-1.5 bg-white/50 border-brand-secondary/30"
                   />
-                  <p className="text-xs text-muted mt-1.5">
+                  <p className="text-xs mt-1.5">
                     Para editar el nombre, hazlo en el módulo{" "}
                     <strong>Usuarios</strong>.
                   </p>
@@ -604,7 +604,7 @@ export default function ClientesCrud() {
                     <Label className="text-brand-secondary font-medium cursor-pointer">
                       Cliente activo
                     </Label>
-                    <p className="text-xs text-muted mt-0.5">
+                    <p className="text-xs  mt-0.5">
                       Los clientes inactivos no aparecerán en las búsquedas principales
                     </p>
                   </div>

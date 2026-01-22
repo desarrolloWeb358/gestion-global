@@ -154,21 +154,22 @@ export default function EstadosMensualesTable() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clienteId, deudorId]);
 
-  const resetForm = () => {
-    setNuevoEstadoMensual({
-      mes: new Date().toISOString().slice(0, 7),
-      deuda: undefined,
-      recaudo: undefined,
-      acuerdo: undefined,
-      porcentajeHonorarios: 15,
-      honorariosDeuda: undefined,
-      honorariosAcuerdo: undefined,
-      honorariosRecaudo: undefined,
-      recibo: "",
-      observaciones: "",
-    });
-    setEditing(false);
-  };
+ const resetForm = () => {
+  setNuevoEstadoMensual({
+    mes: new Date().toISOString().slice(0, 7),
+    clienteUID: clienteId || "",  
+    deuda: undefined,
+    recaudo: undefined,
+    acuerdo: undefined,
+    porcentajeHonorarios: 15,
+    honorariosDeuda: undefined,
+    honorariosAcuerdo: undefined,
+    honorariosRecaudo: undefined,
+    recibo: "",
+    observaciones: "",
+  });
+  setEditing(false);
+};
 
   const openEdit = (estado: EstadoMensual) => {
     if (!canEdit) return;

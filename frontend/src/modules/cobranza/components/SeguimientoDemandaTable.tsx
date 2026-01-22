@@ -189,14 +189,22 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
     try {
       setLoading(true);
       const data = await getSeguimientosDemanda(clienteId, deudorId);
-      setRows(data);
-    } catch (e) {
-      console.error(e);
-      toast.error("⚠️ No se pudo cargar el seguimiento de la demanda");
+      console.log("[SeguimientosDemanda] rows:", data?.length, { clienteId, deudorId, roles });
+      setRows(Array.isArray(data) ? data : []);
+    } catch (e: any) {
+      console.error("ERROR getSeguimientosDemanda:", e);
+      const code = e?.code || e?.message;
+      toast.error(
+        code === "permission-denied"
+          ? "⚠️ Sin permisos para leer seguimientos (permission-denied)"
+          : "⚠️ No se pudo cargar el seguimiento de la demanda"
+      );
+      setRows([]); // importante para no quedar con estado raro
     } finally {
       setLoading(false);
     }
   };
+
 
   const loadInfoDemanda = async () => {
     if (!clienteId || !deudorId) return;
@@ -244,11 +252,12 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
   const filteredSorted = React.useMemo(() => {
     const arr = rows
       .filter((r) => inRange(tsToMillis(r.fecha), filters.fecha))
-      .filter((r) => (isExterno ? !(r as any).esInterno : true));// ✅ ocultar internos al cliente
+      .filter((r) => (isExterno ? !(r as any).esInterno : true));
 
     const dir = filters.order === "desc" ? -1 : 1;
     return arr.sort((a, b) => (tsToMillis(a.fecha) - tsToMillis(b.fecha)) * dir);
-  }, [rows, filters, isCliente]);
+  }, [rows, filters.fecha, filters.order, isExterno]);
+
 
 
   const openNew = () => { resetForm(); setOpen(true); };
@@ -518,9 +527,7 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
                             {fechaStr}
                           </TableCell>
                           <TableCell>
-                            <TableCell>
-                              <ExpandableCell text={row.descripcion} />
-                            </TableCell>
+                            <ExpandableCell text={row.descripcion} />
                           </TableCell>
                           {!isExterno && (
                             <TableCell className="text-center">

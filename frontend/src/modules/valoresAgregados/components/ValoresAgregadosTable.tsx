@@ -298,7 +298,7 @@ const canEdit = canView && isCliente;
     return (
       <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
         <div className="h-8 w-8 mx-auto animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary mb-3" />
-        <Typography variant="small" className="text-muted">
+        <Typography variant="small" >
           Cargando permisos...
         </Typography>
       </div>
@@ -308,7 +308,7 @@ const canEdit = canView && isCliente;
   if (!canView) {
     return (
       <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
-        <Typography variant="body" className="text-muted">
+        <Typography variant="body">
           No tienes acceso a Valores agregados.
         </Typography>
       </div>
@@ -443,7 +443,7 @@ const canEdit = canView && isCliente;
                     </Label>
 
                     {editando && (editando.archivoNombre || editando.archivoPath || editando.archivoURL) && !archivoFile && (
-                      <div className="text-xs text-muted-foreground p-3 rounded-lg bg-blue-50 border border-blue-100">
+                      <div className="text-xs p-3 rounded-lg bg-blue-50 border border-blue-100">
                         {editando.archivoNombre
                           ? <>Actual: <span className="font-medium">{editando.archivoNombre}</span></>
                           : <>Hay un archivo adjunto guardado.</>}
@@ -489,10 +489,10 @@ const canEdit = canView && isCliente;
                         <div className="text-sm flex items-center gap-2 flex-1">
                           <FileText className="h-4 w-4 text-brand-primary" />
                           <span className="font-medium">{archivoFile.name}</span>
-                          <span className="text-muted-foreground">({formatBytes(archivoFile.size)})</span>
+                          <span >({formatBytes(archivoFile.size)})</span>
                         </div>
                       ) : (
-                        <div className="text-sm text-muted-foreground">No hay archivo seleccionado</div>
+                        <div className="text-sm ">No hay archivo seleccionado</div>
                       )}
 
                       {archivoFile && (
@@ -509,7 +509,7 @@ const canEdit = canView && isCliente;
                       )}
                     </div>
 
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs">
                       Formatos permitidos: PDF, Word, Excel, JPG/PNG. Tamaño máximo: {MAX_FILE_MB} MB.
                     </p>
                   </div>
@@ -692,7 +692,7 @@ const canEdit = canView && isCliente;
           <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
             <div className="flex flex-col items-center gap-4">
               <div className="h-12 w-12 animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary" />
-              <Typography variant="body" className="text-muted">
+              <Typography variant="body">
                 Cargando valores agregados...
               </Typography>
             </div>
@@ -706,7 +706,7 @@ const canEdit = canView && isCliente;
               <Typography variant="h3" className="text-brand-secondary">
                 No hay resultados
               </Typography>
-              <Typography variant="small" className="text-muted">
+              <Typography variant="small">
                 No se encontraron valores agregados con los filtros aplicados
               </Typography>
             </div>
@@ -776,7 +776,7 @@ const canEdit = canView && isCliente;
             {/* Paginación */}
             <div className="border-t border-brand-secondary/10 bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 px-6 py-4">
               <div className="flex items-center justify-between">
-                <Typography variant="small" className="text-muted-foreground">
+                <Typography variant="small" >
                   Página {page} de {totalPages} — {filtered.length} resultado{filtered.length === 1 ? "" : "s"}
                 </Typography>
                 <div className="flex gap-2">
