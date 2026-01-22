@@ -553,7 +553,7 @@ const handleChangePorcentajeById = (deudorId: string, raw: string) => {
                 ) : (
                   <>
                     <Save className="h-4 w-4" />
-                    Guardar todos los estados
+                    Guardar todos los estados.
                   </>
                 )}
               </Button>
