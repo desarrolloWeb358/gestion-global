@@ -1,7 +1,7 @@
 // src/modules/cobranza/services/reportes/tipificacionService.ts
 
 import { db } from "@/firebase";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, Timestamp } from "firebase/firestore";
 import { TipificacionDeuda } from "../../../../shared/constants/tipificacionDeuda";
 
 export type TipificacionKey = TipificacionDeuda;
@@ -80,6 +80,33 @@ function normalizarTipificacion(rawTip?: string): TipificacionKey {
 }
   */
 
+function toDateSafe(v: any): Date | null {
+  if (!v) return null;
+
+  // Date directo
+  if (v instanceof Date) return v;
+
+  // Firestore Timestamp
+  if (v instanceof Timestamp) return v.toDate();
+
+  // Objeto tipo {seconds, nanoseconds} (tu modelo lo permite)
+  if (typeof v === "object" && typeof v.seconds === "number") {
+    return new Date(v.seconds * 1000);
+  }
+
+  // (opcional) si algún día te llega string
+  const d = new Date(v);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function isTerminadoDentroDelAnio(fechaTerminado: any, year: number): boolean {
+  const f = toDateSafe(fechaTerminado);
+  if (!f) return false; // si está "Terminado" pero no hay fecha, se excluye (seguro)
+  const inicio = new Date(year, 0, 1);
+  const fin = new Date(year + 1, 0, 1);
+  return f >= inicio && f < fin;
+}
+
 /**
  * Lee clientes/{clienteId}/deudores y cuenta por 'tipificacion'
  */
@@ -92,13 +119,28 @@ export async function contarTipificacionPorCliente(
   const counts = new Map<TipificacionKey, number>();
   CATEGORIAS.forEach((c) => counts.set(c, 0));
 
+  const yearActual = new Date().getFullYear(); // luego lo parametrizamos si quieres
+
   snap.forEach((doc) => {
-    const data = doc.data() as { tipificacion?: string };
+    const data = doc.data() as {
+      tipificacion?: string;
+      fechaTerminado?: any;
+    };
 
     const cat = data.tipificacion as TipificacionKey;
 
-    // ✅ Ignorar INACTIVO y cualquier cosa que no esté en CATEGORIAS
+    // Ignorar INACTIVO y cualquier cosa fuera de CATEGORIAS
     if (!isCategoriaValida(cat)) return;
+
+    const yearActual = new Date().getFullYear();
+
+    // ✅ NUEVO: TERMINADO solo si fechaTerminado está dentro del año actual
+    if (cat === TipificacionDeuda.TERMINADO) {
+      console.log("Verificando TERMINADO para doc:", doc.id);
+      console.log("  fechaTerminado:", data.fechaTerminado);
+      console.log("  yearActual:", yearActual);
+      if (!isTerminadoDentroDelAnio(data.fechaTerminado, yearActual)) return;
+    }
 
     counts.set(cat, (counts.get(cat) || 0) + 1);
   });
@@ -108,6 +150,7 @@ export async function contarTipificacionPorCliente(
     value: counts.get(name) || 0,
   }));
 }
+
 
 /**
  * NUEVO:
@@ -135,14 +178,19 @@ export async function obtenerResumenPorTipificacion(
     acumulado.set(c, { inmuebles: 0, recaudoTotal: 0, porRecuperar: 0 })
   );
 
-  // primero definimos deudores con su categoría normalizada
+  const yearActual = new Date().getFullYear(); // o pásalo por parámetro (te lo recomiendo)
   const deudores = deudoresSnap.docs
     .map((doc) => {
-      const data = doc.data() as { tipificacion?: string };
+      const data = doc.data() as { tipificacion?: string; fechaTerminado?: any };
       const cat = data.tipificacion as TipificacionKey;
 
-      // ✅ Ignorar INACTIVO / undefined / valores fuera de CATEGORIAS
       if (!isCategoriaValida(cat)) return null;
+
+      // FILTRO: Terminado solo si fechaTerminado está dentro del año actual
+      if (cat === TipificacionDeuda.TERMINADO) {
+        const ok = isTerminadoDentroDelAnio(data.fechaTerminado, yearActual);
+        if (!ok) return null;
+      }
 
       const acc = acumulado.get(cat)!;
       acc.inmuebles += 1;
@@ -150,6 +198,7 @@ export async function obtenerResumenPorTipificacion(
       return { id: doc.id, cat };
     })
     .filter(Boolean) as { id: string; cat: TipificacionKey }[];
+
 
   // luego leemos estadosMensuales de cada deudor en paralelo
   const estadosPromises = deudores.map(async ({ id, cat }) => {
@@ -160,8 +209,10 @@ export async function obtenerResumenPorTipificacion(
     const estadosSnap = await getDocs(estadosRef);
 
     let recaudoTotalDeudor = 0;
-    let ultimoMesClave: string | null = null;
-    let deudaUltimoMes = 0;
+
+    // ✅ REGla 1: último mes con deuda != 0
+    let ultimoMesConDeuda: string | null = null;
+    let deudaUltimoMesNoCero = 0;
 
     estadosSnap.forEach((mDoc) => {
       const data = mDoc.data() as {
@@ -171,25 +222,27 @@ export async function obtenerResumenPorTipificacion(
       };
 
       const rawMes = (data.mes || mDoc.id || "").trim(); // "YYYY-MM"
-      if (rawMes) {
-        // recaudo total de todos los meses
-        const recaudo = Number(data.recaudo ?? 0);
-        if (Number.isFinite(recaudo)) {
-          recaudoTotalDeudor += recaudo;
-        }
+      if (!rawMes) return;
 
-        // buscamos el último mes reportado (mayor "YYYY-MM")
-        if (!ultimoMesClave || rawMes > ultimoMesClave) {
-          ultimoMesClave = rawMes;
-          const d = Number(data.deuda ?? 0);
-          deudaUltimoMes = Number.isFinite(d) ? d : 0;
-        }
+      // suma recaudo de todos los meses
+      const recaudo = Number(data.recaudo ?? 0);
+      if (Number.isFinite(recaudo)) {
+        recaudoTotalDeudor += recaudo;
+      }
+
+      // ✅ solo considerar deuda != 0
+      const d = Number(data.deuda ?? 0);
+      const deudaValida = Number.isFinite(d) && d !== 0;
+
+      if (deudaValida && (!ultimoMesConDeuda || rawMes > ultimoMesConDeuda)) {
+        ultimoMesConDeuda = rawMes;
+        deudaUltimoMesNoCero = d;
       }
     });
 
     const acc = acumulado.get(cat)!;
     acc.recaudoTotal += recaudoTotalDeudor;
-    acc.porRecuperar += deudaUltimoMes;
+    acc.porRecuperar += deudaUltimoMesNoCero;
   });
 
   await Promise.all(estadosPromises);
@@ -219,25 +272,31 @@ export async function obtenerDetalleDeudoresPorTipificacion(
   const deudoresRef = collection(db, `clientes/${clienteId}/deudores`);
   const deudoresSnap = await getDocs(deudoresRef);
 
-  // 1) Filtramos deudores por tipificación (normalizada)
+  const yearActual = new Date().getFullYear();
+  const yearStr = String(yearActual);
+
+  // 1) Filtramos deudores por tipificación + filtro especial TERMINADO por fechaTerminado (año en curso)
   const deudoresFiltrados = deudoresSnap.docs
     .map((doc) => {
       const data = doc.data() as {
         tipificacion?: string;
         nombre?: string;
         ubicacion?: string;
+        fechaTerminado?: any;
       };
-
 
       const cat = data.tipificacion as TipificacionKey;
       if (!isCategoriaValida(cat)) return null;
       if (cat !== tipificacion) return null;
 
+      // ✅ TERMINADO solo si fechaTerminado está dentro del año en curso
+      if (cat === TipificacionDeuda.TERMINADO) {
+        if (!isTerminadoDentroDelAnio(data.fechaTerminado, yearActual)) return null;
+      }
 
       return {
         deudorId: doc.id,
         tipificacion: cat,
-        // 👇 Ajusta estos campos si en tu colección se llaman distinto
         nombre: data.nombre ?? "",
         ubicacion: data.ubicacion ?? "",
       };
@@ -246,7 +305,9 @@ export async function obtenerDetalleDeudoresPorTipificacion(
 
   if (!deudoresFiltrados.length) return [];
 
-  // 2) Para cada deudor, leer estadosMensuales y sumar recaudo
+  // 2) Para cada deudor, leer estadosMensuales y calcular:
+  //    - recaudoTotal del año en curso
+  //    - porRecuperar = última deuda != 0 del año en curso (si no hay -> 0)
   const detalleConRecaudo = await Promise.all(
     deudoresFiltrados.map(async (item) => {
       const estadosRef = collection(
@@ -256,41 +317,45 @@ export async function obtenerDetalleDeudoresPorTipificacion(
       const estadosSnap = await getDocs(estadosRef);
 
       let recaudoTotal = 0;
-      let ultimoMesClave: string | null = null;
-      let deudaUltimoMes = 0;
+
+      // ✅ Regla 1: última deuda != 0 del año en curso
+      let ultimoMesConDeudaNoCero: string | null = null;
+      let deudaUltimaNoCero = 0;
 
       estadosSnap.forEach((mDoc) => {
         const data = mDoc.data() as { mes?: string; recaudo?: number; deuda?: number };
-
         const rawMes = (data.mes || mDoc.id || "").trim(); // "YYYY-MM"
+        if (!rawMes || rawMes.length < 7) return;
 
-        // 1) Acumular recaudo total
-        const valor = Number(data.recaudo ?? 0);
-        if (Number.isFinite(valor)) {
-          recaudoTotal += valor;
-        }
+        // ✅ Solo meses del año en curso
+        if (!rawMes.startsWith(`${yearStr}-`)) return;
 
-        // 2) Detectar el último mes y tomar su deuda
-        if (rawMes) {
-          if (!ultimoMesClave || rawMes > ultimoMesClave) {
-            ultimoMesClave = rawMes;
-            const d = Number(data.deuda ?? 0);
-            deudaUltimoMes = Number.isFinite(d) ? d : 0;
-          }
+        // 1) Sumar recaudo del año
+        const r = Number(data.recaudo ?? 0);
+        if (Number.isFinite(r)) recaudoTotal += r;
+
+        // 2) Última deuda != 0 del año
+        const d = Number(data.deuda ?? 0);
+        const deudaValida = Number.isFinite(d) && d !== 0;
+
+        if (deudaValida && (!ultimoMesConDeudaNoCero || rawMes > ultimoMesConDeudaNoCero)) {
+          ultimoMesConDeudaNoCero = rawMes;
+          deudaUltimaNoCero = d;
         }
       });
 
       return {
         ...item,
         recaudoTotal,
-        porRecuperar: deudaUltimoMes, // 👈 NUEVO
+        porRecuperar: deudaUltimaNoCero, // ✅ si no hubo deuda != 0, queda 0
       };
     })
   );
 
-  // Ordenamos por recaudo mayor a menor (como en tu Excel)
+  // (Opcional) orden
   detalleConRecaudo.sort((a, b) => b.recaudoTotal - a.recaudoTotal);
 
   return detalleConRecaudo;
 }
+
 

@@ -1,10 +1,27 @@
 // src/modules/cobranza/services/reportes/recaudosService.ts
 import { db } from "@/firebase";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, Timestamp } from "firebase/firestore";
+import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 
 export interface MesTotal {
   mes: string;   // "YYYY-MM"
   total: number; // suma del campo 'recaudo' del mes para todos los deudores
+}
+
+function toDateSafe(v: any): Date | null {
+  if (!v) return null;
+  if (v instanceof Date) return v;
+  if (v instanceof Timestamp) return v.toDate();
+  if (typeof v === "object" && typeof v.seconds === "number") return new Date(v.seconds * 1000);
+  return null;
+}
+
+function isTerminadoDentroDelAnio(fechaTerminado: any, year: number): boolean {
+  const f = toDateSafe(fechaTerminado);
+  if (!f) return false;
+  const inicio = new Date(year, 0, 1);
+  const fin = new Date(year + 1, 0, 1);
+  return f >= inicio && f < fin;
 }
 
 /**
@@ -19,46 +36,52 @@ export async function obtenerRecaudosMensuales(clienteId: string): Promise<MesTo
   const yearStr = String(year);
   const currentMonth = ahora.getMonth() + 1; // 1..12
 
-  // Preseed de meses "YYYY-MM" desde 01 hasta el mes actual
+  // meses enero -> mes actual
   const acumulado = new Map<string, number>();
   for (let m = 1; m <= currentMonth; m++) {
     const mm = String(m).padStart(2, "0");
     acumulado.set(`${yearStr}-${mm}`, 0);
   }
 
-  // 1) Traer todos los deudores del cliente
   const deudoresRef = collection(db, `clientes/${clienteId}/deudores`);
   const deudoresSnap = await getDocs(deudoresRef);
 
-  // 2) Leer en paralelo la subcolección 'estadosMensuales' de cada deudor
-  const estadosPromises = deudoresSnap.docs.map((deudorDoc) => {
+  // ✅ Filtrar deudores: si es TERMINADO, solo si fechaTerminado está dentro del año
+  const deudoresValidos = deudoresSnap.docs.filter((d) => {
+    const data = d.data() as { tipificacion?: string; fechaTerminado?: any };
+
+    const tip = data.tipificacion as TipificacionDeuda | undefined;
+    if (tip === TipificacionDeuda.TERMINADO) {
+      return isTerminadoDentroDelAnio(data.fechaTerminado, year);
+    }
+    return true;
+  });
+
+  // leer estadosMensuales solo de deudores válidos
+  const estadosPromises = deudoresValidos.map(async (deudorDoc) => {
     const estadosRef = collection(
       db,
       `clientes/${clienteId}/deudores/${deudorDoc.id}/estadosMensuales`
     );
-    return getDocs(estadosRef);
+    const estadosSnap = await getDocs(estadosRef);
+    return estadosSnap;
   });
 
   const estadosSnaps = await Promise.all(estadosPromises);
 
-  // 3) Acumular solo los meses del año en curso (y no más allá del mes actual)
   for (const estadosSnap of estadosSnaps) {
     estadosSnap.forEach((mDoc) => {
       const data = mDoc.data() as { mes?: string; recaudo?: number };
-      // Preferir campo 'mes'; si no, usar el id del doc
-      const rawMes = (data.mes || mDoc.id || "").trim(); // esperado "YYYY-MM"
+      const rawMes = (data.mes || mDoc.id || "").trim();
       if (!rawMes || rawMes.length < 7) return;
 
-      // Filtrar por año en curso
-      const esDelAnio = rawMes.startsWith(`${yearStr}-`);
-      if (!esDelAnio) return;
+      if (!rawMes.startsWith(`${yearStr}-`)) return;
 
-      // Evitar meses futuros (p.ej. si existe "YYYY-12" pero estamos en abril)
       const [, mmStr] = rawMes.split("-");
       const mm = Number(mmStr);
       if (!Number.isFinite(mm) || mm < 1 || mm > currentMonth) return;
 
-      const claveMes = `${yearStr}-${mmStr.padStart(2, "0")}`;
+      const claveMes = `${yearStr}-${String(mm).padStart(2, "0")}`;
       const valor = Number(data.recaudo ?? 0);
       if (!Number.isFinite(valor)) return;
 
@@ -66,10 +89,8 @@ export async function obtenerRecaudosMensuales(clienteId: string): Promise<MesTo
     });
   }
 
-  // 4) Devolver ordenado asc por "YYYY-MM" (preseed ya garantiza la presencia de todos los meses)
-  const ordenado = [...acumulado.entries()]
+  return [...acumulado.entries()]
     .sort((a, b) => (a[0] < b[0] ? -1 : 1))
     .map(([mes, total]) => ({ mes, total }));
-
-  return ordenado;
 }
+

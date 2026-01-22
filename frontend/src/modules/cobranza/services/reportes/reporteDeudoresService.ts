@@ -4,6 +4,24 @@ import { collection, getDocs } from "firebase/firestore";
 import type { FilaReporte } from "./tipos";
 import { TipificacionDeuda } from "../../../../shared/constants/tipificacionDeuda";
 
+import { Timestamp } from "firebase/firestore";
+
+function toDateSafe(v: any): Date | null {
+  if (!v) return null;
+  if (v instanceof Date) return v;
+  if (v instanceof Timestamp) return v.toDate();
+  if (typeof v === "object" && typeof v.seconds === "number") return new Date(v.seconds * 1000);
+  return null;
+}
+
+function isFechaDentroDelAnio(fecha: any, year: number): boolean {
+  const f = toDateSafe(fecha);
+  if (!f) return false;
+  const inicio = new Date(year, 0, 1);
+  const fin = new Date(year + 1, 0, 1);
+  return f >= inicio && f < fin;
+}
+
 export async function obtenerReporteDeudoresPorAnio(
   clienteId: string,
   year: number
@@ -18,10 +36,13 @@ export async function obtenerReporteDeudoresPorAnio(
 
     const tipificacion = (d?.tipificacion ?? "").trim();
 
-    // ✅ EXCLUIR INACTIVOS (y opcionalmente vacíos)
+    // ✅ EXCLUIR INACTIVOS
     if (tipificacion === TipificacionDeuda.INACTIVO) return null;
-    // si también quieres excluir “sin tipificación”:
-    // if (!tipificacion) return null;
+
+    // ✅ NUEVO: excluir TERMINADO si fechaTerminado NO está en el año consultado
+    if (tipificacion === TipificacionDeuda.TERMINADO) {
+      if (!isFechaDentroDelAnio(d?.fechaTerminado, year)) return null;
+    }
 
     const nombre = d?.nombre ?? "";
     const inmueble = d?.ubicacion ?? d?.inmueble ?? "";
@@ -36,7 +57,7 @@ export async function obtenerReporteDeudoresPorAnio(
     for (let m = 1; m <= 12; m++) rec[String(m).padStart(2, "0")] = 0;
 
     let porRecaudar = 0;
-    let ultimoMesConDatos: string | null = null;
+    let ultimoMesConDeuda: string | null = null;
 
     estadosSnap.forEach((mDoc) => {
       const data = mDoc.data() as { mes?: string; deuda?: number; recaudo?: number };
@@ -49,15 +70,15 @@ export async function obtenerReporteDeudoresPorAnio(
 
       if (Number.isFinite(recVal)) rec[mm] = (rec[mm] ?? 0) + recVal;
 
-      const tieneDatos =
-        (Number.isFinite(deudaNum) && deudaNum !== 0) ||
-        (Number.isFinite(recVal) && recVal !== 0);
+      // ✅ REGla 1: solo considerar meses con deuda != 0
+      const deudaValida = Number.isFinite(deudaNum) && deudaNum !== 0;
 
-      if (tieneDatos && (!ultimoMesConDatos || mesId > ultimoMesConDatos)) {
-        ultimoMesConDatos = mesId;
-        porRecaudar = Number.isFinite(deudaNum) ? deudaNum : 0;
+      if (deudaValida && (!ultimoMesConDeuda || mesId > ultimoMesConDeuda)) {
+        ultimoMesConDeuda = mesId;
+        porRecaudar = deudaNum;
       }
     });
+
 
     const recaudoTotal = Object.values(rec).reduce((a, b) => a + b, 0);
 
