@@ -194,17 +194,20 @@ const handleChangePorcentajeById = (deudorId: string, raw: string) => {
     }
 
     const porGuardar = filas.filter((f) => {
-      const deudaOk = f.deuda.trim() !== "";
-      const acuerdoOk = (f.acuerdo ?? "").trim() !== "" && Number(f.acuerdo) > 0;
-      const recaudoOk = f.recaudo.trim() !== "" && Number(f.recaudo) > 0;
-      return deudaOk && (acuerdoOk || recaudoOk);
-    });
+  const deudaOk = f.deuda.trim() !== "" && Number(f.deuda) >= 0;
+  const recaudoOk = f.recaudo.trim() !== "" && Number(f.recaudo) >= 0;
+  const acuerdoOk = (f.acuerdo ?? "").trim() !== "" && Number(f.acuerdo) >= 0;
+
+  // ✅ guardar si hay al menos uno diligenciado
+  return deudaOk || recaudoOk || acuerdoOk;
+});
+
     const omitidas = filas.length - porGuardar.length;
 
     if (porGuardar.length === 0) {
-      toast.error("No hay filas válidas: debes tener Deuda y (Acuerdo > 0 o Recaudo > 0).");
-      return;
-    }
+  toast.error("No hay filas válidas: diligencia al menos uno (Deuda, Recaudo o Acuerdo).");
+  return;
+}
 
     try {
       setSaving(true);
