@@ -44,6 +44,11 @@ import {
     firmarAcuerdoConPdf,
 } from "@/modules/cobranza/services/acuerdoPagoService";
 
+import {
+    recalcularTablaDesdeValorCuota,
+    recalcularTablaDesdeValorCuotaDesdeIndice,
+} from "@/modules/cobranza/lib/recalcularTablaAcuerdo";
+
 import { ACUERDO_ESTADO } from "@/shared/constants/acuerdoEstado";
 
 import { subirYGuardarPdfFirmadoBorrador, activarAcuerdoEnFirme } from "@/modules/cobranza/services/acuerdoPagoService";
@@ -134,6 +139,8 @@ export default function AcuerdoPagoPage() {
 
     const [acuerdoURL, setAcuerdoURL] = useState<string>("");
 
+    const [tablaKey, setTablaKey] = useState(0);
+
     const [datosWord, setDatosWord] = useState<DatosWord>({
         clienteDireccion: "",
         clienteBanco: "",
@@ -157,7 +164,6 @@ export default function AcuerdoPagoPage() {
     });
 
     const [cuotas, setCuotas] = useState<CuotaAcuerdo[]>([]);
-    const [motivoCambio, setMotivoCambio] = useState("");
 
     const readOnly = acuerdoEstado === ACUERDO_ESTADO.EN_FIRME;
 
@@ -518,7 +524,7 @@ export default function AcuerdoPagoPage() {
 
         const cuotasDb = await obtenerCuotas(clienteId, deudorId, acuerdoId);
         setCuotas(
-            recalcularSaldos(cuotasDb, {
+            recalcularTablaDesdeValorCuota(cuotasDb, {
                 capitalInicial: Number(acuerdo.capitalInicial || 0),
                 porcentajeHonorarios: Number(acuerdo.porcentajeHonorarios || 15),
             })
@@ -565,25 +571,30 @@ export default function AcuerdoPagoPage() {
             maxMeses: 240,
         });
 
-        setCuotas(
-            recalcularSaldos(gen, {
-                capitalInicial: form.capitalInicial,
-                porcentajeHonorarios: form.porcentajeHonorarios,
-            })
-        );
+        const recalculada = recalcularTablaDesdeValorCuota(gen, {
+            capitalInicial: form.capitalInicial,
+            porcentajeHonorarios: form.porcentajeHonorarios,
+        });
+
+        setCuotas(recalculada);
+        setTablaKey((k) => k + 1); // ✅ fuerza reset del draft
 
         toast.success("✓ Tabla generada. Puedes editarla antes de guardar.");
     };
 
-    const onCuotasChange = (next: CuotaAcuerdo[]) => {
+    const onCuotasChange = (next: CuotaAcuerdo[], meta?: { changedIndex?: number }) => {
         if (readOnly) return;
-        setCuotas(
-            recalcularSaldos(next, {
-                capitalInicial: form.capitalInicial,
-                porcentajeHonorarios: form.porcentajeHonorarios,
-            })
-        );
+
+        const base = {
+            capitalInicial: form.capitalInicial,
+            porcentajeHonorarios: form.porcentajeHonorarios,
+        };
+
+        const idx = meta?.changedIndex ?? 0;
+
+        setCuotas(recalcularTablaDesdeValorCuotaDesdeIndice(next, idx, base));
     };
+
 
     // ==============================
     // Guardar (solo BORRADOR)
@@ -647,7 +658,6 @@ export default function AcuerdoPagoPage() {
 
             setCurrentAcuerdoId(r.acuerdoId);
             setAcuerdoEstado(ACUERDO_ESTADO.BORRADOR);
-            setMotivoCambio("");
 
             toast.success("✓ Acuerdo guardado (BORRADOR)");
         } catch (e) {
@@ -1026,7 +1036,12 @@ export default function AcuerdoPagoPage() {
                                 </Typography>
                             </div>
                             <div className="p-4 md:p-5">
-                                <TablaAmortizacionEditable cuotas={cuotas} onChange={onCuotasChange} readOnly={readOnly} />
+                                <TablaAmortizacionEditable
+                                    key={tablaKey}
+                                    cuotas={cuotas}
+                                    onChange={onCuotasChange}
+                                    readOnly={readOnly}
+                                />
                             </div>
                         </section>
                     )}
@@ -1048,17 +1063,7 @@ export default function AcuerdoPagoPage() {
                                     className="min-h-28 border-brand-secondary/30"
                                 />
                             </div>
-
-                            <div className="space-y-2">
-                                <Label className="text-brand-secondary font-medium">Motivo del cambio (historial)</Label>
-                                <Input
-                                    value={motivoCambio}
-                                    disabled={readOnly}
-                                    onChange={(e) => setMotivoCambio(e.target.value)}
-                                    className="border-brand-secondary/30"
-                                    placeholder="Ej: Ajuste negociado con el deudor"
-                                />
-                            </div>
+                            
 
                             {/* Guardar (solo si NO está en firme) */}
                             {!readOnly && (

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   Table,
   TableBody,
@@ -10,11 +10,7 @@ import {
 import { Input } from "@/shared/ui/input";
 import { Button } from "@/shared/ui/button";
 import { Calendar } from "@/shared/ui/calendar";
-import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-} from "@/shared/ui/popover";
+import { Popover, PopoverTrigger, PopoverContent } from "@/shared/ui/popover";
 import { cn } from "@/shared/lib/cn";
 import { Calendar as CalendarIcon } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
@@ -23,24 +19,75 @@ import type { CuotaAcuerdo } from "@/modules/cobranza/models/acuerdoPago.model";
 type Props = {
   cuotas: CuotaAcuerdo[];
   readOnly?: boolean;
-  onChange: (cuotas: CuotaAcuerdo[]) => void;
+  onChange: (cuotas: CuotaAcuerdo[], meta?: { changedIndex?: number }) => void;
 };
 
-const n = (v: number) => (Number.isFinite(v) ? v : 0);
+const toInt = (s: string) => {
+  // deja solo dígitos
+  const clean = s.replace(/[^\d]/g, "");
+  return clean ? Math.round(Number(clean)) : NaN;
+};
 
 export default function TablaAmortizacionEditable({
   cuotas,
   readOnly,
   onChange,
 }: Props) {
+  // 👇 draft por índice (string), para permitir borrar/editar sin recalcular
+  const [draftCuota, setDraftCuota] = useState<Record<number, string>>({});
+
+  // 👇 para no pisar el valor mientras el usuario está editando esa celda
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+
+  // ✅ Mantener draft en sync cuando cambie la tabla (por recálculos externos, cargar, etc.)
+  //    PERO sin pisar la celda que se está editando
+  useEffect(() => {
+    setDraftCuota((prev) => {
+      const next: Record<number, string> = { ...prev };
+
+      cuotas.forEach((c, idx) => {
+        if (editingIdx === idx) return; // 👈 no pisar si está editando
+        next[idx] = String(c.valorCuota ?? "");
+      });
+
+      // limpia drafts de índices que ya no existan
+      Object.keys(next).forEach((k) => {
+        const i = Number(k);
+        if (i >= cuotas.length) delete next[i];
+      });
+
+      return next;
+    });
+  }, [cuotas, editingIdx]);
+
   const updateRow = (idx: number, patch: Partial<CuotaAcuerdo>) => {
     const next = cuotas.map((c, i) => (i === idx ? { ...c, ...patch } : c));
-    onChange(next);
+    onChange(next, { changedIndex: idx });
   };
 
   const handleChangeFecha = (idx: number, date?: Date) => {
     if (!date) return;
     updateRow(idx, { fechaPago: Timestamp.fromDate(date) });
+  };
+
+  const commitValorCuota = (idx: number) => {
+    const raw = draftCuota[idx] ?? "";
+    const parsed = toInt(raw);
+
+    // si quedó vacío o inválido, NO recalcules; revierte al valor anterior
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setDraftCuota((p) => ({
+        ...p,
+        [idx]: String(cuotas[idx]?.valorCuota ?? ""),
+      }));
+      return;
+    }
+
+    // si no cambió, no hagas nada
+    const current = Math.round(Number(cuotas[idx]?.valorCuota ?? 0));
+    if (parsed === current) return;
+
+    updateRow(idx, { valorCuota: parsed });
   };
 
   return (
@@ -60,22 +107,18 @@ export default function TablaAmortizacionEditable({
 
         <TableBody>
           {cuotas.map((c, idx) => {
-            const fecha = c.fechaPago?.toDate
-              ? c.fechaPago.toDate()
-              : new Date();
+            const fecha = c.fechaPago?.toDate ? c.fechaPago.toDate() : new Date();
 
             return (
               <TableRow
-                key={c.numero}
+                key={idx} // ✅ key estable por posición para evitar “reuso” raro cuando renumeras
                 className={cn(
                   "border-brand-secondary/5",
                   idx % 2 === 0 ? "bg-white" : "bg-brand-primary/[0.02]"
                 )}
               >
-                {/* 1️⃣ Nº CUOTA */}
                 <TableCell className="font-medium">{c.numero}</TableCell>
 
-                {/* 2️⃣ FECHA (CALENDAR) */}
                 <TableCell className="min-w-[190px]">
                   <Popover>
                     <PopoverTrigger asChild>
@@ -91,72 +134,72 @@ export default function TablaAmortizacionEditable({
                         {fecha.toLocaleDateString("es-CO")}
                       </Button>
                     </PopoverTrigger>
+
                     {!readOnly && (
                       <PopoverContent className="w-auto p-0" align="start">
                         <Calendar
                           mode="single"
                           selected={fecha}
-                          defaultMonth={fecha} // ✅ al abrir, se posiciona en el mes/año de la fecha seleccionada
+                          defaultMonth={fecha}
                           onSelect={(d) => handleChangeFecha(idx, d)}
-                          autoFocus // ✅ reemplaza initialFocus (evita deprecated)
+                          autoFocus
                           captionLayout="dropdown"
-                          startMonth={new Date(new Date().getFullYear() - 20, 0)} // ✅ pasado
-                          endMonth={new Date(new Date().getFullYear() + 20, 11)}  // ✅ futuro
+                          startMonth={new Date(new Date().getFullYear() - 20, 0)}
+                          endMonth={new Date(new Date().getFullYear() + 20, 11)}
                         />
                       </PopoverContent>
                     )}
                   </Popover>
                 </TableCell>
 
-                {/* 3️⃣ DEUDA CAPITAL */}
                 <TableCell className="text-right">
-                  {n(c.capitalSaldoAntes).toLocaleString("es-CO")}
+                  {Math.round(c.capitalSaldoAntes || 0).toLocaleString("es-CO")}
                 </TableCell>
 
-                {/* 4️⃣ CUOTA CAPITAL */}
-                <TableCell className="min-w-[150px]">
-                  <Input
-                    type="number"
-                    value={n(c.capitalCuota)}
-                    disabled={readOnly}
-                    onChange={(e) =>
-                      updateRow(idx, {
-                        capitalCuota: Number(e.target.value),
-                      })
-                    }
-                  />
+                <TableCell className="text-right min-w-[150px]">
+                  {Math.round(c.capitalCuota || 0).toLocaleString("es-CO")}
                 </TableCell>
 
-                {/* 5️⃣ DEUDA HONORARIOS */}
                 <TableCell className="text-right">
-                  {n(c.honorariosSaldoAntes).toLocaleString("es-CO")}
+                  {Math.round(c.honorariosSaldoAntes || 0).toLocaleString("es-CO")}
                 </TableCell>
 
-                {/* 6️⃣ CUOTA HONORARIOS */}
-                <TableCell className="min-w-[150px]">
-                  <Input
-                    type="number"
-                    value={n(c.honorariosCuota)}
-                    disabled={readOnly}
-                    onChange={(e) =>
-                      updateRow(idx, {
-                        honorariosCuota: Number(e.target.value),
-                      })
-                    }
-                  />
+                <TableCell className="text-right min-w-[150px]">
+                  {Math.round(c.honorariosCuota || 0).toLocaleString("es-CO")}
                 </TableCell>
 
-                {/* 7️⃣ CUOTA ACUERDO */}
+                {/* 👇 EDITABLE: string + commit en blur/enter */}
                 <TableCell className="min-w-[160px]">
                   <Input
-                    type="number"
-                    value={n(c.valorCuota)}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     disabled={readOnly}
+                    value={draftCuota[idx] ?? String(c.valorCuota ?? "")}
                     onChange={(e) =>
-                      updateRow(idx, {
-                        valorCuota: Number(e.target.value),
-                      })
+                      setDraftCuota((p) => ({ ...p, [idx]: e.target.value }))
                     }
+                    onFocus={(e) => {
+                      setEditingIdx(idx);
+                      e.currentTarget.select();
+                    }}
+                    onBlur={() => {
+                      commitValorCuota(idx);
+                      setEditingIdx(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        (e.currentTarget as HTMLInputElement).blur();
+                      }
+                      if (e.key === "Escape") {
+                        // revertir
+                        setDraftCuota((p) => ({
+                          ...p,
+                          [idx]: String(cuotas[idx]?.valorCuota ?? ""),
+                        }));
+                        (e.currentTarget as HTMLInputElement).blur();
+                      }
+                    }}
                   />
                 </TableCell>
               </TableRow>
@@ -166,8 +209,8 @@ export default function TablaAmortizacionEditable({
       </Table>
 
       <p className="mt-2 text-xs">
-        Selecciona la fecha de cada cuota desde el calendario.
-        El orden de columnas y valores financieros no se recalculan.
+        Selecciona la fecha de cada cuota desde el calendario. El recálculo de
+        valores se aplica al salir del campo (o Enter).
       </p>
     </div>
   );

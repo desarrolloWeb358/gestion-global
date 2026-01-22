@@ -28,6 +28,12 @@ import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 import { Typography } from "@/shared/design-system/components/Typography";
 import { BackButton } from "@/shared/design-system/components/BackButton";
 import { cn } from "@/shared/lib/cn";
+import { Calendar } from "@/shared/ui/calendar"; // ajusta la ruta si tu Calendar vive en otra carpeta
+
+import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover";
+import { CalendarIcon } from "lucide-react";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 
 // 🔐 ACL
 import { useAcl } from "@/modules/auth/hooks/useAcl";
@@ -109,6 +115,15 @@ export default function DeudoresTable() {
     }
   };
 
+  const toDateSafe = (v: any): Date | undefined => {
+    if (!v) return undefined;
+    if (v instanceof Date) return v;
+    if (typeof v?.toDate === "function") return v.toDate(); // Timestamp
+    if (typeof v?.seconds === "number") return new Date(v.seconds * 1000);
+    return undefined;
+  };
+
+
   const fetchCliente = async () => {
     if (!clienteId) return;
     try {
@@ -157,17 +172,31 @@ export default function DeudoresTable() {
   const isInactivo = (t?: string) =>
     t === (TipificacionDeuda as any).INACTIVO || t === "INACTIVO";
 
+  const isTip = (t: any, target: TipificacionDeuda) =>
+    String(t ?? "").trim() === target;
+
+  const EXCLUIR_EN_ACTIVOS = new Set<TipificacionDeuda>([
+    TipificacionDeuda.INACTIVO,
+    TipificacionDeuda.TERMINADO,
+    TipificacionDeuda.DEMANDA_TERMINADO,
+  ]);
+
   const filteredDeudores = deudores
     .filter((d) => {
       if (normalizedQ) {
         const hay = `${d.nombre ?? ""} ${d.cedula ?? ""} ${d.ubicacion ?? ""}`.toLowerCase();
         if (!hay.includes(normalizedQ)) return false;
       }
+
+      const tip = d.tipificacion as TipificacionDeuda;
       if (tipFilter === ALL) {
-        if (isInactivo(d.tipificacion as string)) return false;
+        // ✅ "Activos": excluye INACTIVO, TERMINADO, DEMANDA_TERMINADO
+        if (EXCLUIR_EN_ACTIVOS.has(tip)) return false;
       } else {
-        if ((d.tipificacion as string) !== tipFilter) return false;
+        if (String(tip) !== tipFilter) return false;
       }
+
+
       return true;
     })
     .sort((a, b) => {
@@ -214,6 +243,7 @@ export default function DeudoresTable() {
     setFormData({
       ...deudor,
       porcentajeHonorarios: porcentaje,
+      fechaTerminado: toDateSafe((deudor as any).fechaTerminado) ?? undefined,
     });
 
     setOpen(true);
@@ -233,6 +263,7 @@ export default function DeudoresTable() {
         ...prev,
         tipificacion: t,
         porcentajeHonorarios: esDemanda ? 20 : (prev.porcentajeHonorarios ?? 15),
+        fechaTerminado: t === TipificacionDeuda.TERMINADO ? (prev as any).fechaTerminado : undefined,
       };
     });
   };
@@ -244,6 +275,14 @@ export default function DeudoresTable() {
   const guardarDeudor = async () => {
     if (!clienteId) return;
     if (!canEdit) return;
+
+    const tip = formData.tipificacion as TipificacionDeuda | undefined;
+
+    if (tip === TipificacionDeuda.TERMINADO && !formData.fechaTerminado) {
+      toast.error("Debes seleccionar la fecha de terminación.");
+      return;
+    }
+
 
     const valorActual = formData.porcentajeHonorarios as number | string | undefined;
     const porcentajeFinal =
@@ -263,6 +302,10 @@ export default function DeudoresTable() {
           telefonos: formData.telefonos ?? [],
           tipificacion: formData.tipificacion as TipificacionDeuda,
           porcentajeHonorarios: porcentajeFinal,
+          fechaTerminado:
+            (formData.tipificacion as TipificacionDeuda) === TipificacionDeuda.TERMINADO
+              ? (formData.fechaTerminado as Date)
+              : null,
         });
         toast.success("Deudor actualizado correctamente");
       } else {
@@ -275,6 +318,10 @@ export default function DeudoresTable() {
           telefonos: formData.telefonos ?? [],
           tipificacion:
             (formData.tipificacion as TipificacionDeuda) ?? TipificacionDeuda.GESTIONANDO,
+          fechaTerminado:
+            (formData.tipificacion as TipificacionDeuda) === TipificacionDeuda.TERMINADO
+              ? (formData.fechaTerminado as Date)
+              : null,
         });
         toast.success("Deudor creado correctamente");
       }
@@ -468,6 +515,53 @@ export default function DeudoresTable() {
                             </SelectContent>
                           </Select>
                         </div>
+
+                        {(formData.tipificacion as TipificacionDeuda) === TipificacionDeuda.TERMINADO && (
+                          <div className="space-y-2">
+                            <Label className="text-brand-secondary font-medium">Fecha terminación</Label>
+
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className={cn(
+                                    "w-full justify-start text-left font-normal border-brand-secondary/30",
+                                    !formData.fechaTerminado && "text-muted-foreground"
+                                  )}
+                                  disabled={readOnly || saving}
+                                >
+                                  <CalendarIcon className="mr-2 h-4 w-4" />
+                                  {formData.fechaTerminado
+                                    ? format(formData.fechaTerminado as Date, "PPP", { locale: es })
+                                    : "Selecciona una fecha"}
+                                </Button>
+                              </PopoverTrigger>
+
+                              <PopoverContent className="w-auto p-0" align="start">
+                                <Calendar
+                                  mode="single"
+                                  selected={formData.fechaTerminado as Date | undefined}
+                                  defaultMonth={(formData.fechaTerminado as Date | undefined) ?? new Date()}
+                                  onSelect={(date) => {
+                                    setFormData((p) => ({ ...p, fechaTerminado: date ?? undefined }));
+                                  }}
+                                  initialFocus
+                                  captionLayout="dropdown"
+                                  fromYear={new Date().getFullYear() - 20}
+                                  toYear={new Date().getFullYear() + 20}
+                                />
+                              </PopoverContent>
+                            </Popover>
+
+                            <p className="text-xs text-muted-foreground">
+                              Estaaaa fecha solo aplica cuando la tipificación está en <b>TERMINADO</b>.
+                            </p>
+                          </div>
+                        )}
+
+
+
                       </div>
 
                       <div>
@@ -601,7 +695,7 @@ export default function DeudoresTable() {
                     <SelectValue placeholder="Todas las tipificaciones" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={ALL}>Todos (sin inactivos)</SelectItem>
+                    <SelectItem value={ALL}>Todos (Activos)</SelectItem>
                     {Object.values(TipificacionDeuda).map((t) => (
                       <SelectItem key={t} value={t}>{t}</SelectItem>
                     ))}
