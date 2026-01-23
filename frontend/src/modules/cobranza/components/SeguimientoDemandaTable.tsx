@@ -134,9 +134,6 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
   const isExterno = isCliente || isDeudor;
   const puedeEditar = acl.can(PERMS.Seguimientos_Dependientes_Edit);
 
-  // ✅ si quieres limitar creación solo a admin/ejecutivo:
-  const puedeCrear = roles.includes("admin") || roles.includes("ejecutivo");
-
   // Tab activo
   const [tab, setTab] = React.useState<"seguimientos" | "info">("seguimientos");
 
@@ -240,10 +237,6 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
 
   React.useImperativeHandle(ref, () => ({
     openForm: () => {
-      if (!puedeCrear) {
-        toast.error("No tienes permiso para crear seguimientos de demanda.");
-        return;
-      }
       resetForm();
       setOpen(true);
     },

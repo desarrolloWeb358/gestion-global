@@ -67,7 +67,7 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/usuarios-tables", 
     label: "Usuarios", 
     icon: IconUsers, 
-    roles: ["admin"] 
+    roles: ["admin", "ejecutivoAdmin"] 
   },
 
   // ========================================
