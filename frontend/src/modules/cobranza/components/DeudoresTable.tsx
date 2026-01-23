@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Eye, Pencil, Search, X, Users, UserPlus, Filter, FileText, Trash2 } from "lucide-react";
+import { Eye, Pencil, Search, X, Users, UserPlus, Filter, FileText, Trash2, CalendarIcon } from "lucide-react";
 import { createPortal } from "react-dom";
 
 import { Deudor } from "../models/deudores.model";
@@ -15,6 +15,7 @@ import { Cliente } from "@/modules/clientes/models/cliente.model";
 import { getClienteById } from "@/modules/clientes/services/clienteService";
 import { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 import { obtenerUsuarios } from "@/modules/usuarios/services/usuarioService";
+
 import { BadgeTipificacion } from "@/shared/components/BadgeTipificacion";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
@@ -28,10 +29,9 @@ import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 import { Typography } from "@/shared/design-system/components/Typography";
 import { BackButton } from "@/shared/design-system/components/BackButton";
 import { cn } from "@/shared/lib/cn";
-import { Calendar } from "@/shared/ui/calendar"; // ajusta la ruta si tu Calendar vive en otra carpeta
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover";
-import { CalendarIcon } from "lucide-react";
+import { Calendar } from "@/shared/ui/calendar";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -39,9 +39,310 @@ import { es } from "date-fns/locale";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { PERMS } from "@/shared/constants/acl";
 
+// ✅ Historial tipificaciones
+import type { HistorialTipificacion } from "../models/historialTipificacion.model";
+
+import { Timestamp } from "firebase/firestore";
+
+import {
+  obtenerHistorialTipificaciones,
+  reemplazarHistorialTipificaciones,
+  tipificacionActivaDesdeHistorial,
+} from "../services/historialTipificacionesService";
+
 const ALL = "__ALL__";
 
+/** Timestamp-like -> Date */
+const toDateSafe = (v: any): Date | undefined => {
+  if (!v) return undefined;
+  if (v instanceof Date) return v;
+  if (typeof v?.toDate === "function") return v.toDate(); // Firestore Timestamp
+  if (typeof v?.seconds === "number") return new Date(v.seconds * 1000);
+  return undefined;
+};
 
+function applyHonorariosDefaultByTip(tip: TipificacionDeuda, prev?: number | string) {
+  const esDemanda =
+    tip === TipificacionDeuda.DEMANDA ||
+    tip === TipificacionDeuda.DEMANDA_ACUERDO ||
+    tip === TipificacionDeuda.DEMANDA_TERMINADO ||
+    tip === TipificacionDeuda.DEMANDA_INSOLVENCIA;
+
+  const current = prev === "" || prev === undefined || prev === null ? undefined : Number(prev);
+  if (esDemanda) return 20;
+  return Number.isFinite(current as any) ? Number(current) : 15;
+}
+
+/* =========================
+   Popup: Editor Historial
+========================= */
+
+function HistorialTipificacionesDialog(props: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  readOnly: boolean;
+  saving: boolean;
+  clienteId: string;
+  deudorId: string;
+  onSaved: (historialOrdenado: Array<{ fecha: Date; tipificacion: TipificacionDeuda }>) => void;
+}) {
+  const { open, onOpenChange, readOnly, saving, clienteId, deudorId, onSaved } = props;
+
+  const [loading, setLoading] = useState(false);
+  const [items, setItems] = useState<Array<{ id?: string; fecha: Date; tipificacion: TipificacionDeuda }>>([]);
+  const [busy, setBusy] = useState(false);
+
+  const cargar = async () => {
+    setLoading(true);
+    try {
+      const raw = await obtenerHistorialTipificaciones(clienteId, deudorId);
+      const mapped = raw
+        .map((x) => ({
+          id: x.id,
+          fecha: toDateSafe(x.fecha) ?? new Date(),
+          tipificacion: (x.tipificacion ?? TipificacionDeuda.GESTIONANDO) as TipificacionDeuda,
+        }))
+        .sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
+      setItems(mapped);
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message ?? "Error cargando historial");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (open && clienteId && deudorId) cargar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, clienteId, deudorId]);
+
+  const addRow = () => {
+    setItems((prev) => [
+      ...prev,
+      {
+        fecha: new Date(),
+        tipificacion: TipificacionDeuda.GESTIONANDO,
+      },
+    ]);
+  };
+
+  const updateRow = (idx: number, patch: Partial<{ fecha: Date; tipificacion: TipificacionDeuda }>) => {
+    setItems((prev) =>
+      prev.map((it, i) => (i === idx ? { ...it, ...patch } : it))
+    );
+  };
+
+  const removeRow = (idx: number) => {
+    setItems((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const guardar = async () => {
+    if (readOnly) return;
+
+    // Validación mínima
+    if (items.length === 0) {
+      toast.error("Debes tener al menos 1 registro de tipificación.");
+      return;
+    }
+    for (const it of items) {
+      if (!it.fecha || isNaN(it.fecha.getTime())) {
+        toast.error("Hay un registro con fecha inválida.");
+        return;
+      }
+      if (!it.tipificacion) {
+        toast.error("Hay un registro sin tipificación.");
+        return;
+      }
+    }
+
+    // Ordenar por fecha asc
+    const ordenado = [...items].sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
+
+    setBusy(true);
+    try {
+      // Reemplazar el historial completo
+      await reemplazarHistorialTipificaciones(
+        clienteId,
+        deudorId,
+        ordenado.map((x) => ({
+          fecha: Timestamp.fromDate(x.fecha),
+          tipificacion: x.tipificacion
+        }))
+
+      );
+
+      toast.success("Historial de tipificaciones guardado.");
+      onSaved(ordenado);
+      onOpenChange(false);
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message ?? "Error guardando historial");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !saving && !busy && onOpenChange(v)}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-brand-primary text-xl font-bold">
+            Historial de tipificaciones
+          </DialogTitle>
+        </DialogHeader>
+
+        {loading ? (
+          <div className="py-10 text-center">
+            <div className="h-10 w-10 mx-auto animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary mb-3" />
+            <Typography variant="body">Cargando historial...</Typography>
+          </div>
+        ) : (
+          <div className="space-y-4">
+           
+
+            <div className="overflow-x-auto rounded-lg border border-brand-secondary/10">
+              <Table>
+                <TableHeader className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5">
+                  <TableRow className="border-brand-secondary/10 hover:bg-transparent">
+                    <TableHead className="text-brand-secondary font-semibold w-56">Fecha inicio</TableHead>
+                    <TableHead className="text-brand-secondary font-semibold">Tipificación</TableHead>
+                    <TableHead className="text-brand-secondary font-semibold text-center w-24">Acción</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {items.map((it, idx) => (
+                    <TableRow key={it.id ?? idx} className="border-brand-secondary/5">
+                      <TableCell className="align-top">
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className={cn(
+                                "w-full justify-start text-left font-normal border-brand-secondary/30",
+                                !it.fecha && "text-muted-foreground"
+                              )}
+                              disabled={readOnly || busy || saving}
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {it.fecha ? format(it.fecha, "PPP", { locale: es }) : "Selecciona fecha"}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={it.fecha}
+                              defaultMonth={it.fecha ?? new Date()}
+                              onSelect={(date) => updateRow(idx, { fecha: date ?? new Date() })}
+                              initialFocus
+                              captionLayout="dropdown"
+                              fromYear={new Date().getFullYear() - 20}
+                              toYear={new Date().getFullYear() + 20}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </TableCell>
+
+                      <TableCell className="align-top">
+                        <Select
+                          disabled={readOnly || busy || saving}
+                          value={it.tipificacion}
+                          onValueChange={(v) => updateRow(idx, { tipificacion: v as TipificacionDeuda })}
+                        >
+                          <SelectTrigger className="border-brand-secondary/30 bg-white focus:border-brand-primary focus:ring-brand-primary/20">
+                            <SelectValue placeholder="Selecciona una tipificación" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Object.values(TipificacionDeuda).map((t) => (
+                              <SelectItem key={t} value={t}>{t}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+                        
+                      </TableCell>
+
+                      <TableCell className="text-center align-top">
+                        {!readOnly && (
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="hover:bg-red-50"
+                            onClick={() => removeRow(idx)}
+                            disabled={busy || saving}
+                            title="Eliminar fila"
+                          >
+                            <Trash2 className="h-4 w-4 text-red-600" />
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+
+                  {items.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                        No hay historial. Agrega el primer registro.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            {!readOnly && (
+              <div className="flex items-center justify-between gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={addRow}
+                  disabled={busy || saving}
+                  className="border-brand-secondary/30"
+                >
+                  + Agregar registro
+                </Button>
+
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => onOpenChange(false)}
+                    disabled={busy || saving}
+                    className="border-brand-secondary/30"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="brand"
+                    onClick={guardar}
+                    disabled={busy || saving}
+                  >
+                    Guardar historial
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {readOnly && (
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cerrar
+            </Button>
+          </DialogFooter>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* =========================
+   Página principal
+========================= */
 
 export default function DeudoresTable() {
   const navigate = useNavigate();
@@ -51,12 +352,13 @@ export default function DeudoresTable() {
   const canView = can(PERMS.Deudores_Read);
   const canEdit = can(PERMS.Deudores_Edit);
   const readOnly = !canEdit && canView;
+
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deudorAEliminar, setDeudorAEliminar] = useState<Deudor | null>(null);
   const [busyAction, setBusyAction] = useState<"save" | "delete" | null>(null);
+
   const [deudores, setDeudores] = useState<Deudor[]>([]);
   const [loading, setLoading] = useState(false);
-  //const [prevPorcentaje, setPrevPorcentaje] = useState<number | null>(null);
 
   const [open, setOpen] = useState(false);
   const [deudorEditando, setDeudorEditando] = useState<Deudor | null>(null);
@@ -65,7 +367,7 @@ export default function DeudoresTable() {
   // ✅ BLOQUEO GLOBAL
   const [saving, setSaving] = useState(false);
 
-  // Estado para cliente y usuarios
+  // cliente / usuarios
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([]);
   const [nombreCliente, setNombreCliente] = useState<string>("Cargando...");
@@ -75,34 +377,9 @@ export default function DeudoresTable() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 300;
 
-  const eliminarDeudor = async () => {
-    if (!clienteId || !deudorAEliminar?.id) return;
-    if (!canEdit) return;
-
-    setBusyAction("delete");
-    setSaving(true);
-
-    try {
-      await borrarDeudorCompleto(clienteId, deudorAEliminar.id);
-      toast.success("✓ Deudor eliminado junto con toda su información asociada.");
-      setConfirmDeleteOpen(false);
-      setDeudorAEliminar(null);
-      await fetchDeudores();
-    } catch (e: any) {
-      console.error("Eliminar deudor error:", e);
-
-      // callable errors normalmente vienen con .code y .message
-      const code = e?.code;
-      const msg = e?.message;
-
-      toast.error(code ? `${code}: ${msg}` : (msg ?? "Error interno"));
-    }
-    finally {
-      setSaving(false);
-      setBusyAction(null);
-    }
-  };
-
+  // ✅ Popup historial tipificaciones
+  const [histOpen, setHistOpen] = useState(false);
+  const [deudorHistId, setDeudorHistId] = useState<string | null>(null);
 
   const fetchDeudores = async () => {
     if (!clienteId) return;
@@ -114,15 +391,6 @@ export default function DeudoresTable() {
       setLoading(false);
     }
   };
-
-  const toDateSafe = (v: any): Date | undefined => {
-    if (!v) return undefined;
-    if (v instanceof Date) return v;
-    if (typeof v?.toDate === "function") return v.toDate(); // Timestamp
-    if (typeof v?.seconds === "number") return new Date(v.seconds * 1000);
-    return undefined;
-  };
-
 
   const fetchCliente = async () => {
     if (!clienteId) return;
@@ -138,7 +406,6 @@ export default function DeudoresTable() {
           setUsuarios(todosUsuarios);
 
           const usuarioEncontrado = todosUsuarios.find(u => u.uid === clienteId);
-
           if (usuarioEncontrado) {
             setNombreCliente(
               usuarioEncontrado.nombre ??
@@ -169,12 +436,6 @@ export default function DeudoresTable() {
 
   const normalizedQ = search.trim().toLowerCase();
 
-  const isInactivo = (t?: string) =>
-    t === (TipificacionDeuda as any).INACTIVO || t === "INACTIVO";
-
-  const isTip = (t: any, target: TipificacionDeuda) =>
-    String(t ?? "").trim() === target;
-
   const EXCLUIR_EN_ACTIVOS = new Set<TipificacionDeuda>([
     TipificacionDeuda.INACTIVO,
     TipificacionDeuda.TERMINADO,
@@ -190,29 +451,21 @@ export default function DeudoresTable() {
 
       const tip = d.tipificacion as TipificacionDeuda;
       if (tipFilter === ALL) {
-        // ✅ "Activos": excluye INACTIVO, TERMINADO, DEMANDA_TERMINADO
         if (EXCLUIR_EN_ACTIVOS.has(tip)) return false;
       } else {
         if (String(tip) !== tipFilter) return false;
       }
-
-
       return true;
     })
     .sort((a, b) => {
       const ua = (a.ubicacion ?? "").trim();
       const ub = (b.ubicacion ?? "").trim();
 
-      // Vacíos al final
       if (!ua && ub) return 1;
       if (ua && !ub) return -1;
       if (!ua && !ub) return 0;
 
-      // ✅ Orden natural: números bien ordenados (11 antes que 102)
-      return ua.localeCompare(ub, "es", {
-        sensitivity: "base",
-        numeric: true,
-      });
+      return ua.localeCompare(ub, "es", { sensitivity: "base", numeric: true });
     });
 
   const totalPages = Math.ceil(filteredDeudores.length / itemsPerPage) || 1;
@@ -243,56 +496,64 @@ export default function DeudoresTable() {
     setFormData({
       ...deudor,
       porcentajeHonorarios: porcentaje,
-      fechaTerminado: toDateSafe((deudor as any).fechaTerminado) ?? undefined,
     });
 
     setOpen(true);
   };
 
-  const onChangeTipificacion = (val: string) => {
-    const t = val as TipificacionDeuda;
-
-    setFormData((prev) => {
-      const esDemanda =
-        t === TipificacionDeuda.DEMANDA ||
-        t === TipificacionDeuda.DEMANDA_ACUERDO ||
-        t === TipificacionDeuda.DEMANDA_TERMINADO ||
-        t === TipificacionDeuda.DEMANDA_INSOLVENCIA;
-
-      return {
-        ...prev,
-        tipificacion: t,
-        porcentajeHonorarios: esDemanda ? 20 : (prev.porcentajeHonorarios ?? 15),
-        fechaTerminado: t === TipificacionDeuda.TERMINADO ? (prev as any).fechaTerminado : undefined,
-      };
-    });
-  };
-
-
-
-
-  // ✅ IMPORTANTE: SIEMPRE try/finally para que no se quede pegado
-  const guardarDeudor = async () => {
+  const abrirHistorial = async () => {
     if (!clienteId) return;
-    if (!canEdit) return;
 
-    const tip = formData.tipificacion as TipificacionDeuda | undefined;
-
-    if (tip === TipificacionDeuda.TERMINADO && !formData.fechaTerminado) {
-      toast.error("Debes seleccionar la fecha de terminación.");
+    // ✅ si es crear (aún no existe deudor), primero obligamos a guardar el deudor
+    if (!deudorEditando?.id) {
+      toast.error("Primero crea el deudor para poder editar su historial de tipificaciones.");
       return;
     }
 
+    setDeudorHistId(deudorEditando.id);
+    setHistOpen(true);
+  };
+
+  const eliminarDeudor = async () => {
+    if (!clienteId || !deudorAEliminar?.id) return;
+    if (!canEdit) return;
+
+    setBusyAction("delete");
+    setSaving(true);
+
+    try {
+      await borrarDeudorCompleto(clienteId, deudorAEliminar.id);
+      toast.success("✓ Deudor eliminado junto con toda su información asociada.");
+      setConfirmDeleteOpen(false);
+      setDeudorAEliminar(null);
+      await fetchDeudores();
+    } catch (e: any) {
+      console.error("Eliminar deudor error:", e);
+      const code = e?.code;
+      const msg = e?.message;
+      toast.error(code ? `${code}: ${msg}` : (msg ?? "Error interno"));
+    } finally {
+      setSaving(false);
+      setBusyAction(null);
+    }
+  };
+
+  const guardarDeudor = async () => {
+    if (!clienteId) return;
+    if (!canEdit) return;
 
     const valorActual = formData.porcentajeHonorarios as number | string | undefined;
     const porcentajeFinal =
       valorActual === undefined || valorActual === null || valorActual === ""
         ? 15
         : Number(valorActual);
+
     setBusyAction("save");
     setSaving(true);
-    setSaving(true);
+
     try {
+      // ✅ tipificacion se guarda como la que esté actualmente en formData
+      // (y el historial dialog se encarga de actualizarla al guardar historial)
       if (deudorEditando) {
         await actualizarDeudorDatos(clienteId, deudorEditando.id!, {
           nombre: formData.nombre,
@@ -302,10 +563,6 @@ export default function DeudoresTable() {
           telefonos: formData.telefonos ?? [],
           tipificacion: formData.tipificacion as TipificacionDeuda,
           porcentajeHonorarios: porcentajeFinal,
-          fechaTerminado:
-            (formData.tipificacion as TipificacionDeuda) === TipificacionDeuda.TERMINADO
-              ? (formData.fechaTerminado as Date)
-              : null,
         });
         toast.success("Deudor actualizado correctamente");
       } else {
@@ -316,12 +573,7 @@ export default function DeudoresTable() {
           porcentajeHonorarios: porcentajeFinal,
           correos: formData.correos ?? [],
           telefonos: formData.telefonos ?? [],
-          tipificacion:
-            (formData.tipificacion as TipificacionDeuda) ?? TipificacionDeuda.GESTIONANDO,
-          fechaTerminado:
-            (formData.tipificacion as TipificacionDeuda) === TipificacionDeuda.TERMINADO
-              ? (formData.fechaTerminado as Date)
-              : null,
+          tipificacion: (formData.tipificacion as TipificacionDeuda) ?? TipificacionDeuda.GESTIONANDO,
         });
         toast.success("Deudor creado correctamente");
       }
@@ -334,7 +586,6 @@ export default function DeudoresTable() {
     } finally {
       setSaving(false);
       setBusyAction(null);
-      setSaving(false);
     }
   };
 
@@ -348,12 +599,10 @@ export default function DeudoresTable() {
       }));
       return;
     }
-
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-
-  // ✅ Overlay global (portal) - bloquea toda la pantalla
+  // ✅ Overlay global (portal)
   const GlobalBlockingOverlay = saving
     ? createPortal(
       <div className="fixed inset-0 z-[99999] bg-black/50 backdrop-blur-sm flex items-center justify-center">
@@ -498,70 +747,40 @@ export default function DeudoresTable() {
                             placeholder="Ciudad, Departamento"
                           />
                         </div>
+
+                        {/* ✅ TIPIFICACIÓN (solo lectura) + botón editar historial */}
                         <div>
                           <Label className="text-brand-secondary font-medium">Tipificación</Label>
-                          <Select
-                            disabled={readOnly || saving}
-                            value={(formData.tipificacion as TipificacionDeuda) ?? TipificacionDeuda.GESTIONANDO}
-                            onValueChange={onChangeTipificacion}
-                          >
-                            <SelectTrigger className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20">
-                              <SelectValue placeholder="Selecciona una tipificación" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {Object.values(TipificacionDeuda).map((t) => (
-                                <SelectItem key={t} value={t}>{t}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
 
-                        {(formData.tipificacion as TipificacionDeuda) === TipificacionDeuda.TERMINADO && (
-                          <div className="space-y-2">
-                            <Label className="text-brand-secondary font-medium">Fecha terminación</Label>
+                          <div className="mt-1.5 flex items-center gap-2">
+                            <div className="flex-1 rounded-md border border-brand-secondary/30 bg-white px-3 py-2">
+                              <div className="flex items-center gap-2">
+                                
+                                <span className="text-sm text-brand-secondary font-medium">
+                                  {(formData.tipificacion as TipificacionDeuda) ?? TipificacionDeuda.GESTIONANDO}
+                                </span>
+                              </div>
+                              
+                            </div>
 
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  className={cn(
-                                    "w-full justify-start text-left font-normal border-brand-secondary/30",
-                                    !formData.fechaTerminado && "text-muted-foreground"
-                                  )}
-                                  disabled={readOnly || saving}
-                                >
-                                  <CalendarIcon className="mr-2 h-4 w-4" />
-                                  {formData.fechaTerminado
-                                    ? format(formData.fechaTerminado as Date, "PPP", { locale: es })
-                                    : "Selecciona una fecha"}
-                                </Button>
-                              </PopoverTrigger>
-
-                              <PopoverContent className="w-auto p-0" align="start">
-                                <Calendar
-                                  mode="single"
-                                  selected={formData.fechaTerminado as Date | undefined}
-                                  defaultMonth={(formData.fechaTerminado as Date | undefined) ?? new Date()}
-                                  onSelect={(date) => {
-                                    setFormData((p) => ({ ...p, fechaTerminado: date ?? undefined }));
-                                  }}
-                                  initialFocus
-                                  captionLayout="dropdown"
-                                  fromYear={new Date().getFullYear() - 20}
-                                  toYear={new Date().getFullYear() + 20}
-                                />
-                              </PopoverContent>
-                            </Popover>
-
-                            <p className="text-xs text-muted-foreground">
-                              Estaaaa fecha solo aplica cuando la tipificación está en <b>TERMINADO</b>.
-                            </p>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="border-brand-secondary/30"
+                              onClick={abrirHistorial}
+                              disabled={readOnly || saving || !deudorEditando?.id}
+                              title={!deudorEditando?.id ? "Primero guarda el deudor" : "Editar historial de tipificaciones"}
+                            >
+                              Editar
+                            </Button>
                           </div>
-                        )}
 
-
-
+                          {!deudorEditando?.id && (
+                            <p className="text-xs text-muted-foreground mt-2">
+                              Para editar el historial, primero debes crear el deudor.
+                            </p>
+                          )}
+                        </div>
                       </div>
 
                       <div>
@@ -573,6 +792,9 @@ export default function DeudoresTable() {
                           readOnly={readOnly || saving}
                           onChange={handleChange}
                         />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Tipificaciones de DEMANDA suelen usar 20%.
+                        </p>
                       </div>
 
                       <div className="space-y-3 pt-4 border-t border-brand-secondary/10">
@@ -635,6 +857,47 @@ export default function DeudoresTable() {
                       )}
                     </DialogFooter>
                   </form>
+
+                  {/* ✅ Popup historial */}
+                  {clienteId && deudorEditando?.id && (
+                    <HistorialTipificacionesDialog
+                      open={histOpen}
+                      onOpenChange={setHistOpen}
+                      readOnly={readOnly}
+                      saving={saving}
+                      clienteId={clienteId}
+                      deudorId={deudorEditando.id}
+                      onSaved={async (historialOrdenado) => {
+                        // 1) calcular tipificación activa (última)
+                        const tipActiva = tipificacionActivaDesdeHistorial(
+                          historialOrdenado.map((h) => ({
+                            fecha: Timestamp.fromDate(h.fecha),
+                            tipificacion: h.tipificacion
+                          }))
+                        );
+
+                        // 2) reflejar en el form
+                        setFormData((p) => ({
+                          ...p,
+                          tipificacion: tipActiva,
+                          porcentajeHonorarios: applyHonorariosDefaultByTip(tipActiva, p.porcentajeHonorarios),
+                        }));
+
+                        // 3) persistir la tipificación activa en el documento deudor
+                        try {
+                          await actualizarDeudorDatos(clienteId, deudorEditando.id!, {
+                            tipificacion: tipActiva,
+                            porcentajeHonorarios: applyHonorariosDefaultByTip(tipActiva, formData.porcentajeHonorarios),
+                          });
+                          await fetchDeudores();
+                        } catch (e: any) {
+                          console.error(e);
+                          toast.error(e?.message ?? "No se pudo actualizar la tipificación del deudor.");
+                        }
+                      }}
+                    />
+                  )}
+
                 </DialogContent>
               </Dialog>
             )}
@@ -862,6 +1125,7 @@ export default function DeudoresTable() {
                   ))}
                 </TableBody>
               </Table>
+
               <Dialog
                 open={confirmDeleteOpen}
                 onOpenChange={(v) => !saving && setConfirmDeleteOpen(v)}
@@ -883,9 +1147,7 @@ export default function DeudoresTable() {
 
                     <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-800">
                       <p className="font-semibold">Atención:</p>
-                      <p>
-                        Esta acción eliminará definitivamente:
-                      </p>
+                      <p>Esta acción eliminará definitivamente:</p>
                       <ul className="list-disc ml-5 mt-2 space-y-1">
                         <li>El deudor</li>
                         <li>Todo el seguimiento</li>
