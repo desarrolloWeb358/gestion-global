@@ -280,6 +280,10 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
       toast.error("No tienes permiso para crear/editar seguimientos de demanda.");
       return;
     }
+    if (edit && !puedeEditar) {
+      toast.error("No tienes permiso para editar seguimientos de demanda.");
+      return;
+    }
     if (!clienteId || !deudorId) return;
     if (saving) return;
     if (!fecha) {
