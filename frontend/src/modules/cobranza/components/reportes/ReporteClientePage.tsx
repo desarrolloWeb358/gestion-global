@@ -85,7 +85,7 @@ import {
 
 // Servicios para data adicional (ya existen por tus componentes)
 import { obtenerDemandasConSeguimientoCliente } from "../../services/reportes/seguimientoDemandaService";
-import { obtenerReporteDeudoresPorAnio } from "../../services/reportes/reporteDeudoresService";
+import { obtenerReporteDeudoresPorPeriodo } from "../../services/reportes/reporteDeudoresService";
 import type { FilaReporte } from "../../services/reportes/tipos";
 
 const COLORS = [
@@ -199,7 +199,9 @@ export default function ReporteClientePage() {
 
   // año tabla anual (para Word y para que te quede controlado si luego lo quieres sincronizar)
   const hoy = new Date();
-  const [yearTabla] = useState<number>(hoy.getFullYear());
+  const [yearTabla, setYearTabla] = useState<number>(hoy.getFullYear());
+  const [monthTabla, setMonthTabla] = useState<number>(hoy.getMonth() + 1); // 1..12
+
 
   // refs gráficos
   const pieChartRef = useRef<HTMLDivElement>(null);
@@ -236,16 +238,16 @@ export default function ReporteClientePage() {
     (async () => {
       setLoading(true);
       const [tip, recs, resumen] = await Promise.all([
-        contarTipificacionPorCliente(clienteId),
-        obtenerRecaudosMensuales(clienteId),
-        obtenerResumenPorTipificacion(clienteId),
+        contarTipificacionPorCliente(clienteId, yearTabla, monthTabla),
+        obtenerRecaudosMensuales(clienteId, yearTabla, monthTabla),
+        obtenerResumenPorTipificacion(clienteId, yearTabla, monthTabla),
       ]);
       setPieData(tip);
       setBarsData(recs);
       setResumenTip(resumen);
       setLoading(false);
     })();
-  }, [clienteId]);
+  }, [clienteId, yearTabla, monthTabla]);
 
   useEffect(() => {
     if (!clienteId || !tipSeleccionada) return;
@@ -254,8 +256,11 @@ export default function ReporteClientePage() {
       setLoadingDetalle(true);
       const datos = await obtenerDetalleDeudoresPorTipificacion(
         clienteId,
-        tipSeleccionada as TipificacionKey
+        tipSeleccionada as TipificacionKey,
+        yearTabla,
+        monthTabla
       );
+
       setDetalleTip(datos);
       setLoadingDetalle(false);
     })();
@@ -321,7 +326,7 @@ export default function ReporteClientePage() {
     return `${name} ${(percent * 100).toFixed(0)}%`;
   };
 
-  
+
 
   // ======= WORD (NUEVO: con TODO y estilo INFORME) =======
   const handleDownloadWord = async () => {
@@ -340,7 +345,7 @@ export default function ReporteClientePage() {
       const demandasRaw = await obtenerDemandasConSeguimientoCliente(clienteId);
 
       // Tabla anual
-      const tablaAnualRaw: FilaReporte[] = await obtenerReporteDeudoresPorAnio(clienteId, yearTabla);
+      const tablaAnualRaw: FilaReporte[] = await obtenerReporteDeudoresPorPeriodo(clienteId, yearTabla, monthTabla);
 
       // 3) Mapear a formato Word (mismo orden de tu UI: seguimientos DESC + observación al final)
       const demandasWord = demandasRaw.map((d) => {
@@ -487,6 +492,41 @@ export default function ReporteClientePage() {
           </div>
         </div>
       </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2">
+          <Typography variant="small" className="text-brand-secondary font-medium">Año</Typography>
+          <Select value={String(yearTabla)} onValueChange={(v) => setYearTabla(Number(v))}>
+            <SelectTrigger className="w-28 border-brand-secondary/30 bg-white">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Array.from({ length: 6 }).map((_, i) => {
+                const y = hoy.getFullYear() - i;
+                return <SelectItem key={y} value={String(y)}>{y}</SelectItem>;
+              })}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Typography variant="small" className="text-brand-secondary font-medium">Mes</Typography>
+          <Select value={String(monthTabla)} onValueChange={(v) => setMonthTabla(Number(v))}>
+            <SelectTrigger className="w-40 border-brand-secondary/30 bg-white">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Array.from({ length: 12 }).map((_, i) => {
+                const m = i + 1;
+                const label = new Date(2024, i, 1).toLocaleDateString("es-CO", { month: "long" });
+                const nombre = label.charAt(0).toUpperCase() + label.slice(1);
+                return <SelectItem key={m} value={String(m)}>{nombre}</SelectItem>;
+              })}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
 
       <Separator className="bg-brand-secondary/20" />
 
@@ -652,12 +692,12 @@ export default function ReporteClientePage() {
             <div className="flex items-center gap-2">
               <Users className="h-5 w-5 text-brand-primary" />
               <Typography variant="h3" className="!text-brand-secondary font-semibold">
-                Tabla de deudores (año)
+                Tabla de deudores (corte mensual)
               </Typography>
             </div>
           </div>
           <div className="p-4 md:p-5">
-            <TablaDeudoresReporte clienteId={clienteId} />
+            <TablaDeudoresReporte clienteId={clienteId} year={yearTabla} month={monthTabla} />
           </div>
         </section>
       )}
