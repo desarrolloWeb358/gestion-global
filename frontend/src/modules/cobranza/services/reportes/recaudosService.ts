@@ -30,13 +30,14 @@ function isTerminadoDentroDelAnio(fechaTerminado: any, year: number): boolean {
  * - Paraleliza la lectura de subcolecciones 'estadosMensuales' por deudor.
  * - Rellena meses sin datos con total = 0.
  */
-export async function obtenerRecaudosMensuales(clienteId: string): Promise<MesTotal[]> {
-  const ahora = new Date();
-  const year = ahora.getFullYear();
+export async function obtenerRecaudosMensuales(
+  clienteId: string,
+  year: number,
+  month: number
+): Promise<MesTotal[]> {
   const yearStr = String(year);
-  const currentMonth = ahora.getMonth() + 1; // 1..12
+  const currentMonth = month; // 1..12
 
-  // meses enero -> mes actual
   const acumulado = new Map<string, number>();
   for (let m = 1; m <= currentMonth; m++) {
     const mm = String(m).padStart(2, "0");
@@ -46,25 +47,9 @@ export async function obtenerRecaudosMensuales(clienteId: string): Promise<MesTo
   const deudoresRef = collection(db, `clientes/${clienteId}/deudores`);
   const deudoresSnap = await getDocs(deudoresRef);
 
-  // ✅ Filtrar deudores: si es TERMINADO, solo si fechaTerminado está dentro del año
-  const deudoresValidos = deudoresSnap.docs.filter((d) => {
-    const data = d.data() as { tipificacion?: string; fechaTerminado?: any };
-
-    const tip = data.tipificacion as TipificacionDeuda | undefined;
-    if (tip === TipificacionDeuda.TERMINADO) {
-      return isTerminadoDentroDelAnio(data.fechaTerminado, year);
-    }
-    return true;
-  });
-
-  // leer estadosMensuales solo de deudores válidos
-  const estadosPromises = deudoresValidos.map(async (deudorDoc) => {
-    const estadosRef = collection(
-      db,
-      `clientes/${clienteId}/deudores/${deudorDoc.id}/estadosMensuales`
-    );
-    const estadosSnap = await getDocs(estadosRef);
-    return estadosSnap;
+  const estadosPromises = deudoresSnap.docs.map(async (deudorDoc) => {
+    const estadosRef = collection(db, `clientes/${clienteId}/deudores/${deudorDoc.id}/estadosMensuales`);
+    return getDocs(estadosRef);
   });
 
   const estadosSnaps = await Promise.all(estadosPromises);
@@ -74,11 +59,9 @@ export async function obtenerRecaudosMensuales(clienteId: string): Promise<MesTo
       const data = mDoc.data() as { mes?: string; recaudo?: number };
       const rawMes = (data.mes || mDoc.id || "").trim();
       if (!rawMes || rawMes.length < 7) return;
-
       if (!rawMes.startsWith(`${yearStr}-`)) return;
 
-      const [, mmStr] = rawMes.split("-");
-      const mm = Number(mmStr);
+      const mm = Number(rawMes.split("-")[1]);
       if (!Number.isFinite(mm) || mm < 1 || mm > currentMonth) return;
 
       const claveMes = `${yearStr}-${String(mm).padStart(2, "0")}`;

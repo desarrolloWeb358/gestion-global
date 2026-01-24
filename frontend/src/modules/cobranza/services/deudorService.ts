@@ -24,6 +24,8 @@ import type {
   UpdateData,
 } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
+import { crearHistorialTipificacion } from "./historialTipificacionesService";
+
 // ------------ Tipos DTO para crear/actualizar Deudor ------------
 
 const TIPIFICACION_ORDER: Record<TipificacionDeuda, number> = {
@@ -48,7 +50,6 @@ export type DeudorCreateInput = {
   telefonos?: string[];
   porcentajeHonorarios?: number;
   tipificacion?: TipificacionDeuda;
-  fechaTerminado?: Date | Timestamp | null;
 };
 export type DeudorPatch = Partial<DeudorCreateInput>;
 
@@ -209,7 +210,6 @@ export function mapDocToDeudor(id: string, data: DocumentData): Deudor {
     numeroProceso: data.numeroProceso,
     anoProceso: data.anoProceso,
     tipificacion: normalizeTipificacion(data.tipificacion),
-    fechaTerminado: data.fechaTerminado ?? null
   };
 }
 
@@ -233,11 +233,14 @@ export async function obtenerDeudorPorCliente(clienteId: string): Promise<Deudor
 
 
 // ------------ Crear / Actualizar / Eliminar Deudor ------------
-export async function crearDeudor(clienteId: string, data: DeudorCreateInput): Promise<string> {
+export async function crearDeudor(
+  clienteId: string,
+  data: DeudorCreateInput
+): Promise<string> {
+
   const ref = collection(db, `clientes/${clienteId}/deudores`);
 
   const tip = data.tipificacion ?? TipificacionDeuda.GESTIONANDO;
-  const fechaT = tip === TipificacionDeuda.TERMINADO ? toTimestampOrNull(data.fechaTerminado) ?? null : null;
 
   const payload = {
     nombre: data.nombre,
@@ -247,12 +250,21 @@ export async function crearDeudor(clienteId: string, data: DeudorCreateInput): P
     telefonos: data.telefonos ?? [],
     porcentajeHonorarios: data.porcentajeHonorarios ?? 15,
     tipificacion: tip,
-    fechaTerminado: fechaT,
   };
 
+  // 1️⃣ Crear deudor
   const docRef = await addDoc(ref, payload);
-  return docRef.id;
+  const deudorId = docRef.id;
+
+  // 2️⃣ Crear primer registro de historial de tipificación
+  await crearHistorialTipificacion(clienteId, deudorId, {
+    fecha: Timestamp.now(),
+    tipificacion: tip,
+  });
+
+  return deudorId;
 }
+
 
 export async function actualizarTipificacionDeudor(
   clienteId: string,
@@ -271,7 +283,6 @@ type DeudorDoc = {
   telefonos: string[];
   porcentajeHonorarios: number;
   tipificacion: TipificacionDeuda;
-  fechaTerminado?: Timestamp | null;
   acuerdoActivoId?: string;
   juzgadoId?: string;
   numeroProceso?: string;
@@ -288,18 +299,7 @@ export async function actualizarDeudorDatos(
 ): Promise<void> {
   const ref = doc(db, `clientes/${clienteId}/deudores/${deudorId}`) as DocumentReference<DeudorDoc>;
 
-  // ✅ Normalización especial para fechaTerminado
   const next: any = { ...patch };
-
-  // Si viene fechaTerminado, conviértela a Timestamp/null
-  if ("fechaTerminado" in patch) {
-    next.fechaTerminado = toTimestampOrNull(patch.fechaTerminado);
-  }
-
-  // Si tipificacion cambia y NO es TERMINADO, limpia fechaTerminado
-  if (patch.tipificacion && patch.tipificacion !== TipificacionDeuda.TERMINADO) {
-    next.fechaTerminado = null;
-  }
 
   const sanitized = Object.fromEntries(
     Object.entries(next).filter(([, v]) => v !== undefined)
