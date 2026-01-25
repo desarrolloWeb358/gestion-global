@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 import { toast } from "sonner";
-
+import { actualizarUsuarioDesdeAdmin } from "../services/actualizarEmailUsuarioService";
 import {
   Table,
   TableHeader,
@@ -795,7 +795,7 @@ export default function UsuariosCrud() {
                   if (usuarioEditando) {
                     const actualizado: UsuarioSistema = {
                       ...usuarioEditando,
-                      email,
+                      email: email.trim().toLowerCase(),
                       nombre,
                       telefonoUsuario,
                       tipoDocumento,
@@ -805,7 +805,9 @@ export default function UsuariosCrud() {
                       fecha_registro,
                     };
 
-                    await actualizarUsuario(actualizado);
+                    // ✅ Una sola llamada: Auth + Firestore + rollback
+                    await actualizarUsuarioDesdeAdmin(actualizado);
+
                     setUsuarios((prev) =>
                       prev.map((u) => (u.uid === actualizado.uid ? actualizado : u))
                     );

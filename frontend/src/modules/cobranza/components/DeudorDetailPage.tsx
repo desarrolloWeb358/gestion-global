@@ -11,6 +11,9 @@ import {
   Mail,
   IdCard,
   Tag,
+  TrendingUp,
+  Percent,
+  DollarSign,
 } from "lucide-react";
 
 import { getDeudorById, vincularDeudorConUsuario } from "../services/deudorService";
@@ -31,7 +34,7 @@ import type { Cliente } from "@/modules/clientes/models/cliente.model";
 import { Deudor } from "../models/deudores.model";
 import { crearUsuarioParaDeudor } from "../services/deudorUserService";
 import { useUsuarioActual } from "@/modules/auth/hooks/useUsuarioActual";
-
+import { escucharEstadosMensuales } from "../services/estadoMensualService";
 
 
 // Helper para colores de tipificación
@@ -51,6 +54,15 @@ const getTipificacionColor = (tipificacion?: string) => {
 };
 
 export default function DeudorDetailPage() {
+  const [resumenMes, setResumenMes] = React.useState({
+    deuda: 0,
+    honorarios: 0,
+    total: 0,
+    mes: "",
+  });
+
+  const money = (n: number) => `$${Math.round(n).toLocaleString("es-CO")}`;
+
   const { clienteId, deudorId } = useParams<{ clienteId: string; deudorId: string }>();
   const navigate = useNavigate();
 
@@ -190,6 +202,34 @@ export default function DeudorDetailPage() {
   // ===========================
   // Effects
   // ===========================
+  React.useEffect(() => {
+    if (!clienteId || !deudorId) return;
+
+    const unsub = escucharEstadosMensuales(clienteId, deudorId, (items) => {
+      if (!items.length) {
+        setResumenMes({ deuda: 0, honorarios: 0, total: 0, mes: "" });
+        return;
+      }
+
+      const last = items[items.length - 1]; // ✅ último mes (por orderBy mes asc)
+      const deuda = Number(last.deuda ?? 0);
+
+      const honorarios =
+        Number(last.honorariosDeuda ?? 0) +
+        Number(last.honorariosAcuerdo ?? 0) +
+        Number(last.honorariosRecaudo ?? 0);
+
+      setResumenMes({
+        deuda,
+        honorarios,
+        total: deuda + honorarios,
+        mes: String(last.mes ?? ""),
+      });
+    });
+
+    return () => unsub?.();
+  }, [clienteId, deudorId]);
+
   React.useEffect(() => {
     fetchCliente();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -388,22 +428,70 @@ export default function DeudorDetailPage() {
               </div>
 
               {/* Tipificación */}
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-blue-50 border border-blue-100">
+                <div className="p-2 rounded-lg bg-white shadow-sm">
+                  <DollarSign className="h-5 w-5 text-blue-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs mb-1">Deuda (último mes)</p>
+                  <p className="text-sm font-semibold text-gray-700">
+                    {money(resumenMes.deuda)}
+                  </p>
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    {resumenMes.mes ? `Mes: ${resumenMes.mes}` : "Sin estados mensuales"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Honorarios */}
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-indigo-50 border border-indigo-100">
+                <div className="p-2 rounded-lg bg-white shadow-sm">
+                  <Percent className="h-5 w-5 text-indigo-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs mb-1">Honorarios del último mes</p>
+                  <p className="text-sm font-semibold text-gray-700">
+                    {money(resumenMes.honorarios)}
+                  </p>
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    {resumenMes.mes ? `Mes: ${resumenMes.mes}` : "Sin estados mensuales"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Total */}
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-green-50 border border-green-100">
+                <div className="p-2 rounded-lg bg-white shadow-sm">
+                  <TrendingUp className="h-5 w-5 text-green-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs mb-1">Total deuda con honorarios</p>
+                  <p className="text-sm font-semibold text-gray-700">
+                    {money(resumenMes.total)}
+                  </p>
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    {resumenMes.mes ? `Mes: ${resumenMes.mes}` : "Sin estados mensuales"}
+                  </p>
+                </div>
+
+              </div>
+              {/* Tipificación */}
               <div className="flex items-start gap-3 p-4 rounded-lg bg-orange-50 border border-orange-100 md:col-span-2">
                 <div className="p-2 rounded-lg bg-white shadow-sm">
                   <Tag className="h-5 w-5 text-orange-600" />
                 </div>
-                <div className="flex-1 min-w-0 flex items-center justify-between">
+
+                <div className="flex-1 min-w-0 flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs mb-1">
-                      Tipificación
-                    </p>
+                    <p className="text-xs mb-1">Tipificación</p>
                     <p className="text-sm font-semibold text-gray-700">
                       Estado actual del deudor
                     </p>
                   </div>
+
                   <span
                     className={cn(
-                      "inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium",
+                      "inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium whitespace-nowrap",
                       getTipificacionColor(deudor.tipificacion as string)
                     )}
                   >
@@ -411,6 +499,7 @@ export default function DeudorDetailPage() {
                   </span>
                 </div>
               </div>
+
             </div>
           </div>
         </section>
@@ -481,25 +570,26 @@ export default function DeudorDetailPage() {
               </button>
 
               {/* Crear acceso para el deudor */}
-              {!esDeudor && (
-                <button
-                  onClick={() => navigate(`/clientes/${clienteId}/deudores/${deudor.id}/AcuerdoPago`)}
-                  className="group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-5 text-left transition-all hover:border-indigo-500 hover:shadow-lg hover:-translate-y-1"
-                >
-                  <div className="absolute top-0 right-0 h-20 w-20 translate-x-8 -translate-y-8 rounded-full bg-indigo-500/5 transition-transform group-hover:scale-150" />
-                  <div className="relative">
-                    <div className="mb-3 inline-flex rounded-lg bg-indigo-500/10 p-3 transition-colors group-hover:bg-indigo-500/20">
-                      <CreditCard className="h-5 w-5 text-indigo-600" />
-                    </div>
-                    <Typography variant="h3" className="!text-brand-secondary mb-1 text-base">
-                      Ver acuerdo de pago
-                    </Typography>
-                    <Typography variant="small">
-                      Consulta el acuerdo activo, cuotas y detalle del compromiso.
-                    </Typography>
-                  </div>
-                </button>
-              )}
+              <button
+  onClick={() =>
+    navigate(`/clientes/${clienteId}/deudores/${deudor.id}/AcuerdoPago`)
+  }
+  className="group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-5 text-left transition-all hover:border-indigo-500 hover:shadow-lg hover:-translate-y-1"
+>
+  <div className="absolute top-0 right-0 h-20 w-20 translate-x-8 -translate-y-8 rounded-full bg-indigo-500/5 transition-transform group-hover:scale-150" />
+  <div className="relative">
+    <div className="mb-3 inline-flex rounded-lg bg-indigo-500/10 p-3">
+      <CreditCard className="h-5 w-5 text-indigo-600" />
+    </div>
+    <Typography variant="h3" className="!text-brand-secondary mb-1 text-base">
+      Ver acuerdo de pago
+    </Typography>
+    <Typography variant="small">
+      Consulta el acuerdo activo, cuotas y detalle del compromiso.
+    </Typography>
+  </div>
+</button>
+
               {puedeCrearAccesoDeudor && !esCliente && !esDeudor && (
                 <button
                   onClick={handleCrearAccesoDeudor}

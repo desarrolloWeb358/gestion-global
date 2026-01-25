@@ -29,6 +29,7 @@ import {
 import { Separator } from "@/shared/ui/separator";
 import { cn } from "@/shared/lib/cn";
 import { Earth } from "lucide-react";
+import { useNotificacionesUsuario } from "@/modules/notificaciones/hooks/useNotificacionesUsuario";
 
 function useFilteredNav(items: NavItem[]) {
   const { roles, can, loading } = useAcl();
@@ -46,9 +47,10 @@ function useFilteredNav(items: NavItem[]) {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const { usuario, roles } = useAcl();
+  const { totalNoVistas } = useNotificacionesUsuario(usuario?.uid);
   const navigate = useNavigate();
   const { items, loading } = useFilteredNav(NAV_ITEMS);
-  const { usuario, roles } = useAcl();
   const { state } = useSidebar();
   
   const isCollapsed = state === "collapsed";
@@ -85,11 +87,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     );
   }
 
-  const navMain = items.map(it => ({
-    title: it.label,
-    path: it.to,
-    icon: it.icon,
-  }));
+  const navMain = items.map((it) => ({
+  title: it.label,
+  path: it.to,
+  icon: it.icon,
+  badge: it.to === "/notificaciones" ? totalNoVistas : undefined,
+}));
 
   const onLogout = async () => {
     await cerrarSesion();

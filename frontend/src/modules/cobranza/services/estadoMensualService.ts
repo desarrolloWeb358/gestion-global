@@ -11,6 +11,7 @@ import {
   setDoc,
   query,
   orderBy,
+  onSnapshot,
 } from "firebase/firestore";
 import { EstadoMensual } from "../models/estadoMensual.model";
 
@@ -183,3 +184,21 @@ export async function upsertEstadoMensualPorMes(
   await batch.commit();
 }
 
+export function escucharEstadosMensuales(
+  clienteId: string,
+  deudorId: string,
+  cb: (items: EstadoMensual[]) => void,
+  onError?: (e: any) => void
+) {
+  const ref = collection(db, "clientes", clienteId, "deudores", deudorId, "estadosMensuales");
+  const q = query(ref, orderBy("mes", "asc"));
+
+  return onSnapshot(
+    q,
+    (snap) => {
+      const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as EstadoMensual[];
+      cb(items);
+    },
+    (e) => onError?.(e)
+  );
+}

@@ -154,22 +154,22 @@ export default function EstadosMensualesTable() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clienteId, deudorId]);
 
- const resetForm = () => {
-  setNuevoEstadoMensual({
-    mes: new Date().toISOString().slice(0, 7),
-    clienteUID: clienteId || "",  
-    deuda: undefined,
-    recaudo: undefined,
-    acuerdo: undefined,
-    porcentajeHonorarios: 15,
-    honorariosDeuda: undefined,
-    honorariosAcuerdo: undefined,
-    honorariosRecaudo: undefined,
-    recibo: "",
-    observaciones: "",
-  });
-  setEditing(false);
-};
+  const resetForm = () => {
+    setNuevoEstadoMensual({
+      mes: new Date().toISOString().slice(0, 7),
+      clienteUID: clienteId || "",
+      deuda: undefined,
+      recaudo: undefined,
+      acuerdo: undefined,
+      porcentajeHonorarios: 15,
+      honorariosDeuda: undefined,
+      honorariosAcuerdo: undefined,
+      honorariosRecaudo: undefined,
+      recibo: "",
+      observaciones: "",
+    });
+    setEditing(false);
+  };
 
   const openEdit = (estado: EstadoMensual) => {
     if (!canEdit) return;
@@ -617,6 +617,9 @@ export default function EstadosMensualesTable() {
                   <TableHead className="text-brand-secondary font-semibold">
                     Hon. Recaudo
                   </TableHead>
+                  <TableHead className="text-brand-secondary font-semibold">
+                    Total con Honorarios
+                  </TableHead>
                   {canEdit && (
                     <TableHead className="text-center text-brand-secondary font-semibold">
                       Acciones
@@ -665,6 +668,11 @@ export default function EstadosMensualesTable() {
                     </TableCell>
                     <TableCell className="text-gray-700">
                       ${Number(estado.honorariosRecaudo ?? 0).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-gray-700 font-semibold">
+                      ${(
+                        Number(estado.deuda ?? 0) + Number(estado.honorariosDeuda ?? 0)
+                      ).toLocaleString()}
                     </TableCell>
 
                     {canEdit && (

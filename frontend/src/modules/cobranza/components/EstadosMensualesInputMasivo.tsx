@@ -50,6 +50,7 @@ function ubicacionToSortableNumber(ubicacion: string) {
 }
 
 export default function EstadosMensualesInputMasivo() {
+
   const { clienteId } = useParams();
 
   const [tipificacionesSeleccionadas, setTipificacionesSeleccionadas] =
@@ -125,20 +126,29 @@ export default function EstadosMensualesInputMasivo() {
       try {
         const deudores: Deudor[] = await obtenerDeudorPorCliente(clienteId);
 
-        const nuevasFilas: FilaEstadoBase[] = deudores.map((d) => ({
-          deudorId: d.id!,
-          nombre: d.nombre || "Sin nombre",
-          ubicacion: d.ubicacion || "",
-          tipificacion: d.tipificacion ?? TipificacionDeuda.GESTIONANDO,
-          porcentajeHonorarios:
-            d.porcentajeHonorarios !== undefined &&
-              d.porcentajeHonorarios !== null
-              ? String(d.porcentajeHonorarios)
-              : "15",
-          deuda: "",
-          recaudo: "",
-          acuerdo: "",
-        }));
+        const nuevasFilas: FilaEstadoBase[] = deudores.map((d) => {
+          const esDemanda =
+            d.tipificacion === TipificacionDeuda.DEMANDA ||
+            d.tipificacion === TipificacionDeuda.DEMANDA_ACUERDO;
+
+          return {
+            deudorId: d.id!,
+            nombre: d.nombre || "Sin nombre",
+            ubicacion: d.ubicacion || "",
+            tipificacion: d.tipificacion ?? TipificacionDeuda.GESTIONANDO,
+
+            porcentajeHonorarios: esDemanda
+              ? "20"
+              : d.porcentajeHonorarios !== undefined && d.porcentajeHonorarios !== null
+                ? String(d.porcentajeHonorarios)
+                : "15",
+
+            deuda: "",
+            recaudo: "",
+            acuerdo: "",
+          };
+        });
+
 
         setFilas(nuevasFilas);
       } catch (error) {
@@ -153,6 +163,8 @@ export default function EstadosMensualesInputMasivo() {
     cargar();
   }, [clienteId]);
 
+
+
   // ✅ Filtrar + ordenar (solo para render)
   const filasVisibles = filas
     .filter((f) => tipificacionesSeleccionadas.includes(f.tipificacion))
@@ -164,25 +176,25 @@ export default function EstadosMensualesInputMasivo() {
     );
 
   const handleChangeById = (
-  deudorId: string,
-  field: keyof FilaEstadoBase,
-  value: string
-) => {
-  setFilas((prev) =>
-    prev.map((f) => (f.deudorId === deudorId ? { ...f, [field]: value } : f))
-  );
-};
+    deudorId: string,
+    field: keyof FilaEstadoBase,
+    value: string
+  ) => {
+    setFilas((prev) =>
+      prev.map((f) => (f.deudorId === deudorId ? { ...f, [field]: value } : f))
+    );
+  };
 
-const handleChangePorcentajeById = (deudorId: string, raw: string) => {
-  if (raw === "") {
-    handleChangeById(deudorId, "porcentajeHonorarios", "");
-    return;
-  }
-  let num = Number(raw);
-  if (Number.isNaN(num)) num = 0;
-  num = Math.max(0, Math.min(20, num));
-  handleChangeById(deudorId, "porcentajeHonorarios", String(num));
-};
+  const handleChangePorcentajeById = (deudorId: string, raw: string) => {
+    if (raw === "") {
+      handleChangeById(deudorId, "porcentajeHonorarios", "");
+      return;
+    }
+    let num = Number(raw);
+    if (Number.isNaN(num)) num = 0;
+    num = Math.max(0, Math.min(20, num));
+    handleChangeById(deudorId, "porcentajeHonorarios", String(num));
+  };
 
 
   const guardarTodos = async () => {
@@ -194,20 +206,20 @@ const handleChangePorcentajeById = (deudorId: string, raw: string) => {
     }
 
     const porGuardar = filas.filter((f) => {
-  const deudaOk = f.deuda.trim() !== "" && Number(f.deuda) >= 0;
-  const recaudoOk = f.recaudo.trim() !== "" && Number(f.recaudo) >= 0;
-  const acuerdoOk = (f.acuerdo ?? "").trim() !== "" && Number(f.acuerdo) >= 0;
+      const deudaOk = f.deuda.trim() !== "" && Number(f.deuda) >= 0;
+      const recaudoOk = f.recaudo.trim() !== "" && Number(f.recaudo) >= 0;
+      const acuerdoOk = (f.acuerdo ?? "").trim() !== "" && Number(f.acuerdo) >= 0;
 
-  // ✅ guardar si hay al menos uno diligenciado
-  return deudaOk || recaudoOk || acuerdoOk;
-});
+      // ✅ guardar si hay al menos uno diligenciado
+      return deudaOk || recaudoOk || acuerdoOk;
+    });
 
     const omitidas = filas.length - porGuardar.length;
 
     if (porGuardar.length === 0) {
-  toast.error("No hay filas válidas: diligencia al menos uno (Deuda, Recaudo o Acuerdo).");
-  return;
-}
+      toast.error("No hay filas válidas: diligencia al menos uno (Deuda, Recaudo o Acuerdo).");
+      return;
+    }
 
     try {
       setSaving(true);
@@ -219,9 +231,11 @@ const handleChangePorcentajeById = (deudorId: string, raw: string) => {
           const acuerdoNum = fila.acuerdo?.trim()
             ? Number.parseFloat(fila.acuerdo)
             : 0;
+
           const porcentajeParse = fila.porcentajeHonorarios?.trim()
-            ? Number.parseFloat(fila.porcentajeHonorarios)
-            : 15;
+  ? Number.parseFloat(fila.porcentajeHonorarios)
+  : 15;
+
 
           const deuda = Number.isNaN(deudaNum) ? 0 : deudaNum;
           const recaudo = Number.isNaN(recaudoNum) ? 0 : recaudoNum;
@@ -431,111 +445,107 @@ const handleChangePorcentajeById = (deudorId: string, raw: string) => {
 
           <div className="overflow-x-auto">
             <fieldset disabled={saving}>
-              <Table className="min-w-[900px]">
+              <Table className="min-w-[1000px]">
                 <TableHeader className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5">
                   <TableRow className="border-brand-secondary/10 hover:bg-transparent">
                     <TableHead className="text-brand-secondary font-semibold">Deudor</TableHead>
                     <TableHead className="text-brand-secondary font-semibold">Ubicación</TableHead>
                     <TableHead className="text-brand-secondary font-semibold">Tipificación</TableHead>
-                    <TableHead className="text-right text-brand-secondary font-semibold w-[140px]">
+                    <TableHead className="text-right text-brand-secondary font-semibold w-[90px]">
                       % Hon.
                     </TableHead>
-                    <TableHead className="text-right text-brand-secondary font-semibold w-[180px]">
+                    <TableHead className="text-right text-brand-secondary font-semibold w-[260px]">
                       Deuda
                     </TableHead>
-                    <TableHead className="text-right text-brand-secondary font-semibold w-[180px]">
+                    <TableHead className="text-right text-brand-secondary font-semibold w-[260px]">
                       Recaudo
                     </TableHead>
-                    <TableHead className="text-right text-brand-secondary font-semibold w-[180px]">
+                    <TableHead className="text-right text-brand-secondary font-semibold w-[260px]">
                       Acuerdo
                     </TableHead>
                   </TableRow>
                 </TableHeader>
 
                 <TableBody>
-                  {filasVisibles.map((fila, i) => (
-                    <TableRow
-                      key={fila.deudorId}
-                      className={cn(
-                        "border-brand-secondary/5 transition-colors",
-                        i % 2 === 0 ? "bg-white" : "bg-brand-primary/[0.02]",
-                        "hover:bg-brand-primary/5"
-                      )}
-                    >
-                      <TableCell className="font-medium text-gray-700">
-                        {fila.nombre}
-                      </TableCell>
-                      <TableCell className="font-medium text-gray-700">
-                        {fila.ubicacion}
-                      </TableCell>
-                      <TableCell>
-                        <span
-                          className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold border
-                            ${tipificacionColorMap[fila.tipificacion] ??
-                            "bg-gray-100 text-gray-700 border-gray-300"
-                            }
-                          `}
-                        >
-                          {String(fila.tipificacion).replaceAll("_", " ")}
-                        </span>
-                      </TableCell>
+                  {filasVisibles.map((fila, i) => {
+                    const esDemanda =
+                      fila.tipificacion === TipificacionDeuda.DEMANDA ||
+                      fila.tipificacion === TipificacionDeuda.DEMANDA_ACUERDO;
 
-                      <TableCell>
-                        <Input
-                          type="number"
-                          inputMode="decimal"
-                          min={0}
-                          max={20}
-                          value={fila.porcentajeHonorarios ?? ""}
-                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          onChange={(e) =>
-                            handleChangePorcentajeById(fila.deudorId, e.target.value)
-                          }
-                          className="text-right border-brand-secondary/30"
-                          placeholder="0–20"
-                        />
-                      </TableCell>
+                    return (
+                      <TableRow
+                        key={fila.deudorId}
+                        className={cn(
+                          "border-brand-secondary/5 transition-colors",
+                          i % 2 === 0 ? "bg-white" : "bg-brand-primary/[0.02]",
+                          "hover:bg-brand-primary/5"
+                        )}
+                      >
+                        <TableCell className="font-medium text-gray-700">{fila.nombre}</TableCell>
+                        <TableCell className="font-medium text-gray-700">{fila.ubicacion}</TableCell>
 
-                      <TableCell>
-                        <Input
-                          type="number"
-                          inputMode="decimal"
-                          value={fila.deuda ?? ""}
-                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          onChange={(e) => handleChangeById(fila.deudorId, "deuda", e.target.value)}
-                          className="text-right border-brand-secondary/30"
-                          placeholder="0.00"
-                        />
-                      </TableCell>
+                        <TableCell>
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold border
+              ${tipificacionColorMap[fila.tipificacion] ?? "bg-gray-100 text-gray-700 border-gray-300"}
+            `}
+                          >
+                            {String(fila.tipificacion).replaceAll("_", " ")}
+                          </span>
+                        </TableCell>
 
-                      <TableCell>
-                        <Input
-                          type="number"
-                          inputMode="decimal"
-                          value={fila.recaudo ?? ""}
-                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          onChange={(e) =>
-                            handleChangeById(fila.deudorId, "recaudo", e.target.value)
-                          }
-                          className="text-right border-brand-secondary/30"
-                          placeholder="0.00"
-                        />
-                      </TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={20}
+                            value={fila.porcentajeHonorarios ?? (esDemanda ? "20" : "15")}
+                            onChange={(e) => handleChangePorcentajeById(fila.deudorId, e.target.value)}
+                            className="w-full text-right border-brand-secondary/30"
+                            placeholder="0–20"
+                          />
+                        </TableCell>
 
-                      <TableCell>
-                        <Input
-                          type="number"
-                          inputMode="decimal"
-                          value={fila.acuerdo ?? ""}
-                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          onChange={(e) => handleChangeById(fila.deudorId, "acuerdo", e.target.value)}
-                          className="text-right border-brand-secondary/30"
-                          placeholder="0.00"
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        <TableCell>
+                          <Input
+                            type="number"
+                            inputMode="decimal"
+                            value={fila.deuda ?? ""}
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                            onChange={(e) => handleChangeById(fila.deudorId, "deuda", e.target.value)}
+                            className="w-full text-right border-brand-secondary/30"
+                            placeholder="0"
+                          />
+                        </TableCell>
+
+                        <TableCell>
+                          <Input
+                            type="number"
+                            inputMode="decimal"
+                            value={fila.recaudo ?? ""}
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                            onChange={(e) => handleChangeById(fila.deudorId, "recaudo", e.target.value)}
+                            className="w-full text-right border-brand-secondary/30"
+                            placeholder="0"
+                          />
+                        </TableCell>
+
+                        <TableCell>
+                          <Input
+                            type="number"
+                            inputMode="decimal"
+                            value={fila.acuerdo ?? ""}
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                            onChange={(e) => handleChangeById(fila.deudorId, "acuerdo", e.target.value)}
+                            className="w-full text-right border-brand-secondary/30"
+                            placeholder="0"
+                          />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
+
               </Table>
             </fieldset>
           </div>
