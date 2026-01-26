@@ -52,24 +52,24 @@ function toDateSafe(v: any): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
-function buildFechaCorte(year: number, month: number): Date {
+export function buildFechaCorte(year: number, month: number): Date {
   // month: 1..12
   // último día del mes a las 23:59:59.999
   return new Date(year, month, 0, 23, 59, 59, 999);
 }
 
-function isFinalTip(t: TipificacionDeuda) {
+export function isFinalTip(t: TipificacionDeuda) {
   return t === TipificacionDeuda.TERMINADO || t === TipificacionDeuda.DEMANDA_TERMINADO;
 }
 
-function inicioDentroDelAnio(inicio: Date | null, year: number) {
+export function inicioDentroDelAnio(inicio: Date | null, year: number) {
   if (!inicio) return false;
   const a = new Date(year, 0, 1);
   const b = new Date(year + 1, 0, 1);
   return inicio >= a && inicio < b;
 }
 
-async function getTipificacionEnFechaCorte(
+export async function getTipificacionEnFechaCorte(
   clienteId: string,
   deudorId: string,
   fechaCorte: Date,

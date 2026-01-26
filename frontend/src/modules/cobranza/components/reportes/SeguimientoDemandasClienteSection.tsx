@@ -46,9 +46,11 @@ function formatDateDDMMYYYY(date: Date) {
 
 type Props = {
     clienteId: string;
+    year: number;
+    month: number; // 1..12
 };
 
-export default function SeguimientoDemandasClienteSection({ clienteId }: Props) {
+export default function SeguimientoDemandasClienteSection({ clienteId, year, month }: Props) {
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState<DemandaDeudorItem[]>([]);
     const [q, setQ] = useState("");
@@ -59,7 +61,7 @@ export default function SeguimientoDemandasClienteSection({ clienteId }: Props) 
         (async () => {
             try {
                 setLoading(true);
-                const res = await obtenerDemandasConSeguimientoCliente(clienteId);
+                const res = await obtenerDemandasConSeguimientoCliente(clienteId, year, month);
                 setData(res);
             } catch (e) {
                 console.error(e);
@@ -68,7 +70,7 @@ export default function SeguimientoDemandasClienteSection({ clienteId }: Props) 
                 setLoading(false);
             }
         })();
-    }, [clienteId]);
+    }, [clienteId, year, month]);
 
     const resumen = useMemo(() => {
         const total = data.length;
@@ -162,7 +164,7 @@ export default function SeguimientoDemandasClienteSection({ clienteId }: Props) 
                                     ) : null}
 
 
-                                    
+
                                 </div>
                             );
 
@@ -215,26 +217,15 @@ export default function SeguimientoDemandasClienteSection({ clienteId }: Props) 
                                             <div className="p-4">
                                                 {(() => {
                                                     const lista = [
-                                                        // 1) Seguimientos (ordenados: más reciente → más antiguo)
                                                         ...[...d.seguimientos]
-                                                            .sort((a, b) => {
-                                                                const fa = a.fecha ? a.fecha.getTime() : 0;
-                                                                const fb = b.fecha ? b.fecha.getTime() : 0;
-                                                                return fb - fa; // DESC
-                                                            })
-                                                            .map((s) => ({
-                                                                texto: s.descripcion || "Sin descripción",
-                                                                fecha: s.fecha ?? null,
-                                                            })),
+                                                            .sort((a, b) => (b.fecha?.getTime() ?? 0) - (a.fecha?.getTime() ?? 0))
+                                                            .map((s) => ({ texto: s.descripcion || "Sin descripción", fecha: s.fecha ?? null })),
 
-                                                        // 2) Al final: observación del conjunto (sin fecha)
-                                                        {
-                                                            texto: d.observacionCliente?.trim()
-                                                                ? d.observacionCliente.trim()
-                                                                : "Sin observación registrada para el conjunto.",
-                                                            fecha: null,
-                                                        },
+                                                        ...(d.observacionCliente?.trim()
+                                                            ? [{ texto: d.observacionCliente.trim(), fecha: null }]
+                                                            : []),
                                                     ];
+
 
                                                     return (
                                                         <div className="rounded-xl border border-brand-secondary/10 bg-white overflow-hidden">

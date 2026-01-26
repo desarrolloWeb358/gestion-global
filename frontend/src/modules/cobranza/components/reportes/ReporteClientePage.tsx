@@ -251,9 +251,11 @@ export default function ReporteClientePage() {
 
   useEffect(() => {
     if (!clienteId || !tipSeleccionada) return;
+    let alive = true;
 
     (async () => {
       setLoadingDetalle(true);
+      setDetalleTip([]);
       const datos = await obtenerDetalleDeudoresPorTipificacion(
         clienteId,
         tipSeleccionada as TipificacionKey,
@@ -261,10 +263,11 @@ export default function ReporteClientePage() {
         monthTabla
       );
 
+      if (!alive) return;
       setDetalleTip(datos);
       setLoadingDetalle(false);
     })();
-  }, [clienteId, tipSeleccionada]);
+  }, [clienteId, tipSeleccionada, yearTabla, monthTabla]);
 
   useEffect(() => {
     if (!resumenFiltrado.length) return;
@@ -342,7 +345,7 @@ export default function ReporteClientePage() {
 
       // 2) Traer data adicional (misma que ve la página)
       // Seguimiento demandas
-      const demandasRaw = await obtenerDemandasConSeguimientoCliente(clienteId);
+      const demandasRaw = await obtenerDemandasConSeguimientoCliente(clienteId, yearTabla, monthTabla);
 
       // Tabla anual
       const tablaAnualRaw: FilaReporte[] = await obtenerReporteDeudoresPorPeriodo(clienteId, yearTabla, monthTabla);
@@ -832,7 +835,14 @@ export default function ReporteClientePage() {
         </div>
       </section>
 
-      {clienteId && <SeguimientoDemandasClienteSection clienteId={clienteId} />}
+      {clienteId && (
+        <SeguimientoDemandasClienteSection
+          clienteId={clienteId}
+          year={yearTabla}
+          month={monthTabla}
+        />
+      )}
+
     </div>
   );
 }
