@@ -196,6 +196,17 @@ export default function SeguimientoTable() {
       .finally(() => setObsLoading(false));
   }, [clienteId, deudorId]);
 
+  React.useEffect(() => {
+    if (!clienteId || !deudorId) return;
+
+    if (tab === "pre") {
+      getSeguimientos(clienteId, deudorId)
+        .then(setItems)
+        .catch(() => toast.error("No se pudo cargar el listado de seguimientos."))
+    }
+  }, [tab, clienteId, deudorId]);
+
+
   const itemsFilteredSorted = React.useMemo(() => {
     const arr = items.filter((it) => inRange(tsToMillis(it.fecha), preFilters.fecha));
     const dir = preFilters.order === "desc" ? -1 : 1;
@@ -231,10 +242,19 @@ export default function SeguimientoTable() {
         return;
       }
       if (seleccionado?.id) {
+        // 👇 CASO: estaba en PRE y lo moviste a JURÍDICO
         if (destino === "seguimientoJuridico") {
           await addSeguimientoJuridico(uidUsuario, clienteId, deudorId, data, archivo);
+
+          // ✅ elimina el anterior en PRE (para que no quede duplicado)
+          await deleteSeguimiento(clienteId, deudorId, seleccionado.id);
+
           setRefreshJuridicoKey((k) => k + 1);
+
+          // (opcional UX) cambiar de tab automáticamente
+          // setTab("juridico");
         } else {
+          // ✅ edición normal en PRE
           await updateSeguimiento(
             clienteId,
             deudorId,
@@ -245,6 +265,7 @@ export default function SeguimientoTable() {
           );
         }
       } else {
+        // creación normal
         if (destino === "seguimientoJuridico") {
           await addSeguimientoJuridico(uidUsuario, clienteId, deudorId, data, archivo);
           setRefreshJuridicoKey((k) => k + 1);
@@ -252,6 +273,7 @@ export default function SeguimientoTable() {
           await addSeguimiento(uidUsuario, clienteId, deudorId, data, archivo);
         }
       }
+
       toast.success("✓ Seguimiento guardado correctamente");
       setOpen(false);
       setSeleccionado(undefined);

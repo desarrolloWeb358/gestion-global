@@ -18,6 +18,9 @@ import {
   addSeguimientoJuridico,
   updateSeguimientoJuridico,
   deleteSeguimientoJuridico,
+  addSeguimiento,
+  updateSeguimiento,
+  deleteSeguimiento,
 } from "@/modules/cobranza/services/seguimientoService";
 
 import { codeToLabel } from "@/shared/constants/tipoSeguimiento";
@@ -165,13 +168,56 @@ export default function SeguimientoJuridicoTable() {
   };
 
   async function onSaveWithDestino(
-    _destino: DestinoColeccion,
+    destino: DestinoColeccion,
     data: Omit<Seguimiento, "id">,
     archivo?: File,
     reemplazar?: boolean
   ): Promise<void> {
-    return onSave(data, archivo, reemplazar);
+    if (!clienteId || !deudorId) return;
+
+    // si NO cambió el destino, guarda normal en jurídico
+    if (destino === "seguimientoJuridico") {
+      return onSave(data, archivo, reemplazar);
+    }
+
+    // ✅ CASO: estaba en JURÍDICO y lo moviste a PRE
+    if (!canEdit) {
+      toast.error("No tienes permiso para editar seguimientos");
+      return;
+    }
+
+    try {
+      const uidUsuario = auth.currentUser?.uid;
+      if (!uidUsuario) {
+        toast.error("No se pudo obtener el usuario autenticado");
+        return;
+      }
+
+      if (seleccionado?.id) {
+        // 1) crear en PRE
+        await addSeguimiento(uidUsuario, clienteId, deudorId, data, archivo);
+
+        // 2) eliminar el jurídico original
+        await deleteSeguimientoJuridico(clienteId, deudorId, seleccionado.id);
+      } else {
+        // Si por alguna razón llega sin seleccionado, lo tratamos como creación en PRE
+        await addSeguimiento(uidUsuario, clienteId, deudorId, data, archivo);
+      }
+
+      toast.success("✓ Seguimiento movido a Pre-jurídico");
+      setOpen(false);
+      setSeleccionado(undefined);
+
+      // refresca la tabla jurídica
+      setItems(await getSeguimientosJuridico(clienteId, deudorId));
+
+      // (opcional) si quieres cambiar de tab, eso lo maneja el padre (SeguimientoTable)
+    } catch (e) {
+      console.error(e);
+      toast.error("⚠️ No se pudo mover el seguimiento a Pre-jurídico");
+    }
   }
+
 
   if (aclLoading) {
     return (
