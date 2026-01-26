@@ -199,7 +199,7 @@ export const crearUsuarioDesdeAdmin = onRequest(
       return;
     }
 
-    
+
     try {
       const decoded = await requireAuth(req);
       await requireAdminFromFirestore(decoded.uid);
@@ -282,7 +282,7 @@ export const crearUsuarioDesdeAdmin = onRequest(
           abogadoId: null as any,
           activo: true as any,
           fecha_creacion: admin.firestore.FieldValue.serverTimestamp(),
-        }, { merge: true });        
+        }, { merge: true });
       }
       await batch.commit();
 
@@ -319,86 +319,74 @@ if (!admin.apps.length) admin.initializeApp();
 
 const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export const actualizarUsuarioDesdeAdmin = onCall(async (request) => {
+export const cambiarCorreoUsuarioDesdeAdmin = onCall(async (request) => {
   const authCtx = request.auth;
-  const data = request.data || {};
-
   if (!authCtx) throw new HttpsError("unauthenticated", "No autenticado.");
 
-  const {
-    uid,
-    email,
-    nombre,
-    telefonoUsuario,
-    tipoDocumento,
-    numeroDocumento,
-    roles,
-    activo,
-    fecha_registro, // opcional si lo envías; si no, se mantiene
-  } = data;
-
+  const { uid, emailNuevo } = request.data || {};
   if (!uid) throw new HttpsError("invalid-argument", "Falta uid.");
-  if (!email || !emailRe.test(String(email).trim().toLowerCase())) {
+
+  const email = String(emailNuevo ?? "").trim().toLowerCase();
+  if (!emailRe.test(email)) {
     throw new HttpsError("invalid-argument", "Correo inválido.");
   }
 
-  // ✅ Autorización: solo admins (ajusta si manejas otro rol)
+  // ✅ RBAC: solo admin
   const solicitanteSnap = await admin.firestore().doc(`usuarios/${authCtx.uid}`).get();
   const solicitante = solicitanteSnap.data() as any;
   const rolesSolicitante: string[] = solicitante?.roles ?? [];
-  if (!rolesSolicitante.includes("admin")) {
+  // si el rol del solicitante no incluye 'admin' o 'ejecutivoAdmin', lanza error
+  if (!rolesSolicitante.includes("admin") && !rolesSolicitante.includes("ejecutivoAdmin")) {
     throw new HttpsError("permission-denied", "No autorizado.");
   }
 
-  const emailNuevo = String(email).trim().toLowerCase();
-
-  // 1) Obtener estado actual para comparar y para rollback
+  // Estado actual en Auth
   const userAuthAntes = await admin.auth().getUser(String(uid));
   const emailAnterior = (userAuthAntes.email ?? "").toLowerCase();
 
-  const emailCambio = emailAnterior !== emailNuevo;
-
-  // 2) Construir payload Firestore (solo campos válidos)
-  const payloadFS: Record<string, any> = {
-    email: emailNuevo,
-    nombre: nombre ?? null,
-    telefonoUsuario: telefonoUsuario ?? null,
-    tipoDocumento: tipoDocumento ?? null,
-    numeroDocumento: numeroDocumento ?? null,
-    roles: Array.isArray(roles) ? roles : [],
-    activo: Boolean(activo),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  };
-
-  // Si envías fecha_registro, úsala; si no, no la toques
-  if (fecha_registro) payloadFS.fecha_registro = fecha_registro;
-
-  // 3) Ejecutar con rollback si falla Firestore después de Auth
-  try {
-    // 3.1) Auth primero (si hubo cambio)
-    if (emailCambio) {
-      await admin.auth().updateUser(String(uid), { email: emailNuevo });
-    }
-
-    // 3.2) Firestore luego
-    await admin.firestore().doc(`usuarios/${uid}`).set(payloadFS, { merge: true });
-
-    return { ok: true, emailAnterior, emailNuevo };
-  } catch (e: any) {
-    // 🔁 rollback si Auth cambió pero Firestore falló
-    if (emailCambio) {
-      try {
-        await admin.auth().updateUser(String(uid), { email: emailAnterior });
-      } catch {
-        // Si el rollback falla, dejamos evidencia del incidente en logs
-      }
-    }
-    throw new HttpsError(
-      "internal",
-      e?.message ?? "No se pudo actualizar el usuario."
-    );
+  if (emailAnterior === email) {
+    // nada que hacer, pero respondemos ok
+    return { ok: true, emailAnterior, emailNuevo: email };
   }
-}); 
+
+  try {
+    // 1) Auth
+    await admin.auth().updateUser(String(uid), {
+      email,
+      emailVerified: false, // recomendado
+    });
+
+    // 2) Firestore (usuarios)
+    await admin.firestore().doc(`usuarios/${uid}`).set(
+      {
+        email,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    // (Opcional) Auditoría
+    await admin.firestore().collection("auditLogs").add({
+      type: "CHANGE_USER_EMAIL",
+      targetUid: String(uid),
+      oldEmail: emailAnterior,
+      newEmail: email,
+      byUid: authCtx.uid,
+      at: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return { ok: true, emailAnterior, emailNuevo: email };
+  } catch (e: any) {
+    // rollback Auth si Firestore falla
+    try {
+      await admin.auth().updateUser(String(uid), { email: emailAnterior });
+    } catch {
+      // log interno si quieres
+    }
+    throw new HttpsError("internal", e?.message ?? "No se pudo cambiar el correo.");
+  }
+});
+
 
 
 

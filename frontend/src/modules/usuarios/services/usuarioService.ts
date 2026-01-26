@@ -147,11 +147,12 @@ export const crearUsuario = async (
    ============================================ */
 export const actualizarUsuario = async (usuario: UsuarioSistema): Promise<void> => {
   if (!usuario.uid) throw new Error("El UID del usuario es obligatorio");
-  const ref = doc(db, "usuarios", usuario.uid);
 
-  const updatePayload = sanitize({
+  const usuarioRef = doc(db, "usuarios", usuario.uid);
+
+  const updateUsuario = sanitize({
     nombre: usuario.nombre,
-    email: usuario.email,
+    // email: NO aquí (se cambia solo por flujo especial)
     telefonoUsuario: usuario.telefonoUsuario,
     tipoDocumento: usuario.tipoDocumento,
     numeroDocumento: usuario.numeroDocumento,
@@ -160,8 +161,26 @@ export const actualizarUsuario = async (usuario: UsuarioSistema): Promise<void> 
     fecha_actualizacion: serverTimestamp(),
   });
 
-  await updateDoc(ref, updatePayload as any);
+  // 1) actualiza usuarios/{uid}
+  await updateDoc(usuarioRef, updateUsuario as any);
+
+  // 2) si es cliente, sincroniza clientes/{uid}.nombre
+  const roles = (usuario.roles ?? []) as string[];
+  if (roles.includes("cliente")) {
+    const clienteRef = doc(db, "clientes", usuario.uid);
+
+    // Si el doc de cliente no existe, updateDoc falla.
+    // Como tú lo creas en crearUsuario, debería existir. Igual lo hacemos robusto:
+    await setDoc(
+      clienteRef,
+      {
+        nombre: usuario.nombre ?? "",
+      },
+      { merge: true }
+    );
+  }
 };
+
 
 /* ============================================
    Eliminar usuario

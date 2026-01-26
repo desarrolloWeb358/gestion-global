@@ -11,10 +11,11 @@ import {
   X,
   UserPlus,
   Users,
+  MailWarning,
 } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 import { toast } from "sonner";
-import { actualizarUsuarioDesdeAdmin } from "../services/actualizarEmailUsuarioService";
+
 import {
   Table,
   TableHeader,
@@ -54,10 +55,12 @@ import { Calendar } from "@/shared/ui/calendar";
 import { UsuarioSistema } from "../models/usuarioSistema.model";
 import {
   obtenerUsuarios,
-  crearUsuario,
   actualizarUsuario,
   eliminarUsuario,
 } from "../services/usuarioService";
+
+import { cambiarCorreoUsuarioDesdeAdmin } from "../services/actualizarEmailUsuarioService";
+
 import { cn } from "@/shared/lib/cn";
 import { Rol, ROLES } from "@/shared/constants/acl";
 import { Typography } from "@/shared/design-system/components/Typography";
@@ -66,6 +69,10 @@ import { BackButton } from "@/shared/design-system/components/BackButton";
 // Sentinelas para selects (evitar value="")
 const ALL = "__ALL__";
 const ALL_BOOL = "__ALL_BOOL__";
+
+const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+
 
 // ====== FUNCIÓN HELPER PARA COLORES DE ROLES ======
 const getRoleBadgeColor = (role: string) => {
@@ -97,12 +104,16 @@ export default function UsuariosCrud() {
   );
   const [mostrarDialogo, setMostrarDialogo] = useState(false);
 
+  // Dialog cambiar correo (especial)
+  const [mostrarDialogoCorreo, setMostrarDialogoCorreo] = useState(false);
+  const [correoNuevo, setCorreoNuevo] = useState("");
+  const [saving, setSaving] = useState(false);
+
   const [password, setPassword] = useState("");
   const [fecha, setFecha] = useState<Date | undefined>();
   const [rolesSeleccionados, setRolesSeleccionados] = useState<Rol[]>([]);
   const rolesDisponibles = ROLES;
-
-  const [saving, setSaving] = useState(false);
+  const [activoControl, setActivoControl] = useState(true);
 
   // ====== FILTROS ======
   const [q, setQ] = useState("");
@@ -130,15 +141,20 @@ export default function UsuariosCrud() {
     const arr: { label: string; onClear: () => void }[] = [];
     if (q) arr.push({ label: `Búsqueda: "${q}"`, onClear: () => setQ("") });
     if (rolFilter !== ALL)
-      arr.push({ label: `Rol: ${rolFilter}`, onClear: () => setRolFilter(ALL) });
+      arr.push({
+        label: `Rol: ${rolFilter}`,
+        onClear: () => setRolFilter(ALL),
+      });
     if (activoFilter !== ALL_BOOL) {
       arr.push({
         label: `Activo: ${activoFilter === "true" ? "Sí" : "No"}`,
         onClear: () => setActivoFilter(ALL_BOOL),
       });
     }
-    if (desde) arr.push({ label: `Desde: ${fmt(desde)}`, onClear: () => setDesde(undefined) });
-    if (hasta) arr.push({ label: `Hasta: ${fmt(hasta)}`, onClear: () => setHasta(undefined) });
+    if (desde)
+      arr.push({ label: `Desde: ${fmt(desde)}`, onClear: () => setDesde(undefined) });
+    if (hasta)
+      arr.push({ label: `Hasta: ${fmt(hasta)}`, onClear: () => setHasta(undefined) });
     return arr;
   }, [q, rolFilter, activoFilter, desde, hasta]);
 
@@ -165,7 +181,9 @@ export default function UsuariosCrud() {
             className="w-full justify-between border-brand-secondary/30 hover:border-brand-secondary/50"
             type="button"
           >
-            {selectedRoles.length > 0 ? selectedRoles.join(", ") : "Selecciona roles"}
+            {selectedRoles.length > 0
+              ? selectedRoles.join(", ")
+              : "Selecciona roles"}
             <ChevronDown className="ml-2 h-4 w-4" />
           </Button>
         </PopoverTrigger>
@@ -178,7 +196,8 @@ export default function UsuariosCrud() {
               onClick={() => toggleRole(rol)}
               className={cn(
                 "w-full flex items-center justify-between px-2 py-1.5 text-sm rounded hover:bg-brand-primary/10 transition-colors",
-                selectedRoles.includes(rol) && "bg-brand-primary/10 text-brand-primary"
+                selectedRoles.includes(rol) &&
+                "bg-brand-primary/10 text-brand-primary"
               )}
             >
               <span className="capitalize">{rol}</span>
@@ -201,6 +220,13 @@ export default function UsuariosCrud() {
     fetchUsuarios();
   }, []);
 
+  useEffect(() => {
+    if (mostrarDialogo) {
+      setActivoControl(Boolean(usuarioEditando?.activo ?? true));
+    }
+  }, [mostrarDialogo, usuarioEditando]);
+
+
   const abrirCrear = () => {
     setUsuarioEditando(null);
     setPassword("");
@@ -208,6 +234,7 @@ export default function UsuariosCrud() {
     setRolesSeleccionados([]);
     setTipoDocControl(undefined);
     setMostrarDialogo(true);
+    setActivoControl(true);
   };
 
   const abrirEditar = (usuario: UsuarioSistema) => {
@@ -221,6 +248,7 @@ export default function UsuariosCrud() {
     setRolesSeleccionados((usuario.roles ?? []) as Rol[]);
     setTipoDocControl(usuario.tipoDocumento as any);
     setMostrarDialogo(true);
+    setActivoControl(Boolean(usuario.activo));
   };
 
   const cerrarDialogo = () => {
@@ -230,7 +258,19 @@ export default function UsuariosCrud() {
     setFecha(undefined);
     setRolesSeleccionados([]);
     setTipoDocControl(undefined);
+    setActivoControl(true);
     setMostrarDialogo(false);
+  };
+
+  const abrirDialogoCorreo = () => {
+    if (!usuarioEditando) return;
+    setCorreoNuevo(usuarioEditando.email ?? "");
+    setMostrarDialogoCorreo(true);
+  };
+
+  const cerrarDialogoCorreo = () => {
+    setCorreoNuevo("");
+    setMostrarDialogoCorreo(false);
   };
 
   const handleEliminar = async (uid: string) => {
@@ -398,7 +438,7 @@ export default function UsuariosCrud() {
                     <button
                       type="button"
                       onClick={() => setQ("")}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1  hover:bg-gray-100 transition-colors"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 hover:bg-gray-100 transition-colors"
                       aria-label="Limpiar búsqueda"
                     >
                       <X className="h-4 w-4" />
@@ -457,9 +497,7 @@ export default function UsuariosCrud() {
                       className="w-full justify-start border-brand-secondary/30 bg-white hover:bg-brand-primary/5"
                     >
                       <CalendarIcon className="mr-2 h-4 w-4 text-brand-primary" />
-                      {desde || hasta
-                        ? `${fmt(desde)} → ${fmt(hasta)}`
-                        : "Seleccionar rango"}
+                      {desde || hasta ? `${fmt(desde)} → ${fmt(hasta)}` : "Seleccionar rango"}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-3" align="start">
@@ -524,20 +562,11 @@ export default function UsuariosCrud() {
 
                       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                         <div>
-                          <Label className="mb-1 block text-xs ">
-                            Desde
-                          </Label>
-                          <Calendar
-                            mode="single"
-                            selected={desde}
-                            onSelect={setDesde}
-                            initialFocus
-                          />
+                          <Label className="mb-1 block text-xs">Desde</Label>
+                          <Calendar mode="single" selected={desde} onSelect={setDesde} initialFocus />
                         </div>
                         <div>
-                          <Label className="mb-1 block text-xs ">
-                            Hasta
-                          </Label>
+                          <Label className="mb-1 block text-xs">Hasta</Label>
                           <Calendar mode="single" selected={hasta} onSelect={setHasta} />
                         </div>
                       </div>
@@ -554,9 +583,7 @@ export default function UsuariosCrud() {
           <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
             <div className="flex flex-col items-center gap-4">
               <div className="h-12 w-12 animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary" />
-              <Typography variant="body" className="">
-                Cargando usuarios...
-              </Typography>
+              <Typography variant="body">Cargando usuarios...</Typography>
             </div>
           </div>
         ) : usuariosFiltrados.length === 0 ? (
@@ -568,28 +595,11 @@ export default function UsuariosCrud() {
               <Typography variant="h3" className="text-brand-secondary">
                 No hay resultados
               </Typography>
-              <Typography variant="small" className=" max-w-md">
+              <Typography variant="small" className="max-w-md">
                 {chips.length > 0
                   ? "No se encontraron usuarios que coincidan con los filtros aplicados. Intenta ajustar tus criterios de búsqueda."
                   : "Aún no hay usuarios registrados. Comienza creando el primer usuario."}
               </Typography>
-              {chips.length > 0 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="mt-2"
-                  onClick={() => {
-                    setQ("");
-                    setRolFilter(ALL);
-                    setActivoFilter(ALL_BOOL);
-                    setDesde(undefined);
-                    setHasta(undefined);
-                  }}
-                >
-                  Limpiar filtros
-                </Button>
-              )}
             </div>
           </div>
         ) : (
@@ -598,24 +608,12 @@ export default function UsuariosCrud() {
               <Table className="min-w-[900px]">
                 <TableHeader className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5">
                   <TableRow className="border-brand-secondary/10 hover:bg-transparent">
-                    <TableHead className="text-brand-secondary font-semibold">
-                      Email
-                    </TableHead>
-                    <TableHead className="text-brand-secondary font-semibold">
-                      Nombre
-                    </TableHead>
-                    <TableHead className="text-brand-secondary font-semibold">
-                      Rol
-                    </TableHead>
-                    <TableHead className="text-brand-secondary font-semibold">
-                      Estado
-                    </TableHead>
-                    <TableHead className="text-brand-secondary font-semibold">
-                      Fecha de registro
-                    </TableHead>
-                    <TableHead className="text-center text-brand-secondary font-semibold">
-                      Acciones
-                    </TableHead>
+                    <TableHead className="text-brand-secondary font-semibold">Email</TableHead>
+                    <TableHead className="text-brand-secondary font-semibold">Nombre</TableHead>
+                    <TableHead className="text-brand-secondary font-semibold">Rol</TableHead>
+                    <TableHead className="text-brand-secondary font-semibold">Estado</TableHead>
+                    <TableHead className="text-brand-secondary font-semibold">Fecha de registro</TableHead>
+                    <TableHead className="text-center text-brand-secondary font-semibold">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
 
@@ -632,9 +630,7 @@ export default function UsuariosCrud() {
                       <TableCell className="font-medium text-brand-secondary">
                         {usuario.email}
                       </TableCell>
-                      <TableCell className="text-gray-700">
-                        {usuario.nombre}
-                      </TableCell>
+                      <TableCell className="text-gray-700">{usuario.nombre}</TableCell>
 
                       <TableCell className="text-sm">
                         <div className="flex flex-wrap gap-1">
@@ -661,13 +657,9 @@ export default function UsuariosCrud() {
                                 const actualizado = { ...usuario, activo: checked };
                                 await actualizarUsuario(actualizado);
                                 setUsuarios((prev) =>
-                                  prev.map((u) =>
-                                    u.uid === actualizado.uid ? actualizado : u
-                                  )
+                                  prev.map((u) => (u.uid === actualizado.uid ? actualizado : u))
                                 );
-                                toast.success(
-                                  checked ? "✓ Usuario activado" : "✗ Usuario desactivado"
-                                );
+                                toast.success(checked ? "✓ Usuario activado" : "✗ Usuario desactivado");
                               } catch (e) {
                                 console.error(e);
                                 toast.error("No se pudo actualizar el estado");
@@ -719,7 +711,6 @@ export default function UsuariosCrud() {
                             </Tooltip>
                           </TooltipProvider>
 
-                          {/* Si quieres botón eliminar aquí, lo agregas */}
                           {/* <Button type="button" variant="ghost" onClick={() => handleEliminar(usuario.uid)}>Eliminar</Button> */}
                         </div>
                       </TableCell>
@@ -731,7 +722,7 @@ export default function UsuariosCrud() {
           </div>
         )}
 
-        {/* ====== DIALOG ====== */}
+        {/* ====== DIALOG CREAR/EDITAR (Firestore-only en edición) ====== */}
         <Dialog
           open={mostrarDialogo}
           onOpenChange={(open) => {
@@ -759,13 +750,14 @@ export default function UsuariosCrud() {
                 const telefonoUsuario = (formData.get("telefono") as string) ?? "";
                 const tipoDocumento = formData.get("tipoDocumento") as "CC" | "CE" | "TI" | "NIT";
                 const numeroDocumento = (formData.get("numeroDocumento") as string) ?? "";
-                const activo = (form.elements.namedItem("activo") as HTMLInputElement)?.checked;
-                const fecha_registro = fecha ? Timestamp.fromDate(fecha) : Timestamp.now();
 
-                // ✅ VALIDACIONES ANTES DE setSaving(true)
-                if (!email || !/\S+@\S+\.\S+/.test(email)) {
-                  toast.error("Por favor ingresa un correo electrónico válido.");
-                  return;
+
+                // En edición NO validamos email porque no se cambia aquí
+                if (!usuarioEditando) {
+                  if (!email || !emailRe.test(email)) {
+                    toast.error("Por favor ingresa un correo electrónico válido.");
+                    return;
+                  }
                 }
 
                 if (!nombre || !tipoDocumento || !numeroDocumento) {
@@ -794,28 +786,28 @@ export default function UsuariosCrud() {
 
                   if (usuarioEditando) {
                     const actualizado: UsuarioSistema = {
-                      ...usuarioEditando,
-                      email: email.trim().toLowerCase(),
+                      uid: usuarioEditando.uid,
+                      email: usuarioEditando.email, // NO editable
                       nombre,
                       telefonoUsuario,
                       tipoDocumento,
                       numeroDocumento,
                       roles: rolesSeleccionados,
-                      activo,
-                      fecha_registro,
+                      activo: activoControl,
+                      //fecha_registro: usuarioEditando.fecha_registro,
                     };
 
-                    // ✅ Una sola llamada: Auth + Firestore + rollback
-                    await actualizarUsuarioDesdeAdmin(actualizado);
 
-                    setUsuarios((prev) =>
-                      prev.map((u) => (u.uid === actualizado.uid ? actualizado : u))
+                    await actualizarUsuario(actualizado);
+
+                    setUsuarios(prev =>
+                      prev.map(u => (u.uid === actualizado.uid ? actualizado : u))
                     );
+
 
                     toast.success("✓ Usuario actualizado correctamente");
                     cerrarDialogo();
                   } else {
-                    // 1) Crear en Auth + Firestore desde Admin (Cloud Function)
                     const res = await crearUsuarioDesdeAdmin({
                       email,
                       password,
@@ -823,23 +815,21 @@ export default function UsuariosCrud() {
                       telefonoUsuario,
                       tipoDocumento,
                       numeroDocumento,
-                      roles: [rolesSeleccionados?.[0] ?? "ejecutivo"], // si tu sistema usa 1 rol principal
-                      activo: Boolean(activo),
+                      roles: [rolesSeleccionados?.[0] ?? "ejecutivo"], // tu lógica actual
+                      activo: Boolean(activoControl),
                       asociadoA: null,
                     });
 
-                    // 2) Guardar datos extra en tu colección (si manejas campos adicionales)
-                    // Si tu function ya los guarda, puedes omitir esto.
                     const nuevo: UsuarioSistema = {
                       uid: res.uid,
-                      email,
+                      email: email.trim().toLowerCase(),
                       nombre,
                       telefonoUsuario,
                       tipoDocumento,
                       numeroDocumento,
                       roles: rolesSeleccionados,
-                      activo: Boolean(activo),
-                      fecha_registro,
+                      activo: Boolean(activoControl),
+                      fecha_registro: fecha ? Timestamp.fromDate(fecha) : Timestamp.now(),
                     };
 
                     setUsuarios((prev) => [...prev, nuevo]);
@@ -859,9 +849,7 @@ export default function UsuariosCrud() {
             >
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-brand-secondary font-medium">
-                    Nombre completo
-                  </Label>
+                  <Label className="text-brand-secondary font-medium">Nombre completo</Label>
                   <Input
                     name="nombre"
                     defaultValue={usuarioEditando?.nombre}
@@ -870,16 +858,35 @@ export default function UsuariosCrud() {
                   />
                 </div>
 
-                <div>
+                {/* EMAIL: en edición queda bloqueado + botón cambiar correo abajo */}
+                <div className="space-y-1.5">
                   <Label className="text-brand-secondary font-medium">Email</Label>
+
                   <Input
                     name="email"
                     type="email"
-                    defaultValue={usuarioEditando?.email}
-                    required
-                    className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
+                    value={usuarioEditando?.email ?? ""}                    
+                    required={!usuarioEditando}
+                    disabled={!!usuarioEditando}
+                    className={cn(
+                      "w-full border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20",
+                      usuarioEditando && "opacity-90"
+                    )}
                     placeholder="ejemplo@correo.com"
                   />
+
+                  {usuarioEditando && (
+                    <div className="flex justify-end pt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="border-red-200 text-red-700 hover:bg-red-50"
+                        onClick={abrirDialogoCorreo}
+                      >
+                        Cambiar correo
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -893,13 +900,8 @@ export default function UsuariosCrud() {
                 </div>
 
                 <div>
-                  <Label className="text-brand-secondary font-medium">
-                    Tipo de documento
-                  </Label>
-                  <Select
-                    value={tipoDocControl}
-                    onValueChange={(v) => setTipoDocControl(v as any)}
-                  >
+                  <Label className="text-brand-secondary font-medium">Tipo de documento</Label>
+                  <Select value={tipoDocControl} onValueChange={(v) => setTipoDocControl(v as any)}>
                     <SelectTrigger className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20">
                       <SelectValue placeholder="Selecciona un tipo" />
                     </SelectTrigger>
@@ -910,17 +912,11 @@ export default function UsuariosCrud() {
                       <SelectItem value="NIT">NIT</SelectItem>
                     </SelectContent>
                   </Select>
-                  <input
-                    type="hidden"
-                    name="tipoDocumento"
-                    value={tipoDocControl ?? ""}
-                  />
+                  <input type="hidden" name="tipoDocumento" value={tipoDocControl ?? ""} />
                 </div>
 
                 <div>
-                  <Label className="text-brand-secondary font-medium">
-                    Número de documento
-                  </Label>
+                  <Label className="text-brand-secondary font-medium">Número de documento</Label>
                   <Input
                     name="numeroDocumento"
                     defaultValue={usuarioEditando?.numeroDocumento}
@@ -931,9 +927,7 @@ export default function UsuariosCrud() {
                 </div>
 
                 <div className="md:col-span-2">
-                  <Label className="text-brand-secondary font-medium">
-                    Roles asignados
-                  </Label>
+                  <Label className="text-brand-secondary font-medium">Roles asignados</Label>
                   <div className="mt-1.5">
                     <MultiSelectRoles
                       selectedRoles={rolesSeleccionados}
@@ -944,28 +938,24 @@ export default function UsuariosCrud() {
 
                 <div className="flex items-center gap-3 p-3 rounded-lg border border-brand-secondary/20 bg-brand-primary/5">
                   <Switch
-                    name="activo"
-                    id="activo"
-                    defaultChecked={usuarioEditando?.activo ?? true}
+                    checked={activoControl}
+                    onCheckedChange={setActivoControl}
                     className="data-[state=checked]:bg-brand-primary data-[state=unchecked]:bg-gray-300 focus-visible:ring-2 focus-visible:ring-brand-primary/30"
                   />
                   <div>
-                    <Label
-                      htmlFor="activo"
-                      className="text-brand-secondary font-medium cursor-pointer"
-                    >
+                    <Label className="text-brand-secondary font-medium cursor-pointer">
                       Usuario activo
                     </Label>
-                    <p className="text-xs  mt-0.5">
-                      Los usuarios inactivos no pueden acceder al sistema
-                    </p>
+                    <p className="text-xs mt-0.5">Los usuarios inactivos no pueden acceder al sistema</p>
                   </div>
+
+                  {/* por si en algún punto quieres usar FormData, queda consistente */}
+                  <input type="hidden" name="activo" value={activoControl ? "true" : "false"} />
                 </div>
 
+
                 <div>
-                  <Label className="text-brand-secondary font-medium">
-                    Fecha de Registro
-                  </Label>
+                  <Label className="text-brand-secondary font-medium">Fecha de Registro</Label>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
@@ -975,27 +965,18 @@ export default function UsuariosCrud() {
                         className="w-full justify-start text-left font-normal mt-1.5 border-brand-secondary/30 hover:bg-brand-primary/5"
                       >
                         <CalendarIcon className="mr-2 h-4 w-4 text-brand-primary" />
-                        {fecha
-                          ? fecha.toLocaleDateString("es-CO")
-                          : "Selecciona una fecha"}
+                        {fecha ? fecha.toLocaleDateString("es-CO") : "Selecciona una fecha"}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={fecha}
-                        onSelect={setFecha}
-                        autoFocus
-                      />
+                      <Calendar mode="single" selected={fecha} onSelect={setFecha} autoFocus />
                     </PopoverContent>
                   </Popover>
                 </div>
 
                 {!usuarioEditando && (
                   <div className="md:col-span-2">
-                    <Label className="text-brand-secondary font-medium">
-                      Contraseña
-                    </Label>
+                    <Label className="text-brand-secondary font-medium">Contraseña</Label>
                     <Input
                       type="password"
                       value={password}
@@ -1004,9 +985,7 @@ export default function UsuariosCrud() {
                       className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
                       placeholder="Mínimo 6 caracteres"
                     />
-                    <p className="text-xs  mt-1.5">
-                      La contraseña debe tener al menos 6 caracteres
-                    </p>
+                    <p className="text-xs mt-1.5">La contraseña debe tener al menos 6 caracteres</p>
                   </div>
                 )}
               </div>
@@ -1022,12 +1001,7 @@ export default function UsuariosCrud() {
                   Cancelar
                 </Button>
 
-                <Button
-                  type="submit"
-                  variant="brand"
-                  className="gap-2"
-                  disabled={saving}
-                >
+                <Button type="submit" variant="brand" className="gap-2" disabled={saving}>
                   {usuarioEditando ? "Guardar cambios" : "Crear usuario"}
                 </Button>
               </DialogFooter>
@@ -1035,14 +1009,108 @@ export default function UsuariosCrud() {
           </DialogContent>
         </Dialog>
 
-        {/* ✅ OVERLAY GLOBAL: BLOQUEA TODA LA APP */}
+        {/* ====== DIALOG CAMBIAR CORREO (Auth + Firestore) ====== */}
+        <Dialog open={mostrarDialogoCorreo} onOpenChange={setMostrarDialogoCorreo}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="text-red-700 text-lg font-bold flex items-center gap-2">
+                <MailWarning className="h-5 w-5" />
+                Cambiar correo de acceso
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-3 py-2">
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                <b>Advertencia:</b> al cambiar el correo, el usuario deberá iniciar sesión con el nuevo email.
+                Este cambio afecta la autenticación en la aplicación.
+              </div>
+
+              <div>
+                <Label className="text-brand-secondary font-medium">Nuevo correo</Label>
+                <Input
+                  value={correoNuevo}
+                  onChange={(e) => setCorreoNuevo(e.target.value)}
+                  placeholder="nuevo@correo.com"
+                  className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
+                />
+
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={cerrarDialogoCorreo}
+                disabled={saving}
+              >
+                Cancelar
+              </Button>
+
+              <Button
+                type="button"
+                className="bg-red-600 hover:bg-red-700 text-white"
+                disabled={saving}
+                onClick={async () => {
+                  if (!usuarioEditando?.uid) return;
+
+                  const email = correoNuevo.trim().toLowerCase();
+                  if (!emailRe.test(email)) {
+                    toast.error("Ingresa un correo válido.");
+                    return;
+                  }
+
+                  // evita llamada si no hay cambio
+                  const actual = (usuarioEditando.email ?? "").trim().toLowerCase();
+                  if (actual === email) {
+                    toast.message("El correo es el mismo, no hay cambios.");
+                    cerrarDialogoCorreo();
+                    return;
+                  }
+
+                  try {
+                    setSaving(true);
+
+                    const res = await cambiarCorreoUsuarioDesdeAdmin({
+                      uid: usuarioEditando.uid,
+                      emailNuevo: email,
+                    });
+
+                    if (res?.ok) {
+                      // refresca estado local
+                      setUsuarios((prev) =>
+                        prev.map((u) =>
+                          u.uid === usuarioEditando.uid ? { ...u, email } : u
+                        )
+                      );
+                      setUsuarioEditando((prev) => (prev ? { ...prev, email } : prev));
+
+                      toast.success("✓ Correo actualizado (Auth + Firestore)");
+                      cerrarDialogoCorreo();
+                    } else {
+                      toast.error("No se pudo cambiar el correo.");
+                    }
+                  } catch (e: any) {
+                    toast.error("Error al cambiar correo: " + (e?.message ?? "desconocido"));
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+              >
+                Confirmar cambio
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ✅ OVERLAY GLOBAL */}
         {saving &&
           createPortal(
             <div className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm flex items-center justify-center">
               <div className="rounded-xl bg-white shadow-xl px-6 py-5 flex items-center gap-3">
                 <div className="h-5 w-5 animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary" />
                 <Typography variant="body" className="font-medium">
-                  {usuarioEditando ? "Guardando cambios..." : "Creando usuario..."}
+                  Guardando...
                 </Typography>
               </div>
             </div>,

@@ -1,9 +1,27 @@
 import { functions } from "@/firebase";
 import { httpsCallable } from "firebase/functions";
-import type { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 
-export async function actualizarUsuarioDesdeAdmin(payload: UsuarioSistema) {
-  const fn = httpsCallable(functions, "actualizarUsuarioDesdeAdmin");
-  const res = await fn(payload);
-  return res.data as { ok: boolean; emailAnterior?: string; emailNuevo?: string };
+export type CambiarCorreoUsuarioInput = {
+  uid: string;
+  emailNuevo: string;
+};
+
+export type CambiarCorreoUsuarioResult = {
+  ok: boolean;
+  emailAnterior?: string;
+  emailNuevo?: string;
+};
+
+export async function cambiarCorreoUsuarioDesdeAdmin(input: CambiarCorreoUsuarioInput) {
+  const fn = httpsCallable<CambiarCorreoUsuarioInput, CambiarCorreoUsuarioResult>(
+    functions,
+    "cambiarCorreoUsuarioDesdeAdmin"
+  );
+
+  const res = await fn({
+    uid: input.uid,
+    emailNuevo: input.emailNuevo.trim().toLowerCase(),
+  });
+
+  return res.data;
 }

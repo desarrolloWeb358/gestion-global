@@ -13,7 +13,7 @@ import {
 import { Label } from "@/shared/ui/label";
 import { toast } from "sonner";
 import { Deudor } from "../models/deudores.model";
-import { obtenerDeudorPorCliente } from "../services/deudorService";
+import { obtenerDeudorPorCliente, actualizarDeudorDatos } from "../services/deudorService";
 import { upsertEstadoMensualPorMes } from "../services/estadoMensualService";
 import { db } from "@/firebase";
 import { doc, getDoc } from "firebase/firestore";
@@ -127,22 +127,17 @@ export default function EstadosMensualesInputMasivo() {
         const deudores: Deudor[] = await obtenerDeudorPorCliente(clienteId);
 
         const nuevasFilas: FilaEstadoBase[] = deudores.map((d) => {
-          const esDemanda =
-            d.tipificacion === TipificacionDeuda.DEMANDA ||
-            d.tipificacion === TipificacionDeuda.DEMANDA_ACUERDO;
+          const porcDb =
+            d.porcentajeHonorarios !== undefined && d.porcentajeHonorarios !== null
+              ? String(d.porcentajeHonorarios)
+              : "0"; // default solo si no existe en Firestore
 
           return {
             deudorId: d.id!,
             nombre: d.nombre || "Sin nombre",
             ubicacion: d.ubicacion || "",
             tipificacion: d.tipificacion ?? TipificacionDeuda.GESTIONANDO,
-
-            porcentajeHonorarios: esDemanda
-              ? "20"
-              : d.porcentajeHonorarios !== undefined && d.porcentajeHonorarios !== null
-                ? String(d.porcentajeHonorarios)
-                : "15",
-
+            porcentajeHonorarios: porcDb,
             deuda: "",
             recaudo: "",
             acuerdo: "",
@@ -233,8 +228,8 @@ export default function EstadosMensualesInputMasivo() {
             : 0;
 
           const porcentajeParse = fila.porcentajeHonorarios?.trim()
-  ? Number.parseFloat(fila.porcentajeHonorarios)
-  : 15;
+            ? Number.parseFloat(fila.porcentajeHonorarios)
+            : 15;
 
 
           const deuda = Number.isNaN(deudaNum) ? 0 : deudaNum;
@@ -268,6 +263,12 @@ export default function EstadosMensualesInputMasivo() {
             recibo: "",
             observaciones: "",
           });
+
+          // ✅ Persistir el % también en el documento del deudor (si lo cambiaron)
+          await actualizarDeudorDatos(clienteId, fila.deudorId, {
+            porcentajeHonorarios: porc,
+          });
+
 
 
         })
@@ -499,7 +500,7 @@ export default function EstadosMensualesInputMasivo() {
                             type="number"
                             min={0}
                             max={20}
-                            value={fila.porcentajeHonorarios ?? (esDemanda ? "20" : "15")}
+                            value={fila.porcentajeHonorarios ?? ""}
                             onChange={(e) => handleChangePorcentajeById(fila.deudorId, e.target.value)}
                             className="w-full text-right border-brand-secondary/30"
                             placeholder="0–20"
