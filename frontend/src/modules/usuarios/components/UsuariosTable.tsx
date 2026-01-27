@@ -865,7 +865,11 @@ export default function UsuariosCrud() {
                   <Input
                     name="email"
                     type="email"
-                    value={usuarioEditando?.email ?? ""}                    
+                    // ✅ En EDITAR: se muestra el email del usuario y queda bloqueado
+                    // ✅ En CREAR: queda vacío y SÍ permite escribir
+                    {...(usuarioEditando
+                      ? { value: usuarioEditando.email ?? "" }
+                      : { defaultValue: "" })}
                     required={!usuarioEditando}
                     disabled={!!usuarioEditando}
                     className={cn(
@@ -874,6 +878,7 @@ export default function UsuariosCrud() {
                     )}
                     placeholder="ejemplo@correo.com"
                   />
+
 
                   {usuarioEditando && (
                     <div className="flex justify-end pt-2">
