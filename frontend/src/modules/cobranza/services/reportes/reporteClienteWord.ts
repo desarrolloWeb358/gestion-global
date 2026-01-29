@@ -13,21 +13,27 @@ import {
   WidthType,
 } from "docx";
 
+import { buildHeaderGG, buildFooterGG, cm, formatCOP, formatFechaLargaES } from "./helperWord";
+
 const PURPLE = "4F46E5";
 const LIGHT = "EEF2FF";
 const GRAY = "FAFAFA";
 const TEXT = "2B2B2B";
 
-export const formatCOP = (v: number) => `$ ${Number(v || 0).toLocaleString("es-CO")}`;
+const MESES_ES = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+];
 
-export const formatFechaLargaES = (d: Date) =>
-  d.toLocaleDateString("es-CO", { year: "numeric", month: "long", day: "numeric" });
+function nombreMes(mes: number) {
+  return MESES_ES[Math.max(0, Math.min(11, mes - 1))];
+}
 
 function pJust(text: string, after = 120) {
   return new Paragraph({
     alignment: AlignmentType.JUSTIFIED,
     spacing: { after },
-    children: [new TextRun({ text, color: TEXT, size: 22 })],
+    children: [new TextRun({ text, font: "Arial", color: TEXT, size: 24 })],
   });
 }
 
@@ -35,7 +41,33 @@ function pLeft(text: string, after = 120, bold = false) {
   return new Paragraph({
     alignment: AlignmentType.LEFT,
     spacing: { after },
-    children: [new TextRun({ text, color: TEXT, size: 22, bold })],
+    children: [new TextRun({ text, font: "Arial", color: TEXT, size: 24, bold })],
+  });
+}
+
+function pLeftItalic(text: string, after = 120, bold = false) {
+  return new Paragraph({
+    alignment: AlignmentType.LEFT,
+    spacing: { after },
+    children: [new TextRun({ text, color: TEXT, size: 24, bold, italics: true })], // 12pt => 24 half-points
+  });
+}
+
+function pLeftItalicRuns(runs: TextRun[], after = 120) {
+  return new Paragraph({
+    alignment: AlignmentType.LEFT,
+    spacing: { after },
+    children: runs,
+  });
+}
+
+function tr(text: string, opts?: { bold?: boolean; italics?: boolean; color?: string }) {
+  return new TextRun({
+    text,
+    size: 24,
+    color: opts?.color ?? TEXT,
+    bold: opts?.bold ?? false,
+    italics: opts?.italics ?? false,
   });
 }
 
@@ -58,7 +90,7 @@ function pSmall(text: string, after = 90) {
   return new Paragraph({
     alignment: AlignmentType.LEFT,
     spacing: { after },
-    children: [new TextRun({ text, color: TEXT, size: 20 })],
+    children: [new TextRun({ text, font: "Arial", color: TEXT, size: 24 })],
   });
 }
 
@@ -155,6 +187,8 @@ export type ReporteClienteWordInput = {
   ciudad?: string;
   fechaGeneracion?: Date;
   clienteNombre?: string;
+  yearTabla?: number;
+  monthTabla?: number;
 
   resumenTipificacion: ResumenTipificacionRow[];
   totalesResumen: { inmuebles: number; recaudoTotal: number; porRecuperar: number };
@@ -165,7 +199,7 @@ export type ReporteClienteWordInput = {
   detalleTip?: DetalleTipRow[];
   totalesDetalle?: { inmuebles: number; recaudoTotal: number; porRecuperar: number };
 
-  yearTabla?: number;
+  
   tablaDeudoresAnual?: FilaReporteAnual[];
 
   demandas?: DemandaWordItem[];
@@ -179,22 +213,79 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
   const fecha = input.fechaGeneracion ?? new Date();
   const fechaLarga = formatFechaLargaES(fecha);
 
+  const header = await buildHeaderGG();   // ✅ estándar
+  const footer = buildFooterGG();         // ✅ estándar
+
   // ✅ IMPORTANTE: children NO puede ser Paragraph[] si vas a meter Table/Images
   const children: any[] = [];
 
-  children.push(pLeft(`${ciudad}, ${fechaLarga}`, 220));
-  children.push(pLeft("Señores", 60, true));
-  children.push(pLeft(input.clienteNombre?.trim() ? input.clienteNombre.trim() : "Cliente", 160));
-  children.push(pLeft("Respetado(a) señor(a)", 160));
+  const mesInicio = "enero";
+  const mesFin = input.monthTabla
+    ? nombreMes(input.monthTabla)
+    : "diciembre";
 
+  const year = input.yearTabla ?? new Date().getFullYear();
+
+  const nombreCliente = input.clienteNombre?.trim()
+    ? input.clienteNombre.trim().toUpperCase()
+    : "CLIENTE";
+
+  children.push(pLeftItalic(`${ciudad}, ${fechaLarga}`, 220)); // fecha en cursiva
+  children.push(pLeftItalic("Señores", 0));             // cursiva + bold
+  children.push(pLeftItalic(nombreCliente, 0, true));
+
+  // "Atc, Sra. XXXX" con XXXX en rojo
   children.push(
-    pJust(
-      "En atención, me permito remitir el informe del estado de cartera y gestión registrada en el sistema Gestión Global. A continuación se presenta el resumen por tipificación, el recaudo mensual y el detalle de deudores, junto con el seguimiento de demandas cuando aplique.",
-      220
+    pLeftItalicRuns(
+      [
+        tr("Atc, Sr. ", { italics: true }),
+        tr("XXXXXXXX", { italics: true, bold: true, color: "FF0000" }), // XXXX en rojo
+      ],
+      0
     )
   );
 
-  children.push(pCenterTitle("RECAUDO"));
+  children.push(pLeftItalic("Administrador", 0));
+  children.push(pLeftItalic("Ciudad", 330));
+  children.push(pLeftItalic("Respetada señora", 300));
+
+  children.push(
+    new Paragraph({
+      alignment: AlignmentType.JUSTIFIED,
+      spacing: { after: 180 },
+      children: [
+        new TextRun({
+          text: "En atención me permito remitir un informe sobre la gestión que hemos venido desempeñando de ",
+          italics: true,
+          size: 24,
+        }),
+        new TextRun({
+          text: `${mesInicio} al mes de ${mesFin} de ${year}, `,
+          italics: true,
+          size: 24,
+        }),
+        new TextRun({
+          text: "para la ",
+          italics: true,
+          size: 24,
+        }),
+        new TextRun({
+          text: `${nombreCliente}, `,
+          italics: true,
+          bold: true,          // 👈 como en el ejemplo
+          size: 24,
+        }),
+        new TextRun({
+          text:
+            "en el área Pre-Jurídico y Jurídico, con cartera de más de 180 días de mora, donde podemos visualizar la acción que se ha realizado con cada uno de los deudores, que fueron entregados para la gestión de cobro.",
+          italics: true,
+          size: 24,
+        }),
+      ],
+    })
+  );
+
+
   children.push(
     pJust(
       `A la fecha, el recaudo total acumulado es de ${formatCOP(input.totalesResumen.recaudoTotal)} y queda por recuperar ${formatCOP(input.totalesResumen.porRecuperar)}.`,
@@ -206,7 +297,7 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
     children.push(
       pJust(
         `${r.tipificacion}: En esta tipificación tenemos ${r.inmuebles} inmueble(s). ` +
-          `A la fecha se ha recaudado ${formatCOP(r.recaudoTotal)} y queda por recuperar ${formatCOP(r.porRecuperar)}.`,
+        `A la fecha se ha recaudado ${formatCOP(r.recaudoTotal)} y queda por recuperar ${formatCOP(r.porRecuperar)}.`,
         120
       )
     );
@@ -319,18 +410,18 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
             ),
             ...(input.totalesDetalle
               ? [
-                  bodyRow(
-                    [
-                      "TOTAL",
-                      `${input.totalesDetalle.inmuebles}`,
-                      formatCOP(input.totalesDetalle.recaudoTotal),
-                      formatCOP(input.totalesDetalle.porRecuperar),
-                    ],
-                    [1, 2, 3],
-                    LIGHT,
-                    true
-                  ),
-                ]
+                bodyRow(
+                  [
+                    "TOTAL",
+                    `${input.totalesDetalle.inmuebles}`,
+                    formatCOP(input.totalesDetalle.recaudoTotal),
+                    formatCOP(input.totalesDetalle.porRecuperar),
+                  ],
+                  [1, 2, 3],
+                  LIGHT,
+                  true
+                ),
+              ]
               : []),
           ],
         })
@@ -417,12 +508,12 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
       "Inmueble",
       "Nombre",
       "Por Recaudar",
-      "Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic",
+      "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
       "Recaudo Total",
     ];
 
     const rows: TableRow[] = [
-      headerRow(head, [3,4,5,6,7,8,9,10,11,12,13,14,15]),
+      headerRow(head, [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]),
       ...input.tablaDeudoresAnual.map((r, idx) => {
         const vals = [
           r.tipificacion,
@@ -443,7 +534,7 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
           formatCOP(r.rec_12),
           formatCOP(r.recaudoTotal),
         ];
-        return bodyRow(vals, [3,4,5,6,7,8,9,10,11,12,13,14,15], idx % 2 === 1 ? GRAY : undefined);
+        return bodyRow(vals, [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], idx % 2 === 1 ? GRAY : undefined);
       }),
     ];
 
@@ -455,19 +546,61 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
     );
   }
 
+  const baseSectionProps = {
+    page: {
+      margin: {
+        top: cm(1.2),     // opcional: reduce un poco el margen superior general
+        bottom: cm(2),
+        left: cm(3),
+        right: cm(2),
+
+        header: cm(0.2),  // 🔥 ESTO es lo que sube el logo (distancia del header al borde)
+        footer: cm(0.8),  // opcional: distancia del footer (si quieres)
+      },
+    },
+  };
+
+  const FONT = "Arial";
+  const SIZE_12 = 24; // docx usa half-points => 12pt = 24
+
   const doc = new Document({
+    styles: {
+      default: {
+        document: {
+          run: {
+            font: FONT,
+            size: SIZE_12,
+            color: TEXT,
+          },
+          paragraph: {
+            spacing: { line: 276 }, // opcional: interlineado “bonito” (~1.15)
+          },
+        },
+      },
+    },
     sections: [
-      { properties: {}, children },
+      {
+        properties: baseSectionProps,
+        headers: { default: header },
+        footers: { default: footer },
+        children,
+      },
       ...(landscapeChildren.length
         ? [
-            {
-              properties: { page: { size: { orientation: PageOrientation.LANDSCAPE } } },
-              children: landscapeChildren,
+          {
+            properties: {
+              ...baseSectionProps,
+              page: { ...baseSectionProps.page, size: { orientation: PageOrientation.LANDSCAPE } },
             },
-          ]
+            headers: { default: header },
+            footers: { default: footer },
+            children: landscapeChildren,
+          },
+        ]
         : []),
     ],
   });
+
 
   return Packer.toBlob(doc);
 }

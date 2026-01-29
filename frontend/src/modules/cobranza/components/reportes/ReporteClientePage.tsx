@@ -69,6 +69,8 @@ import {
   TableCell,
 } from "@/shared/ui/table";
 
+import { getClienteById } from "@/modules/clientes/services/clienteService";
+
 import { obtenerRecaudosMensuales, MesTotal } from "../../services/reportes/recaudosService";
 
 // PDF
@@ -80,7 +82,6 @@ import { saveAs } from "file-saver";
 import { toast } from "sonner";
 import {
   buildReporteClienteDocx,
-  formatFechaLargaES,
 } from "../../services/reportes/reporteClienteWord";
 
 // Servicios para data adicional (ya existen por tus componentes)
@@ -123,6 +124,8 @@ const CustomXAxisTick = (props: any) => {
 };
 
 const formatCOP = (v: number) => `$ ${v.toLocaleString("es-CO")}`;
+
+
 
 // "YYYY-MM" -> "Mes"
 function monthNameES(ym: string) {
@@ -186,6 +189,8 @@ export default function ReporteClientePage() {
   const { clienteId } = useParams<{ clienteId: string }>();
   const navigate = useNavigate();
 
+  const [clienteNombre, setClienteNombre] = useState<string>("Cliente");
+
   const [pieData, setPieData] = useState<PieItem[]>([]);
   const [barsData, setBarsData] = useState<MesTotal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -248,6 +253,28 @@ export default function ReporteClientePage() {
       setLoading(false);
     })();
   }, [clienteId, yearTabla, monthTabla]);
+
+  useEffect(() => {
+    if (!clienteId) return;
+
+    let alive = true;
+
+    (async () => {
+      try {
+        const c = await getClienteById(clienteId);
+        if (!alive) return;
+        setClienteNombre(c?.nombre?.trim() || "Cliente");
+      } catch (e) {
+        console.error("Error cargando cliente:", e);
+        if (!alive) return;
+        setClienteNombre("Cliente");
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [clienteId]);
 
   useEffect(() => {
     if (!clienteId || !tipSeleccionada) return;
@@ -379,7 +406,9 @@ export default function ReporteClientePage() {
       const blob = await buildReporteClienteDocx({
         ciudad: "Bogotá D.C.",
         fechaGeneracion: new Date(),
-        clienteNombre: "Reporte de Cliente", // si tienes nombre real del cliente, aquí lo pones
+        clienteNombre: clienteNombre?.trim() ? clienteNombre.trim() : "Cliente",
+        yearTabla,
+        monthTabla,
 
         resumenTipificacion: resumenFiltrado.map((r) => ({
           tipificacion: r.tipificacion,
@@ -403,7 +432,6 @@ export default function ReporteClientePage() {
         })),
         totalesDetalle,
 
-        yearTabla,
         tablaDeudoresAnual: tablaAnualRaw.map((r) => ({
           tipificacion: r.tipificacion,
           inmueble: r.inmueble,
@@ -487,8 +515,9 @@ export default function ReporteClientePage() {
           </div>
           <div>
             <Typography variant="h1" className="!text-brand-secondary">
-              Reporte de cliente
+              {clienteNombre ? `Reporte: ${clienteNombre}` : "Reporte ..."}
             </Typography>
+
             <Typography variant="small" className="text-muted-foreground">
               Análisis de tipificación y recaudo mensual
             </Typography>

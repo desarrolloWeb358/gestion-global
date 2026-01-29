@@ -3,9 +3,6 @@ import {
   AlignmentType,
   BorderStyle,
   Document,
-  Footer,
-  Header,
-  ImageRun,
   Packer,
   Paragraph,
   Table,
@@ -19,8 +16,18 @@ import {
 } from "docx";
 
 import type { IRunOptions, IParagraphOptions } from "docx";
-import { saveAs } from "file-saver";
 import type { CuotaAcuerdo } from "@/modules/cobranza/models/acuerdoPago.model";
+
+import {
+  buildFooterGG,
+  buildHeaderGG,
+  cm,
+  formatCOP,
+  formatDateDDMMYYYY,
+  saveDocx,
+  type GGBrandingOptions,
+} from "../services/reportes/helperWord"
+
 
 
 
@@ -28,21 +35,8 @@ import type { CuotaAcuerdo } from "@/modules/cobranza/models/acuerdoPago.model";
 // Constantes / helpers
 // =====================
 const FONT = "Arial";
-const COLOR_BLUE = "1F4E79";
 const COLOR_RED = "C00000";
 
-// cm -> twips
-const cm = (v: number) => Math.round(v * 567);
-
-const formatCOP = (v: number) => `$${Math.round(v || 0).toLocaleString("es-CO")}`;
-
-const formatDateDDMMYYYY = (d?: Date | null) => {
-  if (!d) return "";
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const yy = d.getFullYear();
-  return `${dd}/${mm}/${yy}`;
-};
 
 const isMissing = (v: any) => v === null || v === undefined || String(v).trim() === "";
 
@@ -97,11 +91,7 @@ const sectionTitle = (text: string) =>
 const valOrRed = (v: any, fallback = "XXXXX") => (isMissing(v) ? rRed(fallback) : r(String(v)));
 const valOrRedBold = (v: any, fallback = "XXXXX") => (isMissing(v) ? rRed(fallback) : rBold(String(v)));
 
-async function fetchUint8Array(url: string): Promise<Uint8Array> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`No se pudo cargar imagen: ${url}`);
-  return new Uint8Array(await res.arrayBuffer());
-}
+
 
 // =====================
 // Tipos de entrada
@@ -425,110 +415,22 @@ function buildAmortTableExcelStyle(input: AcuerdoPagoWordInput) {
 }
 
 
-
-
-// =====================
-// Header / Footer
-// =====================
-async function buildHeader() {
-  const data = await fetchUint8Array("/images/logo/encabezado_word.jpg");
-
-  return new Header({
-    children: [
-      new Paragraph({
-        alignment: AlignmentType.CENTER,
-        children: [
-          new ImageRun({
-            type: "jpg", // 👈 importante
-            data,
-            transformation: { width: 520, height: 90 },
-          }),
-        ],
-        spacing: { after: 120 },
-      }),
-    ],
-  });
-}
-
-function buildFooter(input: AcuerdoPagoWordInput) {
-  const footerDireccion = input.footerDireccion ?? "Calle 24 sur # 68 h 52 segundo piso";
-  const footerTelefonos = input.footerTelefonos ?? "Teléfonos: (601) 4631148 – 3017566868 – 3123152594";
-  const footerEmail = input.footerEmail ?? "Email: gestionglobalacg@gestionglobalacg.com";
-  const footerWeb = input.footerWeb ?? "www.gestionglobalacg.com";
-
-  const LEFT = 45;  // 👈 más pequeña la parte de la línea
-  const RIGHT = 55; // 👈 más grande la parte del texto
-
-  const t = new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
-    layout: TableLayoutType.FIXED, // 👈 clave: fija anchos
-    rows: [
-      new TableRow({
-        children: [
-          new TableCell({
-            width: { size: LEFT, type: WidthType.PERCENTAGE },
-            borders: {
-              top: { style: BorderStyle.SINGLE, size: 24, color: COLOR_BLUE }, // (o el borde que estés usando)
-              bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-              left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-              right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-            },
-            children: [new Paragraph({ text: "" })],
-          }),
-
-          new TableCell({
-            width: { size: RIGHT, type: WidthType.PERCENTAGE },
-            borders: {
-              top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-              bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-              left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-              right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-            },
-            children: [
-              new Paragraph({
-                alignment: AlignmentType.RIGHT,
-                children: [
-                  new TextRun({ text: footerDireccion, font: FONT, size: 18, color: COLOR_BLUE, bold: true }),
-                ],
-              }),
-              new Paragraph({
-                alignment: AlignmentType.RIGHT,
-                children: [
-                  new TextRun({ text: footerTelefonos, font: FONT, size: 18, color: COLOR_BLUE, bold: true }),
-                ],
-              }),
-              new Paragraph({
-                alignment: AlignmentType.RIGHT,
-                children: [
-                  new TextRun({ text: footerEmail, font: FONT, size: 18, color: COLOR_BLUE, bold: true }),
-                ],
-              }),
-              new Paragraph({
-                alignment: AlignmentType.RIGHT,
-                children: [
-                  new TextRun({ text: footerWeb, font: FONT, size: 18, color: COLOR_BLUE, bold: true }),
-                ],
-              }),
-            ],
-          }),
-        ],
-      }),
-    ],
-  });
-
-  return new Footer({ children: [t] });
-}
-
-
-
-
-
 // =====================
 // Export principal
 // =====================
 export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
-  const header = await buildHeader();
-  const footer = buildFooter(input);
+  // Branding opcional: si input trae overrides, los pasas al helper
+  const branding: GGBrandingOptions = {
+    footerDireccion: input.footerDireccion,
+    footerTelefonos: input.footerTelefonos,
+    footerEmail: input.footerEmail,
+    footerWeb: input.footerWeb,
+    // headerImageUrl: "/images/logo/encabezado_word.jpg" // si algún día lo cambias
+  };
+
+  const header = await buildHeaderGG(branding);
+  const footer = buildFooterGG(branding);
+
 
   const empresaNombre = input.empresaNombre ?? "GESTION GLOBAL ACG S.A.S";
   const empresaNit = input.empresaNit ?? "901.662.783-7";
@@ -847,5 +749,6 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
 
   const blob = await Packer.toBlob(doc);
   const fileName = `Acuerdo_Pago_${(input.numeroAcuerdo || "SIN_NUMERO").replace(/\s+/g, "_")}.docx`;
-  saveAs(blob, fileName);
+  saveDocx(blob, fileName);
+
 }
