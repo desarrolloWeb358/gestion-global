@@ -11,6 +11,8 @@ import {
   TableRow,
   TextRun,
   WidthType,
+  TableLayoutType,
+  BorderStyle,
 } from "docx";
 
 import { buildHeaderGG, buildFooterGG, cm, formatCOP, formatFechaLargaES } from "./helperWord";
@@ -20,10 +22,154 @@ const LIGHT = "EEF2FF";
 const GRAY = "FAFAFA";
 const TEXT = "2B2B2B";
 
+// --- estilos tipo Excel ---
+const BORDER_COLOR = "000000";
+const HEADER_FILL = "B4C6E7"; // azul claro
+const TOTAL_FILL = "D9E1F2";  // azul muy suave
+const RED = "FF0000";
+
 const MESES_ES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
   "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
 ];
+
+function excelBorders() {
+  return {
+    top: { style: BorderStyle.SINGLE, size: 8, color: BORDER_COLOR },
+    bottom: { style: BorderStyle.SINGLE, size: 8, color: BORDER_COLOR },
+    left: { style: BorderStyle.SINGLE, size: 8, color: BORDER_COLOR },
+    right: { style: BorderStyle.SINGLE, size: 8, color: BORDER_COLOR },
+  };
+}
+
+function excelCell(params: {
+  text: string;
+  bold?: boolean;
+  color?: string;
+  fill?: string;
+  align?: (typeof AlignmentType)[keyof typeof AlignmentType];
+  size?: number;
+}) {
+  const { text, bold, color, fill, align, size } = params;
+
+  return new TableCell({
+    borders: excelBorders(),
+    shading: fill ? { fill } : undefined,
+    children: [
+      new Paragraph({
+        alignment: align ?? AlignmentType.LEFT,
+        children: [
+          new TextRun({
+            text: text ?? "",
+            bold: !!bold,
+            color: color ?? "000000",
+            size: size ?? 24, // 12pt (docx usa half-points*2 => 24)
+          }),
+        ],
+      }),
+    ],
+  });
+}
+
+function isTipificacionRoja(t: string) {
+  const x = (t || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, " "); // normaliza espacios
+  return x.includes("TERMINADO");
+}
+
+
+
+function buildTablaResumenTipificacionExcelStyle(input: {
+  resumenTipificacion: { tipificacion: string; inmuebles: number; recaudoTotal: number; porRecuperar: number }[];
+  totalesResumen: { inmuebles: number; recaudoTotal: number; porRecuperar: number };
+  formatCOP: (v: number) => string;
+}) {
+  const { resumenTipificacion, totalesResumen, formatCOP } = input;
+
+  const header = new TableRow({
+    children: [
+      excelCell({ text: "TIPIFICACIÓN", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
+      excelCell({ text: "INMUEBLE", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
+      excelCell({ text: "RECAUDO TOTAL", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
+      excelCell({ text: "POR RECUPERAR", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
+    ],
+  });
+
+  const rows = resumenTipificacion.map((r) => {
+    const tip = (r.tipificacion || "").trim();
+    const rojo = isTipificacionRoja(tip);
+
+    return new TableRow({
+      children: [
+        excelCell({
+          text: tip.toUpperCase(),
+          bold: rojo,                 // en la imagen se ve “fuerte” cuando es roja
+          color: rojo ? RED : "000000",
+          align: AlignmentType.LEFT,
+        }),
+        excelCell({
+          text: String(r.inmuebles ?? 0),
+          bold: rojo,
+          color: rojo ? RED : "000000",
+          align: AlignmentType.CENTER,  // ✅ toda la columna centrada
+        }),
+        excelCell({
+          text: formatCOP(r.recaudoTotal),
+          bold: rojo,
+          color: rojo ? RED : "000000",
+          align: AlignmentType.RIGHT,   // ✅ dinero a la derecha
+        }),
+        excelCell({
+          text: formatCOP(r.porRecuperar),
+          bold: false,
+          color: "000000",
+          align: AlignmentType.RIGHT,
+        }),
+      ],
+    });
+  });
+
+  const totalRow = new TableRow({
+    children: [
+      excelCell({
+        text: "TOTAL",
+        bold: true,
+        color: RED,
+        fill: TOTAL_FILL,
+        align: AlignmentType.CENTER,
+      }),
+      excelCell({
+        text: String(totalesResumen.inmuebles ?? 0),
+        bold: true,
+        color: RED,
+        fill: TOTAL_FILL,
+        align: AlignmentType.CENTER,
+      }),
+      excelCell({
+        text: formatCOP(totalesResumen.recaudoTotal),
+        bold: true,
+        color: RED,
+        fill: TOTAL_FILL,
+        align: AlignmentType.RIGHT,
+      }),
+      excelCell({
+        text: formatCOP(totalesResumen.porRecuperar),
+        bold: true,
+        color: "000000", // en tu imagen el por recuperar total se ve negro (si lo quieres rojo: RED)
+        fill: TOTAL_FILL,
+        align: AlignmentType.RIGHT,
+      }),
+    ],
+  });
+
+  return new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    layout: TableLayoutType.FIXED,
+    rows: [header, ...rows, totalRow],
+  });
+}
 
 function nombreMes(mes: number) {
   return MESES_ES[Math.max(0, Math.min(11, mes - 1))];
@@ -199,13 +345,17 @@ export type ReporteClienteWordInput = {
   detalleTip?: DetalleTipRow[];
   totalesDetalle?: { inmuebles: number; recaudoTotal: number; porRecuperar: number };
 
-  
+
   tablaDeudoresAnual?: FilaReporteAnual[];
 
   demandas?: DemandaWordItem[];
 
   pieChartPngDataUrl?: string;
   barChartPngDataUrl?: string;
+
+  pieChartSize?: { width: number; height: number };
+  barChartSize?: { width: number; height: number };
+
 };
 
 export async function buildReporteClienteDocx(input: ReporteClienteWordInput): Promise<Blob> {
@@ -286,49 +436,13 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
   );
 
 
-  children.push(
-    pJust(
-      `A la fecha, el recaudo total acumulado es de ${formatCOP(input.totalesResumen.recaudoTotal)} y queda por recuperar ${formatCOP(input.totalesResumen.porRecuperar)}.`,
-      180
-    )
-  );
-
-  input.resumenTipificacion.forEach((r) => {
-    children.push(
-      pJust(
-        `${r.tipificacion}: En esta tipificación tenemos ${r.inmuebles} inmueble(s). ` +
-        `A la fecha se ha recaudado ${formatCOP(r.recaudoTotal)} y queda por recuperar ${formatCOP(r.porRecuperar)}.`,
-        120
-      )
-    );
-  });
-
-  children.push(pCenterTitle("RESUMEN POR TIPIFICACIÓN"));
+  children.push(pCenterTitle("CARTERA POR TIPIFICACIÓN"));
 
   children.push(
-    new Table({
-      width: { size: 100, type: WidthType.PERCENTAGE },
-      rows: [
-        headerRow(["Tipificación", "Inmueble", "Recaudo total", "Por recuperar"], [1, 2, 3]),
-        ...input.resumenTipificacion.map((r, i) =>
-          bodyRow(
-            [r.tipificacion, `${r.inmuebles}`, formatCOP(r.recaudoTotal), formatCOP(r.porRecuperar)],
-            [1, 2, 3],
-            i % 2 === 1 ? GRAY : undefined
-          )
-        ),
-        bodyRow(
-          [
-            "TOTAL",
-            `${input.totalesResumen.inmuebles}`,
-            formatCOP(input.totalesResumen.recaudoTotal),
-            formatCOP(input.totalesResumen.porRecuperar),
-          ],
-          [1, 2, 3],
-          LIGHT,
-          true
-        ),
-      ],
+    buildTablaResumenTipificacionExcelStyle({
+      resumenTipificacion: input.resumenTipificacion,
+      totalesResumen: input.totalesResumen,
+      formatCOP,
     })
   );
 
@@ -336,8 +450,13 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
 
   // ✅ Gráfico Pie (PNG)
   children.push(pCenterTitle("TIPIFICACIÓN DE INMUEBLES"));
+  const targetWidth = 420;
   if (input.pieChartPngDataUrl) {
     const pieBytes = dataUrlToUint8Array(input.pieChartPngDataUrl);
+    const srcW = input.pieChartSize?.width ?? 1;
+    const srcH = input.pieChartSize?.height ?? 1;
+
+    const targetHeight = Math.round((targetWidth * srcH) / srcW);
     children.push(
       new Paragraph({
         alignment: AlignmentType.CENTER,
@@ -345,8 +464,8 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
         children: [
           new ImageRun({
             data: pieBytes,
-            type: "png", // ✅ fuerza raster, evita overload SVG
-            transformation: { width: 520, height: 300 },
+            type: "png",
+            transformation: { width: targetWidth, height: targetHeight },
           }),
         ],
       })
@@ -389,6 +508,23 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
   );
 
   children.push(spacer(200));
+
+  children.push(
+    pJust(
+      `A la fecha, el recaudo total acumulado es de ${formatCOP(input.totalesResumen.recaudoTotal)} y queda por recuperar ${formatCOP(input.totalesResumen.porRecuperar)}.`,
+      180
+    )
+  );
+
+  input.resumenTipificacion.forEach((r) => {
+    children.push(
+      pJust(
+        `${r.tipificacion}: En esta tipificación tenemos ${r.inmuebles} inmueble(s). ` +
+        `A la fecha se ha recaudado ${formatCOP(r.recaudoTotal)} y queda por recuperar ${formatCOP(r.porRecuperar)}.`,
+        120
+      )
+    );
+  });
 
   if (input.tipSeleccionada) {
     children.push(pCenterTitle(`DETALLE DE DEUDORES POR TIPIFICACIÓN (${input.tipSeleccionada})`));

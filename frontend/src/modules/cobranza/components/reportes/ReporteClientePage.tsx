@@ -134,41 +134,57 @@ function monthNameES(ym: string) {
   return d.toLocaleDateString("es-CO", { month: "long" });
 }
 
+async function getPngSizeFromDataUrl(dataUrl: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
+}
+
+
 // ===== Captura SVG->PNG (la tuya) =====
 const capturarGraficoSVG = async (elemento: HTMLElement): Promise<string | null> => {
   try {
-    const svgElement = elemento.querySelector("svg");
-    if (!svgElement) return null;
+    const svg = elemento.querySelector("svg");
+    if (!svg) return null;
 
-    const svgClone = svgElement.cloneNode(true) as SVGElement;
+    // 🔥 Bounding box REAL del contenido
+    const bbox = svg.getBBox();
 
-    const bbox = svgElement.getBoundingClientRect();
-    svgClone.setAttribute("width", bbox.width.toString());
-    svgClone.setAttribute("height", bbox.height.toString());
+    const svgClone = svg.cloneNode(true) as SVGElement;
+
+    // Ajustar viewBox al contenido real
+    svgClone.setAttribute(
+      "viewBox",
+      `${bbox.x} ${bbox.y} ${bbox.width} ${bbox.height}`
+    );
+    svgClone.setAttribute("width", String(bbox.width));
+    svgClone.setAttribute("height", String(bbox.height));
 
     const svgString = new XMLSerializer().serializeToString(svgClone);
     const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
 
+    const scale = 2; // nitidez
     const canvas = document.createElement("canvas");
+    canvas.width = bbox.width * scale;
+    canvas.height = bbox.height * scale;
+
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
 
-    const scale = 2;
-    canvas.width = bbox.width * scale;
-    canvas.height = bbox.height * scale;
     ctx.scale(scale, scale);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, bbox.width, bbox.height);
 
     const url = URL.createObjectURL(svgBlob);
     const img = new Image();
 
     return new Promise((resolve) => {
       img.onload = () => {
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        ctx.drawImage(img, 0, 0, bbox.width, bbox.height);
+        ctx.drawImage(img, 0, 0);
         URL.revokeObjectURL(url);
-
         resolve(canvas.toDataURL("image/png"));
       };
 
@@ -179,11 +195,12 @@ const capturarGraficoSVG = async (elemento: HTMLElement): Promise<string | null>
 
       img.src = url;
     });
-  } catch (error) {
-    console.error("Error capturando gráfico:", error);
+  } catch (err) {
+    console.error("Error capturando SVG:", err);
     return null;
   }
 };
+
 
 export default function ReporteClientePage() {
   const { clienteId } = useParams<{ clienteId: string }>();
@@ -370,6 +387,9 @@ export default function ReporteClientePage() {
       const piePng = pieChartRef.current ? await capturarGraficoSVG(pieChartRef.current) : null;
       const barPng = barChartRef.current ? await capturarGraficoSVG(barChartRef.current) : null;
 
+      const pieSize = piePng ? await getPngSizeFromDataUrl(piePng) : null;
+      const barSize = barPng ? await getPngSizeFromDataUrl(barPng) : null;
+
       // 2) Traer data adicional (misma que ve la página)
       // Seguimiento demandas
       const demandasRaw = await obtenerDemandasConSeguimientoCliente(clienteId, yearTabla, monthTabla);
@@ -446,6 +466,9 @@ export default function ReporteClientePage() {
 
         pieChartPngDataUrl: piePng ?? undefined,
         barChartPngDataUrl: barPng ?? undefined,
+
+        pieChartSize: pieSize ?? undefined,
+        barChartSize: barSize ?? undefined,
       });
 
       saveAs(blob, `reporte-cliente-${new Date().toISOString().split("T")[0]}.docx`);
