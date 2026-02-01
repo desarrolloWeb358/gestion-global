@@ -17,6 +17,8 @@ import {
 
 import { buildHeaderGG, buildFooterGG, cm, formatCOP, formatFechaLargaES } from "./helperWord";
 
+import numeroALetras from "@/shared/numeroALetras";
+
 const PURPLE = "4F46E5";
 const LIGHT = "EEF2FF";
 const GRAY = "FAFAFA";
@@ -33,6 +35,217 @@ const MESES_ES = [
   "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
 ];
 
+function fontSizeByCols(cols: number, kind: "header" | "value") {
+  // half-points: 24=12pt, 20=10pt, 18=9pt, 16=8pt, 14=7pt
+  if (cols <= 4) return kind === "header" ? 24 : 24;
+  if (cols <= 6) return kind === "header" ? 22 : 24;
+  if (cols <= 8) return kind === "header" ? 18 : 20;
+  if (cols <= 10) return kind === "header" ? 16 : 18;
+  return kind === "header" ? 14 : 16; // ✅ 12 meses: header 7pt, value 8pt
+}
+
+function moneyNoBreak(s: string) {
+  // Quita espacios normales y usa NBSP para que Word NO parta
+  // Si quieres quitar el espacio después del $, lo dejamos como "$100.000"
+  return (s || "")
+    .replace(/\$\s+/g, "$")     // "$ 100.000" -> "$100.000"
+    .replace(/\s+/g, "\u00A0"); // cualquier espacio -> NBSP
+}
+
+
+function shouldSplitHeader(cols: number) {
+  // desde 6+ columnas, mejor forzar máximo 2 líneas
+  return cols >= 8;
+}
+
+function pluralizeES(n: number, singular: string, plural?: string) {
+  return n === 1 ? singular : (plural ?? `${singular}s`);
+}
+
+function normalizeTip(t: string) {
+  return (t || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, " ");
+}
+
+function calcVolumenTip(r: { recaudoTotal: number; porRecuperar: number }) {
+  // “volumen de cartera” recomendado = recaudo + saldo por recuperar
+  // (si tú defines volumen solo como porRecuperar, cámbialo aquí y en totalVolumen)
+  return (r.recaudoTotal || 0) + (r.porRecuperar || 0);
+}
+
+function pctOf(vol: number, total: number) {
+  if (!total) return 0;
+  return Math.round((vol / total) * 100);
+}
+
+/**
+ * Devuelve el texto base (sin el bloque final del recaudo)
+ */
+function buildTextoBasePorTip(tip: string, n: number, pct: number) {
+  const deudorWord = `${n} ${pluralizeES(n, "deudor", "deudores")}`;
+  const baseA = `En esta tipificación tenemos ${deudorWord} donde está concentrado el ${pct}% del volumen de la cartera, `;
+  const baseB = `En esta tipificación encontramos ${deudorWord} donde está concentrado el ${pct}% del volumen de la cartera, `;
+
+  const T = normalizeTip(tip);
+
+  // Reglas por tipo (según tus ejemplos)
+  if (T.includes("TERMINADO")) {
+    // Terminado y Demanda/Terminado
+    return `${baseA}los cuales terminaron con su obligación en mora. `;
+  }
+
+  if (T === "ACUERDO") {
+    return `${baseA}los cuales vienen cumpliendo el acuerdo de pago, recaudando mes a mes bajo consignación en la cuenta del conjunto. `;
+  }
+
+  if (T === "GESTIONANDO") {
+    return (
+      `${baseB}a los cuales se les ha realizado gestión, tanto escrito como telefónico, mensajes de WhatsApp, correos electrónicos y notificación física, ` +
+      `esperamos llegar a normalizar la cartera con el recaudo total en esta tipificación. `
+    );
+  }
+
+  if (T === "DEMANDA") {
+    return (
+      `${baseB}por la mora, el monto y en vista que se agotaron todas las instancias para lograr la normalización y no se ha acordado una negociación, ` +
+      `se han seguido las acciones correspondientes con el fin de llegar a este deudor por la vía judicial y lograr el recaudo de dichos dineros, `
+    );
+  }
+
+  if (T.includes("DEMANDA") && T.includes("ACUERDO")) {
+    return (
+      `${baseB}a estos deudores se le dio inicio al proceso jurídico, pero se allegaron a un acuerdo de pago para suspender el proceso y cancelar la obligación, `
+    );
+  }
+
+  // Default (el resto)
+  return `${baseB.slice(0, -2)}. `; // quita ", " y deja ". "
+}
+
+/**
+ * Leyenda final con monto en rojo + letras en rojo, estilo similar a tu párrafo de RECAUDO
+ */
+function pLeyendaTipificacionWord(params: {
+  tipificacion: string;
+  inmuebles: number;
+  porcentaje: number;
+  recaudoTotal: number;
+}) {
+  const { tipificacion, inmuebles, porcentaje, recaudoTotal } = params;
+
+  const base = buildTextoBasePorTip(tipificacion, inmuebles, porcentaje);
+  const money = formatCOP(recaudoTotal);
+  const letras = numeroALetras(recaudoTotal).toUpperCase();
+
+  return new Paragraph({
+    alignment: AlignmentType.JUSTIFIED,
+    spacing: { after: 120 },
+    children: [
+      new TextRun({
+        text: `${normalizeTip(tipificacion)}: `,
+        bold: true,
+        italics: true,
+        underline: {},
+        size: 24,
+        color: "000000",
+      }),
+
+      new TextRun({
+        text: base,
+        italics: true,
+        size: 24,
+        color: "000000",
+      }),
+
+      // “A la fecha...”
+      new TextRun({
+        text: "A la fecha se ha realizado un recaudo por valor de ",
+        italics: true,
+        size: 24,
+        color: "000000",
+      }),
+
+      // valor rojo
+      new TextRun({
+        text: money,
+        italics: true,
+        bold: true,
+        color: RED,
+        size: 24,
+      }),
+
+      new TextRun({ text: " (", italics: true, size: 24 }),
+
+      // letras rojo
+      new TextRun({
+        text: `${letras} PESOS M/CTE`,
+        italics: true,
+        bold: true,
+        color: RED,
+        size: 24,
+      }),
+
+      new TextRun({ text: ").", italics: true, size: 24 }),
+    ],
+  });
+}
+
+
+
+
+function buildTablaDetalleTipificacionExcelStyle(input: {
+  detalle: DetalleTipRow[];
+  totales: { inmuebles: number; recaudoTotal: number; porRecuperar: number };
+}) {
+  const { detalle, totales } = input;
+
+  const header = new TableRow({
+    children: [
+      excelCell({ text: "UBICACIÓN", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
+      excelCell({ text: "DEUDOR", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
+      excelCell({ text: "RECAUDO TOTAL", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
+      excelCell({ text: "POR RECUPERAR", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
+    ],
+  });
+
+  const rows = detalle.map((d) => {
+    return new TableRow({
+      children: [
+        excelCell({ text: d.ubicacion ?? "", align: AlignmentType.LEFT }),
+        excelCell({ text: (d.nombre ?? "").toUpperCase(), align: AlignmentType.LEFT }),
+        excelCell({
+          text: formatCOP(d.recaudoTotal ?? 0),
+          align: AlignmentType.RIGHT,
+          color: RED,
+          bold: true,
+        }),
+        excelCell({
+          text: formatCOP(d.porRecuperar ?? 0),
+          align: AlignmentType.RIGHT,
+        }),
+      ],
+    });
+  });
+
+  const totalRow = new TableRow({
+    children: [
+      excelCell({ text: "TOTAL", bold: true, color: RED, fill: TOTAL_FILL, align: AlignmentType.CENTER }),
+      excelCell({ text: String(totales.inmuebles ?? 0), bold: true, color: "000000", fill: TOTAL_FILL, align: AlignmentType.CENTER }),
+      excelCell({ text: formatCOP(totales.recaudoTotal ?? 0), bold: true, color: RED, fill: TOTAL_FILL, align: AlignmentType.RIGHT }),
+      excelCell({ text: formatCOP(totales.porRecuperar ?? 0), bold: true, color: "000000", fill: TOTAL_FILL, align: AlignmentType.RIGHT }),
+    ],
+  });
+
+  return new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    layout: TableLayoutType.FIXED,
+    rows: [header, ...rows, totalRow],
+  });
+}
+
+
 function excelBorders() {
   return {
     top: { style: BorderStyle.SINGLE, size: 8, color: BORDER_COLOR },
@@ -41,6 +254,165 @@ function excelBorders() {
     right: { style: BorderStyle.SINGLE, size: 8, color: BORDER_COLOR },
   };
 }
+
+function cleanUpper(s?: string) {
+  return (s || "").trim().toUpperCase();
+}
+
+function valueCell(
+  text: string,
+  opts?: {
+    align?: (typeof AlignmentType)[keyof typeof AlignmentType];
+    bold?: boolean;
+    color?: string;
+    fill?: string;
+    size?: number;
+  }
+) {
+  return excelCell({
+    text: text ?? "",
+    align: opts?.align ?? AlignmentType.LEFT,
+    bold: opts?.bold ?? false,
+    color: opts?.color ?? "000000",
+    fill: opts?.fill,
+    size: opts?.size ?? 22,
+  });
+}
+
+/**
+ * Tarjeta (card) profesional para un proceso de demanda:
+ * - Tabla 4 columnas (cabecera + valores)
+ * - Tabla 1 columna para observaciones con listado numerado
+ */
+function buildProcesoDemandaCard(input: {
+  ubicacion: string;
+  demandados?: string;
+  numeroRadicado?: string;
+  juzgado?: string;
+  seguimientos: { fecha: string | null; texto: string }[];
+  observacionCliente?: string;
+}) {
+  const ubicacion = input.ubicacion || "SIN UBICACIÓN";
+  const demandados = (input.demandados || "").trim() || "-";
+  const radicado = (input.numeroRadicado || "").trim() || "-";
+  const juzgado = (input.juzgado || "").trim() || "-";
+
+  const lista = [
+    ...(input.seguimientos || []),
+    { fecha: null, texto: input.observacionCliente?.trim() ? input.observacionCliente.trim() : "" },
+  ].filter((x) => (x.texto || "").trim().length > 0);
+
+  // ✅ anchos estables (ajústalos si quieres)
+  const W_INM = 14;
+  const W_DEM = 40;
+  const W_RAD = 18;
+  const W_JUZ = 28;
+
+  const headRow = new TableRow({
+    children: [
+      cellWrap({ text: "INMUEBLE", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: 20, widthPct: W_INM }),
+      cellWrap({ text: "DEMANDADO", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: 20, widthPct: W_DEM }),
+      cellWrap({ text: "RADICADO", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: 20, widthPct: W_RAD }),
+      cellWrap({ text: "JUZGADO", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: 20, widthPct: W_JUZ }),
+    ],
+  });
+
+  const valRow = new TableRow({
+    children: [
+      cellWrap({ text: cleanUpper(ubicacion), bold: true, align: AlignmentType.CENTER, widthPct: W_INM }),
+      cellWrap({ text: cleanUpper(demandados), align: AlignmentType.LEFT, widthPct: W_DEM }),
+      cellWrap({ text: cleanUpper(radicado), align: AlignmentType.CENTER, widthPct: W_RAD }),
+      cellWrap({ text: cleanUpper(juzgado), align: AlignmentType.LEFT, widthPct: W_JUZ }),
+    ],
+  });
+
+  const obsHeaderRow = new TableRow({
+    children: [
+      cellWrap({
+        text: "OBSERVACIONES",
+        bold: true,
+        fill: HEADER_FILL,
+        align: AlignmentType.LEFT,
+        size: 22,
+        colSpan: 4,
+        widthPct: 100,
+      }),
+    ],
+  });
+
+  // ✅ Párrafos bonitos: número + fecha en gris + texto normal
+  const obsParagraphs: Paragraph[] = lista.length
+    ? lista.map((it, idx) => {
+        const fecha = it.fecha ? it.fecha : "";
+        const texto = (it.texto || "").trim();
+
+        return new Paragraph({
+          spacing: { after: 80 },
+          indent: { left: 360, hanging: 360 }, // ✅ sangría tipo lista (pro)
+          children: [            
+            ...(fecha ? [new TextRun({ text: `${fecha} `, bold: true, size: 20, color: "555555" })] : []),
+            new TextRun({ text: texto, size: 20, color: "000000" }),
+          ],
+        });
+      })
+    : [new Paragraph({ children: [new TextRun({ text: "Sin observaciones.", size: 20 })] })];
+
+  const obsRow = new TableRow({
+    children: [
+      cellWrap({
+        colSpan: 4,
+        widthPct: 100,
+        children: obsParagraphs,
+      }),
+    ],
+  });
+
+  const tabla = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    layout: TableLayoutType.FIXED,
+    rows: [headRow, valRow, obsHeaderRow, obsRow],
+  });
+
+  return [tabla];
+}
+
+
+function cellWrap(params: {
+  text?: string;
+  children?: Paragraph[];
+  bold?: boolean;
+  color?: string;
+  fill?: string;
+  align?: (typeof AlignmentType)[keyof typeof AlignmentType];
+  size?: number;
+  widthPct?: number;  // ✅ ancho en porcentaje
+  colSpan?: number;   // ✅ column span
+}) {
+  const { text, children, bold, color, fill, align, size, widthPct, colSpan } = params;
+
+  return new TableCell({
+    columnSpan: colSpan,
+    width: widthPct ? { size: widthPct, type: WidthType.PERCENTAGE } : undefined,
+    borders: excelBorders(),
+    shading: fill ? { fill } : undefined,
+    children:
+      children ??
+      [
+        new Paragraph({
+          alignment: align ?? AlignmentType.LEFT,
+          children: [
+            new TextRun({
+              text: text ?? "",
+              bold: !!bold,
+              color: color ?? "000000",
+              size: size ?? 22,
+            }),
+          ],
+        }),
+      ],
+  });
+}
+
 
 function excelCell(params: {
   text: string;
@@ -170,6 +542,66 @@ function buildTablaResumenTipificacionExcelStyle(input: {
     rows: [header, ...rows, totalRow],
   });
 }
+
+function buildTablaRecaudoHorizontalExcelStyle(input: {
+  recaudosMensuales: RecaudoMensualRow[];
+  formatCOP: (v: number) => string;
+}) {
+  const { recaudosMensuales, formatCOP } = input;
+
+  const cols = Math.max(1, recaudosMensuales.length);
+  const headerSize = fontSizeByCols(cols, "header");
+  const valueSize = fontSizeByCols(cols, "value");
+  const split = shouldSplitHeader(cols);
+
+  const headerRow = new TableRow({
+    children: recaudosMensuales.map((m) => {
+      const mes = (m.mesLabel || "").toUpperCase();
+
+      return new TableCell({
+        borders: excelBorders(),
+        shading: { fill: HEADER_FILL },
+        children: [
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            // si quieres compactar aún más verticalmente:
+            spacing: { before: 0, after: 0 },
+            children: split
+              ? [
+                new TextRun({ text: "RECAUDO", bold: true, size: headerSize }),
+                new TextRun({ text: mes, bold: true, size: headerSize, break: 1 }),
+              ]
+              : [
+                new TextRun({
+                  text: `RECAUDO ${mes}`,
+                  bold: true,
+                  size: headerSize,
+                }),
+              ],
+          }),
+        ],
+      });
+    }),
+  });
+
+  const valueRow = new TableRow({
+    children: recaudosMensuales.map((m) =>
+      excelCell({
+        text: moneyNoBreak(formatCOP(m.total)),
+        align: AlignmentType.RIGHT,
+        size: valueSize,
+      })
+    ),
+  });
+
+  return new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    layout: TableLayoutType.FIXED,
+    rows: [headerRow, valueRow],
+  });
+}
+
+
 
 function nombreMes(mes: number) {
   return MESES_ES[Math.max(0, Math.min(11, mes - 1))];
@@ -329,6 +761,16 @@ export type DemandaWordItem = {
   seguimientos: SeguimientoItem[];
 };
 
+export type DetallePorTipificacionWord = {
+  tipificacion: string;
+  inmuebles: number;
+  recaudoTotal: number;
+  porRecuperar: number;
+  detalle: DetalleTipRow[];
+  totalesDetalle: { inmuebles: number; recaudoTotal: number; porRecuperar: number };
+};
+
+
 export type ReporteClienteWordInput = {
   ciudad?: string;
   fechaGeneracion?: Date;
@@ -341,12 +783,7 @@ export type ReporteClienteWordInput = {
 
   recaudosMensuales: RecaudoMensualRow[];
 
-  tipSeleccionada?: string;
-  detalleTip?: DetalleTipRow[];
-  totalesDetalle?: { inmuebles: number; recaudoTotal: number; porRecuperar: number };
-
-
-  tablaDeudoresAnual?: FilaReporteAnual[];
+  detallePorTipificacion?: DetallePorTipificacionWord[];
 
   demandas?: DemandaWordItem[];
 
@@ -436,8 +873,6 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
   );
 
 
-  children.push(pCenterTitle("CARTERA POR TIPIFICACIÓN"));
-
   children.push(
     buildTablaResumenTipificacionExcelStyle({
       resumenTipificacion: input.resumenTipificacion,
@@ -449,7 +884,7 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
   children.push(spacer(180));
 
   // ✅ Gráfico Pie (PNG)
-  children.push(pCenterTitle("TIPIFICACIÓN DE INMUEBLES"));
+  children.push(pCenterTitle("CARTERA POR TIPIFICACIÓN"));
   const targetWidth = 420;
   if (input.pieChartPngDataUrl) {
     const pieBytes = dataUrlToUint8Array(input.pieChartPngDataUrl);
@@ -474,10 +909,96 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
     children.push(pJust("(Gráfico no disponible)", 180));
   }
 
+  children.push(spacer(100));
+
   // ✅ Gráfico Barras (PNG)
-  children.push(pCenterTitle("RECAUDO MES A MES"));
+  children.push(pCenterTitle("RECAUDO"));
+
+  // ===== Párrafo RECAUDO (igual estilo que "En atención...") =====
+  const totalRecaudo = input.totalesResumen.recaudoTotal ?? 0;
+  const totalRecaudoFmt = formatCOP(totalRecaudo);
+
+  // 👇 convertir a letras (ver helper en el punto 2)
+  const totalRecaudoLetras = numeroALetras(totalRecaudo).toUpperCase();
+
+  children.push(
+    new Paragraph({
+      alignment: AlignmentType.JUSTIFIED,
+      spacing: { after: 180 },
+      children: [
+        new TextRun({
+          text: "Se puede observar que, de ",
+          italics: true,
+          size: 24,
+        }),
+        new TextRun({
+          text: `${mesInicio} al mes de ${mesFin} de ${year}, `,
+          italics: true,
+          size: 24,
+        }),
+        new TextRun({
+          text: "se ha generado un recaudo de ",
+          italics: true,
+          size: 24,
+        }),
+
+        // ✅ valor en rojo
+        new TextRun({
+          text: `${totalRecaudoFmt}`,
+          italics: true,
+          bold: true,
+          color: RED,
+          size: 24,
+        }),
+
+        new TextRun({
+          text: " (",
+          italics: true,
+          size: 24,
+        }),
+
+        // ✅ valor en letras en rojo
+        new TextRun({
+          text: `${totalRecaudoLetras} PESOS M/CTE`,
+          italics: true,
+          bold: true,
+          color: RED,
+          size: 24,
+        }),
+
+        new TextRun({
+          text: "). Correspondientes a abonos, pagos totales, acuerdos de pago los cuales se encuentran reflejados de la siguiente forma:",
+          italics: true,
+          size: 24,
+        }),
+      ],
+    })
+  );
+
+  children.push(spacer(100));
+
+  children.push(
+    buildTablaRecaudoHorizontalExcelStyle({
+      recaudosMensuales: input.recaudosMensuales,
+      formatCOP,
+    })
+  );
+
+  children.push(spacer(100));
+
+  // ✅ Gráfico Barras (PNG) - respetando aspect ratio (igual que el pie)
   if (input.barChartPngDataUrl) {
     const barBytes = dataUrlToUint8Array(input.barChartPngDataUrl);
+
+    const srcW = input.barChartSize?.width ?? 1;
+    const srcH = input.barChartSize?.height ?? 1;
+
+    // Escoge un ancho objetivo coherente con tu documento:
+    // - 520 funciona bien
+    // - si quieres más ancho: 560 o 600 (pero ojo con márgenes)
+    const targetWidth = 600;
+    const targetHeight = Math.round((targetWidth * srcH) / srcW);
+
     children.push(
       new Paragraph({
         alignment: AlignmentType.CENTER,
@@ -486,7 +1007,7 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
           new ImageRun({
             data: barBytes,
             type: "png",
-            transformation: { width: 520, height: 300 },
+            transformation: { width: targetWidth, height: targetHeight },
           }),
         ],
       })
@@ -495,192 +1016,82 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
     children.push(pJust("(Gráfico no disponible)", 180));
   }
 
-  children.push(
-    new Table({
-      width: { size: 100, type: WidthType.PERCENTAGE },
-      rows: [
-        headerRow(["Mes", "Recaudo"], [1]),
-        ...input.recaudosMensuales.map((m, i) =>
-          bodyRow([m.mesLabel, formatCOP(m.total)], [1], i % 2 === 1 ? GRAY : undefined)
-        ),
-      ],
-    })
+
+  const totalVolumenCartera = (input.resumenTipificacion || []).reduce(
+    (acc, r) => acc + calcVolumenTip(r),
+    0
   );
 
-  children.push(spacer(200));
+  // ===============================
+  // DETALLE POR TIPIFICACIÓN (TODAS)
+  // ===============================
+  const detalleAll = (input.detallePorTipificacion || [])
+    .filter((x) => (x.inmuebles ?? 0) > 0);
 
-  children.push(
-    pJust(
-      `A la fecha, el recaudo total acumulado es de ${formatCOP(input.totalesResumen.recaudoTotal)} y queda por recuperar ${formatCOP(input.totalesResumen.porRecuperar)}.`,
-      180
-    )
-  );
+  if (detalleAll.length) {
+    // Título opcional (si lo quieres)
+    // children.push(pCenterTitle("DETALLE DE DEUDORES POR TIPIFICACIÓN"));
 
-  input.resumenTipificacion.forEach((r) => {
-    children.push(
-      pJust(
-        `${r.tipificacion}: En esta tipificación tenemos ${r.inmuebles} inmueble(s). ` +
-        `A la fecha se ha recaudado ${formatCOP(r.recaudoTotal)} y queda por recuperar ${formatCOP(r.porRecuperar)}.`,
-        120
-      )
-    );
-  });
+    detalleAll.forEach((bloque) => {
+      // ✅ porcentaje por "volumen de cartera" (no por cantidad)
+      const volBloque = calcVolumenTip({
+        recaudoTotal: bloque.recaudoTotal ?? 0,
+        porRecuperar: bloque.porRecuperar ?? 0,
+      });
 
-  if (input.tipSeleccionada) {
-    children.push(pCenterTitle(`DETALLE DE DEUDORES POR TIPIFICACIÓN (${input.tipSeleccionada})`));
+      const porcentaje = pctOf(volBloque, totalVolumenCartera); // 0..100
 
-    if (!input.detalleTip?.length) {
-      children.push(pJust("No hay deudores para esta tipificación.", 160));
-    } else {
+      // ✅ Leyenda dinámica por tipificación (esta es la que cambia el texto)
       children.push(
-        new Table({
-          width: { size: 100, type: WidthType.PERCENTAGE },
-          rows: [
-            headerRow(["Ubicación", "Deudor", "Recaudo total", "Por recuperar"], [2, 3]),
-            ...input.detalleTip.map((d, i) =>
-              bodyRow(
-                [d.ubicacion, d.nombre, formatCOP(d.recaudoTotal), formatCOP(d.porRecuperar)],
-                [2, 3],
-                i % 2 === 1 ? GRAY : undefined
-              )
-            ),
-            ...(input.totalesDetalle
-              ? [
-                bodyRow(
-                  [
-                    "TOTAL",
-                    `${input.totalesDetalle.inmuebles}`,
-                    formatCOP(input.totalesDetalle.recaudoTotal),
-                    formatCOP(input.totalesDetalle.porRecuperar),
-                  ],
-                  [1, 2, 3],
-                  LIGHT,
-                  true
-                ),
-              ]
-              : []),
-          ],
+        pLeyendaTipificacionWord({
+          tipificacion: bloque.tipificacion,
+          inmuebles: bloque.inmuebles,
+          porcentaje,
+          recaudoTotal: bloque.recaudoTotal ?? 0,
         })
       );
-    }
-    children.push(spacer(220));
+
+      // Tabla detalle
+      if (!bloque.detalle?.length) {
+        children.push(pJust("No hay deudores para esta tipificación.", 160));
+      } else {
+        children.push(
+          buildTablaDetalleTipificacionExcelStyle({
+            detalle: bloque.detalle,
+            totales: bloque.totalesDetalle,
+          })
+        );
+      }
+
+      children.push(spacer(180));
+    });
   }
 
-  // Seguimiento demandas
-  children.push(pCenterTitle("SEGUIMIENTO DE DEMANDAS"));
+
+  // PROCESOS DE DEMANDA (formato gerencial tipo “tarjeta Excel”)
+  children.push(pCenterTitle("PROCESOS DE DEMANDA"));
 
   if (!input.demandas?.length) {
     children.push(pJust("No hay demandas para mostrar.", 160));
   } else {
     input.demandas.forEach((d) => {
-      children.push(
-        new Paragraph({
-          spacing: { after: 70 },
-          children: [
-            new TextRun({
-              text: `Inmueble: ${d.ubicacion || "Sin ubicación"}`,
-              bold: true,
-              size: 22,
-            }),
-          ],
-        })
-      );
-
-      if (d.demandados) children.push(pSmall(`Demandado(s): ${d.demandados}`));
-      if (d.numeroRadicado) children.push(pSmall(`Radicado: ${d.numeroRadicado}`));
-      if (d.juzgado) children.push(pSmall(`Juzgado: ${d.juzgado}`));
-
-      children.push(spacer(80));
-
-      const lista: SeguimientoItem[] = [
-        ...(d.seguimientos || []),
-        {
-          fecha: null,
-          texto: d.observacionCliente?.trim()
-            ? d.observacionCliente.trim()
-            : "Sin observación registrada para el conjunto.",
-        },
-      ];
-
-      lista.forEach((it) => {
-        children.push(
-          new Paragraph({
-            spacing: { after: 80 },
-            children: [
-              ...(it.fecha
-                ? [new TextRun({ text: `${it.fecha}  `, bold: true, size: 20, color: "555555" })]
-                : []),
-              new TextRun({ text: it.texto || "Sin descripción", size: 20 }),
-            ],
-          })
-        );
+      const blocks = buildProcesoDemandaCard({
+        ubicacion: d.ubicacion || "Sin ubicación",
+        demandados: d.demandados || "",
+        numeroRadicado: d.numeroRadicado || "",
+        juzgado: d.juzgado || "",
+        seguimientos: d.seguimientos || [],
+        observacionCliente: d.observacionCliente || "",
       });
 
-      children.push(spacer(160));
+      // tabla info + tabla observaciones
+      children.push(...blocks);
+
+      // espacio entre “tarjetas”
+      children.push(spacer(180));
     });
   }
 
-  children.push(
-    pJust(
-      "Estas son algunas de las evidencias que se pueden observar sobre la gestión realizada. Para más información, por favor ingresar a la plataforma con el usuario y contraseña entregados.",
-      180
-    ),
-    pJust(
-      "Esperamos estar cumpliendo con sus expectativas de recaudo. Sin otro particular y en espera de sus comentarios.",
-      220
-    ),
-    pLeft("Cordialmente,", 200),
-    pLeft("GESTIÓN GLOBAL ACG S.A.S.", 60, true)
-  );
-
-  // Landscape para tabla anual (si existe)
-  const landscapeChildren: any[] = [];
-
-  if (input.tablaDeudoresAnual?.length) {
-    landscapeChildren.push(pCenterTitle(`TABLA DE DEUDORES (AÑO ${input.yearTabla ?? ""})`), spacer(120));
-
-    const head = [
-      "Tipificación",
-      "Inmueble",
-      "Nombre",
-      "Por Recaudar",
-      "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
-      "Recaudo Total",
-    ];
-
-    const rows: TableRow[] = [
-      headerRow(head, [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]),
-      ...input.tablaDeudoresAnual.map((r, idx) => {
-        const vals = [
-          r.tipificacion,
-          r.inmueble,
-          r.nombre,
-          formatCOP(r.porRecaudar),
-          formatCOP(r.rec_01),
-          formatCOP(r.rec_02),
-          formatCOP(r.rec_03),
-          formatCOP(r.rec_04),
-          formatCOP(r.rec_05),
-          formatCOP(r.rec_06),
-          formatCOP(r.rec_07),
-          formatCOP(r.rec_08),
-          formatCOP(r.rec_09),
-          formatCOP(r.rec_10),
-          formatCOP(r.rec_11),
-          formatCOP(r.rec_12),
-          formatCOP(r.recaudoTotal),
-        ];
-        return bodyRow(vals, [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], idx % 2 === 1 ? GRAY : undefined);
-      }),
-    ];
-
-    landscapeChildren.push(
-      new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        rows,
-      })
-    );
-  }
 
   const baseSectionProps = {
     page: {
@@ -721,19 +1132,6 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
         footers: { default: footer },
         children,
       },
-      ...(landscapeChildren.length
-        ? [
-          {
-            properties: {
-              ...baseSectionProps,
-              page: { ...baseSectionProps.page, size: { orientation: PageOrientation.LANDSCAPE } },
-            },
-            headers: { default: header },
-            footers: { default: footer },
-            children: landscapeChildren,
-          },
-        ]
-        : []),
     ],
   });
 

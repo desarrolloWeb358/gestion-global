@@ -125,6 +125,21 @@ const CustomXAxisTick = (props: any) => {
 
 const formatCOP = (v: number) => `$ ${v.toLocaleString("es-CO")}`;
 
+type TotalesDetalle = { inmuebles: number; recaudoTotal: number; porRecuperar: number };
+
+
+function calcTotalesDetalle(rows: { recaudoTotal?: number; porRecuperar?: number }[]): TotalesDetalle {
+  return rows.reduce<TotalesDetalle>(
+    (acc, r) => {
+      acc.inmuebles += 1;
+      acc.recaudoTotal += r.recaudoTotal ?? 0;
+      acc.porRecuperar += r.porRecuperar ?? 0;
+      return acc;
+    },
+    { inmuebles: 0, recaudoTotal: 0, porRecuperar: 0 }
+  );
+}
+
 
 
 // "YYYY-MM" -> "Mes"
@@ -143,6 +158,118 @@ async function getPngSizeFromDataUrl(dataUrl: string): Promise<{ width: number; 
   });
 }
 
+const capturarPieSVG = async (elemento: HTMLElement): Promise<string | null> => {
+  try {
+    const svg = elemento.querySelector("svg");
+    if (!svg) return null;
+
+    const svgClone = svg.cloneNode(true) as SVGElement;
+
+    // bbox del contenido real
+    const bbox = (svg as SVGGraphicsElement).getBBox();
+
+    // padding (para que no quede "pegado" y no corte labels)
+    const pad = 12;
+
+    const viewX = bbox.x - pad;
+    const viewY = bbox.y - pad;
+    const viewW = bbox.width + pad * 2;
+    const viewH = bbox.height + pad * 2;
+
+    svgClone.setAttribute("viewBox", `${viewX} ${viewY} ${viewW} ${viewH}`);
+    svgClone.setAttribute("width", String(viewW));
+    svgClone.setAttribute("height", String(viewH));
+
+    const svgString = new XMLSerializer().serializeToString(svgClone);
+    const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+
+    const scale = 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(viewW * scale);
+    canvas.height = Math.round(viewH * scale);
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+
+    ctx.scale(scale, scale);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, viewW, viewH);
+
+    const url = URL.createObjectURL(svgBlob);
+    const img = new Image();
+
+    return new Promise((resolve) => {
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, viewW, viewH);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL("image/png"));
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(null);
+      };
+      img.src = url;
+    });
+  } catch (err) {
+    console.error("Error capturando PIE:", err);
+    return null;
+  }
+};
+
+const capturarBarSVG = async (elemento: HTMLElement): Promise<string | null> => {
+  try {
+    const svg = elemento.querySelector("svg");
+    if (!svg) return null;
+
+    const rect = svg.getBoundingClientRect();
+    const width = Math.max(1, Math.round(rect.width));
+    const height = Math.max(1, Math.round(rect.height));
+
+    const svgClone = svg.cloneNode(true) as SVGElement;
+
+    if (!svgClone.getAttribute("viewBox")) {
+      svgClone.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    }
+
+    svgClone.setAttribute("width", String(width));
+    svgClone.setAttribute("height", String(height));
+
+    const svgString = new XMLSerializer().serializeToString(svgClone);
+    const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+
+    const scale = 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+
+    ctx.scale(scale, scale);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, width, height);
+
+    const url = URL.createObjectURL(svgBlob);
+    const img = new Image();
+
+    return new Promise((resolve) => {
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, width, height);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL("image/png"));
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(null);
+      };
+      img.src = url;
+    });
+  } catch (err) {
+    console.error("Error capturando BAR:", err);
+    return null;
+  }
+};
+
 
 // ===== Captura SVG->PNG (la tuya) =====
 const capturarGraficoSVG = async (elemento: HTMLElement): Promise<string | null> => {
@@ -150,40 +277,42 @@ const capturarGraficoSVG = async (elemento: HTMLElement): Promise<string | null>
     const svg = elemento.querySelector("svg");
     if (!svg) return null;
 
-    // 🔥 Bounding box REAL del contenido
-    const bbox = svg.getBBox();
+    // ✅ tamaño visual real del svg en pantalla
+    const rect = svg.getBoundingClientRect();
+    const width = Math.max(1, Math.round(rect.width));
+    const height = Math.max(1, Math.round(rect.height));
 
     const svgClone = svg.cloneNode(true) as SVGElement;
 
-    // Ajustar viewBox al contenido real
-    svgClone.setAttribute(
-      "viewBox",
-      `${bbox.x} ${bbox.y} ${bbox.width} ${bbox.height}`
-    );
-    svgClone.setAttribute("width", String(bbox.width));
-    svgClone.setAttribute("height", String(bbox.height));
+    // ✅ asegurar que tenga viewBox
+    if (!svgClone.getAttribute("viewBox")) {
+      svgClone.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    }
+
+    svgClone.setAttribute("width", String(width));
+    svgClone.setAttribute("height", String(height));
 
     const svgString = new XMLSerializer().serializeToString(svgClone);
     const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
 
     const scale = 2; // nitidez
     const canvas = document.createElement("canvas");
-    canvas.width = bbox.width * scale;
-    canvas.height = bbox.height * scale;
+    canvas.width = width * scale;
+    canvas.height = height * scale;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
 
     ctx.scale(scale, scale);
     ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, bbox.width, bbox.height);
+    ctx.fillRect(0, 0, width, height);
 
     const url = URL.createObjectURL(svgBlob);
     const img = new Image();
 
     return new Promise((resolve) => {
       img.onload = () => {
-        ctx.drawImage(img, 0, 0);
+        ctx.drawImage(img, 0, 0, width, height);
         URL.revokeObjectURL(url);
         resolve(canvas.toDataURL("image/png"));
       };
@@ -200,6 +329,7 @@ const capturarGraficoSVG = async (elemento: HTMLElement): Promise<string | null>
     return null;
   }
 };
+
 
 
 export default function ReporteClientePage() {
@@ -384,8 +514,8 @@ export default function ReporteClientePage() {
       toast.info("Generando documento Word...");
 
       // 1) Capturar gráficos como PNG (nítido)
-      const piePng = pieChartRef.current ? await capturarGraficoSVG(pieChartRef.current) : null;
-      const barPng = barChartRef.current ? await capturarGraficoSVG(barChartRef.current) : null;
+      const piePng = pieChartRef.current ? await capturarPieSVG(pieChartRef.current) : null;
+      const barPng = barChartRef.current ? await capturarBarSVG(barChartRef.current) : null;
 
       const pieSize = piePng ? await getPngSizeFromDataUrl(piePng) : null;
       const barSize = barPng ? await getPngSizeFromDataUrl(barPng) : null;
@@ -393,10 +523,7 @@ export default function ReporteClientePage() {
       // 2) Traer data adicional (misma que ve la página)
       // Seguimiento demandas
       const demandasRaw = await obtenerDemandasConSeguimientoCliente(clienteId, yearTabla, monthTabla);
-
-      // Tabla anual
-      const tablaAnualRaw: FilaReporte[] = await obtenerReporteDeudoresPorPeriodo(clienteId, yearTabla, monthTabla);
-
+      
       // 3) Mapear a formato Word (mismo orden de tu UI: seguimientos DESC + observación al final)
       const demandasWord = demandasRaw.map((d) => {
         const seguimientosOrdenados = [...d.seguimientos]
@@ -422,6 +549,41 @@ export default function ReporteClientePage() {
         };
       });
 
+
+      // ✅ 2.1) Traer detalle por cada tipificación (para Word)
+      const detallePorTipificacion = await Promise.all(
+        resumenFiltrado.map(async (r) => {
+          const detalle = await obtenerDetalleDeudoresPorTipificacion(
+            clienteId,
+            r.tipificacion as TipificacionKey,
+            yearTabla,
+            monthTabla
+          );
+
+          const detalleWord: { ubicacion: string; nombre: string; recaudoTotal: number; porRecuperar: number }[] =
+            detalle.map((d) => ({
+              ubicacion: d.ubicacion,
+              nombre: d.nombre,
+              recaudoTotal: d.recaudoTotal,
+              porRecuperar: d.porRecuperar,
+            }));
+
+
+          const tot = calcTotalesDetalle(detalleWord);
+
+          return {
+            tipificacion: String(r.tipificacion),
+            inmuebles: r.inmuebles,              // de resumen (coincide con cantidad)
+            recaudoTotal: r.recaudoTotal,        // de resumen
+            porRecuperar: r.porRecuperar,        // de resumen
+            detalle: detalleWord,                // filas
+            totalesDetalle: tot,                 // totales de la tabla
+          };
+        })
+      );
+
+
+
       // 4) Construir docx bonito (tipo INFORME)
       const blob = await buildReporteClienteDocx({
         ciudad: "Bogotá D.C.",
@@ -443,24 +605,7 @@ export default function ReporteClientePage() {
           total: b.total,
         })),
 
-        tipSeleccionada: tipSeleccionada || undefined,
-        detalleTip: detalleTip.map((d) => ({
-          ubicacion: d.ubicacion,
-          nombre: d.nombre,
-          recaudoTotal: d.recaudoTotal,
-          porRecuperar: d.porRecuperar,
-        })),
-        totalesDetalle,
-
-        tablaDeudoresAnual: tablaAnualRaw.map((r) => ({
-          tipificacion: r.tipificacion,
-          inmueble: r.inmueble,
-          nombre: r.nombre,
-          porRecaudar: r.porRecaudar,
-          rec_01: r.rec_01, rec_02: r.rec_02, rec_03: r.rec_03, rec_04: r.rec_04, rec_05: r.rec_05, rec_06: r.rec_06,
-          rec_07: r.rec_07, rec_08: r.rec_08, rec_09: r.rec_09, rec_10: r.rec_10, rec_11: r.rec_11, rec_12: r.rec_12,
-          recaudoTotal: r.recaudoTotal,
-        })),
+        detallePorTipificacion,       
 
         demandas: demandasWord,
 
