@@ -1,15 +1,15 @@
 import React from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger, useSidebar } from "@/shared/ui/sidebar";
-import { AppSidebar } from "@/app/layout/app-sidebar"; // Tu componente lateral
+import { AppSidebar } from "@/app/layout/app-sidebar";
 import { Toaster } from "sonner";
-
 
 const LayoutContent: React.FC = () => {
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
+  const location = useLocation();
 
   return (
-    <div >
+    <div translate="no" className="notranslate">
       {/* Sidebar fijo */}
       <AppSidebar />
 
@@ -23,14 +23,13 @@ const LayoutContent: React.FC = () => {
             : "lg:ml-[var(--sidebar-width-icon)]"
         }`}
       >
-        {/* Header con botón para colapsar/expandir sidebar */}
         <header className="flex items-center justify-between p-4 border-b">
           <SidebarTrigger />
         </header>
 
-        {/* Contenido interior */}
         <div className="p-4 mx-auto w-full max-w-screen-2xl md:p-6">
-          <Outlet />
+          {/* remount por ruta para evitar crashes raros con DOM alterado */}
+          <Outlet key={location.pathname} />
         </div>
       </main>
     </div>
@@ -41,7 +40,7 @@ const AppLayout: React.FC = () => {
   return (
     <SidebarProvider>
       <LayoutContent />
-       <Toaster richColors position="top-center" />
+      <Toaster richColors position="top-center" />
     </SidebarProvider>
   );
 };
