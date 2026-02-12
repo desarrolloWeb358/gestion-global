@@ -74,6 +74,9 @@ export const PERMS = {
   // Valores agregados 
   Valores_agregados_Read: "valoresAgregados.read",
   Valores_agregados_Edit: "valoresAgregados.edit",
+
+  ReporteCliente_Download_Word: "reporteCliente.download.word",
+  ReporteCliente_Download_Pdf: "reporteCliente.download.pdf",
 } as const;
 export type Perm = (typeof PERMS)[keyof typeof PERMS];
 
@@ -97,6 +100,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Recaudos_Read,
     PERMS.Valores_agregados_Read,
     PERMS.Valores_agregados_Edit,
+    PERMS.ReporteCliente_Download_Word,
   ],
 
   ejecutivoAdmin: [
@@ -114,6 +118,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Recaudos_Read,
     PERMS.Valores_agregados_Read,
     PERMS.Valores_agregados_Edit,
+    PERMS.ReporteCliente_Download_Word,
   ],
 
   ejecutivo: [
@@ -128,6 +133,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Abonos_Edit,
     PERMS.Valores_Read, 
     PERMS.Recaudos_Read,
+    PERMS.ReporteCliente_Download_Word,
   ],
 
   dependiente: [
@@ -141,6 +147,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Abonos_Read,    
     PERMS.Valores_Read, 
     PERMS.Recaudos_Read,
+    PERMS.ReporteCliente_Download_Word,
   ],
 
   cliente: [
@@ -154,6 +161,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Valores_agregados_Read,
     PERMS.Valores_agregados_Edit,
     PERMS.Valores_Obs_Create,   
+    PERMS.ReporteCliente_Download_Pdf,
   ],
 
   abogado: [
@@ -165,6 +173,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Abonos_Read,
     PERMS.Valores_agregados_Read,
     PERMS.Valores_agregados_Edit, 
+    PERMS.ReporteCliente_Download_Word,
   ],
 
   deudor: [

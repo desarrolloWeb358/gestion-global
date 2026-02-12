@@ -50,6 +50,7 @@ import {
   DeudorTipificacionDetalle,
   TipificacionKey,
 } from "../../services/reportes/tipificacionService";
+import { getUsuarioByUid } from "@/modules/usuarios/services/usuarioService";
 
 import SeguimientoDemandasClienteSection from "../../components/reportes/SeguimientoDemandasClienteSection";
 
@@ -74,6 +75,9 @@ import { getClienteById } from "@/modules/clientes/services/clienteService";
 
 import { obtenerRecaudosMensuales, MesTotal } from "../../services/reportes/recaudosService";
 
+import { useAcl } from "@/modules/auth/hooks/useAcl";
+import { PERMS } from "@/shared/constants/acl";
+
 // PDF
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -81,9 +85,8 @@ import autoTable from "jspdf-autotable";
 // Word (nuevo servicio)
 import { saveAs } from "file-saver";
 import { toast } from "sonner";
-import {
-  buildReporteClienteDocx,
-} from "../../services/reportes/reporteClienteWord";
+import { buildReporteClienteDocx } from "../../services/reportes/reporteClienteWord";
+import { buildReporteClientePdf } from "../../services/reportes/reporteClientePdf";
 
 // Servicios para data adicional (ya existen por tus componentes)
 import { obtenerDemandasConSeguimientoCliente } from "../../services/reportes/seguimientoDemandaService";
@@ -349,8 +352,15 @@ const capturarGraficoSVG = async (elemento: HTMLElement): Promise<string | null>
 export default function ReporteClientePage() {
   const { clienteId } = useParams<{ clienteId: string }>();
   const navigate = useNavigate();
+  const { can, loading: aclLoading } = useAcl();
+
+  // Recomendado: permisos separados
+  const canDownloadWord = can(PERMS.ReporteCliente_Download_Word);
+  const canDownloadPdf = can(PERMS.ReporteCliente_Download_Pdf);
 
   const [clienteNombre, setClienteNombre] = useState<string>("Cliente");
+  const [administrador, setAdministrador] = useState<string>("");
+  const [firmaNombre, setFirmaNombre] = useState<string>("");
 
   const [pieData, setPieData] = useState<PieItem[]>([]);
   const [barsData, setBarsData] = useState<MesTotal[]>([]);
@@ -425,6 +435,21 @@ export default function ReporteClientePage() {
         const c = await getClienteById(clienteId);
         if (!alive) return;
         setClienteNombre(c?.nombre?.trim() || "Cliente");
+        setAdministrador(c?.administrador?.trim() || "");
+        // ✅ ejecutivo prejurídico (viene en Cliente)
+        const ejecutivoId = c?.ejecutivoPrejuridicoId ?? null;
+
+        if (ejecutivoId) {
+          const u = await getUsuarioByUid(ejecutivoId);
+          if (!alive) return;
+
+          // ✅ nombre dinámico para firma
+          setFirmaNombre(u?.nombre?.trim() || "");
+          // si más adelante guardas cargo en usuarios, lo puedes poner aquí:
+          // setFirmaCargo(u?.cargo?.trim() || "Ejecutiva de Cuenta");
+        } else {
+          setFirmaNombre("");
+        }
       } catch (e) {
         console.error("Error cargando cliente:", e);
         if (!alive) return;
@@ -518,6 +543,118 @@ export default function ReporteClientePage() {
   };
 
 
+  const handleDownloadPdf = async () => {
+    if (!clienteId) return;
+
+    try {
+      setDownloading(true);
+      toast.info("Generando PDF...");
+
+      // 1) Captura gráficos (IGUAL)
+      const piePng = pieChartRef.current ? await capturarPieConLeyenda(pieChartRef.current) : null;
+      const barPng = barChartRef.current ? await capturarBarSVG(barChartRef.current) : null;
+
+      const pieSize = piePng ? await getPngSizeFromDataUrl(piePng) : null;
+      const barSize = barPng ? await getPngSizeFromDataUrl(barPng) : null;
+
+      // 2) Data adicional (IGUAL)
+      const demandasRaw = await obtenerDemandasConSeguimientoCliente(clienteId, yearTabla, monthTabla);
+
+      const demandasWord = demandasRaw.map((d) => {
+        const seguimientosOrdenados = [...d.seguimientos]
+          .sort((a, b) => {
+            const fa = a.fecha ? a.fecha.getTime() : 0;
+            const fb = b.fecha ? b.fecha.getTime() : 0;
+            return fb - fa;
+          })
+          .map((s) => ({
+            fecha: s.fecha
+              ? `${String(s.fecha.getDate()).padStart(2, "0")}/${String(s.fecha.getMonth() + 1).padStart(2, "0")}/${s.fecha.getFullYear()}`
+              : null,
+            texto: s.descripcion || "Sin descripción",
+          }));
+
+        return {
+          ubicacion: d.ubicacion || "Sin ubicación",
+          demandados: d.demandados || "",
+          numeroRadicado: d.numeroRadicado || "",
+          juzgado: d.juzgado || "",
+          observacionCliente: d.observacionCliente || "",
+          seguimientos: seguimientosOrdenados,
+        };
+      });
+
+      const detallePorTipificacion = await Promise.all(
+        resumenFiltrado.map(async (r) => {
+          const detalle = await obtenerDetalleDeudoresPorTipificacion(
+            clienteId,
+            r.tipificacion as TipificacionKey,
+            yearTabla,
+            monthTabla
+          );
+
+          const detalleWord = detalle.map((d) => ({
+            ubicacion: d.ubicacion,
+            nombre: d.nombre,
+            recaudoTotal: d.recaudoTotal,
+            porRecuperar: d.porRecuperar,
+          }));
+
+          const tot = calcTotalesDetalle(detalleWord);
+
+          return {
+            tipificacion: String(r.tipificacion),
+            inmuebles: r.inmuebles,
+            recaudoTotal: r.recaudoTotal,
+            porRecuperar: r.porRecuperar,
+            detalle: detalleWord,
+            totalesDetalle: tot,
+          };
+        })
+      );
+
+      // 3) Builder PDF (SOLO cambia esto)
+      const blob = await buildReporteClientePdf({
+        ciudad: "Bogotá D.C.",
+        fechaGeneracion: new Date(),
+        clienteNombre: clienteNombre?.trim() ? clienteNombre.trim() : "Cliente",
+        administrador,
+        firmaNombre,
+        yearTabla,
+        monthTabla,
+
+        resumenTipificacion: resumenFiltrado.map((r) => ({
+          tipificacion: r.tipificacion,
+          inmuebles: r.inmuebles,
+          recaudoTotal: r.recaudoTotal,
+          porRecuperar: r.porRecuperar,
+        })),
+        totalesResumen,
+
+        recaudosMensuales: bars.map((b) => ({
+          mesLabel: b.nombreMes.charAt(0).toUpperCase() + b.nombreMes.slice(1),
+          total: b.total,
+        })),
+
+        detallePorTipificacion,
+        demandas: demandasWord,
+
+        pieChartPngDataUrl: piePng ?? undefined,
+        barChartPngDataUrl: barPng ?? undefined,
+        pieChartSize: pieSize ?? undefined,
+        barChartSize: barSize ?? undefined,
+      });
+
+      saveAs(blob, `reporte-cliente-${new Date().toISOString().split("T")[0]}.pdf`);
+      toast.success("PDF descargado correctamente");
+    } catch (e) {
+      console.error("Error PDF:", e);
+      toast.error("Error al generar el PDF");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
 
   // ======= WORD (NUEVO: con TODO y estilo INFORME) =======
   const handleDownloadWord = async () => {
@@ -604,6 +741,8 @@ export default function ReporteClientePage() {
         ciudad: "Bogotá D.C.",
         fechaGeneracion: new Date(),
         clienteNombre: clienteNombre?.trim() ? clienteNombre.trim() : "Cliente",
+        administrador: administrador,
+        firmaNombre: firmaNombre,
         yearTabla,
         monthTabla,
 
@@ -669,24 +808,48 @@ export default function ReporteClientePage() {
           Volver
         </Button>
 
-        <Button
-          variant="brand"
-          disabled={downloading}
-          onClick={handleDownloadWord}
-          className="gap-2 shadow-md hover:shadow-lg transition-all"
-        >
-          {downloading ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Generando Word...
-            </>
-          ) : (
-            <>
-              <FileText className="h-4 w-4" />
-              Descargar reporte (Word)
-            </>
-          )}
-        </Button>
+        {canDownloadWord && (
+          <Button
+            variant="brand"
+            disabled={downloading}
+            onClick={handleDownloadWord}
+            className="gap-2 shadow-md hover:shadow-lg transition-all"
+          >
+            {downloading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Generando Word...
+              </>
+            ) : (
+              <>
+                <FileText className="h-4 w-4" />
+                Descargar reporte (Word)
+              </>
+            )}
+          </Button>
+        )}
+
+        {!canDownloadWord && canDownloadPdf && (
+          <Button
+            variant="brand"
+            disabled={downloading}
+            onClick={handleDownloadWord}
+            className="gap-2 shadow-md hover:shadow-lg transition-all"
+          >
+            {downloading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Generando PDF...
+              </>
+            ) : (
+              <>
+                <FileDown className="h-4 w-4" />
+                Descargar reporte (PDF)
+              </>
+            )}
+          </Button>
+        )}
+
 
       </div>
 

@@ -40,6 +40,7 @@ export function crearClienteDesdeUsuario(
 ): Omit<Cliente, "id"> {
   return {
     nombre: usuario.nombre ?? usuario.email ?? "",  // 👈 clave
+    administrador: "", 
     direccion: "",
     banco: "",
     numeroCuenta: "",

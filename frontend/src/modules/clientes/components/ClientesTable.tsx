@@ -418,6 +418,7 @@ export default function ClientesCrud() {
 
                 const direccion = (formData.get("direccion") as string)?.trim();
                 const banco = (formData.get("banco") as string)?.trim();
+                const administrador = (formData.get("administrador") as string)?.trim();
                 const numeroCuenta = (formData.get("numeroCuenta") as string)?.trim();
 
                 const tipoCuenta =
@@ -433,6 +434,7 @@ export default function ClientesCrud() {
 
                 const payload: Partial<Cliente> = {
                   direccion: direccion || "",
+                  administrador: administrador || "", 
                   banco: banco || "",
                   numeroCuenta: numeroCuenta || "",
                   ...(tipoCuenta ? { tipoCuenta } : {}),
@@ -539,6 +541,16 @@ export default function ClientesCrud() {
                   </div>
 
                   <div>
+                    <Label className="text-brand-secondary font-medium">Administrador</Label>
+                    <Input
+                      name="administrador"
+                      defaultValue={clienteEditando?.administrador}
+                      className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
+                      placeholder="Ej: Juan Pérez"
+                    />
+                  </div>
+
+                  <div>
                     <Label className="text-brand-secondary font-medium">Banco</Label>
                     <Input
                       name="banco"
@@ -547,6 +559,8 @@ export default function ClientesCrud() {
                       placeholder="Ej: Bancolombia"
                     />
                   </div>
+
+                  
 
                   <div>
                     <Label className="text-brand-secondary font-medium">

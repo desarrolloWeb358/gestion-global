@@ -59,7 +59,7 @@ export function buildFechaCorte(year: number, month: number): Date {
 }
 
 export function isFinalTip(t: TipificacionDeuda) {
-  return t === TipificacionDeuda.TERMINADO || t === TipificacionDeuda.DEMANDA_TERMINADO;
+  return t === TipificacionDeuda.TERMINADO || t === TipificacionDeuda.DEMANDA_TERMINADO || t === TipificacionDeuda.DEVUELTO;
 }
 
 export function inicioDentroDelAnio(inicio: Date | null, year: number) {

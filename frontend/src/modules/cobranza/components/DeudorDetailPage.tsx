@@ -214,10 +214,13 @@ export default function DeudorDetailPage() {
       const last = items[items.length - 1]; // ✅ último mes (por orderBy mes asc)
       const deuda = Number(last.deuda ?? 0);
 
+      /*
       const honorarios =
         Number(last.honorariosDeuda ?? 0) +
         Number(last.honorariosAcuerdo ?? 0) +
         Number(last.honorariosRecaudo ?? 0);
+        */
+       const honorarios = Number(last.honorariosDeuda ?? 0);       
 
       setResumenMes({
         deuda,

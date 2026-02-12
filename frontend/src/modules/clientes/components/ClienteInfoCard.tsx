@@ -138,6 +138,13 @@ export function ClienteInfoCard({ cliente, ejecutivos = [], usuarios = [], total
         </div>
 
         <div>
+          <div className="text-sm text-gray-600 mb-1">Administrador</div>
+          <div className="text-base text-gray-900">
+            {cargandoUsuario ? "Cargando…" : show(cliente.administrador)}
+          </div>
+        </div>
+
+        <div>
           <div className="text-sm text-gray-600 mb-1">Teléfono</div>
           <div className="text-base text-gray-900">
             {cargandoUsuario ? "Cargando…" : show(telefonoCliente)}

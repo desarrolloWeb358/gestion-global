@@ -4,6 +4,7 @@ export interface Cliente {
 
   nombre?: string;
   direccion?: string;
+  administrador?: string;
   banco?: string;
   numeroCuenta?: string;
   tipoCuenta?: "ahorros" | "corriente" | "convenio" | "";

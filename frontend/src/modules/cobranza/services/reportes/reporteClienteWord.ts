@@ -13,6 +13,7 @@ import {
   WidthType,
   TableLayoutType,
   BorderStyle,
+  ExternalHyperlink,
 } from "docx";
 
 import { buildHeaderGG, buildFooterGG, cm, formatCOP, formatFechaLargaES } from "./helperWord";
@@ -35,13 +36,195 @@ const MESES_ES = [
   "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
 ];
 
+// ===== RECOMENDACIONES =====
+const RECOM_MIN = 2_000_000;
+
+function pCenterTitleUnderline(text: string) {
+  return new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 260, after: 180 },
+    children: [
+      new TextRun({
+        text: (text || "").toUpperCase(),
+        bold: true,
+        italics: true,
+        underline: {},
+        size: 26,
+        color: "000000",
+      }),
+    ],
+  });
+}
+
+// Intenta sacar TORRE/APTO desde "ubicacion" (tú ajustas si tu formato es distinto)
+function parseTorreApto(ubicacion: string) {
+  const s = (ubicacion || "").toUpperCase();
+
+  // Ej: "TORRE 1 APTO 702" / "Torre 1 Apto 702"
+  const m1 = s.match(/TORRE\s*([A-Z0-9]+)\s*(?:APTO|APT|APARTAMENTO)\s*([A-Z0-9]+)/i);
+  if (m1) return { torre: m1[1], apto: m1[2] };
+
+  // Ej: "1-702" o "1 / 702"
+  const m2 = s.match(/(\d+)\s*[-/]\s*(\d+)/);
+  if (m2) return { torre: m2[1], apto: m2[2] };
+
+  // Ej: "T1 702"
+  const m3 = s.match(/T\s*([A-Z0-9]+)\s+([A-Z0-9]+)/i);
+  if (m3) return { torre: m3[1], apto: m3[2] };
+
+  return { torre: "-", apto: "-" };
+}
+
+function pRecomendacionesWord(params: {
+  clienteNombre: string;
+  cantidad: number;
+  monto: number; // fijo 2.000.000
+}) {
+  const { clienteNombre, cantidad, monto } = params;
+
+  const money = formatCOP(monto);
+  const letras = numeroALetras(monto).toUpperCase();
+
+  return new Paragraph({
+    alignment: AlignmentType.JUSTIFIED,
+    spacing: { after: 160 },
+    children: [
+      new TextRun({
+        text: "Se recomienda a la copropiedad en cabeza del Administrador ",
+        italics: true,
+        size: 24,
+        color: "000000",
+      }),      
+      new TextRun({
+        text: "que, en consideración al tiempo de mora, el monto adeudado y habiéndose agotado previamente la gestión prejurídica respecto a los ",
+        italics: true,
+        size: 24,
+        color: "000000",
+      }),
+      new TextRun({
+        text: String(cantidad),
+        italics: true,
+        bold: true,
+        size: 24,
+        color: "000000",
+      }),
+      new TextRun({
+        text: " deudores que presentan obligaciones superiores a los ",
+        italics: true,
+        size: 24,
+        color: "000000",
+      }),
+
+      // monto en rojo (fijo)
+      new TextRun({
+        text: money,
+        italics: true,
+        bold: true,
+        color: RED,
+        size: 24,
+      }),
+      new TextRun({ text: " (", italics: true, size: 24 }),
+
+      // letras en rojo
+      new TextRun({
+        text: `${letras} PESOS M/CTE`,
+        italics: true,
+        bold: true,
+        color: RED,
+        size: 24,
+      }),
+      new TextRun({ text: "), se autorice dar inicio a los respectivos procesos ejecutivos en contra de cada uno de ellos.", italics: true, size: 24 }),
+    ],
+  });
+}
+
+async function buildFirmaGG(params: { nombreFirma?: string }) {
+  // ✅ AJUSTA la ruta del archivo en tu /public
+  const firmaBytes = await urlToUint8Array("/images/logo/gestion_firma.jpg");
+  const nombre = (params.nombreFirma || "").trim();
+
+  return [
+    new Paragraph({
+      alignment: AlignmentType.LEFT,
+      spacing: { after: 80 },
+      children: [
+        new ImageRun({
+          data: firmaBytes,
+          type: "png",
+          transformation: { width: 190, height: 70 }, // ajusta a tu gusto
+        }),
+      ],
+    }),
+
+    
+
+    new Paragraph({
+      alignment: AlignmentType.LEFT,
+      spacing: { after: 20 },
+      children: [
+        new TextRun({ text: ( nombre || "").toUpperCase(), bold: true, italics: true, size: 24, color: "000000" }),
+        
+      ],
+    }),
+
+    new Paragraph({
+      alignment: AlignmentType.LEFT,
+      spacing: { after: 60 },
+      children: [
+        new TextRun({ text: "Ejecutiva de Cuenta", italics: true, size: 24, color: "000000" }),
+      ],
+    }),
+  ];
+}
+
+function buildTablaRecomendacionesExcelStyle(input: {
+  mesLabel: string; // ✅ "ENERO", "JUNIO", etc
+  rows: { tipificacion: string; ubicacion: string; deudor: string; capitalMes: number }[];
+}) {
+  const mes = (input.mesLabel || "").toUpperCase();
+
+  const header = new TableRow({
+    children: [
+      excelCell({ text: "TIPIFICACIÓN", bold: true, fill: HEADER_FILL, align: AlignmentType.LEFT }),
+      excelCell({ text: "UBICACIÓN", bold: true, fill: HEADER_FILL, align: AlignmentType.LEFT }),
+      excelCell({ text: "DEUDOR", bold: true, fill: HEADER_FILL, align: AlignmentType.LEFT }),
+      excelCell({ text: `CAPITAL ${mes}`, bold: true, fill: HEADER_FILL, align: AlignmentType.RIGHT }),
+    ],
+  });
+
+  const body = input.rows.map((r) => {
+    return new TableRow({
+      children: [
+        excelCell({ text: (r.tipificacion || "").toUpperCase(), align: AlignmentType.LEFT }),
+        excelCell({ text: (r.ubicacion || "").toUpperCase(), align: AlignmentType.LEFT }),
+        excelCell({ text: (r.deudor || "").toUpperCase(), align: AlignmentType.LEFT }),
+        excelCell({
+          text: formatCOP(r.capitalMes ?? 0),
+          align: AlignmentType.RIGHT,
+          bold: true,
+          color: "000000",
+        }),
+      ],
+    });
+  });
+
+  return new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    layout: TableLayoutType.FIXED,
+    rows: [header, ...body],
+  });
+}
+
+
+
+
 function fontSizeByCols(cols: number, kind: "header" | "value") {
   // half-points: 24=12pt, 20=10pt, 18=9pt, 16=8pt, 14=7pt
-  if (cols <= 4) return kind === "header" ? 24 : 24;
-  if (cols <= 6) return kind === "header" ? 22 : 24;
+  if (cols <= 4) return kind === "header" ? 20 : 20;
+  if (cols <= 6) return kind === "header" ? 20 : 20;
   if (cols <= 8) return kind === "header" ? 18 : 20;
   if (cols <= 10) return kind === "header" ? 16 : 18;
-  return kind === "header" ? 14 : 16; // ✅ 12 meses: header 7pt, value 8pt
+  return kind === "header" ? 14 : 14; // ✅ 12 meses: header 7pt, value 8pt
 }
 
 function moneyNoBreak(s: string) {
@@ -363,7 +546,7 @@ function buildProcesoDemandaCard(input: {
 
   // ✅ Párrafos bonitos: número + fecha en gris + texto normal
   const obsParagraphs: Paragraph[] = lista.length
-  ? lista.map((it) => {
+    ? lista.map((it) => {
       const fecha = it.fecha ? it.fecha : "";
       const texto = (it.texto || "").trim();
 
@@ -379,7 +562,7 @@ function buildProcesoDemandaCard(input: {
         ],
       });
     })
-  : [new Paragraph({ children: [new TextRun({ text: "Sin observaciones.", size: 20 })] })];
+    : [new Paragraph({ children: [new TextRun({ text: "Sin observaciones.", size: 20 })] })];
 
 
   const obsRow = new TableRow({
@@ -430,7 +613,7 @@ function cellWrap(params: {
               text: text ?? "",
               bold: !!bold,
               color: color ?? "000000",
-              size: size ?? 22,
+              size: size ?? 20,
             }),
           ],
         }),
@@ -460,7 +643,7 @@ function excelCell(params: {
             text: text ?? "",
             bold: !!bold,
             color: color ?? "000000",
-            size: size ?? 24, // 12pt (docx usa half-points*2 => 24)
+            size: size ?? 20, // 12pt (docx usa half-points*2 => 24)
           }),
         ],
       }),
@@ -485,12 +668,55 @@ function buildTablaResumenTipificacionExcelStyle(input: {
 }) {
   const { resumenTipificacion, totalesResumen, formatCOP } = input;
 
+  // ✅ SOLO esta tabla: anchos fijos (suman 100)
+  const W_TIP = 35;
+  const W_INM = 15;
+  const W_REC = 25;
+  const W_POR = 25;
+
+  // ✅ SOLO esta tabla: letra más pequeña
+  const HEADER_SIZE = 20; // 9pt
+  const VALUE_SIZE = 20;  // 9pt
+
+  // 🔒 helper LOCAL (no afecta otras tablas)
+  const cellPct = (params: {
+    text: string;
+    widthPct: number;
+    bold?: boolean;
+    color?: string;
+    fill?: string;
+    align?: (typeof AlignmentType)[keyof typeof AlignmentType];
+    size?: number;
+  }) => {
+    const { text, widthPct, bold, color, fill, align, size } = params;
+
+    return new TableCell({
+      width: { size: widthPct, type: WidthType.PERCENTAGE },
+      borders: excelBorders(),
+      shading: fill ? { fill } : undefined,
+      children: [
+        new Paragraph({
+          alignment: align ?? AlignmentType.LEFT,
+          spacing: { before: 0, after: 0 },
+          children: [
+            new TextRun({
+              text: text ?? "",
+              bold: !!bold,
+              color: color ?? "000000",
+              size: size ?? VALUE_SIZE,
+            }),
+          ],
+        }),
+      ],
+    });
+  };
+
   const header = new TableRow({
     children: [
-      excelCell({ text: "TIPIFICACIÓN", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
-      excelCell({ text: "INMUEBLE", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
-      excelCell({ text: "RECAUDO TOTAL", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
-      excelCell({ text: "POR RECUPERAR", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
+      cellPct({ text: "TIPIFICACIÓN", widthPct: W_TIP, bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: HEADER_SIZE }),
+      cellPct({ text: "INMUEBLE", widthPct: W_INM, bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: HEADER_SIZE }),
+      cellPct({ text: "RECAUDO TOTAL", widthPct: W_REC, bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: HEADER_SIZE }),
+      cellPct({ text: "POR RECUPERAR", widthPct: W_POR, bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: HEADER_SIZE }),
     ],
   });
 
@@ -500,29 +726,37 @@ function buildTablaResumenTipificacionExcelStyle(input: {
 
     return new TableRow({
       children: [
-        excelCell({
+        cellPct({
           text: tip.toUpperCase(),
-          bold: rojo,                 // en la imagen se ve “fuerte” cuando es roja
+          widthPct: W_TIP,
+          bold: rojo,
           color: rojo ? RED : "000000",
           align: AlignmentType.LEFT,
+          size: VALUE_SIZE,
         }),
-        excelCell({
+        cellPct({
           text: String(r.inmuebles ?? 0),
+          widthPct: W_INM,
           bold: rojo,
           color: rojo ? RED : "000000",
-          align: AlignmentType.CENTER,  // ✅ toda la columna centrada
+          align: AlignmentType.CENTER,
+          size: VALUE_SIZE,
         }),
-        excelCell({
-          text: formatCOP(r.recaudoTotal),
+        cellPct({
+          text: formatCOP(r.recaudoTotal ?? 0),
+          widthPct: W_REC,
           bold: rojo,
           color: rojo ? RED : "000000",
-          align: AlignmentType.RIGHT,   // ✅ dinero a la derecha
+          align: AlignmentType.RIGHT,
+          size: VALUE_SIZE,
         }),
-        excelCell({
-          text: formatCOP(r.porRecuperar),
+        cellPct({
+          text: formatCOP(r.porRecuperar ?? 0),
+          widthPct: W_POR,
           bold: false,
           color: "000000",
           align: AlignmentType.RIGHT,
+          size: VALUE_SIZE,
         }),
       ],
     });
@@ -530,34 +764,10 @@ function buildTablaResumenTipificacionExcelStyle(input: {
 
   const totalRow = new TableRow({
     children: [
-      excelCell({
-        text: "TOTAL",
-        bold: true,
-        color: RED,
-        fill: TOTAL_FILL,
-        align: AlignmentType.CENTER,
-      }),
-      excelCell({
-        text: String(totalesResumen.inmuebles ?? 0),
-        bold: true,
-        color: RED,
-        fill: TOTAL_FILL,
-        align: AlignmentType.CENTER,
-      }),
-      excelCell({
-        text: formatCOP(totalesResumen.recaudoTotal),
-        bold: true,
-        color: RED,
-        fill: TOTAL_FILL,
-        align: AlignmentType.RIGHT,
-      }),
-      excelCell({
-        text: formatCOP(totalesResumen.porRecuperar),
-        bold: true,
-        color: "000000", // en tu imagen el por recuperar total se ve negro (si lo quieres rojo: RED)
-        fill: TOTAL_FILL,
-        align: AlignmentType.RIGHT,
-      }),
+      cellPct({ text: "TOTAL", widthPct: W_TIP, bold: true, color: RED, fill: TOTAL_FILL, align: AlignmentType.CENTER, size: VALUE_SIZE }),
+      cellPct({ text: String(totalesResumen.inmuebles ?? 0), widthPct: W_INM, bold: true, color: RED, fill: TOTAL_FILL, align: AlignmentType.CENTER, size: VALUE_SIZE }),
+      cellPct({ text: formatCOP(totalesResumen.recaudoTotal ?? 0), widthPct: W_REC, bold: true, color: RED, fill: TOTAL_FILL, align: AlignmentType.RIGHT, size: VALUE_SIZE }),
+      cellPct({ text: formatCOP(totalesResumen.porRecuperar ?? 0), widthPct: W_POR, bold: true, color: "000000", fill: TOTAL_FILL, align: AlignmentType.RIGHT, size: VALUE_SIZE }),
     ],
   });
 
@@ -567,6 +777,7 @@ function buildTablaResumenTipificacionExcelStyle(input: {
     rows: [header, ...rows, totalRow],
   });
 }
+
 
 function buildTablaRecaudoHorizontalExcelStyle(input: {
   recaudosMensuales: RecaudoMensualRow[];
@@ -638,6 +849,46 @@ function pJust(text: string, after = 120) {
     spacing: { after },
     children: [new TextRun({ text, font: "Arial", color: TEXT, size: 24 })],
   });
+}
+
+function pJustItalic(text: string, after = 140) {
+  return new Paragraph({
+    alignment: AlignmentType.JUSTIFIED,
+    spacing: { after },
+    children: [new TextRun({ text, italics: true, size: 24, color: "000000" })],
+  });
+}
+
+function buildBloqueGestionInformativa() {
+  return [
+    pCenterTitleCompact("GESTIÓN INFORMATIVA SISTEMA GESGLO – GESTION GLOBAL ACG SAS"),
+    pCenterInfoConLink({
+      beforeText: "Para más información por favor ingresar a la página ",
+      url: "https://www.gestionglobalacg.com",
+      afterText: " con su usuario y contraseña debidamente enviada al correo de la copropiedad, si necesita soporte para ingresar a la plataforma, por favor comunicarse al correo electrónico: soporte@gestionglobalacg.com",
+    }),
+  ];
+}
+
+function buildBloqueTasacionHonorarios(params: { mesLabel: string; year: number }) {
+  const mes = (params.mesLabel || "").toLowerCase();
+  const year = params.year;
+
+  return [
+    pCenterTitleCompact("TASACION DE HONORARIOS"),
+
+    pJustItalic(
+      `Por la consecución de los diferentes procesos y la gestión realizada por nuestros gestores de cobranza, y sin tener en cuenta el valor total de la asignación, hemos generado la Factura Electrónica del mes de ${mes} de ${year}.`,
+      180
+    ),
+
+    pJustItalic(
+      "Esperamos estar cumpliendo con sus expectativas de recaudo, sin otro particular y en espera de sus comentarios.",
+      180
+    ),
+
+    pJustItalic("Cordialmente.", 200),
+  ];
 }
 
 function pLeft(text: string, after = 120, bold = false) {
@@ -735,6 +986,62 @@ function bodyRow(values: string[], rightCols: number[] = [], fill?: string, bold
   });
 }
 
+// Azul estándar de hyperlink Word
+const LINK_BLUE = "0563C1";
+
+// Traer imagen desde /public o URL (frontend) -> Uint8Array
+async function urlToUint8Array(url: string): Promise<Uint8Array> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`No se pudo cargar imagen: ${url}`);
+  const ab = await res.arrayBuffer();
+  return new Uint8Array(ab);
+}
+
+function pCenterTitleCompact(text: string) {
+  return new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 200, after: 140 },
+    children: [
+      new TextRun({
+        text: (text || "").toUpperCase(),
+        bold: true,
+        italics: true,
+        size: 26,
+        color: "000000",
+      }),
+    ],
+  });
+}
+
+// Párrafo centrado en cursiva con link azul subrayado (clickeable)
+function pCenterInfoConLink(params: { beforeText: string; url: string; afterText: string }) {
+  const { beforeText, url, afterText } = params;
+
+  return new Paragraph({
+    alignment: AlignmentType.JUSTIFIED,
+    spacing: { after: 160 },
+    children: [
+      new TextRun({ text: beforeText, italics: true, size: 24, color: "000000" }),
+
+      // Link clickeable
+      new ExternalHyperlink({
+        link: url,
+        children: [
+          new TextRun({
+            text: url,
+            italics: true,
+            size: 24,
+            color: LINK_BLUE,
+            underline: {},
+          }),
+        ],
+      }),
+
+      new TextRun({ text: afterText, italics: true, size: 24, color: "000000" }),
+    ],
+  });
+}
+
 function dataUrlToUint8Array(dataUrl: string): Uint8Array {
   const base64 = dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl;
   const binary = atob(base64);
@@ -800,6 +1107,8 @@ export type ReporteClienteWordInput = {
   ciudad?: string;
   fechaGeneracion?: Date;
   clienteNombre?: string;
+  administrador?: string;
+  firmaNombre?: string;
   yearTabla?: number;
   monthTabla?: number;
 
@@ -822,6 +1131,11 @@ export type ReporteClienteWordInput = {
 
 export async function buildReporteClienteDocx(input: ReporteClienteWordInput): Promise<Blob> {
   const ciudad = input.ciudad ?? "Bogotá D.C.";
+  const administrador =
+    (input.administrador ?? "").trim() || "ADMINISTRADOR";
+
+  const nombreFirma = (input.firmaNombre || "").trim();
+
   const fecha = input.fechaGeneracion ?? new Date();
   const fechaLarga = formatFechaLargaES(fecha);
 
@@ -846,12 +1160,12 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
   children.push(pLeftItalic("Señores", 0));             // cursiva + bold
   children.push(pLeftItalic(nombreCliente, 0, true));
 
-  // "Atc, Sra. XXXX" con XXXX en rojo
+
   children.push(
     pLeftItalicRuns(
       [
-        tr("Atc, Sr. ", { italics: true }),
-        tr("XXXXXXXX", { italics: true, bold: true, color: "FF0000" }), // XXXX en rojo
+        tr("Señor(a) ", { italics: true }),
+        tr(administrador.toUpperCase(), { italics: true }),
       ],
       0
     )
@@ -859,7 +1173,7 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
 
   children.push(pLeftItalic("Administrador", 0));
   children.push(pLeftItalic("Ciudad", 330));
-  children.push(pLeftItalic("Respetada señora", 300));
+  children.push(pLeftItalic("Cordial saludo,", 300));
 
   children.push(
     new Paragraph({
@@ -1042,7 +1356,7 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
   }
 
 
-  
+
 
   // ===============================
   // DETALLE POR TIPIFICACIÓN (TODAS)
@@ -1088,7 +1402,7 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
 
 
   // PROCESOS DE DEMANDA (formato gerencial tipo “tarjeta Excel”)
-  children.push(pCenterTitle("PROCESOS DE DEMANDA"));
+  children.push(pCenterTitle("SEGUIMIENTO PROCESOS DE DEMANDA"));
 
   if (!input.demandas?.length) {
     children.push(pJust("No hay demandas para mostrar.", 160));
@@ -1110,6 +1424,71 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
       children.push(spacer(180));
     });
   }
+
+  // ===============================
+  // RECOMENDACIONES (final) - SOLO si hay deudores
+  // ===============================
+  const gestionandoBlock = (input.detallePorTipificacion || []).find(
+    (x) => normalizeTip(x.tipificacion) === "GESTIONANDO"
+  );
+
+  const recomRowsRaw = (gestionandoBlock?.detalle || []).filter(
+    (d) => (d.porRecuperar ?? 0) >= RECOM_MIN
+  );
+
+  if (recomRowsRaw.length) {
+    // ✅ mes dinámico según consulta
+    const mesCapital =
+      input.monthTabla ? nombreMes(input.monthTabla) : "enero"; // fallback si no llega monthTabla
+
+    children.push(pCenterTitleUnderline("RECOMENDACIONES"));
+
+    children.push(
+      pRecomendacionesWord({
+        clienteNombre: nombreCliente,
+        cantidad: recomRowsRaw.length,
+        monto: RECOM_MIN, // fijo 2.000.000
+      })
+    );
+
+    const recomRows = recomRowsRaw.map((d) => ({
+      tipificacion: "GESTIONANDO",
+      ubicacion: d.ubicacion ?? "",
+      deudor: d.nombre ?? "",
+      capitalMes: d.porRecuperar ?? 0, // 👈 tu "capital" para esta tabla (realmente es POR RECUPERAR)
+    }));
+
+    children.push(
+      buildTablaRecomendacionesExcelStyle({
+        mesLabel: mesCapital,
+        rows: recomRows,
+      })
+    );
+
+    children.push(spacer(180));
+  }
+
+
+  // ===============================
+  // BLOQUES FIJOS FINALES + FIRMA
+  // ===============================
+  const mesConsulta = input.monthTabla ? nombreMes(input.monthTabla) : mesFin; // mesFin ya lo calculas arriba
+  const yearConsulta = input.yearTabla ?? year;
+
+  //children.push(spacer(220));
+
+  // Bloque informativo
+  children.push(...buildBloqueGestionInformativa());
+
+  //children.push(spacer(120));
+
+  // Tasación (mes/año dinámico)
+  children.push(...buildBloqueTasacionHonorarios({ mesLabel: mesConsulta, year: yearConsulta }));
+
+  // Firma (imagen + texto)
+  children.push(...(await buildFirmaGG({
+    nombreFirma: input.firmaNombre
+  })));
 
 
   const baseSectionProps = {
