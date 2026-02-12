@@ -13,6 +13,7 @@ import {
   TableLayoutType,
   VerticalAlign,
   TextDirection,
+  HeightRule,
 } from "docx";
 
 import type { IRunOptions, IParagraphOptions } from "docx";
@@ -55,7 +56,7 @@ const rRed = (text: string) => r(text, { bold: true, color: COLOR_RED });
 const p = (children: TextRun[], opts: Partial<IParagraphOptions> = {}) =>
   new Paragraph({
     children,
-    spacing: { after: 180, line: 360 },
+    spacing: { after: 180, line: 240 },
     ...opts,
   });
 
@@ -78,8 +79,82 @@ const pJustify = (children: TextRun[]) =>
   new Paragraph({
     alignment: AlignmentType.JUSTIFIED,
     children,
-    spacing: { after: 180, line: 360 },
+    spacing: { after: 180, line: 240 },
   });
+
+function noBorders() {
+  return {
+    top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+    bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+    left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+    right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+  };
+}
+
+function buildHuellaBlock() {
+  const blockWidth = 1800; // 👈 más angosto (ajusta 1600-2200)
+  const boxHeight = 1800;
+
+  const BOX_BORDER = {
+    top: { style: BorderStyle.SINGLE, size: 8, color: "000000" },
+    bottom: { style: BorderStyle.SINGLE, size: 8, color: "000000" },
+    left: { style: BorderStyle.SINGLE, size: 8, color: "000000" },
+    right: { style: BorderStyle.SINGLE, size: 8, color: "000000" },
+  };
+
+  return new Table({
+    width: { size: blockWidth, type: WidthType.DXA },
+    layout: TableLayoutType.FIXED,
+    rows: [
+      new TableRow({
+        children: [
+          new TableCell({
+            borders: noBorders(),
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 80 },
+                children: [new TextRun({ text: "HUELLA", font: FONT, size: 20 })],
+              }),
+            ],
+          }),
+        ],
+      }),
+
+      // ✅ CUADRO con borde completo
+      new TableRow({
+        height: { value: boxHeight, rule: HeightRule.EXACT },
+        children: [
+          new TableCell({
+            borders: BOX_BORDER,
+            verticalAlign: VerticalAlign.CENTER,
+            margins: { top: 40, bottom: 40, left: 40, right: 40 }, // ayuda a que Word no colapse
+            children: [new Paragraph({ text: "" })],
+          }),
+        ],
+      }),
+
+      new TableRow({
+        children: [
+          new TableCell({
+            borders: noBorders(),
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                spacing: { before: 80 },
+                children: [new TextRun({ text: "INDICE DERECHO", font: FONT, size: 18 })],
+              }),
+            ],
+          }),
+        ],
+      }),
+    ],
+  });
+}
+
+
+
+
 
 const sectionTitle = (text: string) =>
   new Paragraph({
@@ -457,7 +532,18 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
     sections: [
       {
         properties: {
-          page: { margin: { top: cm(2), bottom: cm(2), left: cm(3), right: cm(2) } },
+          page: {
+            size: {
+              width: 12240,  // 8.5"
+              height: 15840, // 11"
+            },
+            margin: {
+              top: cm(2),
+              bottom: cm(2),
+              left: cm(3),
+              right: cm(2),
+            },
+          },
         },
         headers: { default: header },
         footers: { default: footer },
@@ -497,7 +583,7 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
             r(", que en adelante se regirá por las cláusulas que a continuación se enuncian, previas las siguientes"),
           ]),
 
-          new Paragraph({ text: "", spacing: { after: 180 } }),
+          //new Paragraph({ text: "", spacing: { after: 180 } }),
 
           // ===== CONSIDERACIONES =====
           sectionTitle("CONSIDERACIONES:"),
@@ -539,7 +625,7 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
             r(", hemos acordado celebrar el presente acuerdo de pago, que se regirá en especial por las siguientes:"),
           ]),
 
-          new Paragraph({ text: "", spacing: { after: 180 } }),
+          //new Paragraph({ text: "", spacing: { after: 180 } }),
 
           // ===== CLAUSULAS =====
           sectionTitle("CLAUSULAS:"),
@@ -571,6 +657,8 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
             r(", según tabla de amortización."),
           ]),
 
+          new Paragraph({ text: "", spacing: { after: 120 } }),
+          new Paragraph({ text: "", spacing: { after: 120 } }),
           new Paragraph({ text: "", spacing: { after: 120 } }),
 
           // TABLA AMORTIZACION
@@ -612,7 +700,7 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
           new Paragraph({
             alignment: AlignmentType.JUSTIFIED,
             bullet: { level: 0 },
-            spacing: { after: 180, line: 360 },
+            spacing: { after: 180, line: 240 },
             children: [
               rBold("CUOTA ACUERDO DE PAGO EN EL  DE TORRE Y APARTAMENTO ("),
               valOrRedBold(
@@ -720,27 +808,63 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
           new Paragraph({ text: "", spacing: { after: 320 } }),
 
           p([rBold("EL DEUDOR,")]),
-          new Paragraph({ text: "", spacing: { after: 420 } }),
-          p([r("HUELLA")], { alignment: AlignmentType.RIGHT }),
-          p([r("INDICE DERECHO")], { alignment: AlignmentType.RIGHT }),
-          new Paragraph({ text: "", spacing: { after: 180 } }),
-          p([valOrRedBold(deudor, "XXXXX (NOMBRE DEUDOR)")]),
-          p([
-            r("C.C No. "),
-            valOrRedBold(input.deudorDocumento, "XXXXX (CÉDULA)"),
-            r(" de "),
-            valOrRedBold(input.deudorCiudadDoc, "XXXXX (CIUDAD)"),
-            r("."),
-          ]),
+          new Paragraph({ text: "", spacing: { after: 220 } }),
 
-          new Paragraph({ text: "", spacing: { after: 320 } }),
+/**/ new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            layout: TableLayoutType.FIXED,
+            rows: [
+              new TableRow({
+                children: [
+                  // IZQUIERDA (ancha) - SIN BORDES
+                  new TableCell({
+                    width: { size: 9000, type: WidthType.DXA }, // 👈 ancho grande
+                    borders: noBorders(),
+                    verticalAlign: VerticalAlign.TOP,
+                    children: [
+                      new Paragraph({ text: "", spacing: { after: 1800 } }),
+                      p([valOrRedBold(deudor, "XXXXX (NOMBRE DEUDOR)")]),
+                      p([
+                        r("C.C No. "),
+                        valOrRedBold(input.deudorDocumento, "XXXXX (CÉDULA)"),
+                        r(" de "),
+                        valOrRedBold(input.deudorCiudadDoc, "XXXXX (CIUDAD)"),
+                        r("."),
+                      ]),
+                    ],
+                  }),
+
+                  // DERECHA (bloque huella) - SIN BORDES EXTERNOS
+                  new TableCell({
+                    width: { size: 3000, type: WidthType.DXA }, // 👈 bloque derecho
+                    borders: noBorders(),
+                    verticalAlign: VerticalAlign.TOP,
+                    children: [
+                      new Paragraph({ alignment: AlignmentType.RIGHT, children: [] }),
+                      buildHuellaBlock(),
+                    ],
+                  }),
+                ],
+              }),
+            ],
+          }),
+
+          new Paragraph({ text: "", spacing: { after: 600 } }),
 
           p([rBold("EL ACREEDOR,")]),
-          new Paragraph({ text: "", spacing: { after: 420 } }),
-          p([valOrRedBold(empresaRepresentante, "XXXXX (REPRESENTANTE LEGAL)")]),
-          p([rBold("Representante Legal")]),
-          p([rBold(empresaNombre)]),
-          p([rBold("Nit. "), rBold(empresaNit), r(".")]),
+          new Paragraph({ text: "", spacing: { after: 1200 } }),
+          p([valOrRedBold(empresaRepresentante, "XXXXX (REPRESENTANTE LEGAL)")], {
+            spacing: { after: 0 }
+          }),
+          p([rBold("Representante Legal")], {
+            spacing: { after: 0 }
+          }),
+          p([rBold(empresaNombre)], {
+            spacing: { after: 0 }
+          }),
+          p([rBold("Nit. "), rBold(empresaNit), r(".")], {
+            spacing: { after: 0 }
+          }),
         ],
       },
     ],
