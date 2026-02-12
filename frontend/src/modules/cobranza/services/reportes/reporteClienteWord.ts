@@ -69,11 +69,7 @@ function normalizeTip(t: string) {
     .replace(/\s+/g, " ");
 }
 
-function calcVolumenTip(r: { recaudoTotal: number; porRecuperar: number }) {
-  // “volumen de cartera” recomendado = recaudo + saldo por recuperar
-  // (si tú defines volumen solo como porRecuperar, cámbialo aquí y en totalVolumen)
-  return (r.recaudoTotal || 0) + (r.porRecuperar || 0);
-}
+
 
 function pctOf(vol: number, total: number) {
   if (!total) return 0;
@@ -279,6 +275,31 @@ function valueCell(
   });
 }
 
+function runsFromMultiline(
+  text: string,
+  run: { size?: number; color?: string; bold?: boolean; italics?: boolean }
+): TextRun[] {
+  const lines = (text ?? "").split(/\r?\n/);
+
+  const out: TextRun[] = [];
+  lines.forEach((line, i) => {
+    if (i > 0) out.push(new TextRun({ break: 1 })); // 👈 salto de línea real en Word
+    out.push(
+      new TextRun({
+        text: line,
+        size: run.size,
+        color: run.color,
+        bold: run.bold,
+        italics: run.italics,
+      })
+    );
+  });
+
+  return out;
+}
+
+
+
 /**
  * Tarjeta (card) profesional para un proceso de demanda:
  * - Tabla 4 columnas (cabecera + valores)
@@ -342,20 +363,24 @@ function buildProcesoDemandaCard(input: {
 
   // ✅ Párrafos bonitos: número + fecha en gris + texto normal
   const obsParagraphs: Paragraph[] = lista.length
-    ? lista.map((it, idx) => {
-        const fecha = it.fecha ? it.fecha : "";
-        const texto = (it.texto || "").trim();
+  ? lista.map((it) => {
+      const fecha = it.fecha ? it.fecha : "";
+      const texto = (it.texto || "").trim();
 
-        return new Paragraph({
-          spacing: { after: 80 },
-          indent: { left: 360, hanging: 360 }, // ✅ sangría tipo lista (pro)
-          children: [            
-            ...(fecha ? [new TextRun({ text: `${fecha} `, bold: true, size: 20, color: "555555" })] : []),
-            new TextRun({ text: texto, size: 20, color: "000000" }),
-          ],
-        });
-      })
-    : [new Paragraph({ children: [new TextRun({ text: "Sin observaciones.", size: 20 })] })];
+      return new Paragraph({
+        spacing: { after: 80 },
+        children: [
+          ...(fecha
+            ? [new TextRun({ text: `${fecha} `, bold: false, size: 20, color: "000000" })]
+            : []),
+
+          // ✅ Respeta saltos de línea (\n) dentro del texto
+          ...runsFromMultiline(texto, { size: 20, color: "000000" }),
+        ],
+      });
+    })
+  : [new Paragraph({ children: [new TextRun({ text: "Sin observaciones.", size: 20 })] })];
+
 
   const obsRow = new TableRow({
     children: [
@@ -885,7 +910,7 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
 
   // ✅ Gráfico Pie (PNG)
   children.push(pCenterTitle("CARTERA POR TIPIFICACIÓN"));
-  const targetWidth = 420;
+  const targetWidth = 580;
   if (input.pieChartPngDataUrl) {
     const pieBytes = dataUrlToUint8Array(input.pieChartPngDataUrl);
     const srcW = input.pieChartSize?.width ?? 1;
@@ -996,7 +1021,7 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
     // Escoge un ancho objetivo coherente con tu documento:
     // - 520 funciona bien
     // - si quieres más ancho: 560 o 600 (pero ojo con márgenes)
-    const targetWidth = 600;
+    const targetWidth = 560;
     const targetHeight = Math.round((targetWidth * srcH) / srcW);
 
     children.push(
@@ -1017,10 +1042,7 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
   }
 
 
-  const totalVolumenCartera = (input.resumenTipificacion || []).reduce(
-    (acc, r) => acc + calcVolumenTip(r),
-    0
-  );
+  
 
   // ===============================
   // DETALLE POR TIPIFICACIÓN (TODAS)
@@ -1028,20 +1050,17 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
   const detalleAll = (input.detallePorTipificacion || [])
     .filter((x) => (x.inmuebles ?? 0) > 0);
 
+  // ✅ total inmuebles (base del porcentaje, igual que el PIE de la UI)
+  const totalInmueblesTip = detalleAll.reduce(
+    (acc, x) => acc + (x.inmuebles ?? 0),
+    0
+  );
+
   if (detalleAll.length) {
-    // Título opcional (si lo quieres)
-    // children.push(pCenterTitle("DETALLE DE DEUDORES POR TIPIFICACIÓN"));
-
     detalleAll.forEach((bloque) => {
-      // ✅ porcentaje por "volumen de cartera" (no por cantidad)
-      const volBloque = calcVolumenTip({
-        recaudoTotal: bloque.recaudoTotal ?? 0,
-        porRecuperar: bloque.porRecuperar ?? 0,
-      });
+      // ✅ porcentaje por cantidad de inmuebles (NO por volumen)
+      const porcentaje = pctOf(bloque.inmuebles ?? 0, totalInmueblesTip); // 0..100
 
-      const porcentaje = pctOf(volBloque, totalVolumenCartera); // 0..100
-
-      // ✅ Leyenda dinámica por tipificación (esta es la que cambia el texto)
       children.push(
         pLeyendaTipificacionWord({
           tipificacion: bloque.tipificacion,
@@ -1051,7 +1070,6 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
         })
       );
 
-      // Tabla detalle
       if (!bloque.detalle?.length) {
         children.push(pJust("No hay deudores para esta tipificación.", 160));
       } else {
@@ -1066,6 +1084,7 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
       children.push(spacer(180));
     });
   }
+
 
 
   // PROCESOS DE DEMANDA (formato gerencial tipo “tarjeta Excel”)

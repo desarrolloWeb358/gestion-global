@@ -35,6 +35,7 @@ import {
   Download,
   FileDown,
 } from "lucide-react";
+import { toPng } from "html-to-image";
 
 import TablaDeudoresReporte from "./TablaDeudoresReporte";
 import { Typography } from "@/shared/design-system/components/Typography";
@@ -157,6 +158,19 @@ async function getPngSizeFromDataUrl(dataUrl: string): Promise<{ width: number; 
     img.src = dataUrl;
   });
 }
+
+const capturarPieConLeyenda = async (elemento: HTMLElement): Promise<string | null> => {
+  try {
+    return await toPng(elemento, {
+      pixelRatio: 2,
+      backgroundColor: "#ffffff",
+      cacheBust: true,
+    });
+  } catch (e) {
+    console.error("Error capturando pie+leyenda:", e);
+    return null;
+  }
+};
 
 const capturarPieSVG = async (elemento: HTMLElement): Promise<string | null> => {
   try {
@@ -499,7 +513,7 @@ export default function ReporteClientePage() {
 
   const renderLabel = (props: any) => {
     const { name, value, percent } = props;
-    if (!value || percent < 0.03) return null;
+    if (!value || percent < 0.01) return null;
     return `${name} ${(percent * 100).toFixed(0)}%`;
   };
 
@@ -514,7 +528,8 @@ export default function ReporteClientePage() {
       toast.info("Generando documento Word...");
 
       // 1) Capturar gráficos como PNG (nítido)
-      const piePng = pieChartRef.current ? await capturarPieSVG(pieChartRef.current) : null;
+      const piePng = pieChartRef.current ? await capturarPieConLeyenda(pieChartRef.current) : null;
+      //const piePng = pieChartRef.current ? await capturarPieSVG(pieChartRef.current) : null;
       const barPng = barChartRef.current ? await capturarBarSVG(barChartRef.current) : null;
 
       const pieSize = piePng ? await getPngSizeFromDataUrl(piePng) : null;
@@ -523,7 +538,7 @@ export default function ReporteClientePage() {
       // 2) Traer data adicional (misma que ve la página)
       // Seguimiento demandas
       const demandasRaw = await obtenerDemandasConSeguimientoCliente(clienteId, yearTabla, monthTabla);
-      
+
       // 3) Mapear a formato Word (mismo orden de tu UI: seguimientos DESC + observación al final)
       const demandasWord = demandasRaw.map((d) => {
         const seguimientosOrdenados = [...d.seguimientos]
@@ -605,7 +620,7 @@ export default function ReporteClientePage() {
           total: b.total,
         })),
 
-        detallePorTipificacion,       
+        detallePorTipificacion,
 
         demandas: demandasWord,
 
@@ -813,27 +828,60 @@ export default function ReporteClientePage() {
           </div>
         </div>
         <div className="p-4 md:p-5">
-          <div ref={pieChartRef} className="h-[340px]">
-            <ResponsiveContainer>
-              <PieChart>
-                <Pie
-                  data={chartData}
-                  dataKey="value"
-                  nameKey="name"
-                  outerRadius={120}
-                  label={renderLabel}
-                  labelLine={false}
-                  minAngle={3}
-                >
-                  {chartData.map((entry) => (
-                    <Cell key={entry.name} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v: any) => `${v} inmuebles`} separator=": " />
-                <Legend payload={legendPayload} />
-              </PieChart>
-            </ResponsiveContainer>
+          <div
+            ref={pieChartRef}
+            className="inline-block bg-white py-6 px-8"
+          >
+            <div className="flex items-center gap-10">
+              <div className="flex items-center gap-10">
+                {/* ✅ Leyenda a la izquierda (compacta) */}
+                <div className="min-w-[230px]">
+                  <Typography variant="small" className="text-brand-secondary font-semibold mb-3">
+                    Tipificaciones
+                  </Typography>
+
+                  <ul className="space-y-3">
+                    {legendPayload.map((it) => (
+                      <li key={String(it.id)} className="flex items-center gap-3">
+                        <span
+                          className="inline-block h-3 w-3 rounded-full"
+                          style={{ background: it.color }}
+                        />
+                        <span className="text-sm text-brand-secondary whitespace-nowrap">
+                          {it.value}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* ✅ Pie (tamaño fijo para que NO empuje y quede cerca) */}
+                <div className="w-[320px] h-[320px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={chartData}
+                        dataKey="value"
+                        nameKey="name"
+                        outerRadius={130}
+                        label={false}
+                        labelLine={false}
+                        minAngle={3}
+                      >
+                        {chartData.map((entry) => (
+                          <Cell key={entry.name} fill={entry.color} />
+                        ))}
+                      </Pie>
+
+                      <Tooltip formatter={(v: any) => `${v} inmuebles`} separator=": " />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
           </div>
+
+
         </div>
       </section>
 
