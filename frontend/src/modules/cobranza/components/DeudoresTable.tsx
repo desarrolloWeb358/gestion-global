@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { Eye, Pencil, Search, X, Users, UserPlus, Filter, FileText, Trash2, CalendarIcon } from "lucide-react";
 import { createPortal } from "react-dom";
 
@@ -199,7 +199,7 @@ function HistorialTipificacionesDialog(props: {
           </div>
         ) : (
           <div className="space-y-4">
-           
+
 
             <div className="overflow-x-auto rounded-lg border border-brand-secondary/10">
               <Table>
@@ -260,7 +260,7 @@ function HistorialTipificacionesDialog(props: {
                           </SelectContent>
                         </Select>
 
-                        
+
                       </TableCell>
 
                       <TableCell className="text-center align-top">
@@ -345,6 +345,8 @@ function HistorialTipificacionesDialog(props: {
 ========================= */
 
 export default function DeudoresTable() {
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { clienteId } = useParams<{ clienteId: string }>();
 
@@ -372,9 +374,12 @@ export default function DeudoresTable() {
   const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([]);
   const [nombreCliente, setNombreCliente] = useState<string>("Cargando...");
 
-  const [search, setSearch] = useState("");
-  const [tipFilter, setTipFilter] = useState<string>(ALL);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [search, setSearch] = useState(searchParams.get("q") ?? "");
+  const [tipFilter, setTipFilter] = useState(searchParams.get("tip") ?? ALL);
+  const [currentPage, setCurrentPage] = useState(
+    Number(searchParams.get("page") ?? 1)
+  );
+
   const itemsPerPage = 300;
 
   // ✅ Popup historial tipificaciones
@@ -427,12 +432,39 @@ export default function DeudoresTable() {
   };
 
   useEffect(() => {
+    const params: any = {};
+
+    if (search) params.q = search;
+    if (tipFilter && tipFilter !== ALL) params.tip = tipFilter;
+    if (currentPage > 1) params.page = String(currentPage);
+
+    setSearchParams(params);
+  }, [search, tipFilter, currentPage]);
+
+  useEffect(() => {
     if (aclLoading) return;
     if (!canView) return;
     fetchDeudores();
     fetchCliente();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clienteId, aclLoading, canView]);
+
+  useEffect(() => {
+    if (!loading && deudores.length > 0) {
+      const savedScroll = sessionStorage.getItem("deudoresScroll");
+
+      if (savedScroll) {
+        window.scrollTo({
+          top: Number(savedScroll),
+          behavior: "auto",
+        });
+
+        sessionStorage.removeItem("deudoresScroll");
+      }
+    }
+  }, [loading, deudores]);
+
+
 
   const normalizedQ = search.trim().toLowerCase();
 
@@ -658,7 +690,6 @@ export default function DeudoresTable() {
               variant="ghost"
               size="sm"
               to={`/clientes/${clienteId}`}
-              className="text-brand-secondary hover:text-brand-primary hover:bg-brand-primary/5 transition-all"
             />
           </div>
 
@@ -755,12 +786,12 @@ export default function DeudoresTable() {
                           <div className="mt-1.5 flex items-center gap-2">
                             <div className="flex-1 rounded-md border border-brand-secondary/30 bg-white px-3 py-2">
                               <div className="flex items-center gap-2">
-                                
+
                                 <span className="text-sm text-brand-secondary font-medium">
                                   {(formData.tipificacion as TipificacionDeuda) ?? TipificacionDeuda.GESTIONANDO}
                                 </span>
                               </div>
-                              
+
                             </div>
 
                             <Button
@@ -1049,7 +1080,18 @@ export default function DeudoresTable() {
                                 <Button
                                   size="icon"
                                   variant="ghost"
-                                  onClick={() => navigate(`/clientes/${clienteId}/deudores/${deudor.id}`)}
+                                  onClick={() => {
+                                    sessionStorage.setItem("deudoresScroll", String(window.scrollY));
+
+                                    navigate(
+                                      `/clientes/${clienteId}/deudores/${deudor.id}${location.search}`,
+                                      {
+                                        state: {
+                                          from: location.pathname + location.search
+                                        }
+                                      }
+                                    );
+                                  }}
                                   className="hover:bg-blue-50 transition-colors"
                                 >
                                   <Eye className="h-4 w-4 text-blue-600" />

@@ -2,7 +2,11 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
+import {
+  obtenerHistorialTipificaciones
+} from "../services/historialTipificacionesService";
+import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 import {
   User,
   History,
@@ -46,7 +50,9 @@ const getTipificacionColor = (tipificacion?: string) => {
     INACTIVO: "bg-gray-100 text-gray-700 border-gray-200",
     PREJURIDICO: "bg-orange-100 text-orange-700 border-orange-200",
     JURIDICO: "bg-red-100 text-red-700 border-red-200",
+    TERMINADO: "bg-red-200 text-red-800 border-red-300 font-semibold", // 👈 AGREGA ESTO
   };
+
   return (
     colors[tipificacion || ""] ||
     "bg-gray-100 text-gray-700 border-gray-200"
@@ -61,8 +67,9 @@ export default function DeudorDetailPage() {
     mes: "",
   });
 
+  const location = useLocation();
   const money = (n: number) => `$${Math.round(n).toLocaleString("es-CO")}`;
-
+  const [fechaTerminado, setFechaTerminado] = React.useState<Date | null>(null);
   const { clienteId, deudorId } = useParams<{ clienteId: string; deudorId: string }>();
   const navigate = useNavigate();
 
@@ -220,7 +227,7 @@ export default function DeudorDetailPage() {
         Number(last.honorariosAcuerdo ?? 0) +
         Number(last.honorariosRecaudo ?? 0);
         */
-       const honorarios = Number(last.honorariosDeuda ?? 0);       
+      const honorarios = Number(last.honorariosDeuda ?? 0);
 
       setResumenMes({
         deuda,
@@ -232,6 +239,71 @@ export default function DeudorDetailPage() {
 
     return () => unsub?.();
   }, [clienteId, deudorId]);
+
+  React.useEffect(() => {
+  if (!clienteId || !deudorId) return;
+
+  const cargarHistorial = async () => {
+    try {
+      const historial = await obtenerHistorialTipificaciones(clienteId, deudorId);
+
+      if (!historial || historial.length === 0) {
+        // fallback si está terminado pero no hay historial
+        if (deudor?.tipificacion === TipificacionDeuda.TERMINADO) {
+          manejarFallbackFecha();
+        } else {
+          setFechaTerminado(null);
+        }
+        return;
+      }
+
+      const terminados = historial
+        .filter(h =>
+          String(h.tipificacion).trim().toUpperCase() ===
+          String(TipificacionDeuda.TERMINADO).trim().toUpperCase()
+        )
+        .sort((a, b) => a.fecha.toMillis() - b.fecha.toMillis());
+
+      if (terminados.length > 0) {
+        const ultima = terminados[terminados.length - 1];
+        setFechaTerminado(ultima.fecha.toDate());
+      } else if (deudor?.tipificacion === TipificacionDeuda.TERMINADO) {
+        manejarFallbackFecha();
+      } else {
+        setFechaTerminado(null);
+      }
+
+    } catch (error) {
+      console.error("Error cargando historial:", error);
+      setFechaTerminado(null);
+    }
+  };
+
+  const manejarFallbackFecha = () => {
+    const f = deudor?.fechaCreacion;
+    if (!f) {
+      setFechaTerminado(null);
+      return;
+    }
+
+    if (typeof (f as any)?.toDate === "function") {
+      setFechaTerminado((f as any).toDate());
+    } else if ((f as any)?.seconds) {
+      setFechaTerminado(new Date((f as any).seconds * 1000));
+    } else if (f instanceof Date) {
+      setFechaTerminado(f);
+    } else {
+      setFechaTerminado(null);
+    }
+  };
+
+  if (deudor) {
+    cargarHistorial();
+  }
+
+}, [clienteId, deudorId, deudor]);
+
+
 
   React.useEffect(() => {
     fetchCliente();
@@ -315,7 +387,13 @@ export default function DeudorDetailPage() {
               <BackButton
                 variant="ghost"
                 size="sm"
-                className="text-brand-secondary hover:text-brand-primary hover:bg-brand-primary/5 transition-all"
+                onClick={() => {
+                  if (location.state?.from) {
+                    navigate(location.state.from);
+                  } else {
+                    navigate(`/clientes/${clienteId}/deudores`);
+                  }
+                }}
               />
             </div>
           )}
@@ -484,23 +562,35 @@ export default function DeudorDetailPage() {
                   <Tag className="h-5 w-5 text-orange-600" />
                 </div>
 
-                <div className="flex-1 min-w-0 flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs mb-1">Tipificación</p>
-                    <p className="text-sm font-semibold text-gray-700">
-                      Estado actual del deudor
-                    </p>
+                <div className="flex-1 min-w-0 flex flex-col gap-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs mb-1">Tipificación</p>
+                      <p className="text-sm font-semibold text-gray-700">
+                        Estado actual del deudor
+                      </p>
+                    </div>
+
+                    <span
+                      className={cn(
+                        "inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium whitespace-nowrap",
+                        getTipificacionColor(deudor.tipificacion as string)
+                      )}
+                    >
+                      {deudor.tipificacion}
+                    </span>
                   </div>
 
-                  <span
-                    className={cn(
-                      "inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium whitespace-nowrap",
-                      getTipificacionColor(deudor.tipificacion as string)
-                    )}
-                  >
-                    {deudor.tipificacion}
-                  </span>
+                  {deudor.tipificacion === TipificacionDeuda.TERMINADO && fechaTerminado && (
+                    <div className="flex items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                      <span className="font-medium">Fecha de terminación:</span>
+                      <span>
+                        {fechaTerminado.toLocaleDateString("es-CO")}
+                      </span>
+                    </div>
+                  )}
                 </div>
+
               </div>
 
             </div>
@@ -574,24 +664,24 @@ export default function DeudorDetailPage() {
 
               {/* Crear acceso para el deudor */}
               <button
-  onClick={() =>
-    navigate(`/clientes/${clienteId}/deudores/${deudor.id}/AcuerdoPago`)
-  }
-  className="group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-5 text-left transition-all hover:border-indigo-500 hover:shadow-lg hover:-translate-y-1"
->
-  <div className="absolute top-0 right-0 h-20 w-20 translate-x-8 -translate-y-8 rounded-full bg-indigo-500/5 transition-transform group-hover:scale-150" />
-  <div className="relative">
-    <div className="mb-3 inline-flex rounded-lg bg-indigo-500/10 p-3">
-      <CreditCard className="h-5 w-5 text-indigo-600" />
-    </div>
-    <Typography variant="h3" className="!text-brand-secondary mb-1 text-base">
-      Ver acuerdo de pago
-    </Typography>
-    <Typography variant="small">
-      Consulta el acuerdo activo, cuotas y detalle del compromiso.
-    </Typography>
-  </div>
-</button>
+                onClick={() =>
+                  navigate(`/clientes/${clienteId}/deudores/${deudor.id}/AcuerdoPago`)
+                }
+                className="group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-5 text-left transition-all hover:border-indigo-500 hover:shadow-lg hover:-translate-y-1"
+              >
+                <div className="absolute top-0 right-0 h-20 w-20 translate-x-8 -translate-y-8 rounded-full bg-indigo-500/5 transition-transform group-hover:scale-150" />
+                <div className="relative">
+                  <div className="mb-3 inline-flex rounded-lg bg-indigo-500/10 p-3">
+                    <CreditCard className="h-5 w-5 text-indigo-600" />
+                  </div>
+                  <Typography variant="h3" className="!text-brand-secondary mb-1 text-base">
+                    Ver acuerdo de pago
+                  </Typography>
+                  <Typography variant="small">
+                    Consulta el acuerdo activo, cuotas y detalle del compromiso.
+                  </Typography>
+                </div>
+              </button>
 
               {puedeCrearAccesoDeudor && !esCliente && !esDeudor && (
                 <button
