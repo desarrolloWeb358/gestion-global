@@ -164,19 +164,11 @@ export function ClienteInfoCard({ cliente, ejecutivos = [], usuarios = [], total
         </div>
 
         <div>
-          <div className="text-sm text-gray-600 mb-1">Banco</div>
-          <div className="text-base text-gray-900">{show(cliente.banco)}</div>
+          <div className="text-sm text-gray-600 mb-1">Forma de pago</div>
+          <div className="text-base text-gray-900">{show(cliente.formaPago)}</div>
         </div>
 
-        <div>
-          <div className="text-sm text-gray-600 mb-1">N° Cuenta</div>
-          <div className="text-base text-gray-900">{show(cliente.numeroCuenta)}</div>
-        </div>
-
-        <div>
-          <div className="text-sm text-gray-600 mb-1">Tipo de Cuenta</div>
-          <div className="text-base text-gray-900">{show(cliente.tipoCuenta)}</div>
-        </div>
+        
 
         <div>
           <div className="text-sm text-gray-600 mb-1">Total Deudores Activos</div>

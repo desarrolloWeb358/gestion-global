@@ -92,9 +92,8 @@ const toStrOrEmpty = (v) => (v === null || v === undefined ? '' : String(v));
     const idxPass = hIndex(['contraseña', 'password', 'clave']);
     const idxTel = hIndex(['telefono', 'teléfono', 'phone']);
     const idxDir = hIndex(['direccion', 'dirección', 'address']);
-    const idxBanco = hIndex(['banco']);
-    const idxNCta = hIndex(['numero_cuenta', 'número_cuenta', 'numero cuenta', 'nro cuenta', 'nro_cuenta']);
-    const idxTCta = hIndex(['tipo_cuenta', 'tipo cuenta']);
+    
+    
 
     /* antes con el uid ahora con nombres
     const idxEjPreUID = hIndex(['ejecutivoPrejuridicoUID']);
@@ -141,9 +140,7 @@ const toStrOrEmpty = (v) => (v === null || v === undefined ? '' : String(v));
         const contraseña = toStrOrEmpty(idxPass >= 0 ? rowArr[idxPass] : '');
         const telefono = toStrOrEmpty(idxTel >= 0 ? rowArr[idxTel] : '');
         const direccion = toStrOrEmpty(idxDir >= 0 ? rowArr[idxDir] : '');
-        const banco = toStrOrEmpty(idxBanco >= 0 ? rowArr[idxBanco] : '');
-        const numero_cuenta = toStrOrEmpty(idxNCta >= 0 ? rowArr[idxNCta] : '');
-        const tipo_cuenta = toStrOrEmpty(idxTCta >= 0 ? rowArr[idxTCta] : '');
+        
 
         /* antes con UIDs
         const ejecutivoPrejuridicoUID = toStrOrEmpty(idxEjPreUID >= 0 ? rowArr[idxEjPreUID] : '');
@@ -254,11 +251,8 @@ const toStrOrEmpty = (v) => (v === null || v === undefined ? '' : String(v));
 
           await clienteRef.set(
             {
-              direccion,
-              banco,
-              nombre,
-              numeroCuenta: numero_cuenta,
-              tipoCuenta: tipo_cuenta,
+              direccion,              
+              nombre,              
               // Usa UID
               ejecutivoPrejuridicoId: ejecutivoPrejuridicoUID,
               ejecutivoJuridicoId: ejecutivoJuridicoUID,

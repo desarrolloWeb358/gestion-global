@@ -5,10 +5,8 @@ export interface Cliente {
   nombre?: string;
   direccion?: string;
   administrador?: string;
-  banco?: string;
-  numeroCuenta?: string;
-  tipoCuenta?: "ahorros" | "corriente" | "convenio" | "";
-
+  formaPago?: string;  
+  
   // referencias (uids) a usuarios del sistema
   ejecutivoPrejuridicoId?: string | null;
   ejecutivoJuridicoId?: string | null;

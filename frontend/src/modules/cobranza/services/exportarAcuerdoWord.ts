@@ -38,9 +38,7 @@ interface AcuerdoPago {
 export interface DatosCliente {
   nombre: string;
   nit?: string;
-  direccion?: string;
-  banco?: string;
-  numeroCuenta?: string;
+  direccion?: string;  
   numeroConvenio?: string;
   email?: string;
   whatsapp?: string;
@@ -329,29 +327,7 @@ export async function exportarAcuerdoWord(
             spacing: { before: 200, after: 100 },
           }),
 
-          // Información bancaria
-          new Paragraph({
-            children: [
-              new TextRun("CUOTA ACUERDO DE PAGO EN EL BANCO "),
-              new TextRun({ text: (cliente.banco || "").toUpperCase(), bold: true }),
-              ...(cliente.numeroConvenio
-                ? [
-                    new TextRun(" AL NUMERO DE CONVENIO "),
-                    new TextRun({ text: cliente.numeroConvenio, bold: true }),
-                  ]
-                : cliente.numeroCuenta
-                ? [new TextRun(" A LA CUENTA "), new TextRun({ text: cliente.numeroCuenta, bold: true })]
-                : []),
-              new TextRun(` DEL ${cliente.nombre.toUpperCase()}, HACER LLEGAR DE MANERA INMEDIATA AL EMAIL `),
-              new TextRun(cliente.email || "carterazona1@gestionglobalacg.com"),
-              new TextRun(" O AL WHATSAPP "),
-              new TextRun(cliente.whatsapp || "3123152594"),
-              new TextRun(" COPIA DE CADA UNA DE LAS CONSIGNACIONES QUE SE REALICEN DENTRO DE ESTE ACUERDO."),
-            ],
-            alignment: AlignmentType.JUSTIFIED,
-            spacing: { after: 200 },
-          }),
-
+          
           // PARÁGRAFO 2
           new Paragraph({
             children: [

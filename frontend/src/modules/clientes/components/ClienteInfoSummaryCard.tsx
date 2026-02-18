@@ -17,8 +17,8 @@ export function ClienteInfoSummaryCard({
         <p><span className="font-semibold">Correo:</span> {F(usuarioCliente?.email)}</p>
         <p><span className="font-semibold">Teléfono:</span> {F(usuarioCliente?.telefonoUsuario)}</p>
         <p><span className="font-semibold">Dirección:</span> {F(cliente.direccion)}</p>
-        <p><span className="font-semibold">N° Cuenta:</span> {F(cliente.numeroCuenta)}</p>
-        <p><span className="font-semibold">Tipo de Cuenta:</span> {F(cliente.tipoCuenta)}</p>
+        <p><span className="font-semibold">Forma de Pago:</span> {F(cliente.formaPago)}</p>
+        
         <p>
           <span className="font-semibold">Documento:</span>{" "}
           {usuarioCliente?.tipoDocumento && usuarioCliente?.numeroDocumento

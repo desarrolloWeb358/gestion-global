@@ -79,10 +79,8 @@ type FormBase = {
 
 type DatosWord = {
     // Cliente
-    clienteDireccion?: string;
-    clienteBanco?: string;
-    clienteNumeroCuenta?: string;
-    clienteTipoCuenta?: string;
+    clienteDireccion?: string;    
+    clienteFormaPago?: string;    
 
     // Deudor
     deudorCedula?: string;
@@ -142,10 +140,8 @@ export default function AcuerdoPagoPage() {
     const [tablaKey, setTablaKey] = useState(0);
 
     const [datosWord, setDatosWord] = useState<DatosWord>({
-        clienteDireccion: "",
-        clienteBanco: "",
-        clienteNumeroCuenta: "",
-        clienteTipoCuenta: "",
+        clienteDireccion: "",        
+        clienteFormaPago: "",        
         deudorCedula: "",
         deudorDireccion: "",
         deudorUbicacion: "",
@@ -359,10 +355,8 @@ export default function AcuerdoPagoPage() {
             const dw = (datosWord ?? {}) as any;
 
             const clienteDireccion = String(dw.clienteDireccion || "").trim();
-            const clienteBanco = String(dw.clienteBanco || "").trim();
-            const clienteNumeroCuenta = String(dw.clienteNumeroCuenta || "").trim();
-            const clienteTipoCuenta = String(dw.clienteTipoCuenta || "").trim();
-
+            const clienteFormaPago = String(dw.clienteFormaPago || "").trim();
+            
             const deudorCedula = String(dw.deudorCedula || "").trim();
             const deudorDireccion = String(dw.deudorDireccion || "").trim();
             const deudorUbicacion = String(dw.deudorUbicacion || "").trim();
@@ -372,12 +366,6 @@ export default function AcuerdoPagoPage() {
 
             const deudorEmail = String(deudorEmailsArr[0] || "").trim();
             const deudorCelular = String(deudorTelefonosArr[0] || "").trim();
-
-            const bancoPagoTexto =
-                clienteBanco && clienteNumeroCuenta
-                    ? `CUOTA ACUERDO DE PAGO EN EL BANCO ${clienteBanco} CUENTA ${clienteTipoCuenta || "XXXXX"
-                    } NÚMERO ${clienteNumeroCuenta} (XXXXX) SEGUIDO DE LA TORRE Y APARTAMENTO...`
-                    : "XXXXX (TEXTO BANCO / REFERENCIA DE PAGO)";
 
             await descargarAcuerdoPagoWord({
                 ciudadFirma: "Bogotá D.C.",
@@ -407,7 +395,7 @@ export default function AcuerdoPagoPage() {
 
                 cuotas,
 
-                bancoPagoTexto,
+                formaPago: clienteFormaPago || "XXXXX",
                 canalSoportesTexto: "Enviar soporte de pago al email XXXXX o al WhatsApp XXXXX de manera inmediata.",
 
                 detalles: form.detalles,
@@ -472,15 +460,12 @@ export default function AcuerdoPagoPage() {
         setClienteNombre(nombreCliente);
 
         const clienteDireccion = String(cd?.direccion || "").trim();
-        const clienteBanco = String(cd?.banco || "").trim();
-        const clienteNumeroCuenta = String(cd?.numeroCuenta || "").trim();
-        const clienteTipoCuenta = String(cd?.tipoCuenta || "").trim();
+        const clienteFormaPago = String(cd?.formaPago || "").trim();
+
 
         setDatosWord({
-            clienteDireccion,
-            clienteBanco,
-            clienteNumeroCuenta,
-            clienteTipoCuenta,
+            clienteDireccion,            
+            clienteFormaPago,            
             deudorCedula,
             deudorDireccion,
             deudorUbicacion,

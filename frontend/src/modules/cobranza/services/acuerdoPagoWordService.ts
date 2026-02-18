@@ -198,7 +198,7 @@ export type AcuerdoPagoWordInput = {
   totalAcordado?: number;
   fechaEstadoDeuda?: Date;
 
-  bancoPagoTexto?: string;
+  formaPago?: string;
   canalSoportesTexto?: string;
 
   detalles?: string;
@@ -511,6 +511,8 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
   const empresaNit = input.empresaNit ?? "901.662.783-7";
   const empresaRepresentante = input.empresaRepresentante ?? "XXXXX";
 
+  const formaPago = input.formaPago ?? "XXXXX";
+
   const fechaFirma = input.fechaFirma ?? new Date();
   const ciudadFirma = input.ciudadFirma ?? "Bogotá D.C.";
 
@@ -702,13 +704,18 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
             bullet: { level: 0 },
             spacing: { after: 180, line: 240 },
             children: [
-              rBold("CUOTA ACUERDO DE PAGO EN EL  DE TORRE Y APARTAMENTO ("),
+              rBold("CUOTA ACUERDO DE PAGO "),
+              valOrRedBold(
+                formaPago?.toUpperCase(),
+                " CONSIGNACION "
+              ),
+              rBold(" ("),
               valOrRedBold(
                 acreedor?.toUpperCase(),
                 "XXXXX (NOMBRE CONJUNTO)"
               ),
               rBold(
-                ") SEGUIDO DE LA TORRE Y APARTAMENTO Y HACER LLEGAR DE MANERA INMEDIATA AL EMAIL carterazona1@gestionglobalacg.com O AL WHATSAPP 312 3152594 COPIA DE CADA UNA DE LAS CONSIGNACIONES QUE SE REALICEN DENTRO DE ESTE ACUERDO."
+                ") Y HACER LLEGAR DE MANERA INMEDIATA AL EMAIL carterazona1@gestionglobalacg.com O AL WHATSAPP 312 3152594 COPIA DE CADA UNA DE LAS CONSIGNACIONES QUE SE REALICEN DENTRO DE ESTE ACUERDO."
               ),
             ],
           }),

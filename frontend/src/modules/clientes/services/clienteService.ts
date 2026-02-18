@@ -42,8 +42,7 @@ export function crearClienteDesdeUsuario(
     nombre: usuario.nombre ?? usuario.email ?? "",  // 👈 clave
     administrador: "", 
     direccion: "",
-    banco: "",
-    numeroCuenta: "",
+    formaPago: "",    
     ejecutivoPrejuridicoId: null,
     ejecutivoJuridicoId: null,
     ejecutivoDependienteId: null,
@@ -191,9 +190,6 @@ export const crearClienteConUid = async (uid: string, cliente: Omit<Cliente, "id
 export async function actualizarCliente(id: string, data: Partial<Cliente>) {
   // Blindaje: jamás permitir 'nombre' en updates de clientes
   const { nombre, ...safe } = (data ?? {}) as any;
-
-  // Si el tipo de cuenta viene como "" (vacío), no lo guardes para no ensuciar el doc
-  if (safe.tipoCuenta === "") delete safe.tipoCuenta;
 
   const ref = doc(db, "clientes", id);
   const clean = sanitize(safe);

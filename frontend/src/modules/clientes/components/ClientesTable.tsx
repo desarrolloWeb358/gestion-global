@@ -54,6 +54,7 @@ import { toast } from "sonner";
 import { useUsuarioActual } from "@/modules/auth/hooks/useUsuarioActual";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { PERMS } from "@/shared/constants/acl";
+import { Textarea } from "@/shared/ui/textarea";
 
 export default function ClientesCrud() {
   const navigate = useNavigate();
@@ -67,9 +68,7 @@ export default function ClientesCrud() {
   const [clienteEditando, setClienteEditando] = useState<Cliente | null>(null);
   const [mostrarDialogo, setMostrarDialogo] = useState(false);
 
-  const [tipoCuentaSel, setTipoCuentaSel] = useState<
-    "" | "ahorros" | "corriente" | "convenio"
-  >("");
+ 
   const [ejecutivoPreSel, setEjecutivoPreSel] = useState<string>("");
   const [ejecutivoJurSel, setEjecutivoJurSel] = useState<string>("");
   const [activoSel, setActivoSel] = useState<boolean>(true);
@@ -170,8 +169,7 @@ export default function ClientesCrud() {
   // Edit dialog helpers
   // ----------------------------
   const abrirEditar = (cliente: Cliente) => {
-    setClienteEditando(cliente);
-    setTipoCuentaSel((cliente.tipoCuenta as any) ?? "");
+    setClienteEditando(cliente);    
     setEjecutivoPreSel(cliente.ejecutivoPrejuridicoId ?? "");
     setEjecutivoJurSel(cliente.ejecutivoJuridicoId ?? "");
     setDependienteSel(cliente.ejecutivoDependienteId ?? "");
@@ -189,7 +187,7 @@ export default function ClientesCrud() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30">
       <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
         <header className="space-y-4">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="space-y-2">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-brand-primary/10">
@@ -390,7 +388,7 @@ export default function ClientesCrud() {
         )}
 
         <Dialog open={mostrarDialogo} onOpenChange={setMostrarDialogo}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-brand-primary text-xl font-bold flex items-center gap-2">
                 <Building2 className="h-5 w-5" />
@@ -411,15 +409,10 @@ export default function ClientesCrud() {
                 const formData = new FormData(form);
 
                 const direccion = (formData.get("direccion") as string)?.trim();
-                const banco = (formData.get("banco") as string)?.trim();
+                const formaPago = (formData.get("formaPago") as string)?.trim();
+                
                 const administrador = (formData.get("administrador") as string)?.trim();
-                const numeroCuenta = (formData.get("numeroCuenta") as string)?.trim();
-
-                const tipoCuenta =
-                  tipoCuentaSel === ""
-                    ? undefined
-                    : (tipoCuentaSel as "ahorros" | "corriente" | "convenio");
-
+                
                 const ejecutivoPrejuridicoId = ejecutivoPreSel || null;
                 const ejecutivoJuridicoId = ejecutivoJurSel || null;
                 const ejecutivoDependienteId = dependienteSel || null;
@@ -428,10 +421,8 @@ export default function ClientesCrud() {
 
                 const payload: Partial<Cliente> = {
                   direccion: direccion || "",
-                  administrador: administrador || "", 
-                  banco: banco || "",
-                  numeroCuenta: numeroCuenta || "",
-                  ...(tipoCuenta ? { tipoCuenta } : {}),
+                  administrador: administrador || "",
+                  formaPago: formaPago || "",                  
                   ejecutivoPrejuridicoId,
                   ejecutivoJuridicoId,
                   ejecutivoDependienteId,
@@ -545,51 +536,6 @@ export default function ClientesCrud() {
                   </div>
 
                   <div>
-                    <Label className="text-brand-secondary font-medium">Banco</Label>
-                    <Input
-                      name="banco"
-                      defaultValue={clienteEditando?.banco}
-                      className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
-                      placeholder="Ej: Bancolombia"
-                    />
-                  </div>
-
-                  
-
-                  <div>
-                    <Label className="text-brand-secondary font-medium">
-                      Número de cuenta
-                    </Label>
-                    <Input
-                      name="numeroCuenta"
-                      defaultValue={clienteEditando?.numeroCuenta}
-                      className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
-                      placeholder="0000000000"
-                    />
-                  </div>
-
-                  <div>
-                    <Label className="text-brand-secondary font-medium">
-                      Tipo de cuenta
-                    </Label>
-                    <Select
-                      value={tipoCuentaSel}
-                      onValueChange={(v) =>
-                        setTipoCuentaSel(v as "ahorros" | "corriente" | "convenio" | "")
-                      }
-                    >
-                      <SelectTrigger className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20">
-                        <SelectValue placeholder="Selecciona un tipo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ahorros">Ahorros</SelectItem>
-                        <SelectItem value="corriente">Corriente</SelectItem>
-                        <SelectItem value="convenio">Convenio</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
                     <Label className="text-brand-secondary font-medium">
                       Dirección
                     </Label>
@@ -600,6 +546,21 @@ export default function ClientesCrud() {
                       placeholder="Calle 123 #45-67"
                     />
                   </div>
+
+                  <div className="md:col-span-2">
+                    <Label className="text-brand-secondary font-medium">Forma de pago</Label>
+                    <Textarea
+                      name="formaPago"
+                      defaultValue={clienteEditando?.formaPago}
+                      rows={2}
+                      className="mt-1.5 resize-none border-brand-secondary/30 bg-white focus:border-brand-primary focus:ring-brand-primary/20"
+                      placeholder="Ej: Consignar en la cuenta bancaria: ..."
+                    />
+                  </div>
+
+
+
+
                 </div>
 
                 <div className="flex items-center gap-3 p-3 rounded-lg border border-brand-secondary/20 bg-brand-primary/5">

@@ -273,9 +273,7 @@ export const crearUsuarioDesdeAdmin = onRequest(
         batch.set(clienteDoc, {
           nombre: nombre ?? "",
           direccion: "",
-          banco: "",
-          numeroCuenta: "",
-          tipoCuenta: "",
+          formaPago: "",
           ejecutivoPrejuridicoId: null as any,
           ejecutivoJuridicoId: null as any,
           ejecutivoDependienteId: null as any,

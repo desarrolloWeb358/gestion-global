@@ -123,9 +123,7 @@ export const crearUsuario = async (
     const clienteData: Cliente = {
       id: uid,
       direccion: "",
-      banco: "",
-      numeroCuenta: "",
-      tipoCuenta: "",
+      formaPago: "",      
       nombre: usuario.nombre ?? "",
       ejecutivoPrejuridicoId: null as any,
       ejecutivoJuridicoId: null as any,
