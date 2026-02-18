@@ -1222,27 +1222,16 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
           italics: true,
           size: 24,
         }),
-        new TextRun({
-          text: "para la ",
-          italics: true,
-          size: 24,
-        }),
-        new TextRun({
-          text: `${nombreCliente}, `,
-          italics: true,
-          bold: true,          // 👈 como en el ejemplo
-          size: 24,
-        }),
+        
         new TextRun({
           text:
-            "en el área Pre-Jurídico y Jurídico, con cartera de más de 180 días de mora, donde podemos visualizar la acción que se ha realizado con cada uno de los deudores, que fueron entregados para la gestión de cobro.",
+            "para la copropiedad en el área Pre-Jurídico y Jurídico, con cartera de más de 180 días de mora, donde podemos visualizar la acción que se ha realizado con cada uno de los deudores, que fueron entregados para la gestión de cobro.",
           italics: true,
           size: 24,
         }),
       ],
     })
   );
-
 
   children.push(
     buildTablaResumenTipificacionExcelStyle({

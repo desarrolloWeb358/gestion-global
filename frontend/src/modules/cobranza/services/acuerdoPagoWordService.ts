@@ -42,13 +42,19 @@ const COLOR_RED = "C00000";
 const isMissing = (v: any) => v === null || v === undefined || String(v).trim() === "";
 
 // ✅ IRunOptions sí soporta bold/color/font/size
-const r = (text: string, opts: Partial<IRunOptions> = {}) =>
-  new TextRun({
+const r = (text: string, opts: Partial<IRunOptions> = {}) => {
+  const isPlaceholder = text.includes("XXXXX");
+
+  return new TextRun({
     text,
     font: FONT,
-    size: 22, // 11pt
+    size: 22,
+    color: isPlaceholder ? COLOR_RED : opts.color,
+    bold: isPlaceholder ? true : opts.bold,
     ...opts,
   });
+};
+
 
 const rBold = (text: string) => r(text, { bold: true });
 const rRed = (text: string) => r(text, { bold: true, color: COLOR_RED });
@@ -592,9 +598,9 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
 
           // Consid 1
           pJustify([
-            r("Que el señor "),
+            rRed("Que el señor "),
             valOrRedBold(deudor, "XXXXX (NOMBRE DEUDOR)"),
-            r(", deuda acreencias a favor de la "),
+            r(", deuda acreencias a favor de la copropiedad "),
             valOrRedBold(acreedor, "XXXXX (NOMBRE CONJUNTO / CLIENTE)"),
             r(", por valor de "),
             rBold(formatCOP(total)),
@@ -622,7 +628,8 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
           pJustify([
             r("Que en virtud de lo anterior y con el fin de resolver el inconveniente presentado de manera amigable "),
             rBold(empresaNombre),
-            r(", de una parte y por otra parte la señora "),
+            r(", de una parte y por otra parte "),
+            rRed("el señor "),
             valOrRedBold(deudor, "XXXXX (NOMBRE DEUDOR)"),
             r(", hemos acordado celebrar el presente acuerdo de pago, que se regirá en especial por las siguientes:"),
           ]),
@@ -715,7 +722,13 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
                 "XXXXX (NOMBRE CONJUNTO)"
               ),
               rBold(
-                ") Y HACER LLEGAR DE MANERA INMEDIATA AL EMAIL carterazona1@gestionglobalacg.com O AL WHATSAPP 312 3152594 COPIA DE CADA UNA DE LAS CONSIGNACIONES QUE SE REALICEN DENTRO DE ESTE ACUERDO."
+                ") Y HACER LLEGAR DE MANERA INMEDIATA AL EMAIL carterazona1@gestionglobalacg.com O AL WHATSAPP "
+              ),
+              rBold(
+                " XXXXXX "
+              ),
+              rBold(
+                " COPIA DE CADA UNA DE LAS CONSIGNACIONES QUE SE REALICEN DENTRO DE ESTE ACUERDO."
               ),
             ],
           }),
@@ -769,7 +782,7 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
             rBold("CLAUSULA OCTAVA. COMUNICACIONES: "),
             r("Para efectos de las comunicaciones a que haya lugar en virtud del presente Acuerdo, las direcciones son las siguientes: la entidad acreedora las recibirá a en la "),
             valOrRedBold(acreedorDir, "XXXXX (DIRECCIÓN ADMINISTRACIÓN / SEDE)"),
-            r(" y la señora "),
+            rRed(" y el señor "),
             valOrRedBold(deudor, "XXXXX (NOMBRE DEUDOR)"),
             r(" de la "),
             valOrRedBold(deudorUbicacion, "XXXXX (TORRE/APTO o CASA)"),
