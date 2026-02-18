@@ -861,11 +861,43 @@ function pJustItalic(text: string, after = 140) {
 
 function buildBloqueGestionInformativa() {
   return [
-    pCenterTitleCompact("GESTIÓN INFORMATIVA SISTEMA GESGLO – GESTION GLOBAL ACG SAS"),
-    pCenterInfoConLink({
-      beforeText: "Para más información por favor ingresar a la página ",
-      url: "https://www.gestionglobalacg.com",
-      afterText: " con su usuario y contraseña debidamente enviada al correo de la copropiedad, si necesita soporte para ingresar a la plataforma, por favor comunicarse al correo electrónico: soporte@gestionglobalacg.com",
+    pCenterTitleCompact(
+      "GESTIÓN INFORMATIVA SISTEMA GESGLO – GESTION GLOBAL ACG SAS"
+    ),
+
+   
+    new Paragraph({
+      alignment: AlignmentType.JUSTIFIED,
+      children: [
+        new TextRun({
+          text: "Para más información por favor ingresar a la página ", italics: true, size: 24, color: "000000"
+        }),
+
+        new ExternalHyperlink({
+          link: "https://www.gestionglobalacg.com",
+          children: [
+            new TextRun({
+              text: "https://www.gestionglobalacg.com",
+              style: "Hyperlink", // importante para azul automático
+            }),
+          ],
+        }),
+
+        new TextRun({
+          text:
+            " con su usuario y contraseña debidamente enviada al correo de la copropiedad, si necesita soporte para ingresar a la plataforma, por favor comunicarse al correo electrónico: ", italics: true, size: 24, color: "000000"
+        }),
+
+        new ExternalHyperlink({
+          link: "mailto:soporte@gestionglobalacg.com",
+          children: [
+            new TextRun({
+              text: "soporte@gestionglobalacg.com",
+              style: "Hyperlink",
+            }),
+          ],
+        }),
+      ],
     }),
   ];
 }
