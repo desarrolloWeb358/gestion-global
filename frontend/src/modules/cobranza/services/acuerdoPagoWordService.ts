@@ -14,6 +14,7 @@ import {
   VerticalAlign,
   TextDirection,
   HeightRule,
+  ImageRun,
 } from "docx";
 
 import type { IRunOptions, IParagraphOptions } from "docx";
@@ -96,6 +97,62 @@ function noBorders() {
     right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
   };
 }
+
+// Traer imagen desde /public o URL (frontend) -> Uint8Array
+async function urlToUint8Array(url: string): Promise<Uint8Array> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`No se pudo cargar imagen: ${url}`);
+  const ab = await res.arrayBuffer();
+  return new Uint8Array(ab);
+}
+
+async function buildFirmaAcreedor(params: {
+  nombre?: string;
+  cargo?: string;
+  empresa?: string;
+  nit?: string;
+}) {
+  // ✅ archivo en /public/images/logo/firma_javier.jpeg
+  const firmaBytes = await urlToUint8Array("/images/logo/firma_javier.jpeg");
+
+  const nombre = (params.nombre || "").trim();
+  const cargo = (params.cargo || "").trim();
+  const empresa = (params.empresa || "").trim();
+  const nit = (params.nit || "").trim();
+
+  return [
+    // (opcional) espacio antes de la firma, ajusta si quieres
+    new Paragraph({ text: "", spacing: { after: 100 } }),
+
+    // ✅ Imagen firma
+    new Paragraph({
+      alignment: AlignmentType.LEFT,
+      spacing: { after: 120 },
+      children: [
+        new ImageRun({
+          data: firmaBytes,
+          type: "jpg", // 👈 IMPORTANTÍSIMO: docx usa "jpg" (no "jpeg")
+          transformation: { width: 190, height: 70 }, // ajusta a tu gusto
+        }),
+      ],
+    }),
+
+    // Empresa
+    p([rBold(empresa || "GESTION GLOBAL ACG S.A.S")], { spacing: { after: 0 } }),
+
+    // NIT
+    p([rBold("Nit. "), rBold(nit || "901.662.783-7"), r(".")], { spacing: { after: 0 } }),
+    
+    // Nombre
+    p([valOrRedBold(nombre, "XXXXX (REPRESENTANTE LEGAL)")], { spacing: { after: 0 } }),
+
+    // Cargo
+    p([rBold(cargo || "Representante Legal")], { spacing: { after: 0 } }),
+
+    
+  ];
+}
+
 
 function buildHuellaBlock() {
   const blockWidth = 1800; // 👈 más angosto (ajusta 1600-2200)
@@ -872,19 +929,14 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
           new Paragraph({ text: "", spacing: { after: 600 } }),
 
           p([rBold("EL ACREEDOR,")]),
-          new Paragraph({ text: "", spacing: { after: 1200 } }),
-          p([valOrRedBold(empresaRepresentante, "XXXXX (REPRESENTANTE LEGAL)")], {
-            spacing: { after: 0 }
-          }),
-          p([rBold("Representante Legal")], {
-            spacing: { after: 0 }
-          }),
-          p([rBold(empresaNombre)], {
-            spacing: { after: 0 }
-          }),
-          p([rBold("Nit. "), rBold(empresaNit), r(".")], {
-            spacing: { after: 0 }
-          }),
+          new Paragraph({ text: "", spacing: { after: 200 } }),
+
+          ...(await buildFirmaAcreedor({
+            nombre: empresaRepresentante,
+            cargo: "Representante Legal",
+            empresa: empresaNombre,
+            nit: empresaNit,
+          })),
         ],
       },
     ],
