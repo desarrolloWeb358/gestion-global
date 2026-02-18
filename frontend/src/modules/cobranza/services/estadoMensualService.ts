@@ -191,7 +191,8 @@ export function escucharEstadosMensuales(
   onError?: (e: any) => void
 ) {
   const ref = collection(db, "clientes", clienteId, "deudores", deudorId, "estadosMensuales");
-  const q = query(ref, orderBy("mes", "asc"));
+  const q = query(ref, orderBy("mes", "desc"));
+
 
   return onSnapshot(
     q,

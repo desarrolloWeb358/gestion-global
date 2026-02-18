@@ -142,12 +142,19 @@ export default function EstadosMensualesTable() {
   const canEdit =
     !esDeudor && can(PERMS.Abonos_Edit) && !roles.includes("cliente");
 
-  const cargarEstadosMensuales = async () => {
-    if (!clienteId || !deudorId) return;
-    const data = await obtenerEstadosMensuales(clienteId, deudorId);
-    setEstadosMensuales(data);
-    setLoading(false);
-  };
+const cargarEstadosMensuales = async () => {
+  if (!clienteId || !deudorId) return;
+
+  const data = await obtenerEstadosMensuales(clienteId, deudorId);
+
+  const ordenadosDesc = [...data].sort((a, b) => {
+    return b.mes.localeCompare(a.mes); 
+  });
+
+  setEstadosMensuales(ordenadosDesc);
+  setLoading(false);
+};
+
 
   React.useEffect(() => {
     cargarEstadosMensuales();
@@ -262,7 +269,7 @@ export default function EstadosMensualesTable() {
     return (
       <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
         <div className="h-8 w-8 mx-auto animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary mb-3" />
-        <Typography variant="small" className="text-muted">
+        <Typography variant="small" >
           Cargando permisos...
         </Typography>
       </div>
@@ -272,7 +279,7 @@ export default function EstadosMensualesTable() {
   if (!canView) {
     return (
       <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
-        <Typography variant="body" className="text-muted">
+        <Typography variant="body">
           No tienes acceso a Abonos.
         </Typography>
       </div>
@@ -283,7 +290,7 @@ export default function EstadosMensualesTable() {
     return (
       <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
         <div className="h-8 w-8 mx-auto animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary mb-3" />
-        <Typography variant="small" className="text-muted">
+        <Typography variant="small">
           Cargando estados mensuales...
         </Typography>
       </div>
@@ -307,7 +314,7 @@ export default function EstadosMensualesTable() {
                 <Typography variant="h2" className="!text-brand-secondary">
                   Estados Mensuales del Deudor
                 </Typography>
-                <Typography variant="small" className="text-muted mt-0.5">
+                <Typography variant="small" className="mt-0.5">
                   Seguimiento de deuda, recaudos y honorarios
                 </Typography>
               </div>
@@ -582,7 +589,7 @@ export default function EstadosMensualesTable() {
             <Typography variant="h3" className="text-brand-secondary">
               No hay registros
             </Typography>
-            <Typography variant="small" className="text-muted">
+            <Typography variant="small">
               Aún no se han registrado estados mensuales
             </Typography>
           </div>
