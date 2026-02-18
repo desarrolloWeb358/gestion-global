@@ -52,9 +52,18 @@ export default function ClientePage() {
         return usuario?.nombre ?? usuario?.email ?? "Cliente";
     }, [cliente, clienteId, usuarios]);
 
-    // Filtrar deudores activos (no INACTIVO)
+    const EXCLUIR_EN_ACTIVOS = new Set<TipificacionDeuda>([
+        TipificacionDeuda.INACTIVO,
+        TipificacionDeuda.TERMINADO,
+        TipificacionDeuda.DEMANDA_TERMINADO,
+        TipificacionDeuda.DEVUELTO,
+    ]);
+
     const deudoresActivos = useMemo(() => {
-        return deudores.filter(d => d.tipificacion !== TipificacionDeuda.INACTIVO);
+        return deudores.filter((d) => {
+            const tip = (d.tipificacion as TipificacionDeuda) ?? TipificacionDeuda.GESTIONANDO;
+            return !EXCLUIR_EN_ACTIVOS.has(tip);
+        });
     }, [deudores]);
 
     useEffect(() => {
@@ -135,7 +144,7 @@ export default function ClientePage() {
 
                 {/* HEADER */}
                 <header className="space-y-4">
-                    <div className="flex items-center gap-2">   
+                    <div className="flex items-center gap-2">
                         {!isCliente && (<BackButton
                             variant="ghost"
                             size="sm"
@@ -174,7 +183,7 @@ export default function ClientePage() {
                 </section>
 
                 {/* DEUDORES ACTIVOS */}
-            
+
                 {/* ACCIONES RÁPIDAS */}
                 <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
                     <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5 border-b border-brand-secondary/10">

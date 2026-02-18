@@ -472,6 +472,7 @@ export default function DeudoresTable() {
     TipificacionDeuda.INACTIVO,
     TipificacionDeuda.TERMINADO,
     TipificacionDeuda.DEMANDA_TERMINADO,
+    TipificacionDeuda.DEVUELTO,
   ]);
 
   const filteredDeudores = deudores
