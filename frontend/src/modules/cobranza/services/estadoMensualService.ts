@@ -12,6 +12,7 @@ import {
   query,
   orderBy,
   onSnapshot,
+  limit,
 } from "firebase/firestore";
 import { EstadoMensual } from "../models/estadoMensual.model";
 
@@ -182,6 +183,25 @@ export async function upsertEstadoMensualPorMes(
   }
 
   await batch.commit();
+}
+
+export function escucharUltimoEstadoMensual(
+  clienteId: string,
+  deudorId: string,
+  cb: (item: EstadoMensual | null) => void,
+  onError?: (e: any) => void
+) {
+  const ref = collection(db, "clientes", clienteId, "deudores", deudorId, "estadosMensuales");
+  const q = query(ref, orderBy("mes", "desc"), limit(1)); // ✅ solo el más nuevo
+
+  return onSnapshot(
+    q,
+    (snap) => {
+      const doc = snap.docs[0];
+      cb(doc ? ({ id: doc.id, ...(doc.data() as any) } as EstadoMensual) : null);
+    },
+    (e) => onError?.(e)
+  );
 }
 
 export function escucharEstadosMensuales(

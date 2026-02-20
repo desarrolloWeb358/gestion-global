@@ -104,6 +104,8 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
   ],
 
   ejecutivoAdmin: [
+    PERMS.Usuarios_Read,
+    PERMS.Usuarios_Create,
     PERMS.Clientes_Read,
     PERMS.Clientes_Edit,
     PERMS.Deudores_Read,

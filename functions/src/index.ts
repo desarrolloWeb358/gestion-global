@@ -178,7 +178,10 @@ async function requireAdminFromFirestore(uid: string) {
   const snap = await admin.firestore().collection("usuarios").doc(uid).get();
   const roles = snap.data()?.roles;
 
-  if (!Array.isArray(roles) || !roles.includes("admin")) {
+  if (
+    !Array.isArray(roles) ||
+    !(roles.includes("admin") || roles.includes("ejecutivoAdmin"))
+  ) {
     throw new Error("FORBIDDEN");
   }
 }

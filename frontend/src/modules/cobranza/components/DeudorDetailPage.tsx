@@ -38,7 +38,7 @@ import type { Cliente } from "@/modules/clientes/models/cliente.model";
 import { Deudor } from "../models/deudores.model";
 import { crearUsuarioParaDeudor } from "../services/deudorUserService";
 import { useUsuarioActual } from "@/modules/auth/hooks/useUsuarioActual";
-import { escucharEstadosMensuales } from "../services/estadoMensualService";
+import { escucharUltimoEstadoMensual } from "../services/estadoMensualService";
 
 
 // Helper para colores de tipificación
@@ -212,21 +212,13 @@ export default function DeudorDetailPage() {
   React.useEffect(() => {
     if (!clienteId || !deudorId) return;
 
-    const unsub = escucharEstadosMensuales(clienteId, deudorId, (items) => {
-      if (!items.length) {
+    const unsub = escucharUltimoEstadoMensual(clienteId, deudorId, (last) => {
+      if (!last) {
         setResumenMes({ deuda: 0, honorarios: 0, total: 0, mes: "" });
         return;
       }
 
-      const last = items[items.length - 1]; // ✅ último mes (por orderBy mes asc)
       const deuda = Number(last.deuda ?? 0);
-
-      /*
-      const honorarios =
-        Number(last.honorariosDeuda ?? 0) +
-        Number(last.honorariosAcuerdo ?? 0) +
-        Number(last.honorariosRecaudo ?? 0);
-        */
       const honorarios = Number(last.honorariosDeuda ?? 0);
 
       setResumenMes({
@@ -241,67 +233,67 @@ export default function DeudorDetailPage() {
   }, [clienteId, deudorId]);
 
   React.useEffect(() => {
-  if (!clienteId || !deudorId) return;
+    if (!clienteId || !deudorId) return;
 
-  const cargarHistorial = async () => {
-    try {
-      const historial = await obtenerHistorialTipificaciones(clienteId, deudorId);
+    const cargarHistorial = async () => {
+      try {
+        const historial = await obtenerHistorialTipificaciones(clienteId, deudorId);
 
-      if (!historial || historial.length === 0) {
-        // fallback si está terminado pero no hay historial
-        if (deudor?.tipificacion === TipificacionDeuda.TERMINADO) {
+        if (!historial || historial.length === 0) {
+          // fallback si está terminado pero no hay historial
+          if (deudor?.tipificacion === TipificacionDeuda.TERMINADO) {
+            manejarFallbackFecha();
+          } else {
+            setFechaTerminado(null);
+          }
+          return;
+        }
+
+        const terminados = historial
+          .filter(h =>
+            String(h.tipificacion).trim().toUpperCase() ===
+            String(TipificacionDeuda.TERMINADO).trim().toUpperCase()
+          )
+          .sort((a, b) => a.fecha.toMillis() - b.fecha.toMillis());
+
+        if (terminados.length > 0) {
+          const ultima = terminados[terminados.length - 1];
+          setFechaTerminado(ultima.fecha.toDate());
+        } else if (deudor?.tipificacion === TipificacionDeuda.TERMINADO) {
           manejarFallbackFecha();
         } else {
           setFechaTerminado(null);
         }
+
+      } catch (error) {
+        console.error("Error cargando historial:", error);
+        setFechaTerminado(null);
+      }
+    };
+
+    const manejarFallbackFecha = () => {
+      const f = deudor?.fechaCreacion;
+      if (!f) {
+        setFechaTerminado(null);
         return;
       }
 
-      const terminados = historial
-        .filter(h =>
-          String(h.tipificacion).trim().toUpperCase() ===
-          String(TipificacionDeuda.TERMINADO).trim().toUpperCase()
-        )
-        .sort((a, b) => a.fecha.toMillis() - b.fecha.toMillis());
-
-      if (terminados.length > 0) {
-        const ultima = terminados[terminados.length - 1];
-        setFechaTerminado(ultima.fecha.toDate());
-      } else if (deudor?.tipificacion === TipificacionDeuda.TERMINADO) {
-        manejarFallbackFecha();
+      if (typeof (f as any)?.toDate === "function") {
+        setFechaTerminado((f as any).toDate());
+      } else if ((f as any)?.seconds) {
+        setFechaTerminado(new Date((f as any).seconds * 1000));
+      } else if (f instanceof Date) {
+        setFechaTerminado(f);
       } else {
         setFechaTerminado(null);
       }
+    };
 
-    } catch (error) {
-      console.error("Error cargando historial:", error);
-      setFechaTerminado(null);
-    }
-  };
-
-  const manejarFallbackFecha = () => {
-    const f = deudor?.fechaCreacion;
-    if (!f) {
-      setFechaTerminado(null);
-      return;
+    if (deudor) {
+      cargarHistorial();
     }
 
-    if (typeof (f as any)?.toDate === "function") {
-      setFechaTerminado((f as any).toDate());
-    } else if ((f as any)?.seconds) {
-      setFechaTerminado(new Date((f as any).seconds * 1000));
-    } else if (f instanceof Date) {
-      setFechaTerminado(f);
-    } else {
-      setFechaTerminado(null);
-    }
-  };
-
-  if (deudor) {
-    cargarHistorial();
-  }
-
-}, [clienteId, deudorId, deudor]);
+  }, [clienteId, deudorId, deudor]);
 
 
 
