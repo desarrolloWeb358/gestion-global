@@ -1,6 +1,7 @@
 // src/modules/cobranza/pages/ReporteClientePage.tsx
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { cloudConvertDocxToPdf } from "../../services/reportes/cloudconvertDocxToPdf";
 
 import {
   ResponsiveContainer,
@@ -104,6 +105,9 @@ const DETALLE_VISIBLE_ROWS = 10;
 const DETALLE_ROW_H = 44;
 const DETALLE_HEADER_H = 40;
 const DETALLE_CONTAINER_H = DETALLE_HEADER_H + DETALLE_ROW_H * DETALLE_VISIBLE_ROWS;
+
+ // ⚠️ SOLO PARA PRUEBA (queda expuesta)
+const CLOUDCONVERT_API_KEY = import.meta.env.VITE_CLOUDCONVERT_API_KEY as string;
 
 const CustomXAxisTick = (props: any) => {
   const { x, y, payload } = props;
@@ -539,6 +543,144 @@ export default function ReporteClientePage() {
   };
 
 
+  const handleDownloadPdf = async () => {
+    if (!clienteId) return;
+
+    try {
+      setDownloading(true);
+      toast.info("Generando documento PDF...");
+
+     
+      // 1) Genera DOCX EXACTAMENTE como ya lo haces
+      const docxBlob = await (async () => {
+
+
+        // 1) Capturar gráficos como PNG (nítido)
+        const piePng = pieChartRef.current ? await capturarPieConLeyenda(pieChartRef.current) : null;
+        //const piePng = pieChartRef.current ? await capturarPieSVG(pieChartRef.current) : null;
+        const barPng = barChartRef.current ? await capturarBarSVG(barChartRef.current) : null;
+
+        const pieSize = piePng ? await getPngSizeFromDataUrl(piePng) : null;
+        const barSize = barPng ? await getPngSizeFromDataUrl(barPng) : null;
+
+        // 2) Traer data adicional (misma que ve la página)
+        // Seguimiento demandas
+        const demandasRaw = await obtenerDemandasConSeguimientoCliente(clienteId, yearTabla, monthTabla);
+
+        // 3) Mapear a formato Word (mismo orden de tu UI: seguimientos DESC + observación al final)
+        const demandasWord = demandasRaw.map((d) => {
+          const seguimientosOrdenados = [...d.seguimientos]
+            .sort((a, b) => {
+              const fa = a.fecha ? a.fecha.getTime() : 0;
+              const fb = b.fecha ? b.fecha.getTime() : 0;
+              return fb - fa; // DESC (más reciente primero)
+            })
+            .map((s) => ({
+              fecha: s.fecha
+                ? `${String(s.fecha.getDate()).padStart(2, "0")}/${String(s.fecha.getMonth() + 1).padStart(2, "0")}/${s.fecha.getFullYear()}`
+                : null,
+              texto: s.descripcion || "Sin descripción",
+            }));
+
+          return {
+            ubicacion: d.ubicacion || "Sin ubicación",
+            demandados: d.demandados || "",
+            numeroRadicado: d.numeroRadicado || "",
+            juzgado: d.juzgado || "",
+            observacionCliente: d.observacionCliente || "",
+            seguimientos: seguimientosOrdenados,
+          };
+        });
+
+
+        // ✅ 2.1) Traer detalle por cada tipificación (para Word)
+        const detallePorTipificacion = await Promise.all(
+          resumenFiltrado.map(async (r) => {
+            const detalle = await obtenerDetalleDeudoresPorTipificacion(
+              clienteId,
+              r.tipificacion as TipificacionKey,
+              yearTabla,
+              monthTabla
+            );
+
+            const detalleWord: { ubicacion: string; nombre: string; recaudoTotal: number; porRecuperar: number }[] =
+              detalle.map((d) => ({
+                ubicacion: d.ubicacion,
+                nombre: d.nombre,
+                recaudoTotal: d.recaudoTotal,
+                porRecuperar: d.porRecuperar,
+              }));
+
+
+            const tot = calcTotalesDetalle(detalleWord);
+
+            return {
+              tipificacion: String(r.tipificacion),
+              inmuebles: r.inmuebles,              // de resumen (coincide con cantidad)
+              recaudoTotal: r.recaudoTotal,        // de resumen
+              porRecuperar: r.porRecuperar,        // de resumen
+              detalle: detalleWord,                // filas
+              totalesDetalle: tot,                 // totales de la tabla
+            };
+          })
+        );
+
+        // 4) Construir docx bonito (tipo INFORME)
+        const blob = await buildReporteClienteDocx({
+          ciudad: "Bogotá D.C.",
+          fechaGeneracion: new Date(),
+          clienteNombre: clienteNombre?.trim() ? clienteNombre.trim() : "Cliente",
+          administrador: administrador,
+          firmaNombre: firmaNombre,
+          yearTabla,
+          monthTabla,
+
+          resumenTipificacion: resumenFiltrado.map((r) => ({
+            tipificacion: r.tipificacion,
+            inmuebles: r.inmuebles,
+            recaudoTotal: r.recaudoTotal,
+            porRecuperar: r.porRecuperar,
+          })),
+          totalesResumen,
+
+          recaudosMensuales: bars.map((b) => ({
+            mesLabel: b.nombreMes.charAt(0).toUpperCase() + b.nombreMes.slice(1),
+            total: b.total,
+          })),
+
+          detallePorTipificacion,
+
+          demandas: demandasWord,
+
+          pieChartPngDataUrl: piePng ?? undefined,
+          barChartPngDataUrl: barPng ?? undefined,
+
+          pieChartSize: pieSize ?? undefined,
+          barChartSize: barSize ?? undefined,
+        });
+        return blob; // <-- este blob es el docx
+      })();
+
+      // 2) Convertir con CloudConvert
+      const pdfBlob = await cloudConvertDocxToPdf(
+        docxBlob,
+        CLOUDCONVERT_API_KEY,
+        `reporte-cliente-${new Date().toISOString().split("T")[0]}.pdf`
+      );
+
+      // 3) Descargar
+      saveAs(pdfBlob, `reporte-cliente-${new Date().toISOString().split("T")[0]}.pdf`);
+      toast.success("PDF descargado correctamente");
+      
+    } catch (error) {
+      console.error("Error pdf:", error);
+      toast.error("Error al generar el documento PDF");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+
   // ======= WORD (NUEVO: con TODO y estilo INFORME) =======
   const handleDownloadWord = async () => {
     if (!clienteId) return;
@@ -716,7 +858,7 @@ export default function ReporteClientePage() {
           <Button
             variant="brand"
             disabled={downloading}
-            onClick={handleDownloadWord}
+            onClick={handleDownloadPdf}
             className="gap-2 shadow-md hover:shadow-lg transition-all"
           >
             {downloading ? (
