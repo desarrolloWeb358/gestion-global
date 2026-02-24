@@ -49,6 +49,8 @@ import {
     recalcularTablaDesdeValorCuotaDesdeIndice,
 } from "@/modules/cobranza/lib/recalcularTablaAcuerdo";
 
+import { ajustarUltimaCuotaHonorariosMinimo } from "@/modules/cobranza/lib/ajustarHonorariosMinimo";
+
 import { ACUERDO_ESTADO } from "@/shared/constants/acuerdoEstado";
 
 import { subirYGuardarPdfFirmadoBorrador, activarAcuerdoEnFirme } from "@/modules/cobranza/services/acuerdoPagoService";
@@ -79,8 +81,8 @@ type FormBase = {
 
 type DatosWord = {
     // Cliente
-    clienteDireccion?: string;    
-    clienteFormaPago?: string;    
+    clienteDireccion?: string;
+    clienteFormaPago?: string;
 
     // Deudor
     deudorCedula?: string;
@@ -140,8 +142,8 @@ export default function AcuerdoPagoPage() {
     const [tablaKey, setTablaKey] = useState(0);
 
     const [datosWord, setDatosWord] = useState<DatosWord>({
-        clienteDireccion: "",        
-        clienteFormaPago: "",        
+        clienteDireccion: "",
+        clienteFormaPago: "",
         deudorCedula: "",
         deudorDireccion: "",
         deudorUbicacion: "",
@@ -356,7 +358,7 @@ export default function AcuerdoPagoPage() {
 
             const clienteDireccion = String(dw.clienteDireccion || "").trim();
             const clienteFormaPago = String(dw.clienteFormaPago || "").trim();
-            
+
             const deudorCedula = String(dw.deudorCedula || "").trim();
             const deudorDireccion = String(dw.deudorDireccion || "").trim();
             const deudorUbicacion = String(dw.deudorUbicacion || "").trim();
@@ -464,8 +466,8 @@ export default function AcuerdoPagoPage() {
 
 
         setDatosWord({
-            clienteDireccion,            
-            clienteFormaPago,            
+            clienteDireccion,
+            clienteFormaPago,
             deudorCedula,
             deudorDireccion,
             deudorUbicacion,
@@ -561,7 +563,15 @@ export default function AcuerdoPagoPage() {
             porcentajeHonorarios: form.porcentajeHonorarios,
         });
 
-        setCuotas(recalculada);
+        // ✅ regla: última cuota de honorarios no puede quedar < 20.000
+        const ajustada = ajustarUltimaCuotaHonorariosMinimo(recalculada);
+        // ✅ Recalcular saldos otra vez con la tabla ya ajustada
+        const conSaldos = recalcularSaldos(ajustada, {
+            capitalInicial: form.capitalInicial,
+            porcentajeHonorarios: form.porcentajeHonorarios,
+        });
+
+        setCuotas(conSaldos);
         setTablaKey((k) => k + 1); // ✅ fuerza reset del draft
 
         toast.success("✓ Tabla generada. Puedes editarla antes de guardar.");
@@ -577,7 +587,17 @@ export default function AcuerdoPagoPage() {
 
         const idx = meta?.changedIndex ?? 0;
 
-        setCuotas(recalcularTablaDesdeValorCuotaDesdeIndice(next, idx, base));
+        const recalculada = recalcularTablaDesdeValorCuotaDesdeIndice(next, idx, base);
+
+        // ✅ volver a aplicar la regla después de recalcular
+        const ajustada = ajustarUltimaCuotaHonorariosMinimo(recalculada);
+        // ✅ Recalcular saldos otra vez con la tabla ya ajustada
+        const conSaldos = recalcularSaldos(ajustada, {
+            capitalInicial: form.capitalInicial,
+            porcentajeHonorarios: form.porcentajeHonorarios,
+        });
+
+        setCuotas(conSaldos);
     };
 
 
@@ -622,7 +642,9 @@ export default function AcuerdoPagoPage() {
                 actualizadoPor: auth.currentUser?.uid,
             };
 
-            const cuotasFinal = recalcularSaldos(cuotas, {
+            const cuotasAjustadas = ajustarUltimaCuotaHonorariosMinimo(cuotas);
+
+            const cuotasFinal = recalcularSaldos(cuotasAjustadas, {
                 capitalInicial: form.capitalInicial,
                 porcentajeHonorarios: form.porcentajeHonorarios,
             }).map((c) => ({
@@ -1048,7 +1070,7 @@ export default function AcuerdoPagoPage() {
                                     className="min-h-28 border-brand-secondary/30"
                                 />
                             </div>
-                            
+
 
                             {/* Guardar (solo si NO está en firme) */}
                             {!readOnly && (
