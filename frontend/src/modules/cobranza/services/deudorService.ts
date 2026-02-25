@@ -313,29 +313,7 @@ export async function eliminarDeudor(clienteId: string, deudorId: string) {
   await borrarDeudorCompleto(clienteId, deudorId);
 }
 
-/*
-// ------------ Acuerdos ------------
-export function mapDocToAcuerdoPago(id: string, data: DocumentData): AcuerdoPago {
-  return {
-    id,
-    numero: data.numero ?? "",
-    fechaCreacion: data.fechaCreacion,   
-    detalles: data.detalles ?? "", 
-    totalAcordado: Number(data.totalAcordado ?? 0),   
-    porcentajeHonorarios: Number(data.porcentajeHonorarios ?? 0),
-    //archivoUrl: data.archivoUrl,
-    cuotas: Array.isArray(data.cuotas)
-      ? data.cuotas.map((c: any) => ({
-        numero: c.numero,
-        fechaPago: c.fechaPago,
-        valor: Number(c.valor),
-        pagado: c.pagado,
-        observacion: c.observacion,
-      }))
-      : [],
-  };
-}
-  */
+
 
 export async function guardarAcuerdoPorReferencia(
   clienteId: string,

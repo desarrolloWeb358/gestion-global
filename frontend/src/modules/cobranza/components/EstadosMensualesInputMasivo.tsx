@@ -33,8 +33,7 @@ interface FilaEstadoBase {
   tipificacion: TipificacionDeuda;
   porcentajeHonorarios: string;
   deuda: string;
-  recaudo: string;
-  acuerdo?: string;
+  recaudo: string;  
 }
 
 const TIPIFICACIONES_FILTRABLES: TipificacionDeuda[] = [
@@ -140,7 +139,6 @@ export default function EstadosMensualesInputMasivo() {
             porcentajeHonorarios: porcDb,
             deuda: "",
             recaudo: "",
-            acuerdo: "",
           };
         });
 
@@ -203,16 +201,16 @@ export default function EstadosMensualesInputMasivo() {
     const porGuardar = filas.filter((f) => {
       const deudaOk = f.deuda.trim() !== "" && Number(f.deuda) >= 0;
       const recaudoOk = f.recaudo.trim() !== "" && Number(f.recaudo) >= 0;
-      const acuerdoOk = (f.acuerdo ?? "").trim() !== "" && Number(f.acuerdo) >= 0;
+      
 
       // ✅ guardar si hay al menos uno diligenciado
-      return deudaOk || recaudoOk || acuerdoOk;
+      return deudaOk || recaudoOk;
     });
 
     const omitidas = filas.length - porGuardar.length;
 
     if (porGuardar.length === 0) {
-      toast.error("No hay filas válidas: diligencia al menos uno (Deuda, Recaudo o Acuerdo).");
+      toast.error("No hay filas válidas: diligencia al menos uno (Deuda o Recaudo).");
       return;
     }
 
@@ -222,10 +220,7 @@ export default function EstadosMensualesInputMasivo() {
       await Promise.all(
         porGuardar.map(async (fila) => {
           const deudaNum = Number.parseFloat(fila.deuda);
-          const recaudoNum = Number.parseFloat(fila.recaudo);
-          const acuerdoNum = fila.acuerdo?.trim()
-            ? Number.parseFloat(fila.acuerdo)
-            : 0;
+          const recaudoNum = Number.parseFloat(fila.recaudo);          
 
           const porcentajeParse = fila.porcentajeHonorarios?.trim()
             ? Number.parseFloat(fila.porcentajeHonorarios)
@@ -233,31 +228,26 @@ export default function EstadosMensualesInputMasivo() {
 
 
           const deuda = Number.isNaN(deudaNum) ? 0 : deudaNum;
-          const recaudo = Number.isNaN(recaudoNum) ? 0 : recaudoNum;
-          const acuerdo = Number.isNaN(acuerdoNum) ? 0 : acuerdoNum;
+          const recaudo = Number.isNaN(recaudoNum) ? 0 : recaudoNum;          
 
           let porc = Number.isNaN(porcentajeParse) ? 15 : porcentajeParse;
           porc = Math.max(0, Math.min(20, porc));
 
           const round0 = (n: number) => Math.round(n);
 
-          const pct = porc / 100;
-          const tieneAcuerdo = acuerdo > 0;
+          const pct = porc / 100;          
 
           const honorariosDeuda = deuda > 0 ? round0(deuda * pct) : 0;
-
-          const honorariosAcuerdo = tieneAcuerdo ? round0(acuerdo * pct) : null;
-          const honorariosRecaudo = !tieneAcuerdo && recaudo > 0 ? round0(recaudo * pct) : null;
+          
+          const honorariosRecaudo = recaudo > 0 ? round0(recaudo * pct) : 0;            
 
           await upsertEstadoMensualPorMes(clienteId, fila.deudorId, {
             mes: mesGlobal,
             deuda: round0(deuda),
-            recaudo: round0(recaudo),
-            acuerdo: round0(acuerdo),
+            recaudo: round0(recaudo),            
             porcentajeHonorarios: porc,
 
-            honorariosDeuda,
-            honorariosAcuerdo,
+            honorariosDeuda,            
             honorariosRecaudo,
 
             recibo: "",
@@ -460,10 +450,7 @@ export default function EstadosMensualesInputMasivo() {
                     </TableHead>
                     <TableHead className="text-right text-brand-secondary font-semibold w-[260px]">
                       Recaudo
-                    </TableHead>
-                    <TableHead className="text-right text-brand-secondary font-semibold w-[260px]">
-                      Acuerdo
-                    </TableHead>
+                    </TableHead>                    
                   </TableRow>
                 </TableHeader>
 
@@ -530,18 +517,7 @@ export default function EstadosMensualesInputMasivo() {
                             placeholder="0"
                           />
                         </TableCell>
-
-                        <TableCell>
-                          <Input
-                            type="number"
-                            inputMode="decimal"
-                            value={fila.acuerdo ?? ""}
-                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            onChange={(e) => handleChangeById(fila.deudorId, "acuerdo", e.target.value)}
-                            className="w-full text-right border-brand-secondary/30"
-                            placeholder="0"
-                          />
-                        </TableCell>
+                        
                       </TableRow>
                     );
                   })}

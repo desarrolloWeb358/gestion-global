@@ -106,7 +106,7 @@ const DETALLE_ROW_H = 44;
 const DETALLE_HEADER_H = 40;
 const DETALLE_CONTAINER_H = DETALLE_HEADER_H + DETALLE_ROW_H * DETALLE_VISIBLE_ROWS;
 
- // ⚠️ SOLO PARA PRUEBA (queda expuesta)
+// ⚠️ SOLO PARA PRUEBA (queda expuesta)
 const CLOUDCONVERT_API_KEY = import.meta.env.VITE_CLOUDCONVERT_API_KEY as string;
 
 const CustomXAxisTick = (props: any) => {
@@ -402,10 +402,12 @@ export default function ReporteClientePage() {
       (acc, fila) => {
         acc.inmuebles += 1;
         acc.recaudoTotal += fila.recaudoTotal;
+        acc.honorariosRecaudoTotal += fila.honorariosRecaudoTotal ?? 0;
+        acc.ingresoConjunto += fila.ingresoConjunto ?? 0;
         acc.porRecuperar += fila.porRecuperar;
         return acc;
       },
-      { inmuebles: 0, recaudoTotal: 0, porRecuperar: 0 }
+      { inmuebles: 0, recaudoTotal: 0, honorariosRecaudoTotal: 0, ingresoConjunto: 0, porRecuperar: 0 }
     );
   }, [detalleTip]);
 
@@ -496,10 +498,12 @@ export default function ReporteClientePage() {
       (acc, fila) => {
         acc.inmuebles += fila.inmuebles;
         acc.recaudoTotal += fila.recaudoTotal;
+        acc.honorariosRecaudoTotal += fila.honorariosRecaudoTotal;
+        acc.ingresoConjunto += fila.ingresoConjunto;
         acc.porRecuperar += fila.porRecuperar;
         return acc;
       },
-      { inmuebles: 0, recaudoTotal: 0, porRecuperar: 0 }
+      { inmuebles: 0, recaudoTotal: 0, honorariosRecaudoTotal: 0, ingresoConjunto: 0, porRecuperar: 0 }
     );
   }, [resumenFiltrado]);
 
@@ -550,7 +554,7 @@ export default function ReporteClientePage() {
       setDownloading(true);
       toast.info("Generando documento PDF...");
 
-     
+
       // 1) Genera DOCX EXACTAMENTE como ya lo haces
       const docxBlob = await (async () => {
 
@@ -608,6 +612,8 @@ export default function ReporteClientePage() {
                 ubicacion: d.ubicacion,
                 nombre: d.nombre,
                 recaudoTotal: d.recaudoTotal,
+                honorariosRecaudoTotal: d.honorariosRecaudoTotal ?? 0,
+                ingresoConjunto: d.ingresoConjunto ?? 0,
                 porRecuperar: d.porRecuperar,
               }));
 
@@ -639,6 +645,8 @@ export default function ReporteClientePage() {
             tipificacion: r.tipificacion,
             inmuebles: r.inmuebles,
             recaudoTotal: r.recaudoTotal,
+            honorariosRecaudoTotal: r.honorariosRecaudoTotal,
+            ingresoConjunto: r.ingresoConjunto,
             porRecuperar: r.porRecuperar,
           })),
           totalesResumen,
@@ -671,7 +679,7 @@ export default function ReporteClientePage() {
       // 3) Descargar
       saveAs(pdfBlob, `reporte-cliente-${new Date().toISOString().split("T")[0]}.pdf`);
       toast.success("PDF descargado correctamente");
-      
+
     } catch (error) {
       console.error("Error pdf:", error);
       toast.error("Error al generar el documento PDF");
@@ -742,6 +750,8 @@ export default function ReporteClientePage() {
               ubicacion: d.ubicacion,
               nombre: d.nombre,
               recaudoTotal: d.recaudoTotal,
+              honorariosRecaudoTotal: d.honorariosRecaudoTotal ?? 0,
+              ingresoConjunto: d.ingresoConjunto ?? 0,
               porRecuperar: d.porRecuperar,
             }));
 
@@ -775,6 +785,8 @@ export default function ReporteClientePage() {
           tipificacion: r.tipificacion,
           inmuebles: r.inmuebles,
           recaudoTotal: r.recaudoTotal,
+          honorariosRecaudoTotal: r.honorariosRecaudoTotal,
+          ingresoConjunto: r.ingresoConjunto,
           porRecuperar: r.porRecuperar,
         })),
         totalesResumen,
@@ -958,6 +970,12 @@ export default function ReporteClientePage() {
                     Recaudo total
                   </TableHead>
                   <TableHead className="text-right text-brand-secondary font-semibold">
+                    Honorarios
+                  </TableHead>
+                  <TableHead className="text-right text-brand-secondary font-semibold">
+                    Ingreso copropiedad
+                  </TableHead>
+                  <TableHead className="text-right text-brand-secondary font-semibold">
                     Por recuperar
                   </TableHead>
                 </TableRow>
@@ -981,6 +999,12 @@ export default function ReporteClientePage() {
                     <TableCell className="text-right text-red-600 font-semibold">
                       {formatCOP(fila.recaudoTotal)}
                     </TableCell>
+                    <TableCell className="text-right text-red-600 font-semibold">
+                      {formatCOP(fila.honorariosRecaudoTotal)}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold text-brand-secondary">
+                      {formatCOP(fila.ingresoConjunto)}
+                    </TableCell>
                     <TableCell className="text-right font-medium">
                       {formatCOP(fila.porRecuperar)}
                     </TableCell>
@@ -994,6 +1018,13 @@ export default function ReporteClientePage() {
                   </TableCell>
                   <TableCell className="text-right text-brand-secondary">
                     {formatCOP(totalesResumen.recaudoTotal)}
+                  </TableCell>
+                  <TableCell className="text-right text-brand-secondary">
+                    {formatCOP(totalesResumen.honorariosRecaudoTotal)}
+                  </TableCell>
+
+                  <TableCell className="text-right text-brand-secondary">
+                    {formatCOP(totalesResumen.ingresoConjunto)}
                   </TableCell>
                   <TableCell className="text-right text-brand-secondary">
                     {formatCOP(totalesResumen.porRecuperar)}
@@ -1224,6 +1255,8 @@ export default function ReporteClientePage() {
                         <TableHead className="w-24 text-brand-secondary font-semibold">Ubicación</TableHead>
                         <TableHead className="text-brand-secondary font-semibold">Deudor</TableHead>
                         <TableHead className="text-right text-brand-secondary font-semibold">Recaudo total</TableHead>
+                        <TableHead className="text-right text-brand-secondary font-semibold">Honorarios</TableHead>
+                        <TableHead className="text-right text-brand-secondary font-semibold">Ingreso copropiedad</TableHead>
                         <TableHead className="text-right text-brand-secondary font-semibold">Por recuperar</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1244,6 +1277,15 @@ export default function ReporteClientePage() {
                           <TableCell className="text-right text-red-600 font-semibold">
                             {formatCOP(fila.recaudoTotal)}
                           </TableCell>
+
+                          <TableCell className="text-right text-red-600 font-semibold">
+                            {formatCOP(fila.honorariosRecaudoTotal)}
+                          </TableCell>
+
+                          <TableCell className="text-right font-semibold text-brand-secondary">
+                            {formatCOP(fila.ingresoConjunto)}
+                          </TableCell>
+
                           <TableCell className="text-right font-medium">
                             {formatCOP(fila.porRecuperar)}
                           </TableCell>
@@ -1257,6 +1299,8 @@ export default function ReporteClientePage() {
                         <TableCell className="text-brand-secondary">Total</TableCell>
                         <TableCell className="text-right text-brand-secondary">{totalesDetalle.inmuebles}</TableCell>
                         <TableCell className="text-right text-brand-secondary">{formatCOP(totalesDetalle.recaudoTotal)}</TableCell>
+                        <TableCell className="text-right text-brand-secondary">{formatCOP(totalesDetalle.honorariosRecaudoTotal)}</TableCell>
+                        <TableCell className="text-right text-brand-secondary">{formatCOP(totalesDetalle.ingresoConjunto)}</TableCell>
                         <TableCell className="text-right text-brand-secondary">{formatCOP(totalesDetalle.porRecuperar)}</TableCell>
                       </TableRow>
                     </TableBody>

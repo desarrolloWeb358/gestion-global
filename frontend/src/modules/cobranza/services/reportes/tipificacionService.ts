@@ -14,6 +14,8 @@ export interface ResumenTipificacion {
   tipificacion: TipificacionKey;
   inmuebles: number;
   recaudoTotal: number;
+  honorariosRecaudoTotal: number;
+  ingresoConjunto: number;
   porRecuperar: number;
 }
 
@@ -23,6 +25,8 @@ export interface DeudorTipificacionDetalle {
   ubicacion: string;
   tipificacion: TipificacionKey;
   recaudoTotal: number;
+  honorariosRecaudoTotal: number;
+  ingresoConjunto: number;
   porRecuperar: number;
 }
 
@@ -161,9 +165,12 @@ export async function obtenerResumenPorTipificacion(
 
   const acumulado = new Map<
     TipificacionKey,
-    { inmuebles: number; recaudoTotal: number; porRecuperar: number }
+    { inmuebles: number; recaudoTotal: number; honorariosRecaudoTotal: number; porRecuperar: number }
   >();
-  CATEGORIAS.forEach((c) => acumulado.set(c, { inmuebles: 0, recaudoTotal: 0, porRecuperar: 0 }));
+
+  CATEGORIAS.forEach((c) =>
+    acumulado.set(c, { inmuebles: 0, recaudoTotal: 0, honorariosRecaudoTotal: 0, porRecuperar: 0 })
+  );
 
   // 1) Determinar tipificación vigente a fechaCorte por deudor
   const deudores = await Promise.all(
@@ -201,13 +208,20 @@ export async function obtenerResumenPorTipificacion(
       const estadosSnap = await getDocs(estadosRef);
 
       let recaudoTotalDeudor = 0;
+      let honorariosRecaudoTotalDeudor = 0;
 
       let ultimoMesConDeuda: string | null = null;
       let deudaUltimoMesNoCero = 0;
 
       estadosSnap.forEach((mDoc) => {
-        const data = mDoc.data() as { mes?: string; deuda?: number; recaudo?: number };
-        const rawMes = (data.mes || mDoc.id || "").trim(); // "YYYY-MM"
+        const data = mDoc.data() as {
+          mes?: string;
+          deuda?: number;
+          recaudo?: number;
+          honorariosRecaudo?: number; // ✅ nuevo
+        };
+
+        const rawMes = (data.mes || mDoc.id || "").trim();
         if (!rawMes || rawMes.length < 7) return;
         if (!rawMes.startsWith(`${yearStr}-`)) return;
 
@@ -216,6 +230,9 @@ export async function obtenerResumenPorTipificacion(
 
         const recaudo = Number(data.recaudo ?? 0);
         if (Number.isFinite(recaudo)) recaudoTotalDeudor += recaudo;
+
+        const h = Number(data.honorariosRecaudo ?? 0);
+        if (Number.isFinite(h)) honorariosRecaudoTotalDeudor += h;
 
         const d = Number(data.deuda ?? 0);
         const deudaValida = Number.isFinite(d) && d !== 0;
@@ -228,16 +245,21 @@ export async function obtenerResumenPorTipificacion(
 
       const acc = acumulado.get(cat)!;
       acc.recaudoTotal += recaudoTotalDeudor;
+      acc.honorariosRecaudoTotal += honorariosRecaudoTotalDeudor;
       acc.porRecuperar += deudaUltimoMesNoCero;
     })
   );
 
   return CATEGORIAS.map((cat) => {
     const acc = acumulado.get(cat)!;
+    const ingresoConjunto = acc.recaudoTotal - acc.honorariosRecaudoTotal;
+
     return {
       tipificacion: cat,
       inmuebles: acc.inmuebles,
       recaudoTotal: acc.recaudoTotal,
+      honorariosRecaudoTotal: acc.honorariosRecaudoTotal,
+      ingresoConjunto,
       porRecuperar: acc.porRecuperar,
     };
   });
@@ -298,11 +320,13 @@ export async function obtenerDetalleDeudoresPorTipificacion(
       const estadosSnap = await getDocs(estadosRef);
 
       let recaudoTotal = 0;
+      let honorariosRecaudoTotal = 0;
+
       let ultimoMesConDeudaNoCero: string | null = null;
       let deudaUltimaNoCero = 0;
 
       estadosSnap.forEach((mDoc) => {
-        const data = mDoc.data() as { mes?: string; recaudo?: number; deuda?: number };
+        const data = mDoc.data() as { mes?: string; recaudo?: number; deuda?: number; honorariosRecaudo?: number };
         const rawMes = (data.mes || mDoc.id || "").trim();
         if (!rawMes || rawMes.length < 7) return;
 
@@ -314,6 +338,9 @@ export async function obtenerDetalleDeudoresPorTipificacion(
         const r = Number(data.recaudo ?? 0);
         if (Number.isFinite(r)) recaudoTotal += r;
 
+        const h = Number(data.honorariosRecaudo ?? 0);
+        if (Number.isFinite(h)) honorariosRecaudoTotal += h;
+
         const d = Number(data.deuda ?? 0);
         const deudaValida = Number.isFinite(d) && d !== 0;
 
@@ -323,7 +350,9 @@ export async function obtenerDetalleDeudoresPorTipificacion(
         }
       });
 
-      return { ...item, recaudoTotal, porRecuperar: deudaUltimaNoCero };
+      const ingresoConjunto = recaudoTotal - honorariosRecaudoTotal;
+
+      return { ...item, recaudoTotal, honorariosRecaudoTotal, ingresoConjunto, porRecuperar: deudaUltimaNoCero };
     })
   );
 

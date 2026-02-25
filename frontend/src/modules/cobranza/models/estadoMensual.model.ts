@@ -5,10 +5,10 @@ export interface EstadoMensual {
   clienteUID: string;
   deuda: number;    
   recaudo?: number;
-  acuerdo?: number;
+  //acuerdo?: number;
   porcentajeHonorarios?: number; 
   honorariosDeuda?: number;
-  honorariosAcuerdo?: number | null;
+  //honorariosAcuerdo?: number | null;
   honorariosRecaudo?: number | null;
 
   recibo?: string | null;

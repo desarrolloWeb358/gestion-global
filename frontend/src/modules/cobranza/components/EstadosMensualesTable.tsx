@@ -84,53 +84,39 @@ export default function EstadosMensualesTable() {
       clienteUID: clienteId || "",
       deuda: undefined,
       recaudo: undefined,
-      acuerdo: undefined,
       porcentajeHonorarios: 15,
       honorariosDeuda: undefined,
-      honorariosAcuerdo: undefined,
       honorariosRecaudo: undefined,
       recibo: "",
       observaciones: "",
     });
 
-  // Recalcular honorarios cuando cambien deuda/acuerdo/%.
-  // Recalcular honorarios cuando cambien deuda/recaudo/acuerdo/%.
+
   React.useEffect(() => {
     setNuevoEstadoMensual((s) => {
       const pct = (s.porcentajeHonorarios ?? 15) / 100;
 
       const deudaVal = s.deuda ?? undefined;
-      const acuerdoVal = s.acuerdo ?? undefined;
       const recaudoVal = s.recaudo ?? undefined;
 
       const hd = deudaVal != null ? round0(deudaVal * pct) : undefined;
 
-      const acuerdoNum = acuerdoVal != null ? Number(acuerdoVal) : 0;
       const recaudoNum = recaudoVal != null ? Number(recaudoVal) : 0;
 
-      const tieneAcuerdo = acuerdoNum > 0;
-
-      // Si hay acuerdo, calculo honorarios de acuerdo y NO recaudo
-      const ha = tieneAcuerdo ? round0(acuerdoNum * pct) : undefined;
-
-      // Si NO hay acuerdo (0 o vacío), calculo honorarios de recaudo
-      const hr = !tieneAcuerdo && recaudoVal != null ? round0(recaudoNum * pct) : undefined;
+      const hr = round0(recaudoNum * pct);
 
       if (
         hd === s.honorariosDeuda &&
-        ha === s.honorariosAcuerdo &&
         hr === s.honorariosRecaudo
       ) return s;
 
-      return { ...s, honorariosDeuda: hd, honorariosAcuerdo: ha, honorariosRecaudo: hr };
+      return { ...s, honorariosDeuda: hd, honorariosRecaudo: hr };
     });
   }, [
     nuevoEstadoMensual.deuda,
-    nuevoEstadoMensual.recaudo,              // 👈 NUEVO
-    nuevoEstadoMensual.acuerdo,
+    nuevoEstadoMensual.recaudo,
     nuevoEstadoMensual.porcentajeHonorarios,
   ]);
-
 
   const { can, roles = [], loading: aclLoading } = useAcl();
 
@@ -142,18 +128,18 @@ export default function EstadosMensualesTable() {
   const canEdit =
     !esDeudor && can(PERMS.Abonos_Edit) && !roles.includes("cliente");
 
-const cargarEstadosMensuales = async () => {
-  if (!clienteId || !deudorId) return;
+  const cargarEstadosMensuales = async () => {
+    if (!clienteId || !deudorId) return;
 
-  const data = await obtenerEstadosMensuales(clienteId, deudorId);
+    const data = await obtenerEstadosMensuales(clienteId, deudorId);
 
-  const ordenadosDesc = [...data].sort((a, b) => {
-    return b.mes.localeCompare(a.mes); 
-  });
+    const ordenadosDesc = [...data].sort((a, b) => {
+      return b.mes.localeCompare(a.mes);
+    });
 
-  setEstadosMensuales(ordenadosDesc);
-  setLoading(false);
-};
+    setEstadosMensuales(ordenadosDesc);
+    setLoading(false);
+  };
 
 
   React.useEffect(() => {
@@ -167,10 +153,8 @@ const cargarEstadosMensuales = async () => {
       clienteUID: clienteId || "",
       deuda: undefined,
       recaudo: undefined,
-      acuerdo: undefined,
       porcentajeHonorarios: 15,
       honorariosDeuda: undefined,
-      honorariosAcuerdo: undefined,
       honorariosRecaudo: undefined,
       recibo: "",
       observaciones: "",
@@ -186,10 +170,8 @@ const cargarEstadosMensuales = async () => {
       mes: estado.mes,
       deuda: estado.deuda ?? undefined,
       recaudo: estado.recaudo ?? undefined,
-      acuerdo: estado.acuerdo ?? undefined,
       porcentajeHonorarios: estado.porcentajeHonorarios ?? 15,
       honorariosDeuda: estado.honorariosDeuda ?? undefined,
-      honorariosAcuerdo: estado.honorariosAcuerdo ?? undefined,
       honorariosRecaudo: estado.honorariosRecaudo ?? undefined,
       recibo: estado.recibo ?? "",
       observaciones: estado.observaciones ?? "",
@@ -211,24 +193,18 @@ const cargarEstadosMensuales = async () => {
 
       const deuda = nuevoEstadoMensual.deuda != null ? Math.round(nuevoEstadoMensual.deuda) : undefined;
       const recaudo = nuevoEstadoMensual.recaudo != null ? Math.round(nuevoEstadoMensual.recaudo) : undefined;
-      const acuerdo = nuevoEstadoMensual.acuerdo != null ? Math.round(nuevoEstadoMensual.acuerdo) : undefined;
 
-      const acuerdoNum = acuerdo ?? 0;
-      const tieneAcuerdo = acuerdoNum > 0;
 
       const payload: Partial<EstadoMensual> = {
         ...nuevoEstadoMensual,
         deuda,
         recaudo,
-        acuerdo,
 
         honorariosDeuda: deuda != null ? Math.round(deuda * pct) : undefined,
 
-        // Si hay acuerdo -> honorariosAcuerdo, si no -> undefined
-        honorariosAcuerdo: tieneAcuerdo ? Math.round(acuerdoNum * pct) : undefined,
-
-        // Si NO hay acuerdo -> honorariosRecaudo, si no -> undefined
-        honorariosRecaudo: !tieneAcuerdo && recaudo != null ? Math.round(recaudo * pct) : undefined,
+        honorariosRecaudo: recaudo != null
+          ? Math.round(recaudo * pct)
+          : undefined,
       };
 
 
@@ -425,30 +401,7 @@ const cargarEstadosMensuales = async () => {
                         />
                       </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="acuerdo" className="text-brand-secondary font-medium flex items-center gap-2">
-                          <DollarSign className="h-4 w-4" />
-                          Acuerdo
-                        </Label>
-                        <Input
-                          id="acuerdo"
-                          type="number"
-                          step="0.01"
-                          value={nuevoEstadoMensual.acuerdo ?? ""}
-                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          onChange={(e) => {
-                            const val = e.target.value
-                              ? clamp(parseFloat(e.target.value), 0, 1e15)
-                              : undefined;
-                            setNuevoEstadoMensual((s) => ({
-                              ...s,
-                              acuerdo: val,
-                            }));
-                          }}
-                          placeholder="0.00"
-                          className="border-brand-secondary/30"
-                        />
-                      </div>
+
                       <div className="space-y-2">
                         <Label htmlFor="porcentaje" className="text-brand-secondary font-medium flex items-center gap-2">
                           <Percent className="h-4 w-4" />
@@ -487,11 +440,6 @@ const cargarEstadosMensuales = async () => {
                           <Input readOnly value={nuevoEstadoMensual.honorariosDeuda != null ? `$${nuevoEstadoMensual.honorariosDeuda.toLocaleString()}` : ""} className="bg-white border-brand-secondary/30 cursor-not-allowed" />
                         </div>
 
-                        {/* Hon. Acuerdo */}
-                        <div className="space-y-2">
-                          <Label className="text-brand-secondary font-medium">Hon. Acuerdo</Label>
-                          <Input readOnly value={nuevoEstadoMensual.honorariosAcuerdo != null ? `$${nuevoEstadoMensual.honorariosAcuerdo.toLocaleString()}` : ""} className="bg-white border-brand-secondary/30 cursor-not-allowed" />
-                        </div>
 
                         {/* Hon. Recaudo */}
                         <div className="space-y-2">
@@ -610,16 +558,10 @@ const cargarEstadosMensuales = async () => {
                     Recaudo
                   </TableHead>
                   <TableHead className="text-brand-secondary font-semibold">
-                    Acuerdo
-                  </TableHead>
-                  <TableHead className="text-brand-secondary font-semibold">
                     % Honorarios
                   </TableHead>
                   <TableHead className="text-brand-secondary font-semibold">
                     Hon. Deuda
-                  </TableHead>
-                  <TableHead className="text-brand-secondary font-semibold">
-                    Hon. Acuerdo
                   </TableHead>
                   <TableHead className="text-brand-secondary font-semibold">
                     Hon. Recaudo
@@ -659,9 +601,6 @@ const cargarEstadosMensuales = async () => {
                       ${Number(estado.recaudo ?? 0).toLocaleString()}
                     </TableCell>
                     <TableCell className="text-gray-700">
-                      ${Number(estado.acuerdo ?? 0).toLocaleString()}
-                    </TableCell>
-                    <TableCell className="text-gray-700">
                       {Number(
                         estado.porcentajeHonorarios ?? 0
                       ).toLocaleString()}
@@ -669,9 +608,6 @@ const cargarEstadosMensuales = async () => {
                     </TableCell>
                     <TableCell className="text-gray-700">
                       ${Number(estado.honorariosDeuda ?? 0).toLocaleString()}
-                    </TableCell>
-                    <TableCell className="text-gray-700">
-                      ${Number(estado.honorariosAcuerdo ?? 0).toLocaleString()}
                     </TableCell>
                     <TableCell className="text-gray-700">
                       ${Number(estado.honorariosRecaudo ?? 0).toLocaleString()}

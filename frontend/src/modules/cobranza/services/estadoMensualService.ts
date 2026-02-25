@@ -27,23 +27,19 @@ export function normalizeEstado(
     clienteUID: input.clienteUID,
     mes: input.mes ?? null,
     deuda: input.deuda,
-    recaudo: input.recaudo,
-    acuerdo: input.acuerdo,
+    recaudo: input.recaudo,    
     porcentajeHonorarios: input.porcentajeHonorarios,
-    honorariosDeuda: input.honorariosDeuda,
-    honorariosAcuerdo: input.honorariosAcuerdo,
+    honorariosDeuda: input.honorariosDeuda,    
     honorariosRecaudo: input.honorariosRecaudo,
     recibo: input.recibo ?? "",
     observaciones: input.observaciones ?? "",
   };
 
   n.deuda = toNullableNumber(n.deuda);
-  n.recaudo = toNullableNumber(n.recaudo);
-  n.acuerdo = toNullableNumber(n.acuerdo);
+  n.recaudo = toNullableNumber(n.recaudo);  
   n.porcentajeHonorarios = toNullableNumber(n.porcentajeHonorarios);
   n.honorariosDeuda = toNullableNumber(n.honorariosDeuda);
-  n.honorariosRecaudo = toNullableNumber(n.honorariosRecaudo);
-  n.honorariosAcuerdo = toNullableNumber(n.honorariosAcuerdo);
+  n.honorariosRecaudo = toNullableNumber(n.honorariosRecaudo);  
 
   // mes "YYYY-MM"
   if (typeof n.mes === "string") n.mes = n.mes.slice(0, 7);
