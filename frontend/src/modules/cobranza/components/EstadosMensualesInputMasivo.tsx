@@ -440,7 +440,7 @@ export default function EstadosMensualesInputMasivo() {
                 <TableHeader className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5">
                   <TableRow className="border-brand-secondary/10 hover:bg-transparent">
                     <TableHead className="text-brand-secondary font-semibold">Deudor</TableHead>
-                    <TableHead className="text-brand-secondary font-semibold">Ubicación</TableHead>
+                    <TableHead className="text-brand-secondary font-semibold">Inmueble</TableHead>
                     <TableHead className="text-brand-secondary font-semibold">Tipificación</TableHead>
                     <TableHead className="text-right text-brand-secondary font-semibold w-[90px]">
                       % Hon.

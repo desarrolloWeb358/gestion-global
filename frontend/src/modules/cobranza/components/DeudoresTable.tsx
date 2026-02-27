@@ -769,14 +769,14 @@ export default function DeudoresTable() {
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <Label className="text-brand-secondary font-medium">Ubicación</Label>
+                          <Label className="text-brand-secondary font-medium">Inmueble</Label>
                           <Input
                             name="ubicacion"
                             value={formData.ubicacion ?? ""}
                             onChange={handleChange}
                             readOnly={readOnly || saving}
                             className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
-                            placeholder="Ciudad, Departamento"
+                            placeholder="Ej: Apto 101"
                           />
                         </div>
 
@@ -1049,7 +1049,7 @@ export default function DeudoresTable() {
                 <TableHeader className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5">
                   <TableRow className="border-brand-secondary/10 hover:bg-transparent">
                     <TableHead className="text-brand-secondary font-semibold">Nombre</TableHead>
-                    <TableHead className="text-brand-secondary font-semibold">Ubicación</TableHead>
+                    <TableHead className="text-brand-secondary font-semibold">Inmueble</TableHead>
                     <TableHead className="text-brand-secondary font-semibold">Tipificación</TableHead>
                     <TableHead className="text-center text-brand-secondary font-semibold">Acciones</TableHead>
                   </TableRow>
