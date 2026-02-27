@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { cloudConvertDocxToPdf } from "../../services/reportes/cloudconvertDocxToPdf";
+import type { DetalleTipRow } from "../../services/reportes/reporteClienteWord";
 
 import {
   ResponsiveContainer,
@@ -129,7 +130,38 @@ const CustomXAxisTick = (props: any) => {
 
 const formatCOP = (v: number) => `$ ${v.toLocaleString("es-CO")}`;
 
-type TotalesDetalle = { inmuebles: number; recaudoTotal: number; porRecuperar: number };
+type TotalesDetalleWord = {
+  inmuebles: number;
+  recaudoTotal: number;
+  honorariosRecaudoTotal: number;
+  ingresoConjunto: number;
+  porRecuperar: number;
+};
+
+function calcTotalesDetalleWord(rows: {
+  recaudoTotal?: number;
+  honorariosRecaudoTotal?: number;
+  ingresoConjunto?: number;
+  porRecuperar?: number;
+}[]): TotalesDetalleWord {
+  return rows.reduce<TotalesDetalleWord>(
+    (acc, r) => {
+      acc.inmuebles += 1;
+      acc.recaudoTotal += r.recaudoTotal ?? 0;
+      acc.honorariosRecaudoTotal += r.honorariosRecaudoTotal ?? 0;
+      acc.ingresoConjunto += r.ingresoConjunto ?? 0;
+      acc.porRecuperar += r.porRecuperar ?? 0;
+      return acc;
+    },
+    { inmuebles: 0, recaudoTotal: 0, honorariosRecaudoTotal: 0, ingresoConjunto: 0, porRecuperar: 0 }
+  );
+}
+
+type TotalesDetalle = {
+  inmuebles: number;
+  recaudoTotal: number;
+  porRecuperar: number;
+};
 
 
 function calcTotalesDetalle(rows: { recaudoTotal?: number; porRecuperar?: number }[]): TotalesDetalle {
@@ -607,24 +639,25 @@ export default function ReporteClientePage() {
               monthTabla
             );
 
-            const detalleWord: { ubicacion: string; nombre: string; recaudoTotal: number; porRecuperar: number }[] =
-              detalle.map((d) => ({
-                ubicacion: d.ubicacion,
-                nombre: d.nombre,
-                recaudoTotal: d.recaudoTotal,
-                honorariosRecaudoTotal: d.honorariosRecaudoTotal ?? 0,
-                ingresoConjunto: d.ingresoConjunto ?? 0,
-                porRecuperar: d.porRecuperar,
-              }));
+            const detalleWord: DetalleTipRow[] = detalle.map((d) => ({
+              ubicacion: d.ubicacion,
+              nombre: d.nombre,
+              recaudoTotal: d.recaudoTotal,
+              honorariosRecaudoTotal: d.honorariosRecaudoTotal ?? 0,
+              ingresoConjunto: d.ingresoConjunto ?? 0,
+              porRecuperar: d.porRecuperar,
+            }));
 
 
-            const tot = calcTotalesDetalle(detalleWord);
+            const tot = calcTotalesDetalleWord(detalleWord);
 
             return {
               tipificacion: String(r.tipificacion),
               inmuebles: r.inmuebles,              // de resumen (coincide con cantidad)
               recaudoTotal: r.recaudoTotal,        // de resumen
-              porRecuperar: r.porRecuperar,        // de resumen
+              honorariosRecaudoTotal: r.honorariosRecaudoTotal,
+              ingresoConjunto: r.ingresoConjunto,
+              porRecuperar: r.porRecuperar,        // de resumen  
               detalle: detalleWord,                // filas
               totalesDetalle: tot,                 // totales de la tabla
             };
@@ -745,23 +778,24 @@ export default function ReporteClientePage() {
             monthTabla
           );
 
-          const detalleWord: { ubicacion: string; nombre: string; recaudoTotal: number; porRecuperar: number }[] =
-            detalle.map((d) => ({
-              ubicacion: d.ubicacion,
-              nombre: d.nombre,
-              recaudoTotal: d.recaudoTotal,
-              honorariosRecaudoTotal: d.honorariosRecaudoTotal ?? 0,
-              ingresoConjunto: d.ingresoConjunto ?? 0,
-              porRecuperar: d.porRecuperar,
-            }));
+          const detalleWord: DetalleTipRow[] = detalle.map((d) => ({
+            ubicacion: d.ubicacion,
+            nombre: d.nombre,
+            recaudoTotal: d.recaudoTotal,
+            honorariosRecaudoTotal: d.honorariosRecaudoTotal ?? 0,
+            ingresoConjunto: d.ingresoConjunto ?? 0,
+            porRecuperar: d.porRecuperar,
+          }));
 
 
-          const tot = calcTotalesDetalle(detalleWord);
+          const tot = calcTotalesDetalleWord(detalleWord);
 
           return {
             tipificacion: String(r.tipificacion),
             inmuebles: r.inmuebles,              // de resumen (coincide con cantidad)
             recaudoTotal: r.recaudoTotal,        // de resumen
+            honorariosRecaudoTotal: r.honorariosRecaudoTotal,
+            ingresoConjunto: r.ingresoConjunto,
             porRecuperar: r.porRecuperar,        // de resumen
             detalle: detalleWord,                // filas
             totalesDetalle: tot,                 // totales de la tabla

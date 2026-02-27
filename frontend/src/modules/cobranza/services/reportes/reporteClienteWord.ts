@@ -94,7 +94,7 @@ function pRecomendacionesWord(params: {
         italics: true,
         size: 24,
         color: "000000",
-      }),      
+      }),
       new TextRun({
         text: "que, en consideración al tiempo de mora, el monto adeudado y habiéndose agotado previamente la gestión prejurídica respecto a los ",
         italics: true,
@@ -156,14 +156,14 @@ async function buildFirmaGG(params: { nombreFirma?: string }) {
       ],
     }),
 
-    
+
 
     new Paragraph({
       alignment: AlignmentType.LEFT,
       spacing: { after: 20 },
       children: [
-        new TextRun({ text: ( nombre || "").toUpperCase(), bold: true, italics: true, size: 24, color: "000000" }),
-        
+        new TextRun({ text: (nombre || "").toUpperCase(), bold: true, italics: true, size: 24, color: "000000" }),
+
       ],
     }),
 
@@ -220,8 +220,7 @@ function buildTablaRecomendacionesExcelStyle(input: {
 
 function fontSizeByCols(cols: number, kind: "header" | "value") {
   // half-points: 24=12pt, 20=10pt, 18=9pt, 16=8pt, 14=7pt
-  if (cols <= 4) return kind === "header" ? 20 : 20;
-  if (cols <= 6) return kind === "header" ? 20 : 20;
+  if (cols <= 5) return kind === "header" ? 20 : 20;
   if (cols <= 8) return kind === "header" ? 18 : 20;
   if (cols <= 10) return kind === "header" ? 16 : 18;
   return kind === "header" ? 14 : 14; // ✅ 12 meses: header 7pt, value 8pt
@@ -376,7 +375,13 @@ function pLeyendaTipificacionWord(params: {
 
 function buildTablaDetalleTipificacionExcelStyle(input: {
   detalle: DetalleTipRow[];
-  totales: { inmuebles: number; recaudoTotal: number; porRecuperar: number };
+  totales: {
+    inmuebles: number;
+    recaudoTotal: number;
+    honorariosRecaudoTotal: number;
+    ingresoConjunto: number;
+    porRecuperar: number;
+  };
 }) {
   const { detalle, totales } = input;
 
@@ -385,34 +390,37 @@ function buildTablaDetalleTipificacionExcelStyle(input: {
       excelCell({ text: "UBICACIÓN", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
       excelCell({ text: "DEUDOR", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
       excelCell({ text: "RECAUDO TOTAL", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
+      excelCell({ text: "HONORARIOS", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
+      excelCell({ text: "INGRESO COPROPIEDAD", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
       excelCell({ text: "POR RECUPERAR", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
     ],
   });
 
-  const rows = detalle.map((d) => {
-    return new TableRow({
-      children: [
-        excelCell({ text: d.ubicacion ?? "", align: AlignmentType.LEFT }),
-        excelCell({ text: (d.nombre ?? "").toUpperCase(), align: AlignmentType.LEFT }),
-        excelCell({
-          text: formatCOP(d.recaudoTotal ?? 0),
-          align: AlignmentType.RIGHT,
-          color: RED,
-          bold: true,
-        }),
-        excelCell({
-          text: formatCOP(d.porRecuperar ?? 0),
-          align: AlignmentType.RIGHT,
-        }),
-      ],
-    });
-  });
+  const rows = detalle.map((d) => new TableRow({
+    children: [
+      excelCell({ text: d.ubicacion ?? "", align: AlignmentType.LEFT }),
+      excelCell({ text: (d.nombre ?? "").toUpperCase(), align: AlignmentType.LEFT }),
+
+      excelCell({ text: formatCOP(d.recaudoTotal ?? 0), align: AlignmentType.RIGHT, color: RED, bold: true }),
+      excelCell({ text: formatCOP(d.honorariosRecaudoTotal ?? 0), align: AlignmentType.RIGHT, color: RED, bold: true }),
+
+      excelCell({ text: formatCOP(d.ingresoConjunto ?? 0), align: AlignmentType.RIGHT, bold: true, color: "000000" }),
+
+      excelCell({ text: formatCOP(d.porRecuperar ?? 0), align: AlignmentType.RIGHT }),
+    ],
+  }));
 
   const totalRow = new TableRow({
     children: [
       excelCell({ text: "TOTAL", bold: true, color: RED, fill: TOTAL_FILL, align: AlignmentType.CENTER }),
+
       excelCell({ text: String(totales.inmuebles ?? 0), bold: true, color: "000000", fill: TOTAL_FILL, align: AlignmentType.CENTER }),
+
       excelCell({ text: formatCOP(totales.recaudoTotal ?? 0), bold: true, color: RED, fill: TOTAL_FILL, align: AlignmentType.RIGHT }),
+      excelCell({ text: formatCOP(totales.honorariosRecaudoTotal ?? 0), bold: true, color: RED, fill: TOTAL_FILL, align: AlignmentType.RIGHT }),
+
+      excelCell({ text: formatCOP(totales.ingresoConjunto ?? 0), bold: true, color: "000000", fill: TOTAL_FILL, align: AlignmentType.RIGHT }),
+
       excelCell({ text: formatCOP(totales.porRecuperar ?? 0), bold: true, color: "000000", fill: TOTAL_FILL, align: AlignmentType.RIGHT }),
     ],
   });
@@ -662,21 +670,36 @@ function isTipificacionRoja(t: string) {
 
 
 function buildTablaResumenTipificacionExcelStyle(input: {
-  resumenTipificacion: { tipificacion: string; inmuebles: number; recaudoTotal: number; porRecuperar: number }[];
-  totalesResumen: { inmuebles: number; recaudoTotal: number; porRecuperar: number };
+  resumenTipificacion: {
+    tipificacion: string;
+    inmuebles: number;
+    recaudoTotal: number;
+    honorariosRecaudoTotal: number;
+    ingresoConjunto: number;
+    porRecuperar: number;
+  }[];
+  totalesResumen: {
+    inmuebles: number;
+    recaudoTotal: number;
+    honorariosRecaudoTotal: number;
+    ingresoConjunto: number;
+    porRecuperar: number;
+  };
   formatCOP: (v: number) => string;
 }) {
   const { resumenTipificacion, totalesResumen, formatCOP } = input;
 
-  // ✅ SOLO esta tabla: anchos fijos (suman 100)
-  const W_TIP = 35;
-  const W_INM = 15;
-  const W_REC = 25;
-  const W_POR = 25;
+  // ✅ anchos fijos (suman 100) - 6 columnas
+  const W_TIP = 24;
+  const W_INM = 12;
+  const W_REC = 16;
+  const W_HON = 16;
+  const W_ING = 16;
+  const W_POR = 16;
 
   // ✅ SOLO esta tabla: letra más pequeña
-  const HEADER_SIZE = 20; // 9pt
-  const VALUE_SIZE = 20;  // 9pt
+  const HEADER_SIZE = 20; // 10pt aprox
+  const VALUE_SIZE = 20;  // 10pt aprox
 
   // 🔒 helper LOCAL (no afecta otras tablas)
   const cellPct = (params: {
@@ -716,6 +739,8 @@ function buildTablaResumenTipificacionExcelStyle(input: {
       cellPct({ text: "TIPIFICACIÓN", widthPct: W_TIP, bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: HEADER_SIZE }),
       cellPct({ text: "INMUEBLE", widthPct: W_INM, bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: HEADER_SIZE }),
       cellPct({ text: "RECAUDO TOTAL", widthPct: W_REC, bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: HEADER_SIZE }),
+      cellPct({ text: "HONORARIOS", widthPct: W_HON, bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: HEADER_SIZE }),
+      cellPct({ text: "INGRESO CONJUNTO", widthPct: W_ING, bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: HEADER_SIZE }),
       cellPct({ text: "POR RECUPERAR", widthPct: W_POR, bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: HEADER_SIZE }),
     ],
   });
@@ -745,8 +770,24 @@ function buildTablaResumenTipificacionExcelStyle(input: {
         cellPct({
           text: formatCOP(r.recaudoTotal ?? 0),
           widthPct: W_REC,
+          bold: rojo, // si es TERMINADO, todo en rojo
+          color: rojo ? RED : "000000",
+          align: AlignmentType.RIGHT,
+          size: VALUE_SIZE,
+        }),
+        cellPct({
+          text: formatCOP(r.honorariosRecaudoTotal ?? 0),
+          widthPct: W_HON,
           bold: rojo,
           color: rojo ? RED : "000000",
+          align: AlignmentType.RIGHT,
+          size: VALUE_SIZE,
+        }),
+        cellPct({
+          text: formatCOP(r.ingresoConjunto ?? 0),
+          widthPct: W_ING,
+          bold: true,
+          color: rojo ? RED : "000000", // si quieres que ingreso NO vaya rojo nunca, cámbialo a "000000"
           align: AlignmentType.RIGHT,
           size: VALUE_SIZE,
         }),
@@ -767,6 +808,8 @@ function buildTablaResumenTipificacionExcelStyle(input: {
       cellPct({ text: "TOTAL", widthPct: W_TIP, bold: true, color: RED, fill: TOTAL_FILL, align: AlignmentType.CENTER, size: VALUE_SIZE }),
       cellPct({ text: String(totalesResumen.inmuebles ?? 0), widthPct: W_INM, bold: true, color: RED, fill: TOTAL_FILL, align: AlignmentType.CENTER, size: VALUE_SIZE }),
       cellPct({ text: formatCOP(totalesResumen.recaudoTotal ?? 0), widthPct: W_REC, bold: true, color: RED, fill: TOTAL_FILL, align: AlignmentType.RIGHT, size: VALUE_SIZE }),
+      cellPct({ text: formatCOP(totalesResumen.honorariosRecaudoTotal ?? 0), widthPct: W_HON, bold: true, color: RED, fill: TOTAL_FILL, align: AlignmentType.RIGHT, size: VALUE_SIZE }),
+      cellPct({ text: formatCOP(totalesResumen.ingresoConjunto ?? 0), widthPct: W_ING, bold: true, color: "000000", fill: TOTAL_FILL, align: AlignmentType.RIGHT, size: VALUE_SIZE }),
       cellPct({ text: formatCOP(totalesResumen.porRecuperar ?? 0), widthPct: W_POR, bold: true, color: "000000", fill: TOTAL_FILL, align: AlignmentType.RIGHT, size: VALUE_SIZE }),
     ],
   });
@@ -865,7 +908,7 @@ function buildBloqueGestionInformativa() {
       "GESTIÓN INFORMATIVA SISTEMA GESGLO – GESTION GLOBAL ACG SAS"
     ),
 
-   
+
     new Paragraph({
       alignment: AlignmentType.JUSTIFIED,
       children: [
@@ -1086,6 +1129,8 @@ export type ResumenTipificacionRow = {
   tipificacion: string;
   inmuebles: number;
   recaudoTotal: number;
+  honorariosRecaudoTotal: number;
+  ingresoConjunto: number;
   porRecuperar: number;
 };
 
@@ -1098,6 +1143,8 @@ export type DetalleTipRow = {
   ubicacion: string;
   nombre: string;
   recaudoTotal: number;
+  honorariosRecaudoTotal: number;
+  ingresoConjunto: number;
   porRecuperar: number;
 };
 
@@ -1129,9 +1176,17 @@ export type DetallePorTipificacionWord = {
   tipificacion: string;
   inmuebles: number;
   recaudoTotal: number;
+  honorariosRecaudoTotal: number;
+  ingresoConjunto: number;
   porRecuperar: number;
   detalle: DetalleTipRow[];
-  totalesDetalle: { inmuebles: number; recaudoTotal: number; porRecuperar: number };
+  totalesDetalle: {
+    inmuebles: number;
+    recaudoTotal: number;
+    honorariosRecaudoTotal: number;
+    ingresoConjunto: number;
+    porRecuperar: number;
+  };
 };
 
 
@@ -1145,7 +1200,13 @@ export type ReporteClienteWordInput = {
   monthTabla?: number;
 
   resumenTipificacion: ResumenTipificacionRow[];
-  totalesResumen: { inmuebles: number; recaudoTotal: number; porRecuperar: number };
+  totalesResumen: {
+    inmuebles: number;
+    recaudoTotal: number;
+    honorariosRecaudoTotal: number;
+    ingresoConjunto: number;
+    porRecuperar: number;
+  };
 
   recaudosMensuales: RecaudoMensualRow[];
 
@@ -1222,7 +1283,7 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
           italics: true,
           size: 24,
         }),
-        
+
         new TextRun({
           text:
             "para la copropiedad en el área Pre-Jurídico y Jurídico, con cartera de más de 180 días de mora, donde podemos visualizar la acción que se ha realizado con cada uno de los deudores, que fueron entregados para la gestión de cobro.",
