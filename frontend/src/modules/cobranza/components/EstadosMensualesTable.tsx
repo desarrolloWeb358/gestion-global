@@ -53,8 +53,10 @@ import { Textarea } from "@/shared/ui/textarea";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { PERMS } from "@/shared/constants/acl";
 import { Typography } from "@/shared/design-system/components/Typography";
-import { BackButton } from "@/shared/design-system/components/BackButton";
 import { cn } from "@/shared/lib/cn";
+import AppBreadcrumb from "@/shared/components/app-breadcrumb";
+import { getClienteById } from "@/modules/clientes/services/clienteService";
+import { getDeudorById } from "../services/deudorService";
 
 export default function EstadosMensualesTable() {
   const { clienteId, deudorId } = useParams();
@@ -72,6 +74,8 @@ export default function EstadosMensualesTable() {
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
   const [estadoToDelete, setEstadoToDelete] = React.useState<EstadoMensual | null>(null);
   const [deleting, setDeleting] = React.useState(false);
+  const [nombreCliente, setNombreCliente] = React.useState("");
+  const [nombreDeudor, setNombreDeudor] = React.useState("");
 
   const hoyYYYYMM = new Date().toISOString().slice(0, 7);
   const clamp = (n: number, min: number, max: number) =>
@@ -91,7 +95,23 @@ export default function EstadosMensualesTable() {
       observaciones: "",
     });
 
+  React.useEffect(() => {
+    if (!clienteId || !deudorId) return;
 
+    const fetchData = async () => {
+      try {
+        const cliente = await getClienteById(clienteId);
+        const deudor = await getDeudorById(clienteId, deudorId);
+
+        setNombreCliente(cliente?.nombre ?? "Cliente");
+        setNombreDeudor(deudor?.nombre ?? "Deudor");
+      } catch (e) {
+        console.error("Error cargando breadcrumb:", e);
+      }
+    };
+
+    fetchData();
+  }, [clienteId, deudorId]);
   React.useEffect(() => {
     setNuevoEstadoMensual((s) => {
       const pct = (s.porcentajeHonorarios ?? 15) / 100;
@@ -274,255 +294,63 @@ export default function EstadosMensualesTable() {
   }
 
   return (
-    <div className="space-y-4">
-      {/* Back Button */}
-      <BackButton />
-
+    <div className="space-y-4"> 
+      {/* Breadcrumb */}
+      <AppBreadcrumb
+        items={[
+          { label: "Clientes", href: "/clientes-tables" },
+          { label: nombreCliente, href: `/deudores/${clienteId}` },
+          { label: nombreDeudor, href: `/clientes/${clienteId}/deudores/${deudorId}` },
+          { label: "Estados Mensuales" },
+        ]}
+        className="text-xs text-gray-500"
+      />
       {/* Header */}
       <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
         <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-5 md:p-6 border-b border-brand-secondary/10">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-brand-primary/10">
-                <TrendingUp className="h-6 w-6 text-brand-primary" />
+          <div className="flex flex-col gap-4">
+
+
+
+            {/* Título + descripción */}
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-brand-primary/10">
+                  <TrendingUp className="h-6 w-6 text-brand-primary" />
+                </div>
+
+                <div>
+                  <Typography
+                    variant="h2"
+                    className="!text-brand-secondary font-bold"
+                  >
+                    Estados Mensuales
+                  </Typography>
+
+                  <Typography
+                    variant="small"
+                    className="text-gray-600 mt-0.5"
+                  >
+                    Seguimiento de deuda, recaudos y honorarios
+                  </Typography>
+                </div>
               </div>
-              <div>
-                <Typography variant="h2" className="!text-brand-secondary">
-                  Estados Mensuales del Deudor
-                </Typography>
-                <Typography variant="small" className="mt-0.5">
-                  Seguimiento de deuda, recaudos y honorarios
-                </Typography>
-              </div>
+
+              {canEdit && (
+                <Button
+                  onClick={() => {
+                    resetForm();
+                    setOpen(true);
+                  }}
+                  variant="brand"
+                  className="gap-2 shadow-md hover:shadow-lg transition-all"
+                >
+                  <Plus className="h-4 w-4" />
+                  Agregar estado mensual
+                </Button>
+              )}
             </div>
 
-            {canEdit && (
-              <Dialog
-                open={open}
-                onOpenChange={(v) => {
-                  setOpen(v);
-                  if (!v) resetForm();
-                }}
-              >
-                <DialogTrigger asChild>
-                  <Button
-                    onClick={() => {
-                      resetForm();
-                      setOpen(true);
-                    }}
-                    variant="brand"
-                    className="gap-2 shadow-md hover:shadow-lg transition-all"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Agregar estado mensual
-                  </Button>
-                </DialogTrigger>
-
-                <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle className="text-brand-primary text-xl font-bold flex items-center gap-2">
-                      <FileText className="h-5 w-5" />
-                      {editing
-                        ? `Editar Estado (${nuevoEstadoMensual.mes})`
-                        : "Nuevo Estado Mensual"}
-                    </DialogTitle>
-                  </DialogHeader>
-
-                  <div className="space-y-6 py-4">
-                    {/* Mes */}
-                    <div className="space-y-2">
-                      <Label htmlFor="mes" className="text-brand-secondary font-medium flex items-center gap-2">
-                        <Calendar className="h-4 w-4" />
-                        Mes *
-                      </Label>
-                      <Input
-                        id="mes"
-                        type="month"
-                        value={nuevoEstadoMensual.mes || ""}
-                        onChange={(e) =>
-                          setNuevoEstadoMensual((s) => ({
-                            ...s,
-                            mes: e.target.value,
-                          }))
-                        }
-                        className="border-brand-secondary/30"
-                      />
-                    </div>
-
-                    {/* Campos numéricos */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="deuda" className="text-brand-secondary font-medium flex items-center gap-2">
-                          <DollarSign className="h-4 w-4" />
-                          Deuda
-                        </Label>
-                        <Input
-                          id="deuda"
-                          type="number"
-                          step="0.01"
-                          value={nuevoEstadoMensual.deuda ?? ""}
-                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          onChange={(e) => {
-                            const val = e.target.value
-                              ? clamp(parseFloat(e.target.value), 0, 1e15)
-                              : undefined;
-                            setNuevoEstadoMensual((s) => ({
-                              ...s,
-                              deuda: val,
-                            }));
-                          }}
-                          placeholder="0.00"
-                          className="border-brand-secondary/30"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="recaudo" className="text-brand-secondary font-medium flex items-center gap-2">
-                          <DollarSign className="h-4 w-4" />
-                          Recaudo
-                        </Label>
-                        <Input
-                          id="recaudo"
-                          type="number"
-                          step="0.01"
-                          value={nuevoEstadoMensual.recaudo ?? ""}
-                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          onChange={(e) => {
-                            const val = e.target.value
-                              ? clamp(parseFloat(e.target.value), 0, 1e15)
-                              : undefined;
-                            setNuevoEstadoMensual((s) => ({
-                              ...s,
-                              recaudo: val,
-                            }));
-                          }}
-                          placeholder="0.00"
-                          className="border-brand-secondary/30"
-                        />
-                      </div>
-
-
-                      <div className="space-y-2">
-                        <Label htmlFor="porcentaje" className="text-brand-secondary font-medium flex items-center gap-2">
-                          <Percent className="h-4 w-4" />
-                          % Honorarios
-                        </Label>
-                        <Input
-                          id="porcentaje"
-                          type="number"
-                          step="0.01"
-                          value={nuevoEstadoMensual.porcentajeHonorarios ?? ""}
-                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          onChange={(e) => {
-                            const val = e.target.value
-                              ? parseFloat(e.target.value)
-                              : undefined;
-                            setNuevoEstadoMensual((s) => ({
-                              ...s,
-                              porcentajeHonorarios: val,
-                            }));
-                          }}
-                          placeholder="15"
-                          className="border-brand-secondary/30"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Honorarios (solo lectura) */}
-                    <div className="rounded-xl border border-brand-secondary/20 bg-brand-primary/5 p-4 space-y-3">
-                      <Typography variant="small" className="font-semibold text-brand-secondary">
-                        Honorarios calculados automáticamente
-                      </Typography>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        {/* Hon. Deuda */}
-                        <div className="space-y-2">
-                          <Label className="text-brand-secondary font-medium">Hon. Deuda</Label>
-                          <Input readOnly value={nuevoEstadoMensual.honorariosDeuda != null ? `$${nuevoEstadoMensual.honorariosDeuda.toLocaleString()}` : ""} className="bg-white border-brand-secondary/30 cursor-not-allowed" />
-                        </div>
-
-
-                        {/* Hon. Recaudo */}
-                        <div className="space-y-2">
-                          <Label className="text-brand-secondary font-medium">Hon. Recaudo</Label>
-                          <Input readOnly value={nuevoEstadoMensual.honorariosRecaudo != null ? `$${nuevoEstadoMensual.honorariosRecaudo.toLocaleString()}` : ""} className="bg-white border-brand-secondary/30 cursor-not-allowed" />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Recibo */}
-                    <div className="space-y-2">
-                      <Label htmlFor="recibo" className="text-brand-secondary font-medium flex items-center gap-2">
-                        <FileText className="h-4 w-4" />
-                        Número de Recibo
-                      </Label>
-                      <Input
-                        id="recibo"
-                        value={nuevoEstadoMensual.recibo ?? ""}
-                        onChange={(e) =>
-                          setNuevoEstadoMensual((s) => ({
-                            ...s,
-                            recibo: e.target.value,
-                          }))
-                        }
-                        placeholder="Ej: REC-2024-001"
-                        className="border-brand-secondary/30"
-                      />
-                    </div>
-
-                    {/* Observaciones */}
-                    <div className="space-y-2">
-                      <Label htmlFor="observaciones" className="text-brand-secondary font-medium">
-                        Observaciones
-                      </Label>
-                      <Textarea
-                        id="observaciones"
-                        value={nuevoEstadoMensual.observaciones ?? ""}
-                        onChange={(e) =>
-                          setNuevoEstadoMensual((s) => ({
-                            ...s,
-                            observaciones: e.target.value,
-                          }))
-                        }
-                        placeholder="Notas adicionales sobre este estado mensual..."
-                        className="min-h-24 border-brand-secondary/30"
-                      />
-                    </div>
-                  </div>
-
-                  <DialogFooter>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setOpen(false);
-                        resetForm();
-                      }}
-                      disabled={saving}
-                      className="border-brand-secondary/30"
-                    >
-                      Cancelar
-                    </Button>
-                    <Button
-                      onClick={handleCrearOEditar}
-                      disabled={saving}
-                      variant="brand"
-                      className="gap-2"
-                    >
-                      {saving ? (
-                        <>
-                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                          Guardando...
-                        </>
-                      ) : (
-                        <>
-                          <Save className="h-4 w-4" />
-                          {editing ? "Actualizar" : "Guardar"}
-                        </>
-                      )}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            )}
           </div>
         </div>
       </section>

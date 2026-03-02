@@ -12,6 +12,7 @@ import {
   orderBy,
   query,
   Timestamp,
+  where,
 } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { app, db } from "../../../firebase";
@@ -19,6 +20,7 @@ import { Deudor } from "../models/deudores.model";
 import { AcuerdoPago } from "../models/acuerdoPago.model";
 import { EstadoMensual } from "../models/estadoMensual.model";
 import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
+
 import type {
   DocumentReference,
   UpdateData,
@@ -240,23 +242,43 @@ export async function crearDeudor(
 
   const ref = collection(db, `clientes/${clienteId}/deudores`);
 
+  const ubicacionNormalizada = (data.ubicacion ?? "").trim().toLowerCase();
+
+  if (!ubicacionNormalizada) {
+    throw new Error("La ubicación es obligatoria.");
+  }
+
+  // 🔎 1️⃣ VALIDAR SI YA EXISTE
+  const q = query(
+    ref,
+    where("ubicacion", "==", ubicacionNormalizada)
+  );
+
+  const snapshot = await getDocs(q);
+
+  if (!snapshot.empty) {
+    throw new Error(
+      "No se puede crear el deudor porque ya existe uno con esa misma ubicación."
+    );
+  }
+
   const tip = data.tipificacion ?? TipificacionDeuda.GESTIONANDO;
 
   const payload = {
     nombre: data.nombre,
     cedula: data.cedula ?? "",
-    ubicacion: data.ubicacion ?? "",
+    ubicacion: ubicacionNormalizada, // 👈 guardar normalizada
     correos: data.correos ?? [],
     telefonos: data.telefonos ?? [],
     porcentajeHonorarios: data.porcentajeHonorarios ?? 15,
     tipificacion: tip,
   };
 
-  // 1️⃣ Crear deudor
+  // 2️⃣ Crear deudor
   const docRef = await addDoc(ref, payload);
   const deudorId = docRef.id;
 
-  // 2️⃣ Crear primer registro de historial de tipificación
+  // 3️⃣ Crear historial inicial
   await crearHistorialTipificacion(clienteId, deudorId, {
     fecha: Timestamp.now(),
     tipificacion: tip,

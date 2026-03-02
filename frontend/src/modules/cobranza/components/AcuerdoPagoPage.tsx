@@ -25,7 +25,6 @@ import { Calendar } from "@/shared/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover";
 import { Typography } from "@/shared/design-system/components/Typography";
 import { cn } from "@/shared/lib/cn";
-import { BackButton } from "@/shared/design-system/components/BackButton";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { PERMS } from "@/shared/constants/acl";
 import { getAuth } from "firebase/auth";
@@ -65,6 +64,7 @@ import {
     DialogDescription,
     DialogFooter,
 } from "@/shared/ui/dialog";
+import AppBreadcrumb from "@/shared/components/app-breadcrumb";
 
 type FormBase = {
     numero: string;
@@ -734,7 +734,14 @@ export default function AcuerdoPagoPage() {
         return (
             <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30">
                 <div className="max-w-4xl mx-auto p-6 space-y-4">
-                    <BackButton />
+                    <AppBreadcrumb
+                        items={[
+                            { label: "Clientes", href: "/clientes-tables" },
+                            { label: clienteNombre, href: `/deudores/${clienteId}` },
+                            { label: deudorNombre, href: `/clientes/${clienteId}/deudores/${deudorId}` },
+                            { label: "Acuerdo de Pago" },
+                        ]}
+                    />
                     <div className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
                         <div className="p-6">
                             <Typography variant="h2" className="text-brand-secondary mb-2">
@@ -792,7 +799,14 @@ export default function AcuerdoPagoPage() {
                     </div>
                 )}
 
-                <BackButton />
+                <AppBreadcrumb
+                    items={[
+                        { label: "Clientes", href: "/clientes-tables" },
+                        { label: clienteNombre, href: `/deudores/${clienteId}` },
+                        { label: deudorNombre, href: `/clientes/${clienteId}/deudores/${deudorId}` },
+                        { label: "Acuerdo de Pago" },
+                    ]}
+                />
 
                 {/* Header */}
                 <header className="space-y-4">
