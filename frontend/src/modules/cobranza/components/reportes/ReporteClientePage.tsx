@@ -619,7 +619,7 @@ export default function ReporteClientePage() {
             }));
 
           return {
-            ubicacion: d.ubicacion || "Sin ubicación",
+            ubicacion: d.ubicacion || "Sin inmueble",
             demandados: d.demandados || "",
             numeroRadicado: d.numeroRadicado || "",
             juzgado: d.juzgado || "",
@@ -758,7 +758,7 @@ export default function ReporteClientePage() {
           }));
 
         return {
-          ubicacion: d.ubicacion || "Sin ubicación",
+          ubicacion: d.ubicacion || "Sin inmueble",
           demandados: d.demandados || "",
           numeroRadicado: d.numeroRadicado || "",
           juzgado: d.juzgado || "",
@@ -1286,7 +1286,7 @@ export default function ReporteClientePage() {
                   <Table className="w-full">
                     <TableHeader className="sticky top-0 z-10 bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5">
                       <TableRow className="border-brand-secondary/10 hover:bg-transparent">
-                        <TableHead className="w-24 text-brand-secondary font-semibold">Ubicación</TableHead>
+                        <TableHead className="w-24 text-brand-secondary font-semibold">Inmueble</TableHead>
                         <TableHead className="text-brand-secondary font-semibold">Deudor</TableHead>
                         <TableHead className="text-right text-brand-secondary font-semibold">Recaudo total</TableHead>
                         <TableHead className="text-right text-brand-secondary font-semibold">Honorarios</TableHead>

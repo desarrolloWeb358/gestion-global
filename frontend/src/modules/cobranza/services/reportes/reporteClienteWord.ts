@@ -186,7 +186,7 @@ function buildTablaRecomendacionesExcelStyle(input: {
   const header = new TableRow({
     children: [
       excelCell({ text: "TIPIFICACIÓN", bold: true, fill: HEADER_FILL, align: AlignmentType.LEFT }),
-      excelCell({ text: "UBICACIÓN", bold: true, fill: HEADER_FILL, align: AlignmentType.LEFT }),
+      excelCell({ text: "INMUEBLE", bold: true, fill: HEADER_FILL, align: AlignmentType.LEFT }),
       excelCell({ text: "DEUDOR", bold: true, fill: HEADER_FILL, align: AlignmentType.LEFT }),
       excelCell({ text: `CAPITAL ${mes}`, bold: true, fill: HEADER_FILL, align: AlignmentType.RIGHT }),
     ],
@@ -387,7 +387,7 @@ function buildTablaDetalleTipificacionExcelStyle(input: {
 
   const header = new TableRow({
     children: [
-      excelCell({ text: "UBICACIÓN", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
+      excelCell({ text: "INMUEBLE", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
       excelCell({ text: "DEUDOR", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
       excelCell({ text: "RECAUDO TOTAL", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
       excelCell({ text: "HONORARIOS", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
@@ -504,7 +504,7 @@ function buildProcesoDemandaCard(input: {
   seguimientos: { fecha: string | null; texto: string }[];
   observacionCliente?: string;
 }) {
-  const ubicacion = input.ubicacion || "SIN UBICACIÓN";
+  const ubicacion = input.ubicacion || "SIN INMUEBLE";
   const demandados = (input.demandados || "").trim() || "-";
   const radicado = (input.numeroRadicado || "").trim() || "-";
   const juzgado = (input.juzgado || "").trim() || "-";
@@ -1491,7 +1491,7 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
   } else {
     input.demandas.forEach((d) => {
       const blocks = buildProcesoDemandaCard({
-        ubicacion: d.ubicacion || "Sin ubicación",
+        ubicacion: d.ubicacion || "Sin inmueble",
         demandados: d.demandados || "",
         numeroRadicado: d.numeroRadicado || "",
         juzgado: d.juzgado || "",

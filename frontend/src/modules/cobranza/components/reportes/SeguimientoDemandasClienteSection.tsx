@@ -185,7 +185,7 @@ export default function SeguimientoDemandasClienteSection({ clienteId, year, mon
                                                         variant="body"
                                                         className="font-semibold text-brand-secondary"
                                                     >
-                                                        {d.ubicacion || "Sin ubicación"}
+                                                        {d.ubicacion || "Sin inmueble"}
                                                     </Typography>
                                                     <Typography variant="small" className="text-muted-foreground">
                                                         {d.demandados ? `Demandado(s): ${d.demandados}` : "—"}
