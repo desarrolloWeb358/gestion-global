@@ -41,6 +41,7 @@ import NotificacionesPage from "./modules/notificaciones/components/Notificacion
 import MiDeudaRedirectPage from "./modules/cobranza/components/MiDeudaRedirectPage";
 import RootRedirect from "./modules/auth/pages/RootRedirect";
 import AuthLayout from "./modules/auth/components/AuthLayout";
+import ClienteSeguimiento from "./modules/cobranza/components/ClienteSeguimiento";
 
 
 export default function App() {
@@ -82,6 +83,10 @@ export default function App() {
             <Route path="/probar-notificaciones" element={<ProbarNotificacionesPage />} />
             <Route path="/clientes/:clienteId/reporte" element={<ReporteClientePage />} />
             <Route path="/clientes/:clienteId/deudores/:deudorId/demanda" element={<DemandaInfoPage />} />
+            <Route
+              path="/clientes/:clienteId/seguimiento-conjunto"
+              element={<ClienteSeguimiento />}
+            />
             {/* valores agregados */}
             <Route path="/valores-agregados/:clienteId" element={<ValoresAgregadosTable />} />
             <Route path="/clientes/:clienteId/valores-agregados/:valorId" element={<ValorAgregadoDetailPage />} />

@@ -13,6 +13,8 @@ import {
   deleteDoc,
   getDoc,
 } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { storage } from "@/firebase";
 import { db } from "@/firebase";
 import type { ObservacionCliente } from "../models/observacionCliente.model";
 import type { Cliente } from "@/modules/clientes/models/cliente.model";
@@ -28,7 +30,9 @@ type Scope = "deudor" | "valor";
 // Estructura exacta que se guarda en Firestore
 type ObservacionClienteDoc = {
   texto: string;
-  fecha: Timestamp; // único campo temporal
+  fecha: Timestamp;
+  archivoUrl?: string;
+  archivoNombre?: string;
 };
 
 type ClienteInfoEjecutivoPre = {
@@ -124,6 +128,8 @@ export async function getObservacionesClienteGeneric(
       id: d.id,
       texto: data.texto ?? "",
       fecha: data.fecha ?? null,
+      archivoUrl: data.archivoUrl,
+      archivoNombre: data.archivoNombre,
     };
     return item;
   });
@@ -135,16 +141,32 @@ export async function addObservacionClienteGeneric(
   clienteId: string,
   parentId: string,
   texto: string,
-  scope: Scope
+  scope: Scope,
+  archivo?: File
 ): Promise<string> {
-  // 1️⃣ Guardar la observación en Firestore
-  const ref = await addDoc(colRef(clienteId, parentId, scope), {
-    texto,
-    fecha: serverTimestamp() as unknown as Timestamp, // único timestamp
-  });
-  const obsId = ref.id;
+  let archivoUrl: string | undefined;
+  let archivoNombre: string | undefined;
 
-    // 2️⃣ Notificar SOLO cuando es observación a nivel deudor (seguimiento)
+  if (archivo) {
+    const path = `clientes/${clienteId}/${scope === "deudor" ? "deudores" : "valoresAgregados"}/${parentId}/observacionesCliente/${Date.now()}_${archivo.name}`;
+
+    const storageRef = ref(storage, path);
+
+    await uploadBytes(storageRef, archivo);
+
+    archivoUrl = await getDownloadURL(storageRef);
+    archivoNombre = archivo.name;
+  }
+  // 1️⃣ Guardar la observación en Firestore
+  const docRef = await addDoc(colRef(clienteId, parentId, scope), {
+    texto,
+    archivoUrl,
+    archivoNombre,
+    fecha: serverTimestamp() as unknown as Timestamp,
+  });
+  const obsId = docRef.id;
+
+  // 2️⃣ Notificar SOLO cuando es observación a nivel deudor (seguimiento)
   if (scope === "deudor") {
     try {
       // Info del cliente: nombre + ejecutivo pre-jurídico
@@ -199,7 +221,7 @@ export async function addObservacionClienteGeneric(
         correoDestino: correoDestinatarioPrejuridico,
         subject,
         tituloCorreo,
-        cuerpoHtmlCorreo,       
+        cuerpoHtmlCorreo,
       });
     } catch (err) {
       console.error(
@@ -248,9 +270,16 @@ export async function getObservacionesCliente(
 export async function addObservacionCliente(
   clienteId: string,
   deudorId: string,
-  texto: string
+  texto: string,
+  archivo?: File
 ): Promise<string> {
-  return addObservacionClienteGeneric(clienteId, deudorId, texto, "deudor");
+  return addObservacionClienteGeneric(
+    clienteId,
+    deudorId,
+    texto,
+    "deudor",
+    archivo
+  );
 }
 
 export async function getObservacionesClienteValor(
@@ -362,7 +391,7 @@ export async function addObservacionDeudorConNotificacion(params: {
 
   const descripcionAlerta = `Nueva observación de ${nombreCli} sobre el deudor ${nombreDeu}`;
   const ruta = `/deudores/${clienteId}/${deudorId}/seguimiento`;
-  
+
 
   const cuerpoHtmlCorreo = `
     <p>El cliente <strong>${nombreCli}</strong> ha registrado una nueva observación sobre el deudor <strong>${nombreDeu}</strong>.</p>
@@ -383,7 +412,7 @@ export async function addObservacionDeudorConNotificacion(params: {
     correoDestino: correoDestinatarioPrejuridico,
     subject: "Nueva observación de cliente sobre un deudor",
     tituloCorreo: "Tienes una nueva observación registrada por un cliente",
-    cuerpoHtmlCorreo,  
+    cuerpoHtmlCorreo,
   });
 
   return obsId;

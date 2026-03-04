@@ -5,4 +5,6 @@ export interface ObservacionCliente {
   id?: string;
   texto: string;                
   fecha?: Timestamp;   // guardado en Firestore
+  archivoUrl?: string;
+  archivoNombre?: string;
 }

@@ -155,6 +155,7 @@ export default function SeguimientoTable() {
   const [obsCliente, setObsCliente] = React.useState<ObservacionCliente[]>([]);
   const [obsLoading, setObsLoading] = React.useState(false);
   const [obsTexto, setObsTexto] = React.useState("");
+  const [obsArchivo, setObsArchivo] = React.useState<File | undefined>();
   const auth = getAuth();
   const demandaRef = React.useRef<{ openForm?: () => void } | null>(null);
 
@@ -312,17 +313,20 @@ export default function SeguimientoTable() {
     }
 
     const texto = obsTexto.trim();
+
     if (!texto) {
       toast.error("Escribe la observación.");
       return;
     }
 
     try {
-      setBusyObs(true); // ✅ ACTIVA overlay
+      setBusyObs(true);
 
-      await addObservacionCliente(clienteId, deudorId, texto);
+      await addObservacionCliente(clienteId, deudorId, texto, obsArchivo);
 
       setObsTexto("");
+      setObsArchivo(undefined);
+
       setObsCliente(await getObservacionesCliente(clienteId, deudorId));
 
       toast.success("✓ Observación agregada");
@@ -330,10 +334,9 @@ export default function SeguimientoTable() {
       console.error(e);
       toast.error("⚠️ No se pudo agregar la observación");
     } finally {
-      setBusyObs(false); // ✅ DESACTIVA overlay
+      setBusyObs(false);
     }
   };
-
 
   if (aclLoading) {
     return (
@@ -464,7 +467,7 @@ export default function SeguimientoTable() {
               className="data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all"
             >
               <MessageSquare className="h-4 w-4 mr-2" />
-              Observaciones
+              Observaciones de cliente
             </TabsTrigger>
           </TabsList>
 
@@ -733,6 +736,19 @@ export default function SeguimientoTable() {
                           </div>
                           <div className="text-sm whitespace-pre-wrap text-gray-700 leading-relaxed">
                             {o.texto}
+
+                            {o.archivoUrl && (
+                              <div className="mt-2">
+                                <a
+                                  href={o.archivoUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-sm text-brand-primary underline"
+                                >
+                                  Ver archivo adjunto
+                                </a>
+                              </div>
+                            )}
                           </div>
                         </div>
                       );
@@ -746,13 +762,72 @@ export default function SeguimientoTable() {
                       Agregar nueva observación
                     </Typography>
 
-                    <Textarea
-                      value={obsTexto}
-                      onChange={(e) => setObsTexto(e.target.value)}
-                      disabled={busyObs}
-                      className="min-h-28 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
-                      placeholder="Escribe tu observación para el ejecutivo..."
-                    />
+                    <div className="space-y-3">
+                      <Textarea
+                        value={obsTexto}
+                        onChange={(e) => setObsTexto(e.target.value)}
+                        disabled={busyObs}
+                        className="min-h-28 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
+                        placeholder="Escribe tu observación para el ejecutivo..."
+                      />
+
+                      <label
+  className={cn(
+    "flex items-center gap-3 px-4 py-3 rounded-xl border-2 border-dashed cursor-pointer transition-all",
+    busyObs
+      ? "opacity-50 cursor-not-allowed border-gray-200 bg-gray-50"
+      : obsArchivo
+      ? "border-brand-primary bg-brand-primary/5 hover:bg-brand-primary/10"
+      : "border-brand-secondary/30 bg-gray-50 hover:border-brand-primary hover:bg-brand-primary/5"
+  )}
+>
+  <input
+    type="file"
+    accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+    disabled={busyObs}
+    className="sr-only"
+    onChange={(e) => {
+      if (e.target.files?.[0]) setObsArchivo(e.target.files[0]);
+    }}
+  />
+  <div className={cn(
+    "flex-shrink-0 p-2 rounded-lg transition-colors",
+    obsArchivo ? "bg-brand-primary/15" : "bg-white border border-brand-secondary/20"
+  )}>
+    {obsArchivo
+      ? <FileText className="h-4 w-4 text-brand-primary" />
+      : <Download className="h-4 w-4 rotate-180 text-gray-400" />
+    }
+  </div>
+  <div className="flex-1 min-w-0">
+    {obsArchivo ? (
+      <>
+        <p className="text-sm font-medium text-brand-primary truncate">{obsArchivo.name}</p>
+        <p className="text-xs text-gray-500 mt-0.5">
+          {(obsArchivo.size / 1024).toFixed(0)} KB · Haz clic para cambiar
+        </p>
+      </>
+    ) : (
+      <>
+        <p className="text-sm font-medium text-gray-700">
+          Adjuntar archivo <span className="font-normal text-gray-500">(opcional)</span>
+        </p>
+        <p className="text-xs text-gray-400 mt-0.5">PDF, JPG, PNG, DOC</p>
+      </>
+    )}
+  </div>
+  {obsArchivo && (
+    <button
+      type="button"
+      disabled={busyObs}
+      onClick={(e) => { e.preventDefault(); setObsArchivo(undefined); }}
+      className="flex-shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+    >
+      <Trash2 className="h-3.5 w-3.5" />
+    </button>
+  )}
+</label>
+                    </div>
 
                     <div className="flex justify-end">
                       <Button
