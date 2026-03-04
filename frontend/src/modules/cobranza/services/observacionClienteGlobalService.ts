@@ -37,7 +37,7 @@ export async function getObservacionesClienteGlobal(
 
   const q = query(
     colRef(clienteId),
-    orderBy("fecha", "asc")
+    orderBy("fecha", "desc")
   );
 
   const snap = await getDocs(q);
