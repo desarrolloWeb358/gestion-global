@@ -998,7 +998,7 @@ export default function ReporteClientePage() {
                     Tipificación
                   </TableHead>
                   <TableHead className="text-right text-brand-secondary font-semibold">
-                    Inmueble
+                    Inmuebles
                   </TableHead>
                   <TableHead className="text-right text-brand-secondary font-semibold">
                     Recaudo total

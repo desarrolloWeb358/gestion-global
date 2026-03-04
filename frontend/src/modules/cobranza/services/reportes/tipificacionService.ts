@@ -161,7 +161,7 @@ export async function obtenerResumenPorTipificacion(
   const cutoffMonth = month;
 
   const deudoresRef = collection(db, `clientes/${clienteId}/deudores`);
-  const deudoresSnap = await getDocs(deudoresRef);
+  const deudoresSnap = await getDocs(query(deudoresRef, orderBy("ubicacion", "asc")));
 
   const acumulado = new Map<
     TipificacionKey,
@@ -278,7 +278,7 @@ export async function obtenerDetalleDeudoresPorTipificacion(
   const yearStr = String(year);
 
   const deudoresRef = collection(db, `clientes/${clienteId}/deudores`);
-  const deudoresSnap = await getDocs(deudoresRef);
+  const deudoresSnap = await getDocs(query(deudoresRef, orderBy("ubicacion", "asc")));
 
   // 1) Filtrar por tipificación vigente a fechaCorte
   const base = await Promise.all(
@@ -356,6 +356,6 @@ export async function obtenerDetalleDeudoresPorTipificacion(
     })
   );
 
-  detalle.sort((a, b) => b.recaudoTotal - a.recaudoTotal);
+  //detalle.sort((a, b) => b.recaudoTotal - a.recaudoTotal);
   return detalle;
 }
