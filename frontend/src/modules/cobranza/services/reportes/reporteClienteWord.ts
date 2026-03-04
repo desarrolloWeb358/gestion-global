@@ -186,7 +186,7 @@ function buildTablaRecomendacionesExcelStyle(input: {
   const header = new TableRow({
     children: [
       excelCell({ text: "TIPIFICACIÓN", bold: true, fill: HEADER_FILL, align: AlignmentType.LEFT }),
-      excelCell({ text: "UBICACIÓN", bold: true, fill: HEADER_FILL, align: AlignmentType.LEFT }),
+      excelCell({ text: "INMUEBLE", bold: true, fill: HEADER_FILL, align: AlignmentType.LEFT }),
       excelCell({ text: "DEUDOR", bold: true, fill: HEADER_FILL, align: AlignmentType.LEFT }),
       excelCell({ text: `CAPITAL ${mes}`, bold: true, fill: HEADER_FILL, align: AlignmentType.RIGHT }),
     ],
@@ -387,7 +387,7 @@ function buildTablaDetalleTipificacionExcelStyle(input: {
 
   const header = new TableRow({
     children: [
-      excelCell({ text: "UBICACIÓN", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
+      excelCell({ text: "INMUEBLE", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
       excelCell({ text: "DEUDOR", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
       excelCell({ text: "RECAUDO TOTAL", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
       excelCell({ text: "HONORARIOS", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
@@ -504,7 +504,7 @@ function buildProcesoDemandaCard(input: {
   seguimientos: { fecha: string | null; texto: string }[];
   observacionCliente?: string;
 }) {
-  const ubicacion = input.ubicacion || "SIN UBICACIÓN";
+  const ubicacion = input.ubicacion || "SIN INMUEBLE";
   const demandados = (input.demandados || "").trim() || "-";
   const radicado = (input.numeroRadicado || "").trim() || "-";
   const juzgado = (input.juzgado || "").trim() || "-";
@@ -698,8 +698,8 @@ function buildTablaResumenTipificacionExcelStyle(input: {
   const W_POR = 16;
 
   // ✅ SOLO esta tabla: letra más pequeña
-  const HEADER_SIZE = 20; // 10pt aprox
-  const VALUE_SIZE = 20;  // 10pt aprox
+  const HEADER_SIZE = 18; // 10pt aprox
+  const VALUE_SIZE = 18;  // 10pt aprox
 
   // 🔒 helper LOCAL (no afecta otras tablas)
   const cellPct = (params: {
@@ -737,10 +737,10 @@ function buildTablaResumenTipificacionExcelStyle(input: {
   const header = new TableRow({
     children: [
       cellPct({ text: "TIPIFICACIÓN", widthPct: W_TIP, bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: HEADER_SIZE }),
-      cellPct({ text: "INMUEBLE", widthPct: W_INM, bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: HEADER_SIZE }),
+      cellPct({ text: "INMUEBLES", widthPct: W_INM, bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: HEADER_SIZE }),
       cellPct({ text: "RECAUDO TOTAL", widthPct: W_REC, bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: HEADER_SIZE }),
       cellPct({ text: "HONORARIOS", widthPct: W_HON, bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: HEADER_SIZE }),
-      cellPct({ text: "INGRESO CONJUNTO", widthPct: W_ING, bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: HEADER_SIZE }),
+      cellPct({ text: "INGRESO COPROPIEDAD", widthPct: W_ING, bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: HEADER_SIZE }),
       cellPct({ text: "POR RECUPERAR", widthPct: W_POR, bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: HEADER_SIZE }),
     ],
   });
@@ -1491,7 +1491,7 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
   } else {
     input.demandas.forEach((d) => {
       const blocks = buildProcesoDemandaCard({
-        ubicacion: d.ubicacion || "Sin ubicación",
+        ubicacion: d.ubicacion || "Sin inmueble",
         demandados: d.demandados || "",
         numeroRadicado: d.numeroRadicado || "",
         juzgado: d.juzgado || "",

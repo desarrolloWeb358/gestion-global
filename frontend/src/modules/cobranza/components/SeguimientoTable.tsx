@@ -2,6 +2,8 @@
 import * as React from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { getClienteById } from "@/modules/clientes/services/clienteService";
+import { getDeudorById } from "../services/deudorService";
 import {
   FileText,
   History,
@@ -81,6 +83,7 @@ import { Typography } from "@/shared/design-system/components/Typography";
 import { BackButton } from "@/shared/design-system/components/BackButton";
 import { cn } from "@/shared/lib/cn";
 import { ExpandableCell } from "@/shared/components/expandable-cell";
+import AppBreadcrumb from "@/shared/components/app-breadcrumb";
 
 type SortDir = "desc" | "asc";
 
@@ -132,6 +135,8 @@ function inRange(millis: number, range?: DateRange): boolean {
 export default function SeguimientoTable() {
   const { clienteId, deudorId } = useParams();
   const navigate = useNavigate();
+  const [nombreCliente, setNombreCliente] = React.useState<string>("");
+  const [nombreDeudor, setNombreDeudor] = React.useState<string>("");
 
   const [items, setItems] = React.useState<Seguimiento[]>([]);
   const [loading, setLoading] = React.useState(false);
@@ -178,6 +183,24 @@ export default function SeguimientoTable() {
   const obsFields: FilterField<ObservacionCliente>[] = [
     { key: "fecha", label: "Rango de fechas", kind: "daterange", getDate: (o) => toDate(o.fecha) },
   ];
+
+  React.useEffect(() => {
+    if (!clienteId || !deudorId) return;
+
+    const fetchNames = async () => {
+      try {
+        const cliente = await getClienteById(clienteId);
+        const deudor = await getDeudorById(clienteId, deudorId);
+
+        setNombreCliente(cliente?.nombre ?? "Cliente");
+        setNombreDeudor(deudor?.nombre ?? "Deudor");
+      } catch (error) {
+        console.error("Error cargando nombres:", error);
+      }
+    };
+
+    fetchNames();
+  }, [clienteId, deudorId]);
 
   React.useEffect(() => {
     if (!clienteId || !deudorId) return;
@@ -370,10 +393,12 @@ export default function SeguimientoTable() {
         {/* HEADER */}
         <header className="space-y-4">
           <div className="flex items-center gap-2">
-            <BackButton
-              variant="ghost"
-              size="sm"
-              className="text-brand-secondary hover:text-brand-primary hover:bg-brand-primary/5 transition-all"
+            <AppBreadcrumb
+              items={[
+                { label: "Clientes", href: "/clientes-tables" },
+                { label: nombreCliente, href: `/deudores/${clienteId}` }, // 👈 ESTA ES LA RUTA REAL
+                { label: nombreDeudor, href: `/clientes/${clienteId}/deudores/${deudorId}` },
+              ]}
             />
 
           </div>
@@ -387,6 +412,7 @@ export default function SeguimientoTable() {
                 <Typography variant="h2" className="!text-brand-primary font-bold">
                   Gestión de Seguimiento
                 </Typography>
+
                 <Typography variant="small" className="text-gray-600 mt-0.5">
                   {tab === "pre" && "Seguimiento pre-jurídico"}
                   {tab === "juridico" && "Seguimiento jurídico"}
