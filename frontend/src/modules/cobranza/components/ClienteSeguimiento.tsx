@@ -7,7 +7,6 @@ import {
   MessageSquare,
   FileText,
   Upload,
-  Trash2,
   ExternalLink,
   CalendarDays,
 } from "lucide-react";
@@ -33,6 +32,7 @@ import { BackButton } from "@/shared/design-system/components/BackButton";
 import { cn } from "@/shared/lib/cn";
 
 import { ObservacionClienteGlobal } from "@/modules/cobranza/models/observacionClienteGlobal.model";
+
 import { db } from "@/firebase";
 import { doc, getDoc } from "firebase/firestore";
 
@@ -83,6 +83,7 @@ export default function ClienteSeguimientoConjunto() {
   }, [clienteId]);
 
   async function guardarNotaInterna() {
+
     if (!clienteId) return;
 
     if (!notaInternaTexto.trim()) {
@@ -101,90 +102,89 @@ export default function ClienteSeguimientoConjunto() {
       toast.success("Nota interna guardada");
 
     } catch {
+
       toast.error("No se pudo guardar la nota");
+
     }
+
   }
 
   async function guardar() {
 
-  if (!clienteId) return;
+    if (!clienteId) return;
 
-  if (!texto.trim()) {
-    toast.error("Debes escribir un detalle");
-    return;
-  }
-
-  try {
-
-    setBusy(true);
-
-    await addObservacionClienteGlobal(clienteId, texto, archivo);
-
-    setTexto("");
-    setArchivo(undefined);
-
-    await cargar();
-
-    toast.success("Seguimiento agregado");
-
-    /* ===============================
-       NOTIFICACIÓN AL OTRO USUARIO
-       =============================== */
-
-    const clienteRef = doc(db, "clientes", clienteId);
-    const clienteSnap = await getDoc(clienteRef);
-
-    const clienteData = clienteSnap.data();
-
-    let destinatarioId: string | undefined;
-
-    if (esCliente) {
-      destinatarioId = clienteData?.ejecutivoId;
-    } else {
-      destinatarioId = clienteData?.usuarioClienteId;
+    if (!texto.trim()) {
+      toast.error("Debes escribir un detalle");
+      return;
     }
 
-    /* Evitar notificarse a sí mismo */
+    try {
 
-    if (!destinatarioId || destinatarioId === usuario?.uid) return;
+      setBusy(true);
 
-    await notificarUsuarioConAlertaYCorreo({
+      await addObservacionClienteGlobal(clienteId, texto, archivo);
 
-      usuarioId: destinatarioId,
+      setTexto("");
+      setArchivo(undefined);
 
-      modulo: "seguimiento",
+      await cargar();
 
-      ruta: `/clientes/${clienteId}/seguimiento-conjunto`,
+      toast.success("Seguimiento agregado");
 
-      descripcionAlerta: "Nuevo mensaje en seguimiento del conjunto",
+      /* NOTIFICACIÓN */
 
-      nombreDestino: "",
+      const clienteRef = doc(db, "clientes", clienteId);
+      const clienteSnap = await getDoc(clienteRef);
 
-      correoDestino: "",
+      const clienteData = clienteSnap.data();
 
-      subject: "Nuevo mensaje en seguimiento",
+      let destinatarioId: string | undefined;
 
-      tituloCorreo: "Nuevo mensaje en seguimiento del conjunto",
+      if (esCliente) {
+        destinatarioId = clienteData?.ejecutivoId;
+      } else {
+        destinatarioId = clienteData?.usuarioClienteId;
+      }
 
-      cuerpoHtmlCorreo: `
-        <p>Se ha agregado un nuevo mensaje en el seguimiento del conjunto.</p>
+      if (!destinatarioId || destinatarioId === usuario?.uid) return;
+
+      await notificarUsuarioConAlertaYCorreo({
+
+        usuarioId: destinatarioId,
+
+        modulo: "seguimiento",
+
+        ruta: `/clientes/${clienteId}/seguimiento-conjunto`,
+
+        descripcionAlerta: "Nuevo mensaje en seguimiento del conjunto",
+
+        nombreDestino: "",
+
+        correoDestino: "",
+
+        subject: "Nuevo mensaje en seguimiento",
+
+        tituloCorreo: "Nuevo mensaje en seguimiento del conjunto",
+
+        cuerpoHtmlCorreo: `
+        <p>Se ha agregado un nuevo mensaje en el seguimiento.</p>
         <p><strong>Mensaje:</strong></p>
         <p>${texto}</p>
       `
 
-    });
+      });
 
-  } catch {
+    } catch {
 
-    toast.error("No se pudo guardar");
+      toast.error("No se pudo guardar");
 
-  } finally {
+    } finally {
 
-    setBusy(false);
+      setBusy(false);
+
+    }
 
   }
-
-}
 
   return (
 
@@ -196,7 +196,7 @@ export default function ClienteSeguimientoConjunto() {
           <BackButton
             variant="ghost"
             size="sm"
-            className="text-brand-secondary hover:text-brand-primary hover:bg-brand-primary/5 transition-all"
+            className="text-brand-secondary hover:text-brand-primary hover:bg-brand-primary/5"
           />
         </div>
 
@@ -212,7 +212,7 @@ export default function ClienteSeguimientoConjunto() {
               Seguimiento del conjunto
             </Typography>
 
-            <Typography variant="small" className="text-gray-500 mt-0.5">
+            <Typography variant="small" className="text-gray-500">
               Registro de observaciones y novedades del cliente
             </Typography>
 
@@ -220,11 +220,11 @@ export default function ClienteSeguimientoConjunto() {
 
         </header>
 
-        {/* NUEVO SEGUIMIENTO */}
+        {/* NUEVO MENSAJE */}
 
         <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
 
-          <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 px-5 py-4 border-b border-brand-secondary/10">
+          <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 px-5 py-4 border-b">
 
             <div className="flex items-center gap-2">
 
@@ -245,12 +245,10 @@ export default function ClienteSeguimientoConjunto() {
               onChange={(e) => setTexto(e.target.value)}
               placeholder="Escribe el detalle del seguimiento..."
               disabled={busy}
-              className="min-h-28 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20 resize-none"
+              className="min-h-28 border-brand-secondary/30"
             />
 
-            {/* FILE */}
-
-            <label className="flex items-center gap-3 px-4 py-3 rounded-xl border-2 border-dashed border-brand-secondary/30 bg-gray-50 hover:border-brand-primary hover:bg-brand-primary/5 cursor-pointer">
+            <label className="flex items-center gap-3 px-4 py-3 rounded-xl border-2 border-dashed border-brand-secondary/30 cursor-pointer">
 
               <input
                 ref={fileInputRef}
@@ -277,7 +275,7 @@ export default function ClienteSeguimientoConjunto() {
                 onClick={guardar}
                 disabled={busy}
                 variant="brand"
-                className="gap-2 shadow-md hover:shadow-lg transition-all"
+                className="gap-2"
               >
 
                 {busy
@@ -322,11 +320,14 @@ export default function ClienteSeguimientoConjunto() {
                 )}
               >
 
-                <div className="flex items-center gap-1.5 mb-3">
+                <div className="flex items-center justify-between mb-2">
 
-                  <CalendarDays className="h-3.5 w-3.5 text-brand-primary/60"/>
+                  <span className="text-xs font-semibold text-brand-primary">
+                    {o.usuarioId === usuario?.uid ? "Tú" : esCliente ? "Ejecutivo" : "Cliente"}
+                  </span>
 
-                  <span className="text-xs font-medium text-gray-500">
+                  <span className="text-xs text-gray-500 flex items-center gap-1">
+                    <CalendarDays className="h-3.5 w-3.5"/>
                     {fecha}
                   </span>
 
@@ -380,7 +381,7 @@ export default function ClienteSeguimientoConjunto() {
               value={notaInternaTexto}
               onChange={(e)=>setNotaInternaTexto(e.target.value)}
               placeholder="Registrar información interna del conjunto..."
-              className="min-h-24 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20 resize-none"
+              className="min-h-24 border-brand-secondary/30"
             />
 
             <div className="flex justify-end">
@@ -393,6 +394,54 @@ export default function ClienteSeguimientoConjunto() {
               </Button>
 
             </div>
+
+            {notasInternas.length === 0 ? (
+
+              <div className="rounded-2xl border border-brand-secondary/20 bg-white p-6 text-center shadow-sm">
+
+                <Typography variant="body" className="text-gray-600">
+                  No hay notas internas registradas
+                </Typography>
+
+              </div>
+
+            ) : (
+
+              <div className="space-y-3">
+
+                {notasInternas.map((n, index) => {
+
+                  const fecha =
+                    (n.fecha as any)?.toDate?.()?.toLocaleString("es-CO", {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    }) ?? "—";
+
+                  return (
+
+                    <div
+                      key={n.id}
+                      className="rounded-2xl border p-4 shadow-sm"
+                    >
+
+                      <div className="flex items-center gap-2 mb-2 text-xs text-gray-500">
+                        <CalendarDays className="h-3.5 w-3.5"/>
+                        {fecha}
+                      </div>
+
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                        {n.texto}
+                      </p>
+
+                    </div>
+
+                  );
+
+                })}
+
+              </div>
+
+            )}
 
           </section>
 

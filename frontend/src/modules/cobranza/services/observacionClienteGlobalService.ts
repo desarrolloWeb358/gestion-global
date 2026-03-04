@@ -5,10 +5,9 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  doc,
+  getDoc
 } from "firebase/firestore";
-
-
-import { doc, getDoc } from "firebase/firestore";
 
 import {
   ref,
@@ -22,9 +21,15 @@ import { getAuth } from "firebase/auth";
 import { ObservacionClienteGlobal } from "../models/observacionClienteGlobal.model";
 import { notificarUsuarioConAlertaYCorreo } from "@/modules/notificaciones/services/notificacionService";
 
+
 function colRef(clienteId: string) {
   return collection(db, `clientes/${clienteId}/observacionesCliente`);
 }
+
+
+/* ================================
+   OBTENER MENSAJES
+================================ */
 
 export async function getObservacionesClienteGlobal(
   clienteId: string
@@ -42,6 +47,11 @@ export async function getObservacionesClienteGlobal(
     ...(d.data() as ObservacionClienteGlobal)
   }));
 }
+
+
+/* ================================
+   AGREGAR MENSAJE
+================================ */
 
 export async function addObservacionClienteGlobal(
   clienteId: string,
@@ -62,6 +72,11 @@ export async function addObservacionClienteGlobal(
     ? "ejecutivo"
     : "cliente";
 
+
+  /* ================================
+     SUBIR ARCHIVO
+  ================================= */
+
   let archivoUrl: string | undefined;
   let archivoNombre: string | undefined;
 
@@ -76,11 +91,17 @@ export async function addObservacionClienteGlobal(
 
     archivoUrl = await getDownloadURL(storageRef);
     archivoNombre = archivo.name;
+
   }
+
+
+  /* ================================
+     GUARDAR MENSAJE
+  ================================= */
 
   const data: any = {
     texto,
-    fecha: serverTimestamp() as any,
+    fecha: serverTimestamp(),
     usuarioId,
     rol
   };
@@ -91,46 +112,98 @@ export async function addObservacionClienteGlobal(
   }
 
   await addDoc(colRef(clienteId), data);
-  // Buscar ejecutivo del cliente
-const clienteSnap = await getDoc(doc(db, "clientes", clienteId));
 
-const ejecutivoId = clienteSnap.data()?.ejecutivoId;
-const nombreEjecutivo = clienteSnap.data()?.nombreEjecutivo;
-const correoEjecutivo = clienteSnap.data()?.correoEjecutivo;
 
-if (ejecutivoId) {
+  /* ================================
+     BUSCAR DATOS DEL CLIENTE
+  ================================= */
+
+  const clienteSnap = await getDoc(doc(db, "clientes", clienteId));
+
+  if (!clienteSnap.exists()) return;
+
+  const clienteData = clienteSnap.data();
+
+
+  const ejecutivoId = clienteData?.ejecutivoId;
+  const usuarioClienteId = clienteData?.usuarioClienteId;
+
+  const nombreEjecutivo = clienteData?.nombreEjecutivo;
+  const correoEjecutivo = clienteData?.correoEjecutivo;
+
+  const nombreCliente = clienteData?.nombreCliente;
+  const correoCliente = clienteData?.correoCliente;
+
+
+  /* ================================
+     DETERMINAR DESTINATARIO
+  ================================= */
+
+  let destinatarioId: string | undefined;
+  let nombreDestino: string | undefined;
+  let correoDestino: string | undefined;
+  let descripcion: string;
+
+
+  if (rol === "cliente") {
+
+    destinatarioId = ejecutivoId;
+    nombreDestino = nombreEjecutivo;
+    correoDestino = correoEjecutivo;
+
+    descripcion = "Nuevo mensaje del cliente en seguimiento del conjunto";
+
+  } else {
+
+    destinatarioId = usuarioClienteId;
+    nombreDestino = nombreCliente;
+    correoDestino = correoCliente;
+
+    descripcion = "Nuevo mensaje del ejecutivo en seguimiento del conjunto";
+
+  }
+
+
+  /* ================================
+     EVITAR NOTIFICARSE A SÍ MISMO
+  ================================= */
+
+  if (!destinatarioId || destinatarioId === usuarioId) return;
+
+
+  /* ================================
+     ENVIAR NOTIFICACIÓN
+  ================================= */
 
   await notificarUsuarioConAlertaYCorreo({
 
-    usuarioId: ejecutivoId,
+    usuarioId: destinatarioId,
 
     modulo: "seguimiento",
 
     ruta: `/clientes/${clienteId}/seguimiento-conjunto`,
 
-    descripcionAlerta: "Nuevo mensaje del cliente en seguimiento del conjunto",
+    descripcionAlerta: descripcion,
 
-    nombreDestino: nombreEjecutivo || "Ejecutivo",
+    nombreDestino: nombreDestino || "Usuario",
 
-    correoDestino: correoEjecutivo || "",
+    correoDestino: correoDestino || "",
 
-    subject: "Nuevo mensaje del cliente",
+    subject: "Nuevo mensaje en seguimiento",
 
     tituloCorreo: "Nuevo mensaje en seguimiento del conjunto",
 
     cuerpoHtmlCorreo: `
-      <p>El cliente ha agregado un nuevo mensaje en el seguimiento del conjunto.</p>
+      <p>Se ha agregado un nuevo mensaje en el seguimiento del conjunto.</p>
 
       <p><strong>Mensaje:</strong></p>
 
       <p>${texto}</p>
 
-      <p>
-        Puedes revisarlo ingresando al sistema.
-      </p>
+      <br/>
+
+      <p>Puedes revisarlo ingresando a la plataforma.</p>
     `
   });
 
 }
-}
-
