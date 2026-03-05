@@ -1,23 +1,35 @@
-// modules/cobranza/components/SeguimientoTable.tsx
+// src/modules/deudores/components/EstadosMensualesTable.tsx
 import * as React from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { getClienteById } from "@/modules/clientes/services/clienteService";
-import { getDeudorById } from "../services/deudorService";
 import {
-  FileText,
-  History,
-  MessageSquare,
-  Scale,
-  Gavel,
-  Plus,
+  Calendar,
+  DollarSign,
   Edit,
+  FileText,
+  Percent,
+  Plus,
+  TrendingUp,
+  Save,
   Trash2,
-  Download,
-  Filter as FilterIcon,
-  Loader2,
 } from "lucide-react";
 
+import {
+  obtenerEstadosMensuales,
+  upsertEstadoMensualPorMes,
+  eliminarEstadoMensual,
+} from "../services/estadoMensualService";
+import { EstadoMensual } from "../models/estadoMensual.model";
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/shared/ui/dialog";
+import { Input } from "@/shared/ui/input";
+import { Label } from "@/shared/ui/label";
 import { Button } from "@/shared/ui/button";
 import {
   Table,
@@ -27,792 +39,650 @@ import {
   TableBody,
   TableCell,
 } from "@/shared/ui/table";
-
-import { useAcl } from "@/modules/auth/hooks/useAcl";
-import { PERMS } from "@/shared/constants/acl";
-
-import SeguimientoForm, { DestinoColeccion } from "./SeguimientoForm";
-import { Seguimiento } from "../models/seguimiento.model";
-import {
-  getSeguimientos,
-  addSeguimiento,
-  updateSeguimiento,
-  deleteSeguimiento,
-  addSeguimientoJuridico,
-} from "@/modules/cobranza/services/seguimientoService";
-
 import {
   AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogFooter,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogCancel,
   AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/shared/ui/alert-dialog";
-
 import { Textarea } from "@/shared/ui/textarea";
-import { Card, CardHeader, CardTitle, CardContent } from "@/shared/ui/card";
-
-import type { ObservacionCliente } from "@/modules/cobranza/models/observacionCliente.model";
-import {
-  getObservacionesCliente,
-  addObservacionCliente,
-} from "@/modules/cobranza/services/observacionClienteService";
-
-import { getAuth } from "firebase/auth";
-import SeguimientoJuridicoTable from "./SeguimientoJuridicoTable";
-
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/shared/ui/tabs";
-
-import FiltersBar from "@/shared/table-filters/FiltersBar";
-import type { DateRange, FilterField } from "@/shared/table-filters/types";
-
-import { codeToLabel } from "@/shared/constants/tipoSeguimiento";
-
-import {
-  Select,
-  SelectTrigger,
-  SelectContent,
-  SelectItem,
-  SelectValue,
-} from "@/shared/ui/select";
-import SeguimientoDemandaTable from "./SeguimientoDemandaTable";
+import { useAcl } from "@/modules/auth/hooks/useAcl";
+import { PERMS } from "@/shared/constants/acl";
 import { Typography } from "@/shared/design-system/components/Typography";
 import { BackButton } from "@/shared/design-system/components/BackButton";
 import { cn } from "@/shared/lib/cn";
-import { ExpandableCell } from "@/shared/components/expandable-cell";
-import AppBreadcrumb from "@/shared/components/app-breadcrumb";
 
-type SortDir = "desc" | "asc";
-
-function renderTipoSeguimiento(code?: string) {
-  return codeToLabel[code as keyof typeof codeToLabel] ?? code ?? "—";
-}
-
-function toDate(v: any): Date | undefined {
-  try {
-    if (!v) return undefined;
-    if (typeof v?.toDate === "function") return v.toDate();
-    if (v instanceof Date) return v;
-    if (typeof v === "number") return new Date(v);
-    if (typeof v === "string") {
-      const t = Date.parse(v);
-      return Number.isNaN(t) ? undefined : new Date(t);
-    }
-    return undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function tsToMillis(v: any): number {
-  try {
-    if (!v) return 0;
-    if (typeof v?.toDate === "function") return v.toDate().getTime();
-    if (v instanceof Date) return v.getTime();
-    if (typeof v === "number") return v;
-    if (typeof v === "string") {
-      const t = Date.parse(v);
-      return Number.isNaN(t) ? 0 : t;
-    }
-    return 0;
-  } catch {
-    return 0;
-  }
-}
-
-function inRange(millis: number, range?: DateRange): boolean {
-  if (!range || (!range.from && !range.to)) return true;
-  const from = range.from ? new Date(range.from.setHours(0, 0, 0, 0)).getTime() : undefined;
-  const to = range.to ? new Date(range.to.setHours(23, 59, 59, 999)).getTime() : undefined;
-  if (from !== undefined && millis < from) return false;
-  if (to !== undefined && millis > to) return false;
-  return true;
-}
-
-export default function SeguimientoTable() {
+export default function EstadosMensualesTable() {
   const { clienteId, deudorId } = useParams();
-  const navigate = useNavigate();
-  const [nombreCliente, setNombreCliente] = React.useState<string>("");
-  const [nombreDeudor, setNombreDeudor] = React.useState<string>("");
+  const [estadosMensuales, setEstadosMensuales] = React.useState<EstadoMensual[]>([]);
+  const [loading, setLoading] = React.useState(true);
 
-  const [items, setItems] = React.useState<Seguimiento[]>([]);
-  const [loading, setLoading] = React.useState(false);
+  // Modal & guardado
   const [open, setOpen] = React.useState(false);
-  const [seleccionado, setSeleccionado] = React.useState<Seguimiento | undefined>(undefined);
-  const [deleteId, setDeleteId] = React.useState<string | null>(null);
+  const [saving, setSaving] = React.useState(false);
 
-  const [refreshJuridicoKey, setRefreshJuridicoKey] = React.useState(0);
+  // Modo edición
+  const [editing, setEditing] = React.useState(false);
 
-  const { can, loading: aclLoading } = useAcl();
-  const [busyObs, setBusyObs] = React.useState(false);
+  // Eliminación
+  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
+  const [estadoToDelete, setEstadoToDelete] = React.useState<EstadoMensual | null>(null);
+  const [deleting, setDeleting] = React.useState(false);
 
-  // Editar por sección
-  const canEditPre = can(PERMS.Seguimientos_Ejecutivos_Edit);        // PRE (ejecutivo)
-  const canEditJuridico = can(PERMS.Seguimientos_Ejecutivos_Edit);   // Jurídico (ejecutivo)
-  const canEditDemanda = can(PERMS.Seguimientos_Dependientes_Edit);  // Demanda (dependiente)
+  const hoyYYYYMM = new Date().toISOString().slice(0, 7);
+  const clamp = (n: number, min: number, max: number) =>
+    Math.min(max, Math.max(min, n));
+  const round0 = (n: number) => Math.round(n);
 
-  // Observaciones (cliente)
-  const canCreateObs = can(PERMS.Seguimientos_Observaciones_Create);
+  const [nuevoEstadoMensual, setNuevoEstadoMensual] =
+    React.useState<Partial<EstadoMensual>>({
+      mes: hoyYYYYMM,
+      clienteUID: clienteId || "",
+      deuda: undefined,
+      recaudo: undefined,
+      porcentajeHonorarios: 15,
+      honorariosDeuda: undefined,
+      honorariosRecaudo: undefined,
+      recibo: "",
+      observaciones: "",
+    });
 
-  const [obsCliente, setObsCliente] = React.useState<ObservacionCliente[]>([]);
-  const [obsLoading, setObsLoading] = React.useState(false);
-  const [obsTexto, setObsTexto] = React.useState("");
-  const auth = getAuth();
-  const demandaRef = React.useRef<{ openForm?: () => void } | null>(null);
-
-  const [tab, setTab] = React.useState<"pre" | "juridico" | "demanda" | "obs">("pre");
-
-  type PreFilters = { fecha?: DateRange; order: SortDir };
-  const [preFilters, setPreFilters] = React.useState<PreFilters>({ order: "desc" });
-  const setPreFilter = (key: keyof PreFilters, value: any) =>
-    setPreFilters((s) => ({ ...s, [key]: value }));
-
-  const preFields: FilterField<Seguimiento>[] = [
-    { key: "fecha", label: "Rango de fechas", kind: "daterange", getDate: (it) => toDate(it.fecha) },
-  ];
-
-  type ObsFilters = { fecha?: DateRange; order: SortDir };
-  const [obsFilters, setObsFilters] = React.useState<ObsFilters>({ order: "desc" });
-  const setObsFilter = (key: keyof ObsFilters, value: any) =>
-    setObsFilters((s) => ({ ...s, [key]: value }));
-
-  const obsFields: FilterField<ObservacionCliente>[] = [
-    { key: "fecha", label: "Rango de fechas", kind: "daterange", getDate: (o) => toDate(o.fecha) },
-  ];
 
   React.useEffect(() => {
+    setNuevoEstadoMensual((s) => {
+      const pct = (s.porcentajeHonorarios ?? 15) / 100;
+
+      const deudaVal = s.deuda ?? undefined;
+      const recaudoVal = s.recaudo ?? undefined;
+
+      const hd = deudaVal != null ? round0(deudaVal * pct) : undefined;
+
+      const recaudoNum = recaudoVal != null ? Number(recaudoVal) : 0;
+
+      const hr = round0(recaudoNum * pct);
+
+      if (
+        hd === s.honorariosDeuda &&
+        hr === s.honorariosRecaudo
+      ) return s;
+
+      return { ...s, honorariosDeuda: hd, honorariosRecaudo: hr };
+    });
+  }, [
+    nuevoEstadoMensual.deuda,
+    nuevoEstadoMensual.recaudo,
+    nuevoEstadoMensual.porcentajeHonorarios,
+  ]);
+
+  const { can, roles = [], loading: aclLoading } = useAcl();
+
+  // Detectar si el usuario actual es deudor
+  const esDeudor = roles.includes("deudor");
+
+  // Si es deudor: siempre puede ver, pero nunca editar
+  const canView = esDeudor ? true : can(PERMS.Abonos_Read);
+  const canEdit =
+    !esDeudor && can(PERMS.Abonos_Edit) && !roles.includes("cliente");
+
+  const cargarEstadosMensuales = async () => {
     if (!clienteId || !deudorId) return;
 
-    const fetchNames = async () => {
-      try {
-        const cliente = await getClienteById(clienteId);
-        const deudor = await getDeudorById(clienteId, deudorId);
+    const data = await obtenerEstadosMensuales(clienteId, deudorId);
 
-        setNombreCliente(cliente?.nombre ?? "Cliente");
-        setNombreDeudor(deudor?.nombre ?? "Deudor");
-      } catch (error) {
-        console.error("Error cargando nombres:", error);
-      }
-    };
+    const ordenadosDesc = [...data].sort((a, b) => {
+      return b.mes.localeCompare(a.mes);
+    });
 
-    fetchNames();
+    setEstadosMensuales(ordenadosDesc);
+    setLoading(false);
+  };
+
+
+  React.useEffect(() => {
+    cargarEstadosMensuales();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clienteId, deudorId]);
 
-  React.useEffect(() => {
-    if (!clienteId || !deudorId) return;
-    setLoading(true);
-    getSeguimientos(clienteId, deudorId)
-      .then(setItems)
-      .catch(() => toast.error("No se pudo cargar el listado de seguimientos."))
-      .finally(() => setLoading(false));
-  }, [clienteId, deudorId]);
+  const resetForm = () => {
+    setNuevoEstadoMensual({
+      mes: new Date().toISOString().slice(0, 7),
+      clienteUID: clienteId || "",
+      deuda: undefined,
+      recaudo: undefined,
+      porcentajeHonorarios: 15,
+      honorariosDeuda: undefined,
+      honorariosRecaudo: undefined,
+      recibo: "",
+      observaciones: "",
+    });
+    setEditing(false);
+  };
 
-  React.useEffect(() => {
-    if (!clienteId || !deudorId) return;
-    setObsLoading(true);
-    getObservacionesCliente(clienteId, deudorId)
-      .then(setObsCliente)
-      .catch(() => toast.error("No se pudieron cargar las observaciones del cliente."))
-      .finally(() => setObsLoading(false));
-  }, [clienteId, deudorId]);
+  const openEdit = (estado: EstadoMensual) => {
+    if (!canEdit) return;
+    setNuevoEstadoMensual({
+      clienteUID: clienteId || "",
+      id: estado.id,
+      mes: estado.mes,
+      deuda: estado.deuda ?? undefined,
+      recaudo: estado.recaudo ?? undefined,
+      porcentajeHonorarios: estado.porcentajeHonorarios ?? 15,
+      honorariosDeuda: estado.honorariosDeuda ?? undefined,
+      honorariosRecaudo: estado.honorariosRecaudo ?? undefined,
+      recibo: estado.recibo ?? "",
+      observaciones: estado.observaciones ?? "",
+    });
+    setEditing(true);
+    setOpen(true);
+  };
 
-  React.useEffect(() => {
-    if (!clienteId || !deudorId) return;
-
-    if (tab === "pre") {
-      getSeguimientos(clienteId, deudorId)
-        .then(setItems)
-        .catch(() => toast.error("No se pudo cargar el listado de seguimientos."))
+  const handleCrearOEditar = async () => {
+    if (!canEdit) return toast.error("Sin permiso para guardar.");
+    if (!clienteId || !deudorId || !nuevoEstadoMensual.mes) {
+      return toast.error("Debe seleccionar el mes.");
     }
-  }, [tab, clienteId, deudorId]);
 
-
-  const itemsFilteredSorted = React.useMemo(() => {
-    const arr = items.filter((it) => inRange(tsToMillis(it.fecha), preFilters.fecha));
-    const dir = preFilters.order === "desc" ? -1 : 1;
-    return arr.sort((a, b) => (tsToMillis(a.fecha) - tsToMillis(b.fecha)) * dir);
-  }, [items, preFilters]);
-
-  const obsFilteredSorted = React.useMemo(() => {
-    const arr = obsCliente.filter((o) => inRange(tsToMillis(o.fecha), obsFilters.fecha));
-    const dir = obsFilters.order === "desc" ? -1 : 1;
-    return arr.sort((a, b) => (tsToMillis(a.fecha) - tsToMillis(b.fecha)) * dir);
-  }, [obsCliente, obsFilters]);
-
-  const onSaveWithDestino = async (
-    destino: DestinoColeccion,
-    data: Omit<Seguimiento, "id">,
-    archivo?: File,
-    reemplazar?: boolean
-  ) => {
-    if (!clienteId || !deudorId) return;
-    const canEditByDestino =
-      destino === "seguimiento" || destino === "seguimientoJuridico"
-        ? canEditPre // mismo permiso para pre/jurídico
-        : canEditDemanda; // si en el futuro agregas destino "demanda" aquí
-
-    if (!canEditByDestino) {
-      toast.error("No tienes permiso para crear/editar en esta sección.");
-      return;
-    }
     try {
-      const uidUsuario = auth.currentUser?.uid;
-      if (!uidUsuario) {
-        toast.error("No se pudo obtener el usuario autenticado.");
-        return;
-      }
-      if (seleccionado?.id) {
-        // 👇 CASO: estaba en PRE y lo moviste a JURÍDICO
-        if (destino === "seguimientoJuridico") {
-          await addSeguimientoJuridico(uidUsuario, clienteId, deudorId, data, archivo);
+      setSaving(true);
 
-          // ✅ elimina el anterior en PRE (para que no quede duplicado)
-          await deleteSeguimiento(clienteId, deudorId, seleccionado.id);
+      const pct = (nuevoEstadoMensual.porcentajeHonorarios ?? 15) / 100;
 
-          setRefreshJuridicoKey((k) => k + 1);
+      const deuda = nuevoEstadoMensual.deuda != null ? Math.round(nuevoEstadoMensual.deuda) : undefined;
+      const recaudo = nuevoEstadoMensual.recaudo != null ? Math.round(nuevoEstadoMensual.recaudo) : undefined;
 
-          // (opcional UX) cambiar de tab automáticamente
-          // setTab("juridico");
-        } else {
-          // ✅ edición normal en PRE
-          await updateSeguimiento(
-            clienteId,
-            deudorId,
-            seleccionado.id,
-            data,
-            archivo,
-            reemplazar
-          );
-        }
-      } else {
-        // creación normal
-        if (destino === "seguimientoJuridico") {
-          await addSeguimientoJuridico(uidUsuario, clienteId, deudorId, data, archivo);
-          setRefreshJuridicoKey((k) => k + 1);
-        } else {
-          await addSeguimiento(uidUsuario, clienteId, deudorId, data, archivo);
-        }
-      }
 
-      toast.success("✓ Seguimiento guardado correctamente");
+      const payload: Partial<EstadoMensual> = {
+        ...nuevoEstadoMensual,
+        deuda,
+        recaudo,
+
+        honorariosDeuda: deuda != null ? Math.round(deuda * pct) : undefined,
+
+        honorariosRecaudo: recaudo != null
+          ? Math.round(recaudo * pct)
+          : undefined,
+      };
+
+
+      await upsertEstadoMensualPorMes(clienteId, deudorId, payload);
+
+      toast.success(editing ? "Estado mensual actualizado" : "Estado mensual guardado");
+      await cargarEstadosMensuales();
       setOpen(false);
-      setSeleccionado(undefined);
-      setItems(await getSeguimientos(clienteId, deudorId));
+      resetForm();
     } catch (e) {
       console.error(e);
-      toast.error("⚠️ No se pudo guardar el seguimiento");
-    }
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!clienteId || !deudorId || !deleteId) return;
-    if (!canEditPre) {
-      toast.error("No tienes permiso para eliminar seguimientos.");
-      setDeleteId(null);
-      return;
-    }
-    try {
-      await deleteSeguimiento(clienteId, deudorId, deleteId);
-      setItems((prev) => prev.filter((x) => x.id !== deleteId));
-      toast.success("✓ Seguimiento eliminado");
-    } catch {
-      toast.error("⚠️ No se pudo eliminar el seguimiento");
+      toast.error("Error al guardar el estado mensual");
     } finally {
-      setDeleteId(null);
+      setSaving(false);
     }
   };
 
-  const handleAgregarObservacion = async () => {
-    if (busyObs) return;
-    if (!clienteId || !deudorId) return;
 
-    if (!canCreateObs) {
-      toast.error("No tienes permiso para agregar observaciones.");
-      return;
-    }
-
-    const texto = obsTexto.trim();
-    if (!texto) {
-      toast.error("Escribe la observación.");
-      return;
-    }
+  const handleEliminarEstado = async () => {
+    if (!clienteId || !deudorId || !estadoToDelete?.id) return;
 
     try {
-      setBusyObs(true); // ✅ ACTIVA overlay
-
-      await addObservacionCliente(clienteId, deudorId, texto);
-
-      setObsTexto("");
-      setObsCliente(await getObservacionesCliente(clienteId, deudorId));
-
-      toast.success("✓ Observación agregada");
+      setDeleting(true);
+      await eliminarEstadoMensual(clienteId, deudorId, estadoToDelete.id);
+      toast.success("Estado mensual eliminado");
+      await cargarEstadosMensuales();
+      setEstadoToDelete(null);
+      setDeleteDialogOpen(false);
     } catch (e) {
       console.error(e);
-      toast.error("⚠️ No se pudo agregar la observación");
+      toast.error("Error al eliminar el estado mensual");
     } finally {
-      setBusyObs(false); // ✅ DESACTIVA overlay
+      setDeleting(false);
     }
   };
-
 
   if (aclLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30 flex items-center justify-center">
-        <div className="text-center">
-          <div className="h-12 w-12 mx-auto animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary mb-4" />
-          <Typography variant="body" className="text-gray-600">
-            Cargando permisos...
-          </Typography>
-        </div>
+      <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
+        <div className="h-8 w-8 mx-auto animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary mb-3" />
+        <Typography variant="small" >
+          Cargando permisos...
+        </Typography>
       </div>
     );
   }
 
+  if (!canView) {
+    return (
+      <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
+        <Typography variant="body">
+          No tienes acceso a Abonos.
+        </Typography>
+      </div>
+    );
+  }
 
-
-  // Tab icons
-  const tabIcons = {
-    pre: History,
-    juridico: Scale,
-    demanda: Gavel,
-    obs: MessageSquare,
-  };
-
-  const TabIcon = tabIcons[tab];
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
+        <div className="h-8 w-8 mx-auto animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary mb-3" />
+        <Typography variant="small">
+          Cargando estados mensuales...
+        </Typography>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30">
-      <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
+    <div className="space-y-4">
+      {/* Back Button */}
+      <BackButton />
 
-        {/* HEADER */}
-        <header className="space-y-4">
-          <div className="flex items-center gap-2">
-            <AppBreadcrumb
-              items={[
-                { label: "Clientes", href: "/clientes-tables" },
-                { label: nombreCliente, href: `/deudores/${clienteId}` }, // 👈 ESTA ES LA RUTA REAL
-                { label: nombreDeudor, href: `/clientes/${clienteId}/deudores/${deudorId}` },
-              ]}
-            />
-
-          </div>
-
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Header */}
+      <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
+        <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-5 md:p-6 border-b border-brand-secondary/10">
+          <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-brand-primary/10">
-                <TabIcon className="h-6 w-6 text-brand-primary" />
+              <div className="p-2.5 rounded-xl bg-brand-primary/10">
+                <TrendingUp className="h-6 w-6 text-brand-primary" />
               </div>
               <div>
-                <Typography variant="h2" className="!text-brand-primary font-bold">
-                  Gestión de Seguimiento
+                <Typography variant="h2" className="!text-brand-secondary">
+                  Estados Mensuales del Deudor
                 </Typography>
-
-                <Typography variant="small" className="text-gray-600 mt-0.5">
-                  {tab === "pre" && "Seguimiento pre-jurídico"}
-                  {tab === "juridico" && "Seguimiento jurídico"}
-                  {tab === "demanda" && "Seguimiento de demanda"}
-                  {tab === "obs" && "Observaciones del cliente"}
+                <Typography variant="small" className="mt-0.5">
+                  Seguimiento de deuda, recaudos y honorarios
                 </Typography>
               </div>
             </div>
 
-            {tab === "pre" && canEditPre && (
-              <Button
-                variant="brand"
-                onClick={() => {
-                  setSeleccionado(undefined);
-                  setOpen(true);
+            {canEdit && (
+              <Dialog
+                open={open}
+                onOpenChange={(v) => {
+                  setOpen(v);
+                  if (!v) resetForm();
                 }}
-                className="gap-2 shadow-md hover:shadow-lg transition-all"
               >
-                <Plus className="h-4 w-4" />
-                Nuevo seguimiento
-              </Button>
-            )}
-
-            {tab === "juridico" && canEditJuridico && (
-              <Button
-                variant="brand"
-                onClick={() => {
-                  setSeleccionado(undefined);
-                  setOpen(true);
-                }}
-                className="gap-2 shadow-md hover:shadow-lg transition-all"
-              >
-                <Plus className="h-4 w-4" />
-                Nuevo seguimiento jurídico
-              </Button>
-            )}
-
-            {tab === "demanda" && canEditDemanda && (
-              <Button
-                variant="brand"
-                onClick={() => demandaRef.current?.openForm?.()}
-                className="gap-2 shadow-md hover:shadow-lg transition-all"
-              >
-                <Plus className="h-4 w-4" />
-                Nuevo seguimiento (Demanda)
-              </Button>
-            )}
-
-          </div>
-        </header>
-
-        {/* TABS */}
-        <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="w-full">
-          <TabsList className="grid grid-cols-4 w-full bg-white border border-brand-secondary/20 p-1 rounded-xl">
-            <TabsTrigger
-              value="pre"
-              className="data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all"
-            >
-              <History className="h-4 w-4 mr-2" />
-              Ejecutiv@ Pre-jurídico
-            </TabsTrigger>
-            <TabsTrigger
-              value="juridico"
-              className="data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all"
-            >
-              <Scale className="h-4 w-4 mr-2" />
-              Ejecutiv@ Jurídico
-            </TabsTrigger>
-            <TabsTrigger
-              value="demanda"
-              className="data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all"
-            >
-              <Gavel className="h-4 w-4 mr-2" />
-              Dependiente(Demanda)
-            </TabsTrigger>
-            <TabsTrigger
-              value="obs"
-              className="data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all"
-            >
-              <MessageSquare className="h-4 w-4 mr-2" />
-              Observaciones
-            </TabsTrigger>
-          </TabsList>
-
-          {/* PRE-JURÍDICO */}
-          <TabsContent value="pre" className="mt-6 space-y-4">
-            <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
-              <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5 border-b border-brand-secondary/10">
-                <div className="flex items-center gap-2">
-                  <FilterIcon className="h-5 w-5 text-brand-primary" />
-                  <Typography variant="h3" className="!text-brand-secondary font-semibold">
-                    Filtros de búsqueda
-                  </Typography>
-                </div>
-              </div>
-              <div className="p-4 md:p-5">
-                <FiltersBar
-                  fields={preFields}
-                  filtersState={preFilters as Record<string, any>}
-                  setFilter={(k, v) => setPreFilter(k as keyof typeof preFilters, v)}
-                  onReset={() => setPreFilters({ order: "desc", fecha: undefined })}
-                />
-              </div>
-            </section>
-
-            {loading ? (
-              <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
-                <div className="flex flex-col items-center gap-4">
-                  <div className="h-12 w-12 animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary" />
-                  <Typography variant="body" className="text-gray-600">
-                    Cargando seguimientos...
-                  </Typography>
-                </div>
-              </div>
-            ) : itemsFilteredSorted.length === 0 ? (
-              <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
-                <div className="flex flex-col items-center gap-3">
-                  <div className="p-4 rounded-full bg-brand-primary/10">
-                    <History className="h-8 w-8 text-brand-primary/60" />
-                  </div>
-                  <Typography variant="h3" className="text-brand-secondary">
-                    No hay seguimientos
-                  </Typography>
-                  <Typography variant="small" className="text-gray-600">
-                    Aún no se han registrado seguimientos pre-jurídicos
-                  </Typography>
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                  <Table className="min-w-[800px]">
-                    <TableHeader className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5">
-                      <TableRow className="border-brand-secondary/10 hover:bg-transparent">
-                        <TableHead className="w-[140px] text-brand-secondary font-semibold">Fecha</TableHead>
-                        <TableHead className="w-[160px] text-brand-secondary font-semibold">Tipo</TableHead>
-                        <TableHead className="text-brand-secondary font-semibold">Descripción</TableHead>
-                        <TableHead className="w-[120px] text-brand-secondary font-semibold">Archivo</TableHead>
-                        {canEditPre && (
-                          <TableHead className="w-[180px] text-center text-brand-secondary font-semibold">Acciones</TableHead>
-                        )}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {itemsFilteredSorted.map((seg, index) => (
-                        <TableRow
-                          key={seg.id}
-                          className={cn(
-                            "border-brand-secondary/5 transition-colors",
-                            index % 2 === 0 ? "bg-white" : "bg-brand-primary/[0.02]",
-                            "hover:bg-brand-primary/5"
-                          )}
-                        >
-                          <TableCell className="text-gray-700 font-medium">
-                            {seg.fecha && typeof (seg.fecha as any).toDate === "function"
-                              ? (seg.fecha as any).toDate().toLocaleDateString("es-CO")
-                              : "—"}
-                          </TableCell>
-                          <TableCell>
-                            <span className="inline-flex items-center rounded-full bg-blue-100 border border-blue-200 px-2.5 py-0.5 text-xs font-medium text-blue-700">
-                              {renderTipoSeguimiento(seg.tipoSeguimiento)}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <ExpandableCell text={seg.descripcion} />
-                          </TableCell>
-                          <TableCell>
-                            {seg.archivoUrl ? (
-                              <a
-                                href={seg.archivoUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1 text-brand-primary hover:text-brand-secondary transition-colors text-sm font-medium"
-                              >
-                                <Download className="h-3.5 w-3.5" />
-                                Ver
-                              </a>
-                            ) : (
-                              <span className="text-gray-400 text-sm">—</span>
-                            )}
-                          </TableCell>
-                          {canEditPre && (
-                            <TableCell>
-                              <div className="flex justify-center gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => {
-                                    setSeleccionado(seg);
-                                    setOpen(true);
-                                  }}
-                                  className="hover:bg-brand-primary/10"
-                                >
-                                  <Edit className="h-4 w-4 text-brand-primary" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => setDeleteId(seg.id!)}
-                                  className="hover:bg-red-50"
-                                >
-                                  <Trash2 className="h-4 w-4 text-red-600" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          )}
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-            )}
-
-            <SeguimientoForm
-              open={open}
-              onClose={() => {
-                setOpen(false);
-                setSeleccionado(undefined);
-              }}
-              seguimiento={seleccionado}
-              tipificacionDeuda={undefined}
-              onSaveWithDestino={onSaveWithDestino}
-              destinoInicial="seguimiento"
-            />
-
-            <AlertDialog open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)}>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>¿Eliminar seguimiento?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Esta acción no se puede deshacer. El seguimiento se eliminará permanentemente.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel onClick={() => setDeleteId(null)}>
-                    Cancelar
-                  </AlertDialogCancel>
-                  <AlertDialogAction
-                    className="bg-red-600 hover:bg-red-700"
-                    onClick={handleConfirmDelete}
+                <DialogTrigger asChild>
+                  <Button
+                    onClick={() => {
+                      resetForm();
+                      setOpen(true);
+                    }}
+                    variant="brand"
+                    className="gap-2 shadow-md hover:shadow-lg transition-all"
                   >
-                    Sí, eliminar
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </TabsContent>
+                    <Plus className="h-4 w-4" />
+                    Agregar estado mensual
+                  </Button>
+                </DialogTrigger>
 
-          {/* JURÍDICO */}
-          <TabsContent value="juridico" className="mt-6">
-            <SeguimientoJuridicoTable key={refreshJuridicoKey} />
+                <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle className="text-brand-primary text-xl font-bold flex items-center gap-2">
+                      <FileText className="h-5 w-5" />
+                      {editing
+                        ? `Editar Estado (${nuevoEstadoMensual.mes})`
+                        : "Nuevo Estado Mensual"}
+                    </DialogTitle>
+                  </DialogHeader>
 
-            {/* 🔧 FIX: Agregar el formulario también en el tab jurídico */}
-            <SeguimientoForm
-              open={open}
-              onClose={() => {
-                setOpen(false);
-                setSeleccionado(undefined);
-              }}
-              seguimiento={seleccionado}
-              tipificacionDeuda={undefined}
-              onSaveWithDestino={onSaveWithDestino}
-              destinoInicial="seguimientoJuridico"
-            />
-          </TabsContent>
-
-          {/* DEMANDA */}
-          <TabsContent value="demanda" className="mt-6">
-            {(() => {
-              const SeguimientoDemandaTableAny = SeguimientoDemandaTable as any;
-              return <SeguimientoDemandaTableAny ref={demandaRef} />;
-            })()}
-          </TabsContent>
-
-          {/* OBSERVACIONES */}
-          <TabsContent value="obs" className="mt-6 space-y-4">
-            <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
-              <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5 border-b border-brand-secondary/10">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <Typography variant="h3" className="!text-brand-secondary font-semibold">
-                    Observaciones del cliente
-                  </Typography>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600">Ordenar:</span>
-                    <Select
-                      value={obsFilters.order}
-                      onValueChange={(v) => setObsFilter("order", (v as SortDir) || "desc")}
-                    >
-                      <SelectTrigger className="w-[240px] border-brand-secondary/30">
-                        <SelectValue placeholder="Orden" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="desc">Más reciente primero</SelectItem>
-                        <SelectItem value="asc">Más antigua primero</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-              <div className="p-4 md:p-5">
-                <FiltersBar
-                  fields={obsFields}
-                  filtersState={obsFilters as Record<string, any>}
-                  setFilter={(k, v) => setObsFilter(k as keyof typeof obsFilters, v)}
-                  onReset={() => setObsFilters({ order: "desc", fecha: undefined })}
-                />
-              </div>
-            </section>
-
-            <div className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
-              <div className="p-4 md:p-5 space-y-4">
-                {obsLoading ? (
-                  <div className="text-center py-8">
-                    <div className="h-8 w-8 mx-auto animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary mb-3" />
-                    <Typography variant="small" className="text-gray-600">
-                      Cargando observaciones...
-                    </Typography>
-                  </div>
-                ) : obsFilteredSorted.length === 0 ? (
-                  <div className="text-center py-8">
-                    <div className="p-3 rounded-full bg-brand-primary/10 inline-block mb-3">
-                      <MessageSquare className="h-6 w-6 text-brand-primary/60" />
+                  <div className="space-y-6 py-4">
+                    {/* Mes */}
+                    <div className="space-y-2">
+                      <Label htmlFor="mes" className="text-brand-secondary font-medium flex items-center gap-2">
+                        <Calendar className="h-4 w-4" />
+                        Mes *
+                      </Label>
+                      <Input
+                        id="mes"
+                        type="month"
+                        value={nuevoEstadoMensual.mes || ""}
+                        onChange={(e) =>
+                          setNuevoEstadoMensual((s) => ({
+                            ...s,
+                            mes: e.target.value,
+                          }))
+                        }
+                        className="border-brand-secondary/30"
+                      />
                     </div>
-                    <Typography variant="body" className="text-gray-600">
-                      No hay observaciones del cliente
-                    </Typography>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {obsFilteredSorted.map((o, index) => {
-                      const fecha =
-                        (o.fecha as any)?.toDate?.() instanceof Date
-                          ? (o.fecha as any).toDate().toLocaleString("es-CO", { hour12: false })
-                          : "—";
-                      return (
-                        <div
-                          key={o.id}
-                          className={cn(
-                            "rounded-lg border p-4 transition-colors",
-                            index % 2 === 0 ? "bg-white border-brand-secondary/20" : "bg-brand-primary/5 border-brand-primary/20"
-                          )}
-                        >
-                          <div className="flex items-center gap-2 mb-2">
-                            <MessageSquare className="h-4 w-4 text-brand-primary" />
-                            <span className="text-xs text-gray-600 font-medium">{fecha}</span>
-                          </div>
-                          <div className="text-sm whitespace-pre-wrap text-gray-700 leading-relaxed">
-                            {o.texto}
-                          </div>
+
+                    {/* Campos numéricos */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="deuda" className="text-brand-secondary font-medium flex items-center gap-2">
+                          <DollarSign className="h-4 w-4" />
+                          Deuda
+                        </Label>
+                        <Input
+                          id="deuda"
+                          type="number"
+                          step="0.01"
+                          value={nuevoEstadoMensual.deuda ?? ""}
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                          onChange={(e) => {
+                            const val = e.target.value
+                              ? clamp(parseFloat(e.target.value), 0, 1e15)
+                              : undefined;
+                            setNuevoEstadoMensual((s) => ({
+                              ...s,
+                              deuda: val,
+                            }));
+                          }}
+                          placeholder="0.00"
+                          className="border-brand-secondary/30"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="recaudo" className="text-brand-secondary font-medium flex items-center gap-2">
+                          <DollarSign className="h-4 w-4" />
+                          Recaudo
+                        </Label>
+                        <Input
+                          id="recaudo"
+                          type="number"
+                          step="0.01"
+                          value={nuevoEstadoMensual.recaudo ?? ""}
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                          onChange={(e) => {
+                            const val = e.target.value
+                              ? clamp(parseFloat(e.target.value), 0, 1e15)
+                              : undefined;
+                            setNuevoEstadoMensual((s) => ({
+                              ...s,
+                              recaudo: val,
+                            }));
+                          }}
+                          placeholder="0.00"
+                          className="border-brand-secondary/30"
+                        />
+                      </div>
+
+
+                      <div className="space-y-2">
+                        <Label htmlFor="porcentaje" className="text-brand-secondary font-medium flex items-center gap-2">
+                          <Percent className="h-4 w-4" />
+                          % Honorarios
+                        </Label>
+                        <Input
+                          id="porcentaje"
+                          type="number"
+                          step="0.01"
+                          value={nuevoEstadoMensual.porcentajeHonorarios ?? ""}
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                          onChange={(e) => {
+                            const val = e.target.value
+                              ? parseFloat(e.target.value)
+                              : undefined;
+                            setNuevoEstadoMensual((s) => ({
+                              ...s,
+                              porcentajeHonorarios: val,
+                            }));
+                          }}
+                          placeholder="15"
+                          className="border-brand-secondary/30"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Honorarios (solo lectura) */}
+                    <div className="rounded-xl border border-brand-secondary/20 bg-brand-primary/5 p-4 space-y-3">
+                      <Typography variant="small" className="font-semibold text-brand-secondary">
+                        Honorarios calculados automáticamente
+                      </Typography>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        {/* Hon. Deuda */}
+                        <div className="space-y-2">
+                          <Label className="text-brand-secondary font-medium">Hon. Deuda</Label>
+                          <Input readOnly value={nuevoEstadoMensual.honorariosDeuda != null ? `$${nuevoEstadoMensual.honorariosDeuda.toLocaleString()}` : ""} className="bg-white border-brand-secondary/30 cursor-not-allowed" />
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
 
-                {canCreateObs && (
-                  <div className="relative space-y-3 pt-4 border-t border-brand-secondary/10">
-                    <Typography variant="body" className="font-semibold text-brand-secondary">
-                      Agregar nueva observación
-                    </Typography>
 
-                    <Textarea
-                      value={obsTexto}
-                      onChange={(e) => setObsTexto(e.target.value)}
-                      disabled={busyObs}
-                      className="min-h-28 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
-                      placeholder="Escribe tu observación para el ejecutivo..."
-                    />
+                        {/* Hon. Recaudo */}
+                        <div className="space-y-2">
+                          <Label className="text-brand-secondary font-medium">Hon. Recaudo</Label>
+                          <Input readOnly value={nuevoEstadoMensual.honorariosRecaudo != null ? `$${nuevoEstadoMensual.honorariosRecaudo.toLocaleString()}` : ""} className="bg-white border-brand-secondary/30 cursor-not-allowed" />
+                        </div>
+                      </div>
+                    </div>
 
-                    <div className="flex justify-end">
-                      <Button
-                        onClick={handleAgregarObservacion}
-                        variant="brand"
-                        className="gap-2"
-                        disabled={busyObs}
-                      >
-                        {busyObs ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Plus className="h-4 w-4" />
-                        )}
-                        Agregar observación
-                      </Button>
+                    {/* Recibo */}
+                    <div className="space-y-2">
+                      <Label htmlFor="recibo" className="text-brand-secondary font-medium flex items-center gap-2">
+                        <FileText className="h-4 w-4" />
+                        Número de Recibo
+                      </Label>
+                      <Input
+                        id="recibo"
+                        value={nuevoEstadoMensual.recibo ?? ""}
+                        onChange={(e) =>
+                          setNuevoEstadoMensual((s) => ({
+                            ...s,
+                            recibo: e.target.value,
+                          }))
+                        }
+                        placeholder="Ej: REC-2024-001"
+                        className="border-brand-secondary/30"
+                      />
+                    </div>
+
+                    {/* Observaciones */}
+                    <div className="space-y-2">
+                      <Label htmlFor="observaciones" className="text-brand-secondary font-medium">
+                        Observaciones
+                      </Label>
+                      <Textarea
+                        id="observaciones"
+                        value={nuevoEstadoMensual.observaciones ?? ""}
+                        onChange={(e) =>
+                          setNuevoEstadoMensual((s) => ({
+                            ...s,
+                            observaciones: e.target.value,
+                          }))
+                        }
+                        placeholder="Notas adicionales sobre este estado mensual..."
+                        className="min-h-24 border-brand-secondary/30"
+                      />
                     </div>
                   </div>
-                )}
-              </div>
+
+                  <DialogFooter>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setOpen(false);
+                        resetForm();
+                      }}
+                      disabled={saving}
+                      className="border-brand-secondary/30"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      onClick={handleCrearOEditar}
+                      disabled={saving}
+                      variant="brand"
+                      className="gap-2"
+                    >
+                      {saving ? (
+                        <>
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                          Guardando...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4" />
+                          {editing ? "Actualizar" : "Guardar"}
+                        </>
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* Tabla */}
+      {estadosMensuales.length === 0 ? (
+        <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
+          <div className="flex flex-col items-center gap-3">
+            <div className="p-4 rounded-full bg-brand-primary/10">
+              <TrendingUp className="h-8 w-8 text-brand-primary/60" />
             </div>
-          </TabsContent>
-        </Tabs>
-      </div>
-      {busyObs && (
-        <div className="fixed inset-0 z-[1000] bg-black/40 backdrop-blur-sm flex items-center justify-center">
-          <div className="rounded-xl bg-white shadow-lg px-6 py-5 flex items-center gap-3">
-            <Loader2 className="h-5 w-5 animate-spin text-brand-primary" />
-            <Typography variant="body" className="font-medium">
-              Agregando observación...
+            <Typography variant="h3" className="text-brand-secondary">
+              No hay registros
             </Typography>
+            <Typography variant="small">
+              Aún no se han registrado estados mensuales
+            </Typography>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <Table className="min-w-[900px]">
+              <TableHeader className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5">
+                <TableRow className="border-brand-secondary/10 hover:bg-transparent">
+                  <TableHead className="text-brand-secondary font-semibold">
+                    Mes
+                  </TableHead>
+                  <TableHead className="text-brand-secondary font-semibold">
+                    Deuda
+                  </TableHead>
+                  <TableHead className="text-brand-secondary font-semibold">
+                    Recaudo
+                  </TableHead>
+                  <TableHead className="text-brand-secondary font-semibold">
+                    % Honorarios
+                  </TableHead>
+                  <TableHead className="text-brand-secondary font-semibold">
+                    Hon. Deuda
+                  </TableHead>
+                  <TableHead className="text-brand-secondary font-semibold">
+                    Hon. Recaudo
+                  </TableHead>
+                  <TableHead className="text-brand-secondary font-semibold">
+                    Total con Honorarios
+                  </TableHead>
+                  {canEdit && (
+                    <TableHead className="text-center text-brand-secondary font-semibold">
+                      Acciones
+                    </TableHead>
+                  )}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {estadosMensuales.map((estado, index) => (
+                  <TableRow
+                    key={estado.id ?? `${estado.mes}`}
+                    className={cn(
+                      "border-brand-secondary/5 transition-colors",
+                      index % 2 === 0
+                        ? "bg-white"
+                        : "bg-brand-primary/[0.02]",
+                      "hover:bg-brand-primary/5"
+                    )}
+                  >
+                    <TableCell className="font-medium text-brand-secondary">
+                      <span className="inline-flex items-center gap-1.5">
+                        <Calendar className="h-3.5 w-3.5" />
+                        {estado.mes}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-gray-700">
+                      ${Number(estado.deuda ?? 0).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-gray-700">
+                      ${Number(estado.recaudo ?? 0).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-gray-700">
+                      {Number(
+                        estado.porcentajeHonorarios ?? 0
+                      ).toLocaleString()}
+                      %
+                    </TableCell>
+                    <TableCell className="text-gray-700">
+                      ${Number(estado.honorariosDeuda ?? 0).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-gray-700">
+                      ${Number(estado.honorariosRecaudo ?? 0).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-gray-700 font-semibold">
+                      ${(
+                        Number(estado.deuda ?? 0) + Number(estado.honorariosDeuda ?? 0)
+                      ).toLocaleString()}
+                    </TableCell>
+
+                    {canEdit && (
+                      <TableCell>
+                        <div className="flex justify-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => openEdit(estado)}
+                            className="hover:bg-brand-primary/10"
+                          >
+                            <Edit className="h-4 w-4 text-brand-primary" />
+                          </Button>
+
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setEstadoToDelete(estado);
+                              setDeleteDialogOpen(true);
+                            }}
+                            className="hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4 text-red-600" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         </div>
       )}
 
+      {/* Dialog de confirmación de eliminación */}
+      <AlertDialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open);
+          if (!open) setEstadoToDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar estado mensual</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que deseas eliminar el estado mensual del mes{" "}
+              <strong>{estadoToDelete?.mes}</strong>? Esta acción no se puede
+              deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleEliminarEstado}
+              disabled={deleting}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deleting ? "Eliminando..." : "Eliminar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
