@@ -33,7 +33,6 @@ import {
   Users,
   Home,
   Filter,
-  ArrowLeft,
   Download,
   FileDown,
 } from "lucide-react";
@@ -41,6 +40,7 @@ import { toPng } from "html-to-image";
 
 import TablaDeudoresReporte from "./TablaDeudoresReporte";
 import { Typography } from "@/shared/design-system/components/Typography";
+import AppBreadcrumb from "@/shared/components/app-breadcrumb";
 import { cn } from "@/shared/lib/cn";
 
 import {
@@ -870,14 +870,13 @@ export default function ReporteClientePage() {
     <div className="p-6 md:p-8 space-y-6">
       {/* Header con botones */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <Button
-          variant="ghost"
-          onClick={() => navigate(-1)}
-          className="gap-2 text-brand-primary hover:text-brand-secondary hover:bg-brand-primary/10 transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Volver
-        </Button>
+        <AppBreadcrumb
+          items={[
+            { label: "Clientes", href: "/clientes-tables" },
+            { label: clienteNombre, href: `/deudores/${clienteId}` },
+            { label: "Ver Reporte" },
+          ]}
+        />
 
         {canDownloadWord && (
           <Button

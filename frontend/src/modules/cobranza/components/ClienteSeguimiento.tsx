@@ -28,7 +28,8 @@ import { notificarUsuarioConAlertaYCorreo } from "@/modules/notificaciones/servi
 import { Textarea } from "@/shared/ui/textarea";
 import { Button } from "@/shared/ui/button";
 import { Typography } from "@/shared/design-system/components/Typography";
-import { BackButton } from "@/shared/design-system/components/BackButton";
+import AppBreadcrumb from "@/shared/components/app-breadcrumb";
+import { getClienteById } from "@/modules/clientes/services/clienteService";
 import { cn } from "@/shared/lib/cn";
 
 import { ObservacionClienteGlobal } from "@/modules/cobranza/models/observacionClienteGlobal.model";
@@ -43,6 +44,7 @@ export default function ClienteSeguimientoConjunto() {
 
   const esCliente = roles?.includes("cliente");
 
+  const [clienteNombre, setClienteNombre] = React.useState("Cliente");
   const [items, setItems] = React.useState<ObservacionClienteGlobal[]>([]);
   const [texto, setTexto] = React.useState("");
   const [archivo, setArchivo] = React.useState<File | undefined>();
@@ -80,6 +82,13 @@ export default function ClienteSeguimientoConjunto() {
   React.useEffect(() => {
     cargar();
     cargarNotasInternas();
+  }, [clienteId]);
+
+  React.useEffect(() => {
+    if (!clienteId) return;
+    getClienteById(clienteId).then((c) => {
+      setClienteNombre(c?.nombre?.trim() || "Cliente");
+    });
   }, [clienteId]);
 
   async function guardarNotaInterna() {
@@ -141,9 +150,11 @@ export default function ClienteSeguimientoConjunto() {
       let destinatarioId: string | undefined;
 
       if (esCliente) {
-        destinatarioId = clienteData?.ejecutivoId;
+        // El cliente escribe → notificar al ejecutivo prejurídico
+        destinatarioId = clienteData?.ejecutivoPrejuridicoId;
       } else {
-        destinatarioId = clienteData?.usuarioClienteId;
+        // El ejecutivo escribe → notificar al conjunto (usuario del cliente)
+        destinatarioId = clienteData?.usuarioUid;
       }
 
       if (!destinatarioId || destinatarioId === usuario?.uid) return;
@@ -193,10 +204,12 @@ export default function ClienteSeguimientoConjunto() {
       <div className="max-w-3xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
 
         <div className="flex items-center gap-2">
-          <BackButton
-            variant="ghost"
-            size="sm"
-            className="text-brand-secondary hover:text-brand-primary hover:bg-brand-primary/5"
+          <AppBreadcrumb
+            items={[
+              { label: "Clientes", href: "/clientes-tables" },
+              { label: clienteNombre, href: `/deudores/${clienteId}` },
+              { label: "Seguimiento Conjunto" },
+            ]}
           />
         </div>
 

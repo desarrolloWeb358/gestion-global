@@ -43,7 +43,8 @@ import {
 } from "../services/valorAgregadoService";
 
 import { TipoValorAgregado, TipoValorAgregadoLabels } from "../../../shared/constants/tipoValorAgregado";
-import { BackButton } from "@/shared/design-system/components/BackButton";
+import AppBreadcrumb from "@/shared/components/app-breadcrumb";
+import { getClienteById } from "@/modules/clientes/services/clienteService";
 
 // =======================
 // ErrorBoundary con detalle
@@ -143,6 +144,7 @@ const canView = can(PERMS.Valores_agregados_Read);
 const isCliente = roles.includes("cliente");
 const canEdit = canView && isCliente;
 
+  const [clienteNombre, setClienteNombre] = React.useState("Cliente");
   const [items, setItems] = React.useState<ValorAgregado[]>([]);
   const [loading, setLoading] = React.useState(false);
 
@@ -188,6 +190,13 @@ const canEdit = canView && isCliente;
     if (!canView) return;
     fetchData();
   }, [clienteId, canView]);
+
+  React.useEffect(() => {
+    if (!clienteId) return;
+    getClienteById(clienteId).then((c) => {
+      setClienteNombre(c?.nombre?.trim() || "Cliente");
+    });
+  }, [clienteId]);
 
   // =======================
   // Filtro + paginación
@@ -330,8 +339,14 @@ const canEdit = canView && isCliente;
           </div>
         )}
 
-        {/* Back Button */}
-        <BackButton />
+        {/* Breadcrumb */}
+        <AppBreadcrumb
+          items={[
+            { label: "Clientes", href: "/clientes-tables" },
+            { label: clienteNombre, href: `/deudores/${clienteId}` },
+            { label: "Valores Agregados" },
+          ]}
+        />
 
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-4">

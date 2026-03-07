@@ -137,6 +137,7 @@ export default function SeguimientoTable() {
   const navigate = useNavigate();
   const [nombreCliente, setNombreCliente] = React.useState<string>("");
   const [nombreDeudor, setNombreDeudor] = React.useState<string>("");
+  const [ubicacionDeudor, setUbicacionDeudor] = React.useState<string>("");
 
   const [items, setItems] = React.useState<Seguimiento[]>([]);
   const [loading, setLoading] = React.useState(false);
@@ -194,6 +195,7 @@ export default function SeguimientoTable() {
 
         setNombreCliente(cliente?.nombre ?? "Cliente");
         setNombreDeudor(deudor?.nombre ?? "Deudor");
+        setUbicacionDeudor(deudor?.ubicacion?.trim() ?? "");
       } catch (error) {
         console.error("Error cargando nombres:", error);
       }
@@ -397,7 +399,7 @@ export default function SeguimientoTable() {
               items={[
                 { label: "Clientes", href: "/clientes-tables" },
                 { label: nombreCliente, href: `/deudores/${clienteId}` }, // 👈 ESTA ES LA RUTA REAL
-                { label: nombreDeudor, href: `/clientes/${clienteId}/deudores/${deudorId}` },
+                { label: `${nombreDeudor}${ubicacionDeudor ? ` - ${ubicacionDeudor}` : ""}`, href: `/clientes/${clienteId}/deudores/${deudorId}` },
               ]}
             />
 

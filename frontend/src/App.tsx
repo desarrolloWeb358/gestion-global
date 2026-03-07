@@ -42,6 +42,7 @@ import MiDeudaRedirectPage from "./modules/cobranza/components/MiDeudaRedirectPa
 import RootRedirect from "./modules/auth/pages/RootRedirect";
 import AuthLayout from "./modules/auth/components/AuthLayout";
 import ClienteSeguimiento from "./modules/cobranza/components/ClienteSeguimiento";
+import ObservacionesDeudorPage from "./modules/cobranza/components/ObservacionesDeudorPage";
 
 
 export default function App() {
@@ -83,6 +84,7 @@ export default function App() {
             <Route path="/probar-notificaciones" element={<ProbarNotificacionesPage />} />
             <Route path="/clientes/:clienteId/reporte" element={<ReporteClientePage />} />
             <Route path="/clientes/:clienteId/deudores/:deudorId/demanda" element={<DemandaInfoPage />} />
+            <Route path="/clientes/:clienteId/deudores/:deudorId/observacionesDeudor" element={<ObservacionesDeudorPage />} />
             <Route
               path="/clientes/:clienteId/seguimiento-conjunto"
               element={<ClienteSeguimiento />}

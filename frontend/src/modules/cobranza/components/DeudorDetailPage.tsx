@@ -18,6 +18,7 @@ import {
   TrendingUp,
   Percent,
   DollarSign,
+  MessageSquare,
 } from "lucide-react";
 
 import { getDeudorById, vincularDeudorConUsuario } from "../services/deudorService";
@@ -674,6 +675,29 @@ export default function DeudorDetailPage() {
                   </Typography>
                 </div>
               </button>
+
+              {/* Observaciones Deudor — visible para deudor y ejecutivos */}
+              {!esCliente && (
+                <button
+                  onClick={() =>
+                    navigate(`/clientes/${clienteId}/deudores/${deudor.id}/observacionesDeudor`)
+                  }
+                  className="group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-5 text-left transition-all hover:border-amber-500 hover:shadow-lg hover:-translate-y-1"
+                >
+                  <div className="absolute top-0 right-0 h-20 w-20 translate-x-8 -translate-y-8 rounded-full bg-amber-500/5 transition-transform group-hover:scale-150" />
+                  <div className="relative">
+                    <div className="mb-3 inline-flex rounded-lg bg-amber-500/10 p-3 transition-colors group-hover:bg-amber-500/20">
+                      <MessageSquare className="h-5 w-5 text-amber-600" />
+                    </div>
+                    <Typography variant="h3" className="!text-brand-secondary mb-1 text-base">
+                      Observaciones
+                    </Typography>
+                    <Typography variant="small">
+                      Observaciones registradas por el deudor
+                    </Typography>
+                  </div>
+                </button>
+              )}
 
               {puedeCrearAccesoDeudor && !esCliente && !esDeudor && (
                 <button

@@ -738,7 +738,7 @@ export default function AcuerdoPagoPage() {
                         items={[
                             { label: "Clientes", href: "/clientes-tables" },
                             { label: clienteNombre, href: `/deudores/${clienteId}` },
-                            { label: deudorNombre, href: `/clientes/${clienteId}/deudores/${deudorId}` },
+                            { label: `${deudorNombre}${datosWord.deudorUbicacion ? ` - ${datosWord.deudorUbicacion}` : ""}`, href: `/clientes/${clienteId}/deudores/${deudorId}` },
                             { label: "Acuerdo de Pago" },
                         ]}
                     />
@@ -803,7 +803,7 @@ export default function AcuerdoPagoPage() {
                     items={[
                         { label: "Clientes", href: "/clientes-tables" },
                         { label: clienteNombre, href: `/deudores/${clienteId}` },
-                        { label: deudorNombre, href: `/clientes/${clienteId}/deudores/${deudorId}` },
+                        { label: `${deudorNombre}${datosWord.deudorUbicacion ? ` - ${datosWord.deudorUbicacion}` : ""}`, href: `/clientes/${clienteId}/deudores/${deudorId}` },
                         { label: "Acuerdo de Pago" },
                     ]}
                 />

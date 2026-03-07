@@ -80,7 +80,6 @@ import {
 } from "@/shared/ui/select";
 import SeguimientoDemandaTable from "./SeguimientoDemandaTable";
 import { Typography } from "@/shared/design-system/components/Typography";
-import { BackButton } from "@/shared/design-system/components/BackButton";
 import { cn } from "@/shared/lib/cn";
 import { ExpandableCell } from "@/shared/components/expandable-cell";
 import AppBreadcrumb from "@/shared/components/app-breadcrumb";
@@ -137,6 +136,7 @@ export default function SeguimientoTable() {
   const navigate = useNavigate();
   const [nombreCliente, setNombreCliente] = React.useState<string>("");
   const [nombreDeudor, setNombreDeudor] = React.useState<string>("");
+  const [ubicacionDeudor, setUbicacionDeudor] = React.useState<string>("");
 
   const [items, setItems] = React.useState<Seguimiento[]>([]);
   const [loading, setLoading] = React.useState(false);
@@ -193,6 +193,7 @@ export default function SeguimientoTable() {
 
         setNombreCliente(cliente?.nombre ?? "Cliente");
         setNombreDeudor(deudor?.nombre ?? "Deudor");
+        setUbicacionDeudor(deudor?.ubicacion?.trim() ?? "");
       } catch (error) {
         console.error("Error cargando nombres:", error);
       }
@@ -394,7 +395,7 @@ export default function SeguimientoTable() {
               items={[
                 { label: "Clientes", href: "/clientes-tables" },
                 { label: nombreCliente, href: `/deudores/${clienteId}` }, // 👈 ESTA ES LA RUTA REAL
-                { label: nombreDeudor, href: `/clientes/${clienteId}/deudores/${deudorId}` },
+                { label: `${nombreDeudor}${ubicacionDeudor ? ` - ${ubicacionDeudor}` : ""}`, href: `/clientes/${clienteId}/deudores/${deudorId}` },
               ]}
             />
 
