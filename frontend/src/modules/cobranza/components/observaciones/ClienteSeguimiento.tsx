@@ -154,29 +154,22 @@ export default function ClienteSeguimientoConjunto() {
         destinatarioId = clienteData?.ejecutivoPrejuridicoId;
       } else {
         // El ejecutivo escribe → notificar al conjunto (usuario del cliente)
-        destinatarioId = clienteData?.usuarioUid;
-      }
+        // el id se obtiene del identificador del documento en base de datos
+        destinatarioId = clienteSnap.id; // clienteData?.usuarioClienteId;        
+      }      
 
       if (!destinatarioId || destinatarioId === usuario?.uid) return;
 
       await notificarUsuarioConAlertaYCorreo({
 
         usuarioId: destinatarioId,
-
         modulo: "seguimiento",
-
         ruta: `/clientes/${clienteId}/seguimiento-conjunto`,
-
         descripcionAlerta: "Nuevo mensaje en seguimiento del conjunto",
-
         nombreDestino: "",
-
         correoDestino: "",
-
         subject: "Nuevo mensaje en seguimiento",
-
         tituloCorreo: "Nuevo mensaje en seguimiento del conjunto",
-
         cuerpoHtmlCorreo: `
         <p>Se ha agregado un nuevo mensaje en el seguimiento.</p>
         <p><strong>Mensaje:</strong></p>
