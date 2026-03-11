@@ -22,7 +22,7 @@ import { db } from "@/firebase";
 import { Calendar } from "@/shared/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover";
 
-import { Deudor } from "../models/deudores.model";
+import { Deudor } from "../../models/deudores.model";
 
 import {
   PERMS,

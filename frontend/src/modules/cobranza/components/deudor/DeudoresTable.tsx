@@ -3,13 +3,13 @@ import { useParams, useNavigate, useSearchParams, useLocation } from "react-rout
 import { Eye, Pencil, Search, X, Users, UserPlus, Filter, FileText, Trash2, CalendarIcon } from "lucide-react";
 import { createPortal } from "react-dom";
 
-import { Deudor } from "../models/deudores.model";
+import { Deudor } from "../../models/deudores.model";
 import {
   obtenerDeudorPorCliente,
   crearDeudor,
   actualizarDeudorDatos,
   borrarDeudorCompleto
-} from "../services/deudorService";
+} from "../../services/deudorService";
 
 import { Cliente } from "@/modules/clientes/models/cliente.model";
 import { getClienteById } from "@/modules/clientes/services/clienteService";
@@ -40,7 +40,7 @@ import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { PERMS } from "@/shared/constants/acl";
 
 // ✅ Historial tipificaciones
-import type { HistorialTipificacion } from "../models/historialTipificacion.model";
+import type { HistorialTipificacion } from "../../models/historialTipificacion.model";
 
 import { Timestamp } from "firebase/firestore";
 
@@ -48,7 +48,7 @@ import {
   obtenerHistorialTipificaciones,
   reemplazarHistorialTipificaciones,
   tipificacionActivaDesdeHistorial,
-} from "../services/historialTipificacionesService";
+} from "../../services/historialTipificacionesService";
 
 const ALL = "__ALL__";
 

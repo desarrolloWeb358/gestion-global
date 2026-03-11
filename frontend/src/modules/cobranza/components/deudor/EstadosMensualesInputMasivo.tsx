@@ -12,9 +12,9 @@ import {
 } from "@/shared/ui/table";
 import { Label } from "@/shared/ui/label";
 import { toast } from "sonner";
-import { Deudor } from "../models/deudores.model";
-import { obtenerDeudorPorCliente, actualizarDeudorDatos } from "../services/deudorService";
-import { upsertEstadoMensualPorMes } from "../services/estadoMensualService";
+import { Deudor } from "../../models/deudores.model";
+import { obtenerDeudorPorCliente, actualizarDeudorDatos } from "../../services/deudorService";
+import { upsertEstadoMensualPorMes } from "../../services/estadoMensualService";
 import { db } from "@/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { Calendar, DollarSign, Save, TrendingUp, Users } from "lucide-react";

@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from "react-router-dom";// ← Usa 'react-router-dom'
+import { Routes, Route } from "react-router-dom";
 import SignIn from "./modules/auth/components/SignIn"; // Ya esta con shadcn
 import SignUp from "./modules/auth/components/SignUp"; // Ya esta con shadcn
 import ClientesTable from "@/modules/clientes/components/ClientesTable";
@@ -6,21 +6,21 @@ import ClientePage from "@/modules/clientes/components/ClientePage";
 import UsuariosTable from "./modules/usuarios/components/UsuariosTable";
 import RedirectByRol from "./modules/auth/pages/RedirectByRol";
 import ResetPasswordForm from "@/modules/auth/components/forgot-password";
-import DeudoresTable from "./modules/cobranza/components/DeudoresTable";
-import SeguimientoTable from './modules/cobranza/components/SeguimientoTable';
+import DeudoresTable from "./modules/cobranza/components/deudor/DeudoresTable";
+import SeguimientoTable from './modules/cobranza/components/seguimiento/SeguimientoTable';
 import ConsultaPersonasPage from './modules/cobranza/components/ConsultarPersonasPage';
 import ProbarNotificacionesPage from './modules/cobranza/components/ProbarNotificacionesPage';
 import AppLayout from "@/app/layout/AppLayout";
 import ScrollToTop from "@/app/layout/ScrollToTop";
-import DeudorDetailPage from "./modules/cobranza/components/DeudorDetailPage";
+import DeudorDetailPage from "./modules/cobranza/components/deudor/DeudorDetailPage";
 import "@/shared/design-system/css/fonts.css";
 import "@/shared/design-system/css/variables.css";
 import "@/shared/design-system/css/themes.css";
 import "./index.css";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
-import EstadosMensualesTable from "./modules/cobranza/components/EstadosMensualesTable";
-import EstadosMensualesInputMasivo from "./modules/cobranza/components/EstadosMensualesInputMasivo";
+import EstadosMensualesTable from "./modules/cobranza/components/deudor/EstadosMensualesTable";
+import EstadosMensualesInputMasivo from "./modules/cobranza/components/deudor/EstadosMensualesInputMasivo";
 import ReporteClientePage from "./modules/cobranza/components/reportes/ReporteClientePage";
 
 /// valores agregados
@@ -33,16 +33,15 @@ import EjecutivoDashboardPage from "@/modules/dashboard/pages/EjecutivoDashboard
 import AbogadoDashboardPage from "@/modules/dashboard/pages/AbogadoDashboardPage";
 import ClienteDashboardPage from "@/modules/dashboard/pages/ClienteDashboardPage";
 import DeudorDashboardPage from "@/modules/dashboard/pages/DeudorDashboardPage";
-import { DemandaInfoPage } from "./modules/cobranza/components/DemandaInfoPage";
+import { DemandaInfoPage } from "./modules/cobranza/components/demanda/DemandaInfoPage";
 import { ThemeProvider } from "./app/providers/ThemeContext";
-import AcuerdoPagoPage from "./modules/cobranza/components/AcuerdoPagoPage";
+import AcuerdoPagoPage from "./modules/cobranza/components/acuerdoPago/AcuerdoPagoPage";
 import ProtectedRoute from "@/modules/auth/components/ProtectedRoute";
 import NotificacionesPage from "./modules/notificaciones/components/NotificacionesPage";
-import MiDeudaRedirectPage from "./modules/cobranza/components/MiDeudaRedirectPage";
 import RootRedirect from "./modules/auth/pages/RootRedirect";
 import AuthLayout from "./modules/auth/components/AuthLayout";
-import ClienteSeguimiento from "./modules/cobranza/components/ClienteSeguimiento";
-import ObservacionesDeudorPage from "./modules/cobranza/components/ObservacionesDeudorPage";
+import ClienteSeguimiento from "./modules/cobranza/components/observaciones/ClienteSeguimiento";
+import ObservacionesDeudorPage from "./modules/cobranza/components/observaciones/ObservacionesDeudorPage";
 
 
 export default function App() {
@@ -100,7 +99,6 @@ export default function App() {
             <Route path="/dashboard/abogado" element={<AbogadoDashboardPage />} />
             <Route path="/dashboard/cliente" element={<ClienteDashboardPage />} />
             <Route path="/dashboard/deudor" element={<DeudorDashboardPage />} />
-            <Route path="/dashboard/deudor" element={<MiDeudaRedirectPage />} />
 
 
           </Route>

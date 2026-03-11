@@ -5,7 +5,7 @@ import * as React from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   obtenerHistorialTipificaciones
-} from "../services/historialTipificacionesService";
+} from "../../services/historialTipificacionesService";
 import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 import {
   User,
@@ -21,7 +21,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 
-import { getDeudorById, vincularDeudorConUsuario } from "../services/deudorService";
+import { getDeudorById, vincularDeudorConUsuario } from "../../services/deudorService";
 
 
 import {
@@ -36,10 +36,10 @@ import { cn } from "@/shared/lib/cn";
 
 import { getClienteById } from "@/modules/clientes/services/clienteService";
 import type { Cliente } from "@/modules/clientes/models/cliente.model";
-import { Deudor } from "../models/deudores.model";
-import { crearUsuarioParaDeudor } from "../services/deudorUserService";
+import { Deudor } from "../../models/deudores.model";
+import { crearUsuarioParaDeudor } from "../../services/deudorUserService";
 import { useUsuarioActual } from "@/modules/auth/hooks/useUsuarioActual";
-import { escucharUltimoEstadoMensual } from "../services/estadoMensualService";
+import { escucharUltimoEstadoMensual } from "../../services/estadoMensualService";
 
 
 // Helper para colores de tipificación

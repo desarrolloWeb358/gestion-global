@@ -33,7 +33,7 @@ import numeroALetras from "@/shared/numeroALetras";
 
 import type { AcuerdoPago, CuotaAcuerdo } from "@/modules/cobranza/models/acuerdoPago.model";
 import { generarTablaAcuerdo } from "@/modules/cobranza/lib/generarTablaAcuerdo";
-import TablaAmortizacionEditable from "@/modules/cobranza/components/TablaAmortizacionEditable";
+import TablaAmortizacionEditable from "./TablaAmortizacionEditable";
 import { descargarAcuerdoPagoWord } from "@/modules/cobranza/services/acuerdoPagoWordService";
 
 import {

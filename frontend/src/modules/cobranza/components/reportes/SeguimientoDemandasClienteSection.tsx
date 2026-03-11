@@ -26,7 +26,7 @@ import {
 import {
     DemandaDeudorItem,
     obtenerDemandasConSeguimientoCliente,
-} from "../../services/reportes/seguimientoDemandaService";
+} from "../../services/reportes/demandaReporteService";
 
 function formatDateES(d: Date | null) {
     if (!d) return "";

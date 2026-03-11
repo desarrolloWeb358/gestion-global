@@ -3,9 +3,9 @@
 import { useState } from "react"
 import { Input } from "@/shared/ui/input"
 import { Button } from "@/shared/ui/button"
-import { Deudor } from "../models/deudores.model"
+import { Deudor } from "../../models/deudores.model"
 import { useParams } from "react-router-dom"
-import { agregarAbonoAlDeudor } from "../services/deudorService"
+import { agregarAbonoAlDeudor } from "../../services/deudorService"
 import { useAcl } from "@/modules/auth/hooks/useAcl"
 import { PERMS } from "@/shared/constants/acl"
 

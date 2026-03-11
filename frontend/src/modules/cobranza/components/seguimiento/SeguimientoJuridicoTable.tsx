@@ -10,8 +10,8 @@ import {
 } from "@/shared/ui/table";
 
 import SeguimientoForm, { DestinoColeccion } from "./SeguimientoForm";
-import { Seguimiento } from "../models/seguimiento.model";
-import type { Deudor } from "../models/deudores.model";
+import { Seguimiento } from "../../models/seguimiento.model";
+import type { Deudor } from "../../models/deudores.model";
 
 import {
   getSeguimientosJuridico,

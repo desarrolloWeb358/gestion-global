@@ -3,7 +3,7 @@ import * as React from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { getClienteById } from "@/modules/clientes/services/clienteService";
-import { getDeudorById } from "../services/deudorService";
+import { getDeudorById } from "../../services/deudorService";
 import {
   FileText,
   History,
@@ -32,7 +32,7 @@ import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { PERMS } from "@/shared/constants/acl";
 
 import SeguimientoForm, { DestinoColeccion } from "./SeguimientoForm";
-import { Seguimiento } from "../models/seguimiento.model";
+import { Seguimiento } from "../../models/seguimiento.model";
 import {
   getSeguimientos,
   addSeguimiento,

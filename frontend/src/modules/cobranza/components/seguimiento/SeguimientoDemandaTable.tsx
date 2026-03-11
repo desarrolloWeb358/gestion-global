@@ -46,7 +46,7 @@ import { Typography } from "@/shared/design-system/components/Typography";
 import { cn } from "@/shared/lib/cn";
 import { PERMS, sanitizeRoles, type Rol, type Perm } from "@/shared/constants/acl";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
-import { Deudor } from "../models/deudores.model";
+import { Deudor } from "../../models/deudores.model";
 import { ExpandableCell } from "@/shared/components/expandable-cell";
 
 type SortDir = "desc" | "asc";

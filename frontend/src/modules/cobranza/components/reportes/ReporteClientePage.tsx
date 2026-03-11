@@ -87,7 +87,7 @@ import { toast } from "sonner";
 import { buildReporteClienteDocx } from "../../services/reportes/reporteClienteWord";
 
 // Servicios para data adicional (ya existen por tus componentes)
-import { obtenerDemandasConSeguimientoCliente } from "../../services/reportes/seguimientoDemandaService";
+import { obtenerDemandasConSeguimientoCliente } from "../../services/reportes/demandaReporteService";
 import { obtenerReporteDeudoresPorPeriodo } from "../../services/reportes/reporteDeudoresService";
 import type { FilaReporte } from "../../services/reportes/tipos";
 

@@ -24,7 +24,7 @@ import { Loader2, Calendar as CalendarIcon } from "lucide-react";
 import { Calendar } from "@/shared/ui/calendar";
 import { Popover, PopoverTrigger, PopoverContent } from "@/shared/ui/popover";
 
-import { Seguimiento } from "../models/seguimiento.model";
+import { Seguimiento } from "../../models/seguimiento.model";
 // imports nuevos:
 import { TIPO_SEGUIMIENTO, TipoSeguimientoCode, codeToLabel } from "@/shared/constants/tipoSeguimiento";
 import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
