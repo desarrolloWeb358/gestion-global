@@ -1,6 +1,10 @@
 // src/modules/cobranza/services/reportes/recaudosService.ts
 import { db } from "@/firebase";
-import { collection, getDocs, Timestamp } from "firebase/firestore";
+import { collection, Timestamp, collectionGroup,
+  getDocs,
+  limit,
+  query,
+  where, } from "firebase/firestore";
 import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 
 export interface MesTotal {
@@ -77,3 +81,24 @@ export async function obtenerRecaudosMensuales(
     .map(([mes, total]) => ({ mes, total }));
 }
 
+function buildMesKey(year: number, month: number) {
+  return `${year}-${String(month).padStart(2, "0")}`;
+}
+
+export async function existeEstadoMensualClienteEnPeriodo(
+  clienteId: string,
+  year: number,
+  month: number
+): Promise<boolean> {
+  const mes = buildMesKey(year, month);
+
+  const q = query(
+    collectionGroup(db, "estadosMensuales"),
+    where("clienteUID", "==", clienteId),
+    where("mes", "==", mes),
+    limit(1)
+  );
+
+  const snap = await getDocs(q);
+  return !snap.empty;
+}
