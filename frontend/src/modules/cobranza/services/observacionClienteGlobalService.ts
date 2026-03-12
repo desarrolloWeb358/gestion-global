@@ -16,7 +16,7 @@ import {
 } from "firebase/storage";
 
 import { db, storage } from "@/firebase";
-import { getAuth } from "firebase/auth";
+import { getAuth } from "firebase/auth"; // auth.currentUser aún necesario para usuarioId
 
 import { ObservacionClienteGlobal } from "../models/observacionClienteGlobal.model";
 import { notificarUsuarioConAlertaYCorreo } from "@/modules/notificaciones/services/notificacionService";
@@ -56,7 +56,8 @@ export async function getObservacionesClienteGlobal(
 export async function addObservacionClienteGlobal(
   clienteId: string,
   texto: string,
-  archivo?: File
+  archivo?: File,
+  esCliente?: boolean
 ) {
 
   const auth = getAuth();
@@ -68,9 +69,7 @@ export async function addObservacionClienteGlobal(
 
   const usuarioId = user.uid;
 
-  const rol = user.email?.includes("gestionglobal")
-    ? "ejecutivo"
-    : "cliente";
+  const rol = esCliente ? "cliente" : "ejecutivo";
 
 
   /* ================================
@@ -124,45 +123,21 @@ export async function addObservacionClienteGlobal(
 
   const clienteData = clienteSnap.data();
 
-
-  const ejecutivoId = clienteData?.ejecutivoId;
-  const usuarioClienteId = clienteData?.usuarioClienteId;
-
-  const nombreEjecutivo = clienteData?.nombreEjecutivo;
-  const correoEjecutivo = clienteData?.correoEjecutivo;
-
-  const nombreCliente = clienteData?.nombreCliente;
-  const correoCliente = clienteData?.correoCliente;
-
-
   /* ================================
      DETERMINAR DESTINATARIO
   ================================= */
 
-  let destinatarioId: string | undefined;
-  let nombreDestino: string | undefined;
-  let correoDestino: string | undefined;
-  let descripcion: string;
+  // Cuando el cliente escribe → notificar al ejecutivo pre-jurídico asignado.
+  // Cuando el ejecutivo escribe → notificar al cliente (su uid = id del documento).
+  const destinatarioId: string | undefined =
+    rol === "cliente"
+      ? (clienteData?.ejecutivoPrejuridicoId ?? undefined)
+      : clienteSnap.id;
 
-
-  if (rol === "cliente") {
-
-    destinatarioId = ejecutivoId;
-    nombreDestino = nombreEjecutivo;
-    correoDestino = correoEjecutivo;
-
-    descripcion = "Nuevo mensaje del cliente en seguimiento del conjunto";
-
-  } else {
-
-    destinatarioId = usuarioClienteId;
-    nombreDestino = nombreCliente;
-    correoDestino = correoCliente;
-
-    descripcion = "Nuevo mensaje del ejecutivo en seguimiento del conjunto";
-
-  }
-
+  const descripcion =
+    rol === "cliente"
+      ? "Nuevo mensaje del cliente en seguimiento del conjunto"
+      : "Nuevo mensaje del ejecutivo en seguimiento del conjunto";
 
   /* ================================
      EVITAR NOTIFICARSE A SÍ MISMO
@@ -170,40 +145,27 @@ export async function addObservacionClienteGlobal(
 
   if (!destinatarioId || destinatarioId === usuarioId) return;
 
-
   /* ================================
      ENVIAR NOTIFICACIÓN
+     correoDestino vacío → el servicio busca el correo en usuarios/{id}
   ================================= */
 
   await notificarUsuarioConAlertaYCorreo({
-
     usuarioId: destinatarioId,
-
     modulo: "seguimiento",
-
     ruta: `/clientes/${clienteId}/seguimiento-conjunto`,
-
     descripcionAlerta: descripcion,
-
-    nombreDestino: nombreDestino || "Usuario",
-
-    correoDestino: correoDestino || "",
-
-    subject: "Nuevo mensaje en seguimiento",
-
+    nombreDestino: "",
+    correoDestino: "",
+    subject: "Nuevo mensaje en seguimiento del conjunto",
     tituloCorreo: "Nuevo mensaje en seguimiento del conjunto",
-
     cuerpoHtmlCorreo: `
       <p>Se ha agregado un nuevo mensaje en el seguimiento del conjunto.</p>
-
       <p><strong>Mensaje:</strong></p>
-
       <p>${texto}</p>
-
       <br/>
-
       <p>Puedes revisarlo ingresando a la plataforma.</p>
-    `
+    `,
   });
 
 }

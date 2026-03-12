@@ -68,7 +68,7 @@ export async function obtenerEstadosMensuales(
     db,
     `clientes/${clienteId}/deudores/${deudorId}/estadosMensuales`
   );
-  const q = query(ref, orderBy("mes", "asc"));
+  const q = query(ref, orderBy("mes", "desc"));
   const snapshot = await getDocs(q);
   return snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as EstadoMensual));
 }

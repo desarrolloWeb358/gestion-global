@@ -23,8 +23,6 @@ import {
   addObservacionClienteGlobal,
 } from "@/modules/cobranza/services/observacionClienteGlobalService";
 
-import { notificarUsuarioConAlertaYCorreo } from "@/modules/notificaciones/services/notificacionService";
-
 import { Textarea } from "@/shared/ui/textarea";
 import { Button } from "@/shared/ui/button";
 import { Typography } from "@/shared/design-system/components/Typography";
@@ -34,8 +32,6 @@ import { cn } from "@/shared/lib/cn";
 
 import { ObservacionClienteGlobal } from "@/modules/cobranza/models/observacionClienteGlobal.model";
 
-import { db } from "@/firebase";
-import { doc, getDoc } from "firebase/firestore";
 
 export default function ClienteSeguimientoConjunto() {
 
@@ -131,7 +127,7 @@ export default function ClienteSeguimientoConjunto() {
 
       setBusy(true);
 
-      await addObservacionClienteGlobal(clienteId, texto, archivo);
+      await addObservacionClienteGlobal(clienteId, texto, archivo, esCliente);
 
       setTexto("");
       setArchivo(undefined);
@@ -139,44 +135,6 @@ export default function ClienteSeguimientoConjunto() {
       await cargar();
 
       toast.success("Seguimiento agregado");
-
-      /* NOTIFICACIÓN */
-
-      const clienteRef = doc(db, "clientes", clienteId);
-      const clienteSnap = await getDoc(clienteRef);
-
-      const clienteData = clienteSnap.data();
-
-      let destinatarioId: string | undefined;
-
-      if (esCliente) {
-        // El cliente escribe → notificar al ejecutivo prejurídico
-        destinatarioId = clienteData?.ejecutivoPrejuridicoId;
-      } else {
-        // El ejecutivo escribe → notificar al conjunto (usuario del cliente)
-        // el id se obtiene del identificador del documento en base de datos
-        destinatarioId = clienteSnap.id; // clienteData?.usuarioClienteId;        
-      }      
-
-      if (!destinatarioId || destinatarioId === usuario?.uid) return;
-
-      await notificarUsuarioConAlertaYCorreo({
-
-        usuarioId: destinatarioId,
-        modulo: "seguimiento",
-        ruta: `/clientes/${clienteId}/seguimiento-conjunto`,
-        descripcionAlerta: "Nuevo mensaje en seguimiento del conjunto",
-        nombreDestino: "",
-        correoDestino: "",
-        subject: "Nuevo mensaje en seguimiento",
-        tituloCorreo: "Nuevo mensaje en seguimiento del conjunto",
-        cuerpoHtmlCorreo: `
-        <p>Se ha agregado un nuevo mensaje en el seguimiento.</p>
-        <p><strong>Mensaje:</strong></p>
-        <p>${texto}</p>
-      `
-
-      });
 
     } catch {
 
