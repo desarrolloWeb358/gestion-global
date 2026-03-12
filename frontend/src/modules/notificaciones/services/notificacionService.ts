@@ -18,7 +18,7 @@ import type { Timestamp } from "firebase/firestore";
 import { normalizeToE164 } from "@/shared/phoneUtils";
 
 
-export type NotificarInput = {
+export type NotificaryCorreoInput = {
   usuarioId: string;
   modulo: string;         // "valor_agregado", "seguimiento", etc.
   ruta: string;           // a dónde debe ir el usuario en la app
@@ -26,7 +26,7 @@ export type NotificarInput = {
 
   // Datos del correo
   nombreDestino: string;
-  correoDestino: string;  
+  correoDestino: string;
   subject: string;
   tituloCorreo: string;
   cuerpoHtmlCorreo: string;
@@ -61,14 +61,14 @@ type EnviarEmailUsuarioInput = {
 
 type EnviarEmailInput = {
   nombreDestino: string;
-  correoDestino: string;  
+  correoDestino: string;
   subject: string;
   titulo: string;      // título visible en el cuerpo del correo
   cuerpoHtml: string;  // HTML específico del módulo (sin header/pie)
 };
 
 export async function notificarUsuarioConAlertaYCorreo(
-  input: NotificarInput
+  input: NotificaryCorreoInput
 ): Promise<{ alertaId?: string }> {
   const {
     usuarioId,
@@ -76,7 +76,7 @@ export async function notificarUsuarioConAlertaYCorreo(
     ruta,
     descripcionAlerta,
     nombreDestino,
-    correoDestino,    
+    correoDestino,
     subject,
     tituloCorreo,
     cuerpoHtmlCorreo,
@@ -101,7 +101,7 @@ export async function notificarUsuarioConAlertaYCorreo(
   console.log("correoDestino:", correoDestino);
   console.log("nombreDestino:", nombreDestino);
 
-  if (correoDestino === "" ) {
+  if (correoDestino === "") {
     try {
       await enviarEmailAUsuario({
         usuarioId,
@@ -119,7 +119,7 @@ export async function notificarUsuarioConAlertaYCorreo(
     try {
       await enviarEmail({
         nombreDestino,
-        correoDestino,        
+        correoDestino,
         subject,
         titulo: tituloCorreo,
         cuerpoHtml: cuerpoHtmlCorreo,
@@ -130,6 +130,36 @@ export async function notificarUsuarioConAlertaYCorreo(
 
   }
 
+
+  return { alertaId };
+}
+
+export async function notificarUsuarioConAlerta(
+  input: CrearAlertaInput
+): Promise<{ alertaId?: string }> {
+  const {
+    usuarioId,
+    modulo,
+    ruta,
+    descripcion,    
+    
+  } = input;
+
+  // 1) Crear alerta en Firestore
+  let alertaId: string | undefined;
+  try {
+    alertaId = await crearAlertaNotificacion({
+      usuarioId,
+      descripcion,
+      ruta,
+      modulo,
+    });
+  } catch (err) {
+    console.error(
+      "[notificarUsuarioConAlertaYCorreo] Error creando alerta:",
+      err
+    );
+  }
 
   return { alertaId };
 }
@@ -194,7 +224,7 @@ async function enviarEmailAUsuario({
   usuarioId,
   subject,
   titulo,
-  cuerpoHtml,  
+  cuerpoHtml,
 }: EnviarEmailUsuarioInput): Promise<void> {
   const contacto = await obtenerContactoUsuario(usuarioId);
   if (!contacto.correo) {
@@ -231,7 +261,7 @@ async function enviarEmailAUsuario({
 
 async function enviarEmail({
   nombreDestino,
-  correoDestino,  
+  correoDestino,
   subject,
   titulo,
   cuerpoHtml,
@@ -267,7 +297,7 @@ function buildGestionGlobalEmailHtml(params: EmailTemplateParams): string {
     cuerpoHtml,
   } = params;
 
-  
+
 
   return `
     <!doctype html>

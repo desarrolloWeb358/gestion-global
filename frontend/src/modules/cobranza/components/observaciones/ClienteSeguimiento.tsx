@@ -136,6 +136,8 @@ export default function ClienteSeguimientoConjunto() {
 
       toast.success("Seguimiento agregado");
 
+      
+
     } catch {
 
       toast.error("No se pudo guardar");

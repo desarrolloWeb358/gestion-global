@@ -19,7 +19,7 @@ import { db, storage } from "@/firebase";
 import { getAuth } from "firebase/auth"; // auth.currentUser aún necesario para usuarioId
 
 import { ObservacionClienteGlobal } from "../models/observacionClienteGlobal.model";
-import { notificarUsuarioConAlertaYCorreo } from "@/modules/notificaciones/services/notificacionService";
+import { notificarUsuarioConAlertaYCorreo, notificarUsuarioConAlerta } from "@/modules/notificaciones/services/notificacionService";
 
 
 function colRef(clienteId: string) {
@@ -59,7 +59,6 @@ export async function addObservacionClienteGlobal(
   archivo?: File,
   esCliente?: boolean
 ) {
-
   const auth = getAuth();
   const user = auth.currentUser;
 
@@ -80,7 +79,6 @@ export async function addObservacionClienteGlobal(
   let archivoNombre: string | undefined;
 
   if (archivo) {
-
     const storageRef = ref(
       storage,
       `clientes/${clienteId}/observacionesCliente/${Date.now()}_${archivo.name}`
@@ -90,9 +88,7 @@ export async function addObservacionClienteGlobal(
 
     archivoUrl = await getDownloadURL(storageRef);
     archivoNombre = archivo.name;
-
   }
-
 
   /* ================================
      GUARDAR MENSAJE
@@ -102,7 +98,7 @@ export async function addObservacionClienteGlobal(
     texto,
     fecha: serverTimestamp(),
     usuarioId,
-    rol
+    rol,
   };
 
   if (archivoUrl) {
@@ -111,7 +107,6 @@ export async function addObservacionClienteGlobal(
   }
 
   await addDoc(colRef(clienteId), data);
-
 
   /* ================================
      BUSCAR DATOS DEL CLIENTE
