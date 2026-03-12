@@ -75,7 +75,7 @@ import {
 
 import { getClienteById } from "@/modules/clientes/services/clienteService";
 
-import { obtenerRecaudosMensuales, MesTotal } from "../../services/reportes/recaudosService";
+import { obtenerRecaudosMensuales, MesTotal, existeEstadoMensualClienteEnPeriodo } from "../../services/reportes/recaudosService";
 
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { PERMS } from "@/shared/constants/acl";
@@ -410,6 +410,8 @@ export default function ReporteClientePage() {
   const [yearTabla, setYearTabla] = useState<number>(hoy.getFullYear());
   const [monthTabla, setMonthTabla] = useState<number>(hoy.getMonth() + 1); // 1..12
 
+  const [hayDatosPeriodo, setHayDatosPeriodo] = useState(true);
+
 
   // refs gráficos
   const pieChartRef = useRef<HTMLDivElement>(null);
@@ -445,13 +447,35 @@ export default function ReporteClientePage() {
 
   useEffect(() => {
     if (!clienteId) return;
+
     (async () => {
       setLoading(true);
+
+      const existeData = await existeEstadoMensualClienteEnPeriodo(
+        clienteId,
+        yearTabla,
+        monthTabla
+      );
+
+      if (!existeData) {
+        setHayDatosPeriodo(false);
+        setPieData([]);
+        setBarsData([]);
+        setResumenTip([]);
+        setDetalleTip([]);
+        setTipSeleccionada("");
+        setLoading(false);
+        return;
+      }
+
+      setHayDatosPeriodo(true);
+
       const [tip, recs, resumen] = await Promise.all([
         contarTipificacionPorCliente(clienteId, yearTabla, monthTabla),
         obtenerRecaudosMensuales(clienteId, yearTabla, monthTabla),
         obtenerResumenPorTipificacion(clienteId, yearTabla, monthTabla),
       ]);
+
       setPieData(tip);
       setBarsData(recs);
       setResumenTip(resumen);
@@ -862,6 +886,98 @@ export default function ReporteClientePage() {
             </Typography>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (!hayDatosPeriodo) {
+    return (
+      <div className="p-6 md:p-8 space-y-6">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <AppBreadcrumb
+            items={[
+              { label: "Clientes", href: "/clientes-tables" },
+              { label: clienteNombre, href: `/deudores/${clienteId}` },
+              { label: "Ver Reporte" },
+            ]}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-brand-primary to-brand-secondary">
+              <BarChart3 className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <Typography variant="h1" className="!text-brand-secondary">
+                {clienteNombre ? `Reporte: ${clienteNombre}` : "Reporte ..."}
+              </Typography>
+
+              <Typography variant="small" className="text-muted-foreground">
+                Análisis de tipificación y recaudo mensual
+              </Typography>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Typography variant="small" className="text-brand-secondary font-medium">
+              Año
+            </Typography>
+            <Select value={String(yearTabla)} onValueChange={(v) => setYearTabla(Number(v))}>
+              <SelectTrigger className="w-28 border-brand-secondary/30 bg-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 6 }).map((_, i) => {
+                  const y = hoy.getFullYear() - i;
+                  return (
+                    <SelectItem key={y} value={String(y)}>
+                      {y}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Typography variant="small" className="text-brand-secondary font-medium">
+              Mes
+            </Typography>
+            <Select value={String(monthTabla)} onValueChange={(v) => setMonthTabla(Number(v))}>
+              <SelectTrigger className="w-40 border-brand-secondary/30 bg-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 12 }).map((_, i) => {
+                  const m = i + 1;
+                  const label = new Date(2024, i, 1).toLocaleDateString("es-CO", { month: "long" });
+                  const nombre = label.charAt(0).toUpperCase() + label.slice(1);
+                  return (
+                    <SelectItem key={m} value={String(m)}>
+                      {nombre}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <Separator className="bg-brand-secondary/20" />
+
+        <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
+          <div className="p-10 text-center">
+            <Typography variant="h3" className="!text-brand-secondary mb-2">
+              No hay información para el período seleccionado
+            </Typography>
+            <Typography variant="body" className="text-muted-foreground">
+              No existen estados mensuales registrados para este cliente en el período consultado.
+            </Typography>
+          </div>
+        </section>
       </div>
     );
   }

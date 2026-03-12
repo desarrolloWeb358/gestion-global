@@ -13,7 +13,6 @@ import {
   TableLayoutType,
   VerticalAlign,
   TextDirection,
-  HeightRule,
   ImageRun,
 } from "docx";
 
@@ -152,69 +151,6 @@ async function buildFirmaAcreedor(params: {
     
   ];
 }
-
-
-function buildHuellaBlock() {
-  const blockWidth = 1800; // 👈 más angosto (ajusta 1600-2200)
-  const boxHeight = 1800;
-
-  const BOX_BORDER = {
-    top: { style: BorderStyle.SINGLE, size: 8, color: "000000" },
-    bottom: { style: BorderStyle.SINGLE, size: 8, color: "000000" },
-    left: { style: BorderStyle.SINGLE, size: 8, color: "000000" },
-    right: { style: BorderStyle.SINGLE, size: 8, color: "000000" },
-  };
-
-  return new Table({
-    width: { size: blockWidth, type: WidthType.DXA },
-    layout: TableLayoutType.FIXED,
-    rows: [
-      new TableRow({
-        children: [
-          new TableCell({
-            borders: noBorders(),
-            children: [
-              new Paragraph({
-                alignment: AlignmentType.CENTER,
-                spacing: { after: 80 },
-                children: [new TextRun({ text: "HUELLA", font: FONT, size: 20 })],
-              }),
-            ],
-          }),
-        ],
-      }),
-
-      // ✅ CUADRO con borde completo
-      new TableRow({
-        height: { value: boxHeight, rule: HeightRule.EXACT },
-        children: [
-          new TableCell({
-            borders: BOX_BORDER,
-            verticalAlign: VerticalAlign.CENTER,
-            margins: { top: 40, bottom: 40, left: 40, right: 40 }, // ayuda a que Word no colapse
-            children: [new Paragraph({ text: "" })],
-          }),
-        ],
-      }),
-
-      new TableRow({
-        children: [
-          new TableCell({
-            borders: noBorders(),
-            children: [
-              new Paragraph({
-                alignment: AlignmentType.CENTER,
-                spacing: { before: 80 },
-                children: [new TextRun({ text: "INDICE DERECHO", font: FONT, size: 18 })],
-              }),
-            ],
-          }),
-        ],
-      }),
-    ],
-  });
-}
-
 
 
 
@@ -911,16 +847,6 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
                     ],
                   }),
 
-                  // DERECHA (bloque huella) - SIN BORDES EXTERNOS
-                  new TableCell({
-                    width: { size: 3000, type: WidthType.DXA }, // 👈 bloque derecho
-                    borders: noBorders(),
-                    verticalAlign: VerticalAlign.TOP,
-                    children: [
-                      new Paragraph({ alignment: AlignmentType.RIGHT, children: [] }),
-                      buildHuellaBlock(),
-                    ],
-                  }),
                 ],
               }),
             ],
