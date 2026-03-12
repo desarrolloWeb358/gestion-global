@@ -160,9 +160,8 @@ export async function addObservacionClienteGeneric(
   // 1️⃣ Guardar la observación en Firestore
   const docRef = await addDoc(colRef(clienteId, parentId, scope), {
     texto,
-    archivoUrl,
-    archivoNombre,
     fecha: serverTimestamp() as unknown as Timestamp,
+    ...(archivoUrl && { archivoUrl, archivoNombre }),
   });
   const obsId = docRef.id;
 

@@ -23,8 +23,6 @@ import {
   addObservacionClienteGlobal,
 } from "@/modules/cobranza/services/observacionClienteGlobalService";
 
-import { notificarUsuarioConAlertaYCorreo } from "@/modules/notificaciones/services/notificacionService";
-
 import { Textarea } from "@/shared/ui/textarea";
 import { Button } from "@/shared/ui/button";
 import { Typography } from "@/shared/design-system/components/Typography";
@@ -34,8 +32,6 @@ import { cn } from "@/shared/lib/cn";
 
 import { ObservacionClienteGlobal } from "@/modules/cobranza/models/observacionClienteGlobal.model";
 
-import { db } from "@/firebase";
-import { doc, getDoc } from "firebase/firestore";
 
 export default function ClienteSeguimientoConjunto() {
 
@@ -131,7 +127,7 @@ export default function ClienteSeguimientoConjunto() {
 
       setBusy(true);
 
-      await addObservacionClienteGlobal(clienteId, texto, archivo);
+      await addObservacionClienteGlobal(clienteId, texto, archivo, esCliente);
 
       setTexto("");
       setArchivo(undefined);
