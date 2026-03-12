@@ -12,7 +12,7 @@ import {
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/firebase";
-import { notificarUsuarioConAlertaYCorreo } from "@/modules/notificaciones/services/notificacionService";
+import { notificarUsuarioConAlerta } from "@/modules/notificaciones/services/notificacionService";
 
 export interface ObservacionDeudor {
   id?: string;
@@ -87,6 +87,14 @@ export async function addObservacionDeudor(
       ? (deudorSnap.data() as any)?.nombre || "Deudor"
       : "Deudor";
 
+      await notificarUsuarioConAlerta({
+      usuarioId: ejecutivoId,
+      modulo: "observacion_deudor",
+      ruta: `/clientes/${clienteId}/deudores/${deudorId}/observacionesDeudor`,
+      descripcion: `Nueva observación del deudor ${nombreDeudor} (${nombreCliente})`,      
+    });
+
+    /*
     await notificarUsuarioConAlertaYCorreo({
       usuarioId: ejecutivoId,
       modulo: "observacion_deudor",
@@ -102,6 +110,7 @@ export async function addObservacionDeudor(
         <p style="margin-top:12px;">Ingresa a la plataforma para revisar el detalle.</p>
       `,
     });
+    */
   } catch (err) {
     console.error("[addObservacionDeudor] Error notificando al ejecutivo:", err);
   }

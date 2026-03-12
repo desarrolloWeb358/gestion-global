@@ -19,7 +19,7 @@ import { db, storage } from "@/firebase";
 import { getAuth } from "firebase/auth";
 
 import { ObservacionClienteGlobal } from "../models/observacionClienteGlobal.model";
-import { notificarUsuarioConAlertaYCorreo } from "@/modules/notificaciones/services/notificacionService";
+import { notificarUsuarioConAlertaYCorreo, notificarUsuarioConAlerta } from "@/modules/notificaciones/services/notificacionService";
 
 
 function colRef(clienteId: string) {
@@ -58,7 +58,6 @@ export async function addObservacionClienteGlobal(
   texto: string,
   archivo?: File
 ) {
-
   const auth = getAuth();
   const user = auth.currentUser;
 
@@ -72,7 +71,6 @@ export async function addObservacionClienteGlobal(
     ? "ejecutivo"
     : "cliente";
 
-
   /* ================================
      SUBIR ARCHIVO
   ================================= */
@@ -81,7 +79,6 @@ export async function addObservacionClienteGlobal(
   let archivoNombre: string | undefined;
 
   if (archivo) {
-
     const storageRef = ref(
       storage,
       `clientes/${clienteId}/observacionesCliente/${Date.now()}_${archivo.name}`
@@ -91,9 +88,7 @@ export async function addObservacionClienteGlobal(
 
     archivoUrl = await getDownloadURL(storageRef);
     archivoNombre = archivo.name;
-
   }
-
 
   /* ================================
      GUARDAR MENSAJE
@@ -103,7 +98,7 @@ export async function addObservacionClienteGlobal(
     texto,
     fecha: serverTimestamp(),
     usuarioId,
-    rol
+    rol,
   };
 
   if (archivoUrl) {
@@ -112,7 +107,6 @@ export async function addObservacionClienteGlobal(
   }
 
   await addDoc(colRef(clienteId), data);
-
 
   /* ================================
      BUSCAR DATOS DEL CLIENTE
@@ -124,7 +118,6 @@ export async function addObservacionClienteGlobal(
 
   const clienteData = clienteSnap.data();
 
-
   const ejecutivoId = clienteData?.ejecutivoId;
   const usuarioClienteId = clienteData?.usuarioClienteId;
 
@@ -133,7 +126,6 @@ export async function addObservacionClienteGlobal(
 
   const nombreCliente = clienteData?.nombreCliente;
   const correoCliente = clienteData?.correoCliente;
-
 
   /* ================================
      DETERMINAR DESTINATARIO
@@ -144,66 +136,44 @@ export async function addObservacionClienteGlobal(
   let correoDestino: string | undefined;
   let descripcion: string;
 
-
   if (rol === "cliente") {
-
     destinatarioId = ejecutivoId;
     nombreDestino = nombreEjecutivo;
     correoDestino = correoEjecutivo;
-
     descripcion = "Nuevo mensaje del cliente en seguimiento del conjunto";
-
   } else {
-
     destinatarioId = usuarioClienteId;
     nombreDestino = nombreCliente;
     correoDestino = correoCliente;
-
     descripcion = "Nuevo mensaje del ejecutivo en seguimiento del conjunto";
-
   }
-
-
-  /* ================================
-     EVITAR NOTIFICARSE A SÍ MISMO
-  ================================= */
 
   if (!destinatarioId || destinatarioId === usuarioId) return;
 
-
-  /* ================================
-     ENVIAR NOTIFICACIÓN
-  ================================= */
-
-  await notificarUsuarioConAlertaYCorreo({
-
-    usuarioId: destinatarioId,
-
-    modulo: "seguimiento",
-
-    ruta: `/clientes/${clienteId}/seguimiento-conjunto`,
-
-    descripcionAlerta: descripcion,
-
-    nombreDestino: nombreDestino || "Usuario",
-
-    correoDestino: correoDestino || "",
-
-    subject: "Nuevo mensaje en seguimiento",
-
-    tituloCorreo: "Nuevo mensaje en seguimiento del conjunto",
-
-    cuerpoHtmlCorreo: `
-      <p>Se ha agregado un nuevo mensaje en el seguimiento del conjunto.</p>
-
-      <p><strong>Mensaje:</strong></p>
-
-      <p>${texto}</p>
-
-      <br/>
-
-      <p>Puedes revisarlo ingresando a la plataforma.</p>
-    `
-  });
-
+  if (rol === "cliente") {
+    await notificarUsuarioConAlerta({
+      usuarioId: destinatarioId,
+      modulo: "seguimiento",
+      ruta: `/clientes/${clienteId}/seguimiento-conjunto`,
+      descripcion,
+    });
+  } else {
+    await notificarUsuarioConAlertaYCorreo({
+      usuarioId: destinatarioId,
+      modulo: "seguimiento",
+      ruta: `/clientes/${clienteId}/seguimiento-conjunto`,
+      descripcionAlerta: descripcion,
+      nombreDestino: nombreDestino || "Usuario",
+      correoDestino: correoDestino || "",
+      subject: "Nuevo mensaje en seguimiento",
+      tituloCorreo: "Nuevo mensaje en seguimiento del conjunto",
+      cuerpoHtmlCorreo: `
+        <p>Se ha agregado un nuevo mensaje en el seguimiento del conjunto.</p>
+        <p><strong>Mensaje:</strong></p>
+        <p>${texto}</p>
+        <br/>
+        <p>Puedes revisarlo ingresando a la plataforma.</p>
+      `,
+    });
+  }
 }

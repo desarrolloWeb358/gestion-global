@@ -18,7 +18,7 @@ import { storage } from "@/firebase";
 import { db } from "@/firebase";
 import type { ObservacionCliente } from "../models/observacionCliente.model";
 import type { Cliente } from "@/modules/clientes/models/cliente.model";
-import { notificarUsuarioConAlertaYCorreo } from "../../notificaciones/services/notificacionService";
+import { notificarUsuarioConAlerta, notificarUsuarioConAlertaYCorreo } from "../../notificaciones/services/notificacionService";
 
 const nombreDestinatarioPrejuridico = "Prejurídico";
 const correoDestinatarioPrejuridico = "carterazona1@gestionglobalacg.com";
@@ -388,11 +388,17 @@ export async function addObservacionDeudorConNotificacion(params: {
 
   const nombreCli = nombreCliente ?? "Cliente";
   const nombreDeu = nombreDeudor ?? "deudor";
-
   const descripcionAlerta = `Nueva observación de ${nombreCli} sobre el deudor ${nombreDeu}`;
   const ruta = `/deudores/${clienteId}/${deudorId}/seguimiento`;
 
+  await notificarUsuarioConAlerta({
+    usuarioId: usuarioDestinoId,
+    modulo: "seguimiento",
+    ruta,
+    descripcion: descripcionAlerta,    
+  });
 
+  /*
   const cuerpoHtmlCorreo = `
     <p>El cliente <strong>${nombreCli}</strong> ha registrado una nueva observación sobre el deudor <strong>${nombreDeu}</strong>.</p>
     <p style="margin-top:12px;padding:12px;border-radius:6px;background:#f3f4f6;font-style:italic;">
@@ -414,6 +420,7 @@ export async function addObservacionDeudorConNotificacion(params: {
     tituloCorreo: "Tienes una nueva observación registrada por un cliente",
     cuerpoHtmlCorreo,
   });
+  */
 
   return obsId;
 }
