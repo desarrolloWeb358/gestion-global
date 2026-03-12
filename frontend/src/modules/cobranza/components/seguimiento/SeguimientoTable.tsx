@@ -398,8 +398,9 @@ export default function SeguimientoTable() {
             <AppBreadcrumb
               items={[
                 { label: "Clientes", href: "/clientes-tables" },
-                { label: nombreCliente, href: `/deudores/${clienteId}` }, // 👈 ESTA ES LA RUTA REAL
+                { label: nombreCliente, href: `/deudores/${clienteId}` },
                 { label: `${nombreDeudor}${ubicacionDeudor ? ` - ${ubicacionDeudor}` : ""}`, href: `/clientes/${clienteId}/deudores/${deudorId}` },
+                { label: "Seguimiento" },
               ]}
             />
 

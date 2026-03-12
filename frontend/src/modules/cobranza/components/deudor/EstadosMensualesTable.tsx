@@ -341,6 +341,7 @@ export default function EstadosMensualesTable() {
                 { label: "Clientes", href: "/clientes-tables" },
                 { label: nombreCliente, href: `/deudores/${clienteId}` },
                 { label: deudorLabel, href: `/clientes/${clienteId}/deudores/${deudorId}` },
+                { label: "Estados Mensuales" },
               ]}
             />
           </div>
