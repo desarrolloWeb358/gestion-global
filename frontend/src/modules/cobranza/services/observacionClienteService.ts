@@ -18,12 +18,7 @@ import { storage } from "@/firebase";
 import { db } from "@/firebase";
 import type { ObservacionCliente } from "../models/observacionCliente.model";
 import type { Cliente } from "@/modules/clientes/models/cliente.model";
-import { notificarUsuarioConAlerta, notificarUsuarioConAlertaYCorreo } from "../../notificaciones/services/notificacionService";
-
-const nombreDestinatarioPrejuridico = "Prejurídico";
-const correoDestinatarioPrejuridico = "carterazona1@gestionglobalacg.com";
-const nombreDestinatarioJuridico = "Jurídico";
-const correoDestinatarioJuridico = "juridico@gestionglobalacg.com";
+import { notificarUsuarioConAlerta } from "../../notificaciones/services/notificacionService";
 
 type Scope = "deudor" | "valor";
 
@@ -197,30 +192,11 @@ export async function addObservacionClienteGeneric(
       // 📝 Esta descripción es la que se guarda en la notificación en BD
       const descripcionAlerta = `Nueva observación del cliente ${nombreCliente} sobre el deudor ${nombreDeudor}: ${textoMsg}`;
 
-      const subject = `Nueva observación del cliente sobre el deudor ${nombreDeudor}`;
-      const tituloCorreo = `Nueva observación registrada por el cliente`;
-
-      const cuerpoHtmlCorreo = `
-        <p>El cliente <strong>${nombreCliente}</strong> ha registrado una nueva <strong>observación</strong> en el seguimiento pre-jurídico.</p>
-        <ul>
-          <li><strong>Cliente:</strong> ${nombreCliente}</li>
-          <li><strong>Deudor:</strong> ${nombreDeudor}</li>
-        </ul>
-        <p><strong>Observación del cliente sobre ${nombreDeudor}:</strong></p>
-        <p>${textoMsg || "(sin texto)"}</p>
-        <p>Puedes ingresar a la plataforma para revisar el detalle completo y tomar acción.</p>
-      `;
-
-      await notificarUsuarioConAlertaYCorreo({
+      await notificarUsuarioConAlerta({
         usuarioId: ejecutivoPreJuridicoId,
         modulo: "observacion_cliente",
         ruta,
-        descripcionAlerta,
-        nombreDestino: nombreDestinatarioPrejuridico,
-        correoDestino: correoDestinatarioPrejuridico,
-        subject,
-        tituloCorreo,
-        cuerpoHtmlCorreo,
+        descripcion: descripcionAlerta,
       });
     } catch (err) {
       console.error(

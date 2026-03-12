@@ -56,6 +56,8 @@ import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { PERMS } from "@/shared/constants/acl";
 import { Textarea } from "@/shared/ui/textarea";
 
+const SESSION_KEY = "clientesTable_q";
+
 export default function ClientesCrud() {
   const navigate = useNavigate();
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -72,7 +74,7 @@ export default function ClientesCrud() {
   const [ejecutivoPreSel, setEjecutivoPreSel] = useState<string>("");
   const [ejecutivoJurSel, setEjecutivoJurSel] = useState<string>("");
   const [activoSel, setActivoSel] = useState<boolean>(true);
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(() => sessionStorage.getItem(SESSION_KEY) ?? "");
 
   const [dependienteSel, setDependienteSel] = useState<string>("");
   const [abogadoSel, setAbogadoSel] = useState<string>("");
@@ -232,14 +234,19 @@ export default function ClientesCrud() {
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-secondary/60" />
                   <Input
                     value={q}
-                    onChange={(e) => setQ(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setQ(val);
+                      if (val) sessionStorage.setItem(SESSION_KEY, val);
+                      else sessionStorage.removeItem(SESSION_KEY);
+                    }}
                     placeholder="Buscar por nombre..."
                     className="pl-9 border-brand-secondary/30 bg-white focus:border-brand-primary focus:ring-brand-primary/20"
                   />
                   {q && (
                     <button
                       type="button"
-                      onClick={() => setQ("")}
+                      onClick={() => { setQ(""); sessionStorage.removeItem(SESSION_KEY); }}
                       aria-label="Limpiar búsqueda"
                       className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1  hover:bg-gray-100 transition-colors"
                     >
@@ -256,7 +263,7 @@ export default function ClientesCrud() {
                     "w-full border-brand-secondary/30 text-brand-secondary hover:bg-brand-primary/5",
                     !q && "opacity-50 pointer-events-none"
                   )}
-                  onClick={() => setQ("")}
+                  onClick={() => { setQ(""); sessionStorage.removeItem(SESSION_KEY); }}
                 >
                   Limpiar búsqueda
                 </Button>

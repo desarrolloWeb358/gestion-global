@@ -37,6 +37,7 @@ import { es } from "date-fns/locale";
 
 // 🔐 ACL
 import { useAcl } from "@/modules/auth/hooks/useAcl";
+import { useUsuarioActual } from "@/modules/auth/hooks/useUsuarioActual";
 import { PERMS } from "@/shared/constants/acl";
 
 // ✅ Historial tipificaciones
@@ -68,8 +69,12 @@ function applyHonorariosDefaultByTip(tip: TipificacionDeuda, prev?: number | str
     tip === TipificacionDeuda.DEMANDA_TERMINADO ||
     tip === TipificacionDeuda.DEMANDA_INSOLVENCIA;
 
-  const current = prev === "" || prev === undefined || prev === null ? undefined : Number(prev);
+  const esGestionando = tip === TipificacionDeuda.GESTIONANDO;
+
   if (esDemanda) return 20;
+  if (esGestionando) return 15;
+
+  const current = prev === "" || prev === undefined || prev === null ? undefined : Number(prev);
   return Number.isFinite(current as any) ? Number(current) : 15;
 }
 
@@ -350,9 +355,11 @@ export default function DeudoresTable() {
   const navigate = useNavigate();
   const { clienteId } = useParams<{ clienteId: string }>();
 
-  const { can, loading: aclLoading } = useAcl();
-  const canView = can(PERMS.Deudores_Read);
-  const canEdit = can(PERMS.Deudores_Edit);
+  const { can, roles, loading: aclLoading } = useAcl();
+  const { usuarioSistema } = useUsuarioActual();
+  const esDeudor = roles.includes("deudor");
+  const canView = esDeudor ? true : can(PERMS.Deudores_Read);
+  const canEdit = !esDeudor && can(PERMS.Deudores_Edit);
   const readOnly = !canEdit && canView;
 
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
@@ -438,7 +445,7 @@ export default function DeudoresTable() {
     if (tipFilter && tipFilter !== ALL) params.tip = tipFilter;
     if (currentPage > 1) params.page = String(currentPage);
 
-    setSearchParams(params);
+    setSearchParams(params, { replace: true });
   }, [search, tipFilter, currentPage]);
 
   useEffect(() => {
@@ -477,6 +484,11 @@ export default function DeudoresTable() {
 
   const filteredDeudores = deudores
     .filter((d) => {
+      // Si el usuario logueado es deudor, solo mostrar su propio registro
+      if (esDeudor) {
+        return d.id === usuarioSistema?.deudorIdAsociado;
+      }
+
       if (normalizedQ) {
         const hay = `${d.nombre ?? ""} ${d.cedula ?? ""} ${d.ubicacion ?? ""}`.toLowerCase();
         if (!hay.includes(normalizedQ)) return false;

@@ -19,7 +19,7 @@ import { db, storage } from "@/firebase";
 import { getAuth } from "firebase/auth"; // auth.currentUser aún necesario para usuarioId
 
 import { ObservacionClienteGlobal } from "../models/observacionClienteGlobal.model";
-import { notificarUsuarioConAlertaYCorreo, notificarUsuarioConAlerta } from "@/modules/notificaciones/services/notificacionService";
+import { notificarUsuarioConAlerta, notificarUsuarioConAlertaYCorreo } from "@/modules/notificaciones/services/notificacionService";
 
 
 function colRef(clienteId: string) {
@@ -140,27 +140,36 @@ export async function addObservacionClienteGlobal(
 
   if (!destinatarioId || destinatarioId === usuarioId) return;
 
-  /* ================================
-     ENVIAR NOTIFICACIÓN
-     correoDestino vacío → el servicio busca el correo en usuarios/{id}
-  ================================= */
+  const ruta = `/clientes/${clienteId}/seguimiento-conjunto`;
 
-  await notificarUsuarioConAlertaYCorreo({
-    usuarioId: destinatarioId,
-    modulo: "seguimiento",
-    ruta: `/clientes/${clienteId}/seguimiento-conjunto`,
-    descripcionAlerta: descripcion,
-    nombreDestino: "",
-    correoDestino: "",
-    subject: "Nuevo mensaje en seguimiento del conjunto",
-    tituloCorreo: "Nuevo mensaje en seguimiento del conjunto",
-    cuerpoHtmlCorreo: `
-      <p>Se ha agregado un nuevo mensaje en el seguimiento del conjunto.</p>
-      <p><strong>Mensaje:</strong></p>
-      <p>${texto}</p>
-      <br/>
-      <p>Puedes revisarlo ingresando a la plataforma.</p>
-    `,
-  });
+  if (rol === "ejecutivo") {
+    // Ejecutivo escribe → alerta + correo al conjunto (cliente)
+    // correoDestino vacío → el servicio busca el correo del destinatario en usuarios/{id}
+    await notificarUsuarioConAlertaYCorreo({
+      usuarioId: destinatarioId,
+      modulo: "seguimiento",
+      ruta,
+      descripcionAlerta: descripcion,
+      nombreDestino: "",
+      correoDestino: "",
+      subject: "Nuevo mensaje del ejecutivo en seguimiento del conjunto",
+      tituloCorreo: "Nuevo mensaje en seguimiento del conjunto",
+      cuerpoHtmlCorreo: `
+        <p>El ejecutivo ha registrado un nuevo mensaje en el seguimiento del conjunto.</p>
+        <p><strong>Mensaje:</strong></p>
+        <p>${texto}</p>
+        <br/>
+        <p>Puedes revisarlo ingresando a la plataforma.</p>
+      `,
+    });
+  } else {
+    // Cliente (conjunto) escribe → solo alerta al ejecutivo, sin correo
+    await notificarUsuarioConAlerta({
+      usuarioId: destinatarioId,
+      modulo: "seguimiento",
+      ruta,
+      descripcion,
+    });
+  }
 
 }
