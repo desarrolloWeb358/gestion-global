@@ -384,7 +384,7 @@ export default function DeudorDetailPage() {
                   if (location.state?.from) {
                     navigate(location.state.from);
                   } else {
-                    navigate(`/clientes/${clienteId}/deudores`);
+                    navigate(`/deudores/${clienteId}`);
                   }
                 }}
               />
