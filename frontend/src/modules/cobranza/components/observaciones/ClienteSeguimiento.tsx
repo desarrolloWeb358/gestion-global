@@ -9,6 +9,7 @@ import {
   Upload,
   ExternalLink,
   CalendarDays,
+  X,
 } from "lucide-react";
 
 import { useUsuarioActual } from "@/modules/auth/hooks/useUsuarioActual";
@@ -131,16 +132,18 @@ export default function ClienteSeguimientoConjunto() {
 
       setTexto("");
       setArchivo(undefined);
+      if (fileInputRef.current) fileInputRef.current.value = "";
 
       await cargar();
 
       toast.success("Seguimiento agregado");
 
-      
 
-    } catch {
 
-      toast.error("No se pudo guardar");
+    } catch (err) {
+
+      console.error("Error al guardar seguimiento:", err);
+      toast.error("No se pudo guardar el seguimiento");
 
     } finally {
 
@@ -214,26 +217,41 @@ export default function ClienteSeguimientoConjunto() {
               className="min-h-28 border-brand-secondary/30"
             />
 
-            <label className="flex items-center gap-3 px-4 py-3 rounded-xl border-2 border-dashed border-brand-secondary/30 cursor-pointer">
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                disabled={busy}
-                className="sr-only"
-                onChange={(e) => {
-                  if (e.target.files?.[0]) setArchivo(e.target.files[0]);
-                }}
-              />
-
-              <Upload className="h-4 w-4 text-gray-400" />
-
-              <span className="text-sm text-gray-600">
-                Adjuntar archivo (opcional)
-              </span>
-
-            </label>
+            {archivo ? (
+              <div className="flex items-center gap-3 px-4 py-3 rounded-xl border-2 border-brand-primary/40 bg-brand-primary/5">
+                <FileText className="h-4 w-4 text-brand-primary shrink-0" />
+                <span className="text-sm text-brand-primary font-medium truncate flex-1">
+                  {archivo.name}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setArchivo(undefined);
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                  }}
+                  className="text-gray-400 hover:text-red-500 transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <label className="flex items-center gap-3 px-4 py-3 rounded-xl border-2 border-dashed border-brand-secondary/30 cursor-pointer hover:border-brand-primary/40 hover:bg-brand-primary/5 transition-colors">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                  disabled={busy}
+                  className="sr-only"
+                  onChange={(e) => {
+                    if (e.target.files?.[0]) setArchivo(e.target.files[0]);
+                  }}
+                />
+                <Upload className="h-4 w-4 text-gray-400" />
+                <span className="text-sm text-gray-600">
+                  Adjuntar archivo (opcional — PDF, imagen, Word)
+                </span>
+              </label>
+            )}
 
             <div className="flex justify-end">
 
@@ -309,14 +327,16 @@ export default function ClienteSeguimientoConjunto() {
                     href={o.archivoUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 text-sm text-brand-primary mt-3"
+                    className="inline-flex items-center gap-1.5 text-sm text-brand-primary mt-3 hover:underline"
                   >
 
-                    <FileText className="h-3.5 w-3.5"/>
+                    <FileText className="h-3.5 w-3.5 shrink-0"/>
 
-                    Ver archivo adjunto
+                    <span className="truncate max-w-[240px]">
+                      {o.archivoNombre || "Ver archivo adjunto"}
+                    </span>
 
-                    <ExternalLink className="h-3 w-3"/>
+                    <ExternalLink className="h-3 w-3 shrink-0"/>
 
                   </a>
 
