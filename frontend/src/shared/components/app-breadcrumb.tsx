@@ -1,7 +1,7 @@
 // src/shared/components/app-breadcrumb.tsx
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronRight, Home } from "lucide-react";
+import { ChevronLeft, ChevronRight, Home } from "lucide-react";
 import { cn } from "@/shared/lib/cn";
 
 export type BreadcrumbItem = {
@@ -17,14 +17,35 @@ interface AppBreadcrumbProps {
 export default function AppBreadcrumb({ items, className }: AppBreadcrumbProps) {
   const navigate = useNavigate();
 
+  // Destino del botón volver: el penúltimo item con href, o -1 si no hay
+  const backItem = [...items].reverse().find((item, i) => i > 0 && !!item.href);
+  const handleBack = () => {
+    if (backItem?.href) navigate(backItem.href);
+    else navigate(-1);
+  };
+
   return (
-    <nav
-      aria-label="Breadcrumb"
-      className={cn(
-        "inline-flex items-center gap-1 flex-wrap",
-        className
+    <div className={cn("flex items-center gap-2", className)}>
+      {items.length > 1 && (
+        <button
+          type="button"
+          onClick={handleBack}
+          title="Volver"
+          className={cn(
+            "flex items-center gap-1 px-2 h-7 rounded-lg shrink-0",
+            "border border-gray-200 bg-white shadow-sm",
+            "text-gray-500 hover:text-brand-primary hover:border-brand-primary/40 hover:bg-brand-primary/5",
+            "transition-colors duration-150"
+          )}
+        >
+          <ChevronLeft className="h-4 w-4" />
+          <span className="text-sm font-medium">Volver</span>
+        </button>
       )}
-    >
+      <nav
+        aria-label="Breadcrumb"
+        className="inline-flex items-center gap-1 flex-wrap"
+      >
       {items.map((item, index) => {
         const isLast = index === items.length - 1;
         const isFirst = index === 0;
@@ -67,6 +88,7 @@ export default function AppBreadcrumb({ items, className }: AppBreadcrumbProps) 
           </React.Fragment>
         );
       })}
-    </nav>
+      </nav>
+    </div>
   );
 }
