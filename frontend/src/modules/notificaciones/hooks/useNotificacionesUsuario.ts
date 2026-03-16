@@ -2,10 +2,10 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   collection,
-  limit,
   onSnapshot,
   orderBy,
   query,
+  where,
   type Unsubscribe,
 } from "firebase/firestore";
 import { db } from "@/firebase";
@@ -13,14 +13,17 @@ import type { NotificacionAlerta } from "@/modules/notificaciones/models/notific
 
 export function useNotificacionesUsuario(usuarioId?: string) {
   const [todas, setTodas] = useState<NotificacionAlerta[]>([]);
+  const [totalNoVistas, setTotalNoVistas] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let unsub: Unsubscribe | null = null;
+    let unsubDisplay: Unsubscribe | null = null;
+    let unsubCount: Unsubscribe | null = null;
 
     if (!usuarioId) {
       setTodas([]);
+      setTotalNoVistas(0);
       setLoading(false);
       setError(null);
       return;
@@ -31,38 +34,34 @@ export function useNotificacionesUsuario(usuarioId?: string) {
 
     const baseCol = collection(db, `usuarios/${usuarioId}/notificaciones`);
 
-    // ✅ Query principal: NO vistas primero + más recientes
-    // Requiere índice compuesto: (visto asc, fecha desc)
-    const qTop10 = query(
+    // Query 1: todas las notificaciones, no vistas primero luego más recientes
+    const qTodas = query(
       baseCol,
       orderBy("visto", "asc"),
-      orderBy("fecha", "desc"),
-      limit(10)
+      orderBy("fecha", "desc")
     );
 
-    unsub = onSnapshot(
-      qTop10,
+    unsubDisplay = onSnapshot(
+      qTodas,
       (snap) => {
         const arr: NotificacionAlerta[] = snap.docs.map((d) => ({
           id: d.id,
           ...(d.data() as Omit<NotificacionAlerta, "id">),
         }));
-
         setTodas(arr);
         setLoading(false);
       },
       (err) => {
         console.error("[NOTIFS] onSnapshot error:", err);
 
-        // 🔁 Fallback: si falta el índice compuesto, al menos trae las 10 más recientes por fecha
-        // (esto evita que “no muestre nada”)
+        // Fallback: if the composite index is missing, at least fetch the 10 most recent by date
         const msg = (err as any)?.message || "Error desconocido";
         setError(msg);
 
         try {
-          const qFallback = query(baseCol, orderBy("fecha", "desc"), limit(10));
-          unsub?.(); // cierro el listener anterior
-          unsub = onSnapshot(
+          const qFallback = query(baseCol, orderBy("fecha", "desc"));
+          unsubDisplay?.();
+          unsubDisplay = onSnapshot(
             qFallback,
             (snap2) => {
               const arr2: NotificacionAlerta[] = snap2.docs.map((d) => ({
@@ -83,8 +82,22 @@ export function useNotificacionesUsuario(usuarioId?: string) {
       }
     );
 
+    // Query 2: Count ALL unread notifications — no limit, used solely for the badge count
+    const qAllUnread = query(baseCol, where("visto", "==", false));
+
+    unsubCount = onSnapshot(
+      qAllUnread,
+      (snap) => {
+        setTotalNoVistas(snap.size);
+      },
+      (err) => {
+        console.error("[NOTIFS] unread count onSnapshot error:", err);
+      }
+    );
+
     return () => {
-      if (unsub) unsub();
+      if (unsubDisplay) unsubDisplay();
+      if (unsubCount) unsubCount();
     };
   }, [usuarioId]);
 
@@ -93,8 +106,8 @@ export function useNotificacionesUsuario(usuarioId?: string) {
   return {
     noVistas,
     todas,
-    totalNoVistas: noVistas.length,
+    totalNoVistas,
     loading,
-    error, // 👈 para que NotificacionesPage muestre el problema si ocurre
+    error,
   };
 }

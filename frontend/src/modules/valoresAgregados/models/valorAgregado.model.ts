@@ -14,5 +14,9 @@ export interface ValorAgregado {
   archivoPath?: string;            // ruta en Storage (lo que quieres guardar)
   archivoURL?: string;             // opcional: URL de descarga si decides guardarla
   archivoNombre?: string;          // opcional: nombre original del archivo
-    
+
+  // Completado
+  completado?: boolean;
+  fechaCompletado?: Timestamp | null;
+  fechaLimite?: Timestamp | null;
 }

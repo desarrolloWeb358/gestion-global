@@ -47,7 +47,26 @@ function mapDocToValorAgregado(id: string, data: any): ValorAgregado {
     archivoPath: data.archivoPath,
     archivoURL: data.archivoURL,
     archivoNombre: data.archivoNombre,
+    completado: data.completado ?? false,
+    fechaLimite: data.fechaLimite ?? null,
+    fechaCompletado: data.fechaCompletado ?? null,
   };
+}
+
+function calcularFechaLimite(tipo: TipoValorAgregado, fechaBase: Date): Date {
+  const fecha = new Date(fechaBase);
+  if (tipo === TipoValorAgregado.TUTELA || tipo === TipoValorAgregado.DESACATO) {
+    fecha.setHours(fecha.getHours() + 24);
+    return fecha;
+  }
+  const diasHabiles = tipo === TipoValorAgregado.DERECHO_DE_PETICION ? 15 : 5;
+  let contador = 0;
+  while (contador < diasHabiles) {
+    fecha.setDate(fecha.getDate() + 1);
+    const dia = fecha.getDay();
+    if (dia !== 0 && dia !== 6) contador++;
+  }
+  return fecha;
 }
 
 // =====================================================
@@ -137,6 +156,8 @@ export async function crearValorAgregado(
     titulo: data.titulo,
     descripcion: data.descripcion ?? "",
     fecha: data.fechaTs ?? serverTimestamp(),
+    completado: false,
+    fechaLimite: Timestamp.fromDate(calcularFechaLimite(data.tipo, data.fechaTs?.toDate() ?? new Date())),
   };
 
   // 1️⃣ Crear doc base
@@ -555,6 +576,16 @@ export async function crearMensajeConversacionValorAgregado(
   return msgId;
 }
 
+
+export async function marcarValorAgregadoCompletado(
+  clienteId: string,
+  valorId: string
+): Promise<void> {
+  await updateDoc(docRef(clienteId, valorId), {
+    completado: true,
+    fechaCompletado: serverTimestamp(),
+  });
+}
 
 export async function eliminarMensajeConversacionValorAgregado(
   clienteId: string,

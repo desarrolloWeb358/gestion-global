@@ -7,13 +7,14 @@ import { Textarea } from "@/shared/ui/textarea";
 import { Label } from "@/shared/ui/label";
 import { Input } from "@/shared/ui/input";
 import { toast } from "sonner";
-import { Upload, FileText, User as UserIcon, Calendar, Tag, MessageSquare, Send } from "lucide-react";
+import { Upload, FileText, User as UserIcon, Calendar, Tag, MessageSquare, Send, CheckCircle } from "lucide-react";
 
 import {
   obtenerValorAgregado,
   timestampToDateInput,
   listarConversacionValorAgregado,
   crearMensajeConversacionValorAgregado,
+  marcarValorAgregadoCompletado,
 } from "../services/valorAgregadoService";
 
 import { ValorAgregado } from "../models/valorAgregado.model";
@@ -56,6 +57,7 @@ export default function ValorAgregadoDetailPage() {
   const [mensajes, setMensajes] = React.useState<MensajeValorAgregado[]>([]);
   const [msgsLoading, setMsgsLoading] = React.useState(false);
   const [msgSaving, setMsgSaving] = React.useState(false);
+  const [marcandoCompletado, setMarcandoCompletado] = React.useState(false);
 
   // Nuevo mensaje
   const [texto, setTexto] = React.useState("");
@@ -138,6 +140,21 @@ export default function ValorAgregadoDetailPage() {
     }
   }
 
+  async function onMarcarCompletado() {
+    if (!clienteId || !valorId) return;
+    setMarcandoCompletado(true);
+    try {
+      await marcarValorAgregadoCompletado(clienteId, valorId);
+      setItem(prev => prev ? { ...prev, completado: true } : prev);
+      toast.success("✓ Marcado como completado");
+    } catch (e) {
+      console.error(e);
+      toast.error("No se pudo marcar como completado");
+    } finally {
+      setMarcandoCompletado(false);
+    }
+  }
+
   // ===== Guards
   if (loading) {
     return (
@@ -188,18 +205,39 @@ export default function ValorAgregadoDetailPage() {
             />
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-brand-primary/10">
-              <FileText className="h-6 w-6 text-brand-primary" />
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-brand-primary/10">
+                <FileText className="h-6 w-6 text-brand-primary" />
+              </div>
+              <div>
+                <Typography variant="h2" className="!text-brand-primary font-bold">
+                  {item.titulo}
+                </Typography>
+                <Typography variant="small" className="text-gray-600 mt-0.5">
+                  Valor Agregado
+                </Typography>
+              </div>
             </div>
-            <div>
-              <Typography variant="h2" className="!text-brand-primary font-bold">
-                {item.titulo}
-              </Typography>
-              <Typography variant="small" className="text-gray-600 mt-0.5">
-                Valor Agregado
-              </Typography>
-            </div>
+            {!isCliente && (
+              item.completado ? (
+                <span className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5">
+                  <CheckCircle className="h-4 w-4" />
+                  Completado
+                </span>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onMarcarCompletado}
+                  disabled={marcandoCompletado}
+                  className="gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  {marcandoCompletado ? "Guardando..." : "Marcar como completado"}
+                </Button>
+              )
+            )}
           </div>
         </header>
 
