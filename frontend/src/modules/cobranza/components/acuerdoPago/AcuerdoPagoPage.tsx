@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { doc, getDoc, Timestamp } from "firebase/firestore";
+import { doc, getDoc, Timestamp, collection, query, orderBy, limit, getDocs } from "firebase/firestore";
 import { db } from "@/firebase";
 import {
     FileText,
@@ -130,6 +130,7 @@ export default function AcuerdoPagoPage() {
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [deudaUltimoMes, setDeudaUltimoMes] = useState<{ deuda: number; mes: string } | null>(null);
 
     const [clienteNombre, setClienteNombre] = useState("Cargando...");
     const [deudorNombre, setDeudorNombre] = useState("Cargando...");
@@ -489,7 +490,24 @@ export default function AcuerdoPagoPage() {
             setAcuerdoEstado(null);
             setAcuerdoURL("");
             setCuotas([]);
-            setForm((p) => ({ ...p, numero: "", detalles: "" }));
+
+            // Pre-llenar capitalInicial con la deuda del último estado mensual
+            try {
+                const emRef = collection(db, `clientes/${clienteId}/deudores/${deudorId}/estadosMensuales`);
+                const emSnap = await getDocs(query(emRef, orderBy("mes", "desc"), limit(1)));
+                if (!emSnap.empty) {
+                    const ultimo = emSnap.docs[0].data() as any;
+                    const deuda = Number(ultimo.deuda ?? 0);
+                    const mes = String(ultimo.mes ?? "");
+                    if (deuda > 0) {
+                        setDeudaUltimoMes({ deuda, mes });
+                        setForm((p) => ({ ...p, numero: "", detalles: "", capitalInicial: deuda }));
+                        return;
+                    }
+                }
+            } catch { /* si falla, no prellenamos */ }
+
+            setForm((p) => ({ ...p, numero: "", detalles: "", capitalInicial: 0 }));
             return;
         }
 
@@ -952,12 +970,22 @@ export default function AcuerdoPagoPage() {
                                         Capital inicial (deuda) *
                                     </Label>
                                     <Input
-                                        type="number"
-                                        value={form.capitalInicial || ""}
+                                        type="text"
+                                        inputMode="numeric"
+                                        value={form.capitalInicial ? form.capitalInicial.toLocaleString("es-CO") : ""}
                                         disabled={readOnly}
-                                        onChange={(e) => setForm((p) => ({ ...p, capitalInicial: Number(e.target.value || 0) }))}
+                                        onChange={(e) => {
+                                            const raw = e.target.value.replace(/\./g, "").replace(/[^0-9]/g, "");
+                                            setDeudaUltimoMes(null);
+                                            setForm((p) => ({ ...p, capitalInicial: Number(raw || 0) }));
+                                        }}
                                         className="border-brand-secondary/30"
                                     />
+                                    {deudaUltimoMes && !currentAcuerdoId && (
+                                        <span className="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-2 py-0.5">
+                                            Pre-llenado desde estado mensual {deudaUltimoMes.mes} — editable
+                                        </span>
+                                    )}
                                     <Typography variant="small" >
                                         {form.capitalInicial ? `${numeroALetras(Math.round(form.capitalInicial))} PESOS` : ""}
                                     </Typography>
