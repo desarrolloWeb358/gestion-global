@@ -3,7 +3,6 @@
 import * as React from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/shared/ui/button";
-import { Textarea } from "@/shared/ui/textarea";
 import { Label } from "@/shared/ui/label";
 import { Input } from "@/shared/ui/input";
 import { toast } from "sonner";
@@ -26,6 +25,8 @@ import { PERMS } from "@/shared/constants/acl";
 import { Typography } from "@/shared/design-system/components/Typography";
 import { BackButton } from "@/shared/design-system/components/BackButton";
 import { cn } from "@/shared/lib/cn";
+import RichTextEditor from "@/shared/components/RichTextEditor";
+import RichTextViewer from "@/shared/components/RichTextViewer";
 
 const MAX_FILE_MB = 15;
 
@@ -108,7 +109,7 @@ export default function ValorAgregadoDetailPage() {
   async function onCrearMensaje() {
     if (!clienteId || !valorId) return;
 
-    const desc = texto.trim();
+    const desc = texto.replace(/<[^>]*>/g, "").trim() ? texto : "";
     if (!desc && !archivoFile) {
       toast.error("Escribe una descripción o adjunta un archivo.");
       return;
@@ -277,9 +278,10 @@ export default function ValorAgregadoDetailPage() {
 
             <div>
               <div className="text-sm text-gray-600 mb-1">Detalle</div>
-              <div className="text-base text-gray-900 whitespace-pre-wrap">
-                {item.descripcion || "—"}
-              </div>
+              {item.descripcion
+                ? <RichTextViewer html={item.descripcion} className="text-base text-gray-900" />
+                : <span className="text-base text-gray-400">—</span>
+              }
             </div>
 
             {item.archivoURL && (
@@ -364,9 +366,7 @@ export default function ValorAgregadoDetailPage() {
                       </div>
 
                       {m.descripcion && (
-                        <div className="text-sm text-gray-700 whitespace-pre-wrap">
-                          {m.descripcion}
-                        </div>
+                        <RichTextViewer html={m.descripcion} />
                       )}
 
                       {m.archivoURL && (
@@ -395,13 +395,12 @@ export default function ValorAgregadoDetailPage() {
               </Typography>
               
               <div className="space-y-3">
-                <Textarea
+                <RichTextEditor
                   value={texto}
-                  onChange={(e) => setTexto(e.target.value)}
+                  onChange={setTexto}
                   placeholder="Escribe tu mensaje..."
-                  className="min-h-28 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
-                  maxLength={2000}
                   disabled={msgSaving}
+                  minHeight="7rem"
                 />
 
                 {/* Archivo adjunto */}

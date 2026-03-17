@@ -24,12 +24,13 @@ import {
   addObservacionClienteGlobal,
 } from "@/modules/cobranza/services/observacionClienteGlobalService";
 
-import { Textarea } from "@/shared/ui/textarea";
 import { Button } from "@/shared/ui/button";
 import { Typography } from "@/shared/design-system/components/Typography";
 import AppBreadcrumb from "@/shared/components/app-breadcrumb";
 import { getClienteById } from "@/modules/clientes/services/clienteService";
 import { cn } from "@/shared/lib/cn";
+import RichTextEditor from "@/shared/components/RichTextEditor";
+import RichTextViewer from "@/shared/components/RichTextViewer";
 
 import { ObservacionClienteGlobal } from "@/modules/cobranza/models/observacionClienteGlobal.model";
 
@@ -92,7 +93,7 @@ export default function ClienteSeguimientoConjunto() {
 
     if (!clienteId) return;
 
-    if (!notaInternaTexto.trim()) {
+    if (!notaInternaTexto.replace(/<[^>]*>/g, "").trim()) {
       toast.error("Debes escribir una nota");
       return;
     }
@@ -119,7 +120,8 @@ export default function ClienteSeguimientoConjunto() {
 
     if (!clienteId) return;
 
-    if (!texto.trim()) {
+    const textoLimpio = texto.replace(/<[^>]*>/g, "").trim();
+    if (!textoLimpio) {
       toast.error("Debes escribir un detalle");
       return;
     }
@@ -209,12 +211,12 @@ export default function ClienteSeguimientoConjunto() {
 
           <div className="p-5 space-y-4">
 
-            <Textarea
+            <RichTextEditor
               value={texto}
-              onChange={(e) => setTexto(e.target.value)}
+              onChange={setTexto}
               placeholder="Escribe el detalle del seguimiento..."
               disabled={busy}
-              className="min-h-28 border-brand-secondary/30"
+              minHeight="7rem"
             />
 
             {archivo ? (
@@ -317,9 +319,7 @@ export default function ClienteSeguimientoConjunto() {
 
                 </div>
 
-                <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                  {o.texto}
-                </p>
+                <RichTextViewer html={o.texto} />
 
                 {o.archivoUrl && (
 
@@ -363,11 +363,11 @@ export default function ClienteSeguimientoConjunto() {
               Notas internas del ejecutivo
             </Typography>
 
-            <Textarea
+            <RichTextEditor
               value={notaInternaTexto}
-              onChange={(e)=>setNotaInternaTexto(e.target.value)}
+              onChange={setNotaInternaTexto}
               placeholder="Registrar información interna del conjunto..."
-              className="min-h-24 border-brand-secondary/30"
+              minHeight="6rem"
             />
 
             <div className="flex justify-end">
@@ -415,9 +415,7 @@ export default function ClienteSeguimientoConjunto() {
                         {fecha}
                       </div>
 
-                      <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                        {n.texto}
-                      </p>
+                      <RichTextViewer html={n.texto} />
 
                     </div>
 

@@ -913,3 +913,64 @@ span.flatpickr-weekday,
 /*
   ---break---
 */
+
+/* ============================
+   Rich Text Editor (Tiptap)
+   ============================ */
+
+.rich-editor-content .tiptap {
+  padding: 0.625rem 0.875rem;
+  outline: none;
+  min-height: inherit;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: #1f2937;
+}
+
+.rich-editor-content .tiptap p { margin: 0 0 0.5em; }
+.rich-editor-content .tiptap p:last-child { margin-bottom: 0; }
+
+.rich-editor-content .tiptap strong { font-weight: 700; }
+.rich-editor-content .tiptap em { font-style: italic; }
+.rich-editor-content .tiptap u { text-decoration: underline; }
+
+.rich-editor-content .tiptap ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin: 0.25em 0 0.5em;
+}
+.rich-editor-content .tiptap ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+  margin: 0.25em 0 0.5em;
+}
+.rich-editor-content .tiptap li { margin: 0.1em 0; }
+
+.rich-editor-content .tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #9ca3af;
+  pointer-events: none;
+  height: 0;
+}
+
+/* ============================
+   Rich Text Viewer
+   ============================ */
+
+.rich-viewer p { margin: 0 0 0.4em; }
+.rich-viewer p:last-child { margin-bottom: 0; }
+.rich-viewer strong { font-weight: 700; }
+.rich-viewer em { font-style: italic; }
+.rich-viewer u { text-decoration: underline; }
+.rich-viewer ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin: 0.2em 0 0.4em;
+}
+.rich-viewer ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+  margin: 0.2em 0 0.4em;
+}
+.rich-viewer li { margin: 0.1em 0; }
