@@ -13,6 +13,7 @@ import {
 } from "firebase/firestore";
 import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { db, storage } from "../../../firebase";
+import { registrarEliminacion } from "@/shared/services/auditLog/auditLogService";
 import { ValorAgregado } from "../models/valorAgregado.model";
 import { TipoValorAgregado, TipoValorAgregadoLabels } from "../../../shared/constants/tipoValorAgregado";
 import { MensajeValorAgregado } from "../models/mensajeValorAgregado.model";
@@ -373,6 +374,11 @@ export async function eliminarValorAgregado(
     }
   }
   await deleteDoc(docRef(clienteId, valorId));
+  await registrarEliminacion({
+    modulo: "valorAgregado",
+    descripcion: `${actual?.tipo ?? "Valor agregado"} - ${actual?.descripcion ?? valorId}`,
+    coleccionPath: `clientes/${clienteId}/valoresAgregados`,
+  });
 }
 
 
@@ -605,4 +611,9 @@ export async function eliminarMensajeConversacionValorAgregado(
     }
   }
   await deleteDoc(docRefConversacion(clienteId, valorId, msgId));
+  await registrarEliminacion({
+    modulo: "mensajeConversacion",
+    descripcion: `Mensaje de conversación en valor agregado ${valorId}`,
+    coleccionPath: `clientes/${clienteId}/valoresAgregados/${valorId}/conversacion`,
+  });
 }

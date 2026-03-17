@@ -16,6 +16,7 @@ import {
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "@/firebase";
 import { db } from "@/firebase";
+import { registrarEliminacion } from "@/shared/services/auditLog/auditLogService";
 import type { ObservacionCliente } from "../models/observacionCliente.model";
 import type { Cliente } from "@/modules/clientes/models/cliente.model";
 import { notificarUsuarioConAlerta } from "../../notificaciones/services/notificacionService";
@@ -232,6 +233,11 @@ export async function deleteObservacionClienteGeneric(
 ): Promise<void> {
   const ref = doc(db, `${colPath(clienteId, parentId, scope)}/${obsId}`);
   await deleteDoc(ref);
+  await registrarEliminacion({
+    modulo: "observacionCliente",
+    descripcion: scope === "valor" ? "Observación valor" : "Observación deudor",
+    coleccionPath: colPath(clienteId, parentId, scope),
+  });
 }
 
 /* ===== Facades por scope (deudor / valor) ===== */
