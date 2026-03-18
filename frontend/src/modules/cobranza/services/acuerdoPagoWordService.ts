@@ -569,7 +569,7 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
           pJustify([
             r("Entre los suscritos a saber por una parte "),
             rBold(empresaNombre),
-            r(" actuando como apoderado(a) judicial de la "),
+            r(" actuando como apoderado(a) judicial de la copropiedad "),
             valOrRedBold(acreedor, "XXXXX (NOMBRE CONJUNTO / CLIENTE)"),
             r(", y por otra parte "),
             valOrRedBold(deudor, "XXXXX (NOMBRE DEUDOR)"),
@@ -590,8 +590,7 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
           sectionTitle("CONSIDERACIONES:"),
 
           // Consid 1
-          pJustify([
-            rRed("Que el señor "),
+          pJustify([            
             valOrRedBold(deudor, "XXXXX (NOMBRE DEUDOR)"),
             r(", deuda acreencias a favor de la copropiedad "),
             valOrRedBold(acreedor, "XXXXX (NOMBRE CONJUNTO / CLIENTE)"),
@@ -608,7 +607,7 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
 
           // Consid 2
           pJustify([
-            r("Que la anterior suma de dinero corresponde a las cuotas vencidas de las expensas de administración, intereses de mora y honorarios causados, de la "),
+            r("Que la anterior suma de dinero corresponde a las cuotas vencidas de las expensas de administración, intereses de mora, honorarios y demás Ítems, causados del inmueble "),
             valOrRedBold(deudorUbicacion, "XXXXX (TORRE/APTO o CASA)"),
             r(" "),
             valOrRedBold(acreedor, "XXXXX (NOMBRE CONJUNTO / CLIENTE)"),
@@ -622,7 +621,6 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
             r("Que en virtud de lo anterior y con el fin de resolver el inconveniente presentado de manera amigable "),
             rBold(empresaNombre),
             r(", de una parte y por otra parte "),
-            rRed("el señor "),
             valOrRedBold(deudor, "XXXXX (NOMBRE DEUDOR)"),
             r(", hemos acordado celebrar el presente acuerdo de pago, que se regirá en especial por las siguientes:"),
           ]),
@@ -635,7 +633,7 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
           // CLAUSULA 1
           pJustify([
             rBold("CLÁUSULA PRIMERA. - OBJETO: "),
-            r("El presente acuerdo tiene como objeto principal, facilitar a EL DEUDOR, el pago de las obligaciones a favor de la entidad ACREEDORA por valor de "),
+            r("El presente acuerdo tiene como objeto principal, facilitar a EL DEUDOR, el pago de las obligaciones a favor de la Propiedad Horizontal por valor de "),
             rBold(formatCOP(total)),
             r("("),
             isMissing(totalLetras) ? rRed("XXXXX (VALOR EN LETRAS)") : rBold(String(totalLetras)),
@@ -654,7 +652,7 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
             r("("),
             isMissing(totalLetras) ? rRed("XXXXX (VALOR EN LETRAS)") : rBold(String(totalLetras)),
             r("). "),
-            r("Serán cancelados por el DEUDOR a la "),
+            r("Serán cancelados por el DEUDOR a la copropiedad "),
             valOrRedBold(acreedor, "XXXXX (NOMBRE CONJUNTO / CLIENTE)"),
             r(", según tabla de amortización."),
           ]),
@@ -674,10 +672,10 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
                   spacing: { before: 120, after: 180 },
                   children: [
                     new TextRun({
-                      text: "TABLA DE AMORTIZACIÓN SEGÚN ACUERDO\nEXTRAPROCESO",
+                      text: "TABLA DE AMORTIZACIÓN SEGÚN ACUERDO EXTRAPROCESO",
                       font: FONT,
                       bold: true,
-                      size: 36,
+                      size: 30,
                     }),
                   ],
                 }),
@@ -729,37 +727,37 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
 
           // PARAGRAFO 2
           pJustify([
-            rBold("PARÁGRAFO 2: "),
-            r("ALTERNAMENTE Y AL CUMPLIMIENTO DE ESTE ACUERDO SE DEBE SEGUIR DANDO CANCELACIÓN A LAS CUOTAS DE ADMINISTRACIÓN MENSUAL Y CONFORME A LOS INCREMENTOS ANUALES QUE ESTABLEZCAN LAS LEYES NACIONALES"),
+            r("PARÁGRAFO 2: ", { bold: true, underline: {} }),
+            r("ALTERNAMENTE Y AL CUMPLIMIENTO DE ESTE ACUERDO SE DEBE SEGUIR DANDO CANCELACIÓN A LAS CUOTAS DE ADMINISTRACIÓN MENSUAL Y CONFORME A LOS INCREMENTOS ANUALES QUE ESTABLEZCAN LAS LEYES NACIONALES", { bold: true, underline: {} }),
           ]),
 
           // CLAUSULA 3
           pJustify([
             rBold("CLÁUSULA TERCERA. CONDICIÓN RESOLUTORIA: "),
-            r("En el evento en que EL DEUDOR incumpla el pago de una cualquiera de las cuotas previstas en este acuerdo, La entidad Acreedora representada por el Abogado que designe, podrá declarar de plazo vencido todas y cada una de las obligaciones que adicionalmente tenga a nuestro cargo el DEUDOR, aun cuando respecto de ellas se hubiera pactado algún plazo para su exigibilidad y el mismo estuviera pendiente."),
+            r("En el evento en que EL DEUDOR incumpla el pago de una cualquiera de las cuotas previstas en este acuerdo, la Propiedad Horizontal representada por el Abogado que designe, podrá declarar de plazo vencido todas y cada una de las obligaciones que adicionalmente tenga a nuestro cargo el DEUDOR, aun cuando respecto de ellas se hubiera pactado algún plazo para su exigibilidad y el mismo estuviera pendiente."),
           ]),
 
           pJustify([
             rBold("PARÁGRAFO: "),
-            r("El presente acuerdo no significa novación, ni transacción de las obligaciones respectivas, ni desistimiento de La entidad Acreedora de las acciones judiciales que se deban iniciar para la recuperación de las obligaciones a cargo del deudor."),
+            r("El presente acuerdo no significa novación, ni transacción de las obligaciones respectivas, ni desistimiento de La Propiedad Horizontal de las acciones judiciales que se deban iniciar para la recuperación de las obligaciones a cargo del deudor."),
           ]),
 
           // CLAUSULA 4
           pJustify([
             rBold("CLAUSULA CUARTA. CESIONES: "),
-            r("La entidad Acreedora podrá ceder en cualquier tiempo y a cualquier título las obligaciones que regulan este acuerdo, así como las garantías a ella concedidas, sin necesidad de notificación alguna a EL DEUDOR. Para el efecto, bastará que LA ENTIDAD ACREEDORA informe por escrito a EL DEUDOR sobre esta circunstancia a la dirección adelante indicada."),
+            r("La Propiedad Horizontal podrá ceder en cualquier tiempo y a cualquier título las obligaciones que regulan este acuerdo, así como las garantías a ella concedidas, sin necesidad de notificación alguna a EL DEUDOR. Para el efecto, bastará que la Propiedad Horizontal informe por escrito a EL DEUDOR sobre esta circunstancia a la dirección adelante indicada."),
           ]),
 
           // CLAUSULA 5
           pJustify([
             rBold("CLÁUSULA QUINTA. MODIFICACIONES: "),
-            r("En caso de que el deudor llegue a aumentar su capacidad de pago, las sumas aquí adeudadas se plasmarán por escrito; el cual será anexo al presente acuerdo. Cualquier otra modificación a este ACUERDO deberá constar por escrito y sólo será válida y obligatoria en cuanto sea suscrita por las partes o sus apoderados debidamente constituidos."),
+            r("En caso de que el deudor llegue a aumentar su capacidad de pago, las sumas aquí adeudadas se plasmarán por escrito; el cual será anexo al presente acuerdo. Cualquier otra modificación a este ACUERDO DE PAGO deberá constar por escrito y sólo será válida y obligatoria en cuanto sea suscrita por las partes o sus apoderados debidamente constituidos."),
           ]),
 
           // CLAUSULA 6
           pJustify([
             rBold("CLÁUSULA SEXTA. AUTORIZACIÓN: "),
-            r("En mi calidad de titular de información, actuando libre y voluntariamente, autorizo de manera expresa e irrevocable al "),
+            r("En mi calidad de titular de información, actuando libre y voluntariamente, autorizo de manera expresa e irrevocable a la copropiedad "),
             valOrRedBold(acreedor, "XXXXX (NOMBRE CONJUNTO / CLIENTE)"),
             r(", o quien represente sus derechos, a consultar, suministrar, reportar, procesar y divulgar toda la información que se requiera a mi comportamiento crediticio, financiero, comercial de servicios y de terceros países de la misma naturaleza a la central de información DATACREDITO- CIFIN, que administra la asociación bancaria y de entidades financieras de Colombia, o quien represente sus derechos."),
           ]),
@@ -773,18 +771,16 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
           // CLAUSULA 8
           pJustify([
             rBold("CLAUSULA OCTAVA. COMUNICACIONES: "),
-            r("Para efectos de las comunicaciones a que haya lugar en virtud del presente Acuerdo, las direcciones son las siguientes: la entidad acreedora las recibirá a en la "),
+            r("Para efectos de las comunicaciones a que haya lugar en virtud del presente Acuerdo, las direcciones son las siguientes: la Propiedad Horizontal las recibirá en la "),
             valOrRedBold(acreedorDir, "XXXXX (DIRECCIÓN ADMINISTRACIÓN / SEDE)"),
-            rRed(" y el señor "),
+            r(" y "),
             valOrRedBold(deudor, "XXXXX (NOMBRE DEUDOR)"),
-            r(" de la "),
+            r(" del inmueble "),
             valOrRedBold(deudorUbicacion, "XXXXX (TORRE/APTO o CASA)"),
             r(" celular "),
             valOrRedBold(input.deudorCelular, "XXXXX (CELULAR)"),
-            r(" correo "),
-            valOrRedBold(input.deudorEmail, "XXXXX (EMAIL)"),
-            r(" dirección "),
-            valOrRedBold(input.deudorDireccion, "XXXXX (DIRECCIÓN DEUDOR)"),
+            r(" y correo electrónico "),
+            valOrRedBold(input.deudorEmail, "XXXXX (EMAIL)"),            
           ]),
 
           pJustify([r("Los cambios de direcciones serán informados por escrito.")]),
@@ -798,18 +794,15 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
           // CLAUSULA 10
           pJustify([
             rBold("CLAUSULA DÉCIMA. DOMICILIO CONTRACTUAL: "),
-            r("Para todos los efectos el domicilio del presente contrato es en "),
-            valOrRedBold(ciudadFirma, "XXXXX (CIUDAD)"),
-            r("."),
+            r("Para todos los efectos el domicilio del presente contrato es en la ciudad de Bogotá D.C."),
           ]),
 
           new Paragraph({ text: "", spacing: { after: 220 } }),
 
           // ===== CIERRE / FIRMAS =====
           pJustify([
-            r("En constancia se suscribe el presente acuerdo en "),
-            rBold(ciudadFirma),
-            r(", a los "),
+            r("En constancia se suscribe el presente acuerdo de pago en la ciudad de Bogotá D.C., "),
+            r("a los "),
             rBold(String(fechaFirma.getDate())),
             r(" días del mes de "),
             rBold(fechaFirma.toLocaleString("es-CO", { month: "long" })),

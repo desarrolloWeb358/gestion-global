@@ -99,13 +99,13 @@ export async function buildHeaderGG(opts: GGBrandingOptions = {}) {
 }
 
 export function buildFooterGG(opts: GGBrandingOptions = {}) {
-  const footerDireccion = opts.footerDireccion ?? "Calle 24 sur # 68 h 52 segundo piso";
-  const footerTelefonos = opts.footerTelefonos ?? "Teléfonos: (601) 4631148 – 3017566868 – 3123152594";
+  const footerDireccion = opts.footerDireccion ?? "Calle 24 sur # 68h-52 segundo piso";
+  const footerTelefonos = opts.footerTelefonos ?? "Teléfonos: 57 (1) 4631148 – 3017566868 - 3123152594 - 313 3396159 - 3166936088";
   const footerEmail = opts.footerEmail ?? "Email: gestionglobalacg@gestionglobalacg.com";
   const footerWeb = opts.footerWeb ?? "www.gestionglobalacg.com";
 
-  const LEFT = 45;
-  const RIGHT = 55;
+  const LEFT = 20;
+  const RIGHT = 80;
 
   const t = new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
