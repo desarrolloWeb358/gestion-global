@@ -45,7 +45,7 @@ export default function ClienteSeguimientoConjunto() {
   const [clienteNombre, setClienteNombre] = React.useState("Cliente");
   const [items, setItems] = React.useState<ObservacionClienteGlobal[]>([]);
   const [texto, setTexto] = React.useState("");
-  const [archivo, setArchivo] = React.useState<File | undefined>();
+  const [archivos, setArchivos] = React.useState<File[]>([]);
 
   const [notasInternas, setNotasInternas] = React.useState<any[]>([]);
   const [notaInternaTexto, setNotaInternaTexto] = React.useState("");
@@ -130,10 +130,10 @@ export default function ClienteSeguimientoConjunto() {
 
       setBusy(true);
 
-      await addObservacionClienteGlobal(clienteId, texto, archivo, esCliente);
+      await addObservacionClienteGlobal(clienteId, texto, archivos.length > 0 ? archivos : undefined, esCliente);
 
       setTexto("");
-      setArchivo(undefined);
+      setArchivos([]);
       if (fileInputRef.current) fileInputRef.current.value = "";
 
       await cargar();
@@ -219,41 +219,46 @@ export default function ClienteSeguimientoConjunto() {
               minHeight="7rem"
             />
 
-            {archivo ? (
-              <div className="flex items-center gap-3 px-4 py-3 rounded-xl border-2 border-brand-primary/40 bg-brand-primary/5">
-                <FileText className="h-4 w-4 text-brand-primary shrink-0" />
-                <span className="text-sm text-brand-primary font-medium truncate flex-1">
-                  {archivo.name}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setArchivo(undefined);
-                    if (fileInputRef.current) fileInputRef.current.value = "";
-                  }}
-                  className="text-gray-400 hover:text-red-500 transition-colors"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+            {/* Lista de archivos seleccionados */}
+            {archivos.length > 0 && (
+              <div className="flex flex-col gap-2">
+                {archivos.map((f, i) => (
+                  <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl border-2 border-brand-primary/40 bg-brand-primary/5">
+                    <FileText className="h-4 w-4 text-brand-primary shrink-0" />
+                    <span className="text-sm text-brand-primary font-medium truncate flex-1">
+                      {f.name}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setArchivos((prev) => prev.filter((_, idx) => idx !== i))}
+                      className="text-gray-400 hover:text-red-500 transition-colors"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
               </div>
-            ) : (
-              <label className="flex items-center gap-3 px-4 py-3 rounded-xl border-2 border-dashed border-brand-secondary/30 cursor-pointer hover:border-brand-primary/40 hover:bg-brand-primary/5 transition-colors">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                  disabled={busy}
-                  className="sr-only"
-                  onChange={(e) => {
-                    if (e.target.files?.[0]) setArchivo(e.target.files[0]);
-                  }}
-                />
-                <Upload className="h-4 w-4 text-gray-400" />
-                <span className="text-sm text-gray-600">
-                  Adjuntar archivo (opcional — PDF, imagen, Word)
-                </span>
-              </label>
             )}
+
+            <label className="flex items-center gap-3 px-4 py-3 rounded-xl border-2 border-dashed border-brand-secondary/30 cursor-pointer hover:border-brand-primary/40 hover:bg-brand-primary/5 transition-colors">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                disabled={busy}
+                className="sr-only"
+                onChange={(e) => {
+                  const nuevos = Array.from(e.target.files ?? []);
+                  setArchivos((prev) => [...prev, ...nuevos]);
+                  if (fileInputRef.current) fileInputRef.current.value = "";
+                }}
+              />
+              <Upload className="h-4 w-4 text-gray-400" />
+              <span className="text-sm text-gray-600">
+                Adjuntar archivos (opcional — PDF, imagen, Word)
+              </span>
+            </label>
 
             <div className="flex justify-end">
 
@@ -321,25 +326,24 @@ export default function ClienteSeguimientoConjunto() {
 
                 <RichTextViewer html={o.texto} />
 
-                {o.archivoUrl && (
-
-                  <a
-                    href={o.archivoUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 text-sm text-brand-primary mt-3 hover:underline"
-                  >
-
-                    <FileText className="h-3.5 w-3.5 shrink-0"/>
-
-                    <span className="truncate max-w-[240px]">
-                      {o.archivoNombre || "Ver archivo adjunto"}
-                    </span>
-
-                    <ExternalLink className="h-3 w-3 shrink-0"/>
-
-                  </a>
-
+                {o.archivos && o.archivos.length > 0 && (
+                  <div className="flex flex-col gap-1.5 mt-3">
+                    {o.archivos.map((a, i) => (
+                      <a
+                        key={i}
+                        href={a.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 text-sm text-brand-primary hover:underline"
+                      >
+                        <FileText className="h-3.5 w-3.5 shrink-0"/>
+                        <span className="truncate max-w-[240px]">
+                          {a.nombre || "Ver archivo adjunto"}
+                        </span>
+                        <ExternalLink className="h-3 w-3 shrink-0"/>
+                      </a>
+                    ))}
+                  </div>
                 )}
 
               </div>
