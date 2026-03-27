@@ -1,5 +1,6 @@
 // src/modules/deudores/services/estadoMensualService.ts
 import { db } from "@/firebase";
+import { registrarEliminacion } from "@/shared/services/auditLog/auditLogService";
 import {
   collection,
   addDoc,
@@ -119,6 +120,11 @@ export async function eliminarEstadoMensual(
     `clientes/${clienteId}/deudores/${deudorId}/estadosMensuales/${estadoMensualId}`
   );
   await deleteDoc(ref);
+  await registrarEliminacion({
+    modulo: "estadoMensual",
+    descripcion: `Estado mensual ${estadoMensualId} - deudor ${deudorId}`,
+    coleccionPath: `clientes/${clienteId}/deudores/${deudorId}/estadosMensuales`,
+  });
 }
 
 /** Masivo con upsert opcional por mes (id = "YYYY-MM") */

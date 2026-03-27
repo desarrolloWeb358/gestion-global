@@ -18,7 +18,7 @@ import {
 import { db, storage } from "@/firebase";
 import { getAuth } from "firebase/auth"; // auth.currentUser aún necesario para usuarioId
 
-import { ObservacionClienteGlobal } from "../models/observacionClienteGlobal.model";
+import { ArchivoObservacion, ObservacionClienteGlobal } from "../models/observacionClienteGlobal.model";
 import { notificarUsuarioConAlerta, notificarUsuarioConAlertaYCorreo } from "@/modules/notificaciones/services/notificacionService";
 
 
@@ -42,10 +42,20 @@ export async function getObservacionesClienteGlobal(
 
   const snap = await getDocs(q);
 
-  return snap.docs.map(d => ({
-    id: d.id,
-    ...(d.data() as ObservacionClienteGlobal)
-  }));
+  return snap.docs.map(d => {
+    const data = d.data() as any;
+    // Fallback: si solo tiene campos planos (docs viejos), los convierte al array
+    const archivos: ArchivoObservacion[] =
+      data.archivos ??
+      (data.archivoUrl
+        ? [{ nombre: data.archivoNombre ?? "", path: "", url: data.archivoUrl }]
+        : []);
+    return {
+      id: d.id,
+      ...data,
+      archivos,
+    } as ObservacionClienteGlobal;
+  });
 }
 
 
@@ -56,7 +66,7 @@ export async function getObservacionesClienteGlobal(
 export async function addObservacionClienteGlobal(
   clienteId: string,
   texto: string,
-  archivo?: File,
+  archivosFiles?: File[],
   esCliente?: boolean
 ) {
   const auth = getAuth();
@@ -67,27 +77,24 @@ export async function addObservacionClienteGlobal(
   }
 
   const usuarioId = user.uid;
-
   const rol = esCliente ? "cliente" : "ejecutivo";
 
-
   /* ================================
-     SUBIR ARCHIVO
+     SUBIR ARCHIVOS
   ================================= */
 
-  let archivoUrl: string | undefined;
-  let archivoNombre: string | undefined;
+  let archivos: ArchivoObservacion[] = [];
 
-  if (archivo) {
-    const storageRef = ref(
-      storage,
-      `clientes/${clienteId}/observacionesCliente/${Date.now()}_${archivo.name}`
+  if (archivosFiles && archivosFiles.length > 0) {
+    archivos = await Promise.all(
+      archivosFiles.map(async (archivo) => {
+        const path = `clientes/${clienteId}/observacionesCliente/${Date.now()}_${archivo.name}`;
+        const storageRef = ref(storage, path);
+        await uploadBytes(storageRef, archivo);
+        const url = await getDownloadURL(storageRef);
+        return { nombre: archivo.name, path, url };
+      })
     );
-
-    await uploadBytes(storageRef, archivo);
-
-    archivoUrl = await getDownloadURL(storageRef);
-    archivoNombre = archivo.name;
   }
 
   /* ================================
@@ -99,11 +106,13 @@ export async function addObservacionClienteGlobal(
     fecha: serverTimestamp(),
     usuarioId,
     rol,
+    archivos,
   };
 
-  if (archivoUrl) {
-    data.archivoUrl = archivoUrl;
-    data.archivoNombre = archivoNombre;
+  // Compatibilidad hacia atrás: primer archivo también en campos planos
+  if (archivos.length > 0) {
+    data.archivoUrl = archivos[0].url;
+    data.archivoNombre = archivos[0].nombre;
   }
 
   await addDoc(colRef(clienteId), data);

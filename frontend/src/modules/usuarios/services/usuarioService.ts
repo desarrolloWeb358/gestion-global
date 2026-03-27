@@ -1,5 +1,6 @@
 // src/modules/usuarios/services/usuarioService.ts
 import { db, auth } from "../../../firebase";
+import { registrarEliminacion } from "@/shared/services/auditLog/auditLogService";
 import {
   collection,
   doc,
@@ -186,4 +187,9 @@ export const actualizarUsuario = async (usuario: UsuarioSistema): Promise<void> 
 export const eliminarUsuario = async (uid: string): Promise<void> => {
   const ref = doc(db, "usuarios", uid);
   await deleteDoc(ref);
+  await registrarEliminacion({
+    modulo: "usuario",
+    descripcion: `Usuario eliminado - UID: ${uid}`,
+    coleccionPath: "usuarios",
+  });
 };

@@ -1,5 +1,6 @@
 // modules/cobranza/services/seguimientoDemandaService.ts
 import { db, storage } from "../../../firebase";
+import { registrarEliminacion } from "@/shared/services/auditLog/auditLogService";
 import {
   collection,
   addDoc,
@@ -170,9 +171,14 @@ export async function deleteSeguimientoDemanda(
     `clientes/${clienteId}/deudores/${deudorId}/seguimientoDemanda/${demandaId}`
   );
   const snap = await getDoc(refDocu);
-  if (snap.exists()) {
-    const d = snap.data() as SeguimientoDemanda;
-    await safeDeleteByPath(d.archivoPath);
+  const data = snap.exists() ? (snap.data() as SeguimientoDemanda) : null;
+  if (data?.archivoPath) {
+    await safeDeleteByPath(data.archivoPath);
   }
-  return deleteDoc(refDocu);
+  await deleteDoc(refDocu);
+  await registrarEliminacion({
+    modulo: "seguimientoDemanda",
+    descripcion: data?.descripcion ?? demandaId,
+    coleccionPath: `clientes/${clienteId}/deudores/${deudorId}/seguimientoDemanda`,
+  });
 }

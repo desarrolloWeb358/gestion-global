@@ -1,37 +1,31 @@
 // src/modules/cobranza/services/reportes/recaudosService.ts
 import { db } from "@/firebase";
-import { collection, Timestamp, collectionGroup,
+import { collection, collectionGroup,
   getDocs,
   limit,
   query,
   where, } from "firebase/firestore";
 import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
+import {
+  buildFechaCorte,
+  getTipificacionEnFechaCorte,
+  isFinalTip,
+  inicioDentroDelAnio,
+  CATEGORIAS,
+} from "./tipificacionService";
 
 export interface MesTotal {
   mes: string;   // "YYYY-MM"
   total: number; // suma del campo 'recaudo' del mes para todos los deudores
 }
 
-function toDateSafe(v: any): Date | null {
-  if (!v) return null;
-  if (v instanceof Date) return v;
-  if (v instanceof Timestamp) return v.toDate();
-  if (typeof v === "object" && typeof v.seconds === "number") return new Date(v.seconds * 1000);
-  return null;
-}
-
-function isTerminadoDentroDelAnio(fechaTerminado: any, year: number): boolean {
-  const f = toDateSafe(fechaTerminado);
-  if (!f) return false;
-  const inicio = new Date(year, 0, 1);
-  const fin = new Date(year + 1, 0, 1);
-  return f >= inicio && f < fin;
-}
+const ES_CATEGORIA = new Set(CATEGORIAS);
 
 /**
- * Suma 'recaudo' por mes (id o campo 'mes' = "YYYY-MM") para TODOS los deudores del cliente,
- * PERO únicamente del año en curso (enero → mes actual).
- * - Paraleliza la lectura de subcolecciones 'estadosMensuales' por deudor.
+ * Suma 'recaudo' por mes (id o campo 'mes' = "YYYY-MM") para los deudores del cliente,
+ * aplicando el mismo filtro de tipificación que la tabla de resumen:
+ * - Excluye deudores en estado final (TERMINADO, DEMANDA_TERMINADO, DEVUELTO)
+ *   cuya fecha de inicio de ese estado sea de un año anterior al consultado.
  * - Rellena meses sin datos con total = 0.
  */
 export async function obtenerRecaudosMensuales(
@@ -41,6 +35,7 @@ export async function obtenerRecaudosMensuales(
 ): Promise<MesTotal[]> {
   const yearStr = String(year);
   const currentMonth = month; // 1..12
+  const fechaCorte = buildFechaCorte(year, month);
 
   const acumulado = new Map<string, number>();
   for (let m = 1; m <= currentMonth; m++) {
@@ -51,12 +46,37 @@ export async function obtenerRecaudosMensuales(
   const deudoresRef = collection(db, `clientes/${clienteId}/deudores`);
   const deudoresSnap = await getDocs(deudoresRef);
 
-  const estadosPromises = deudoresSnap.docs.map(async (deudorDoc) => {
-    const estadosRef = collection(db, `clientes/${clienteId}/deudores/${deudorDoc.id}/estadosMensuales`);
-    return getDocs(estadosRef);
-  });
+  // Filtrar deudores con el mismo criterio que obtenerResumenPorTipificacion
+  const deudoresFiltrados = (
+    await Promise.all(
+      deudoresSnap.docs.map(async (deudorDoc) => {
+        const data = deudorDoc.data() as { tipificacion?: string };
+        const tipFallback = (data.tipificacion as TipificacionDeuda) ?? TipificacionDeuda.GESTIONANDO;
 
-  const estadosSnaps = await Promise.all(estadosPromises);
+        const { tipificacion, startDate } = await getTipificacionEnFechaCorte(
+          clienteId,
+          deudorDoc.id,
+          fechaCorte,
+          tipFallback
+        );
+
+        if (!ES_CATEGORIA.has(tipificacion)) return null;
+
+        if (isFinalTip(tipificacion)) {
+          if (!inicioDentroDelAnio(startDate, year)) return null;
+        }
+
+        return deudorDoc.id;
+      })
+    )
+  ).filter(Boolean) as string[];
+
+  const estadosSnaps = await Promise.all(
+    deudoresFiltrados.map((deudorId) => {
+      const estadosRef = collection(db, `clientes/${clienteId}/deudores/${deudorId}/estadosMensuales`);
+      return getDocs(estadosRef);
+    })
+  );
 
   for (const estadosSnap of estadosSnaps) {
     estadosSnap.forEach((mDoc) => {

@@ -152,7 +152,7 @@ const canEdit = canView && isCliente;
   const [open, setOpen] = React.useState(false);
   const [editando, setEditando] = React.useState<ValorAgregado | null>(null);
   const [formData, setFormData] = React.useState<Partial<ValorAgregado>>({});
-  const [archivoFile, setArchivoFile] = React.useState<File | undefined>(undefined);
+  const [archivoFiles, setArchivoFiles] = React.useState<File[]>([]);
   const [fecha, setFecha] = React.useState<Date | undefined>();
   const [saving, setSaving] = React.useState(false);
 
@@ -241,7 +241,7 @@ const canEdit = canView && isCliente;
     if (!canEdit) return;
     setEditando(null);
     setFormData({ tipo: TipoValorAgregado.DERECHO_DE_PETICION, titulo: "", descripcion: "" });
-    setArchivoFile(undefined);
+    setArchivoFiles([]);
     setFecha(undefined);
     setOpen(true);
   };
@@ -252,7 +252,7 @@ const canEdit = canView && isCliente;
     setFormData({ ...(it || {}) });
     const f: any = (it as any)?.fecha;
     setFecha(f?.toDate ? f.toDate() : undefined);
-    setArchivoFile(undefined);
+    setArchivoFiles([]);
     setOpen(true);
   };
 
@@ -272,7 +272,7 @@ const canEdit = canView && isCliente;
           clienteId,
           editando.id,
           { ...formData, fechaTs },
-          archivoFile
+          archivoFiles.length > 0 ? archivoFiles : undefined
         );
         toast.success("✓ Valor agregado actualizado");
       } else {
@@ -284,14 +284,14 @@ const canEdit = canView && isCliente;
             descripcion: formData.descripcion ?? "",
             fechaTs,
           },
-          archivoFile
+          archivoFiles.length > 0 ? archivoFiles : undefined
         );
         toast.success("✓ Valor agregado creado");
       }
 
       setOpen(false);
       await fetchData();
-      setArchivoFile(undefined);
+      setArchivoFiles([]);
     } catch (e) {
       console.error(e);
       toast.error("⚠️ Error guardando el valor agregado");
@@ -450,20 +450,28 @@ const canEdit = canView && isCliente;
                     />
                   </div>
 
-                  {/* Archivo adjunto */}
+                  {/* Archivos adjuntos */}
                   <div className="space-y-2">
                     <Label className="text-brand-secondary font-medium flex items-center gap-2">
                       <Upload className="h-4 w-4" />
-                      Archivo adjunto
+                      Archivos adjuntos
                     </Label>
 
-                    {editando && (editando.archivoNombre || editando.archivoPath || editando.archivoURL) && !archivoFile && (
-                      <div className="text-xs p-3 rounded-lg bg-blue-50 border border-blue-100">
-                        {editando.archivoNombre
-                          ? <>Actual: <span className="font-medium">{editando.archivoNombre}</span></>
-                          : <>Hay un archivo adjunto guardado.</>}
-                        <br />
-                        <span>Si seleccionas un nuevo archivo, reemplazará al actual.</span>
+                    {/* Archivos ya guardados (al editar) */}
+                    {editando && editando.archivos && editando.archivos.length > 0 && (
+                      <div className="p-3 rounded-lg bg-blue-50 border border-blue-100 space-y-1">
+                        <p className="text-xs font-medium text-blue-800">
+                          Archivos actuales ({editando.archivos.length}):
+                        </p>
+                        {editando.archivos.map((a, i) => (
+                          <div key={i} className="flex items-center gap-2 text-xs text-blue-700">
+                            <FileText className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{a.nombre}</span>
+                          </div>
+                        ))}
+                        <p className="text-xs text-blue-600 pt-1">
+                          Los archivos nuevos que selecciones se agregarán a los existentes.
+                        </p>
                       </div>
                     )}
 
@@ -471,22 +479,21 @@ const canEdit = canView && isCliente;
                       <Input
                         id="archivo-valor-agregado"
                         type="file"
+                        multiple
                         className="hidden"
                         accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
                         disabled={saving}
                         onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (!f) {
-                            setArchivoFile(undefined);
-                            return;
-                          }
-                          const tooBig = f.size > MAX_FILE_MB * 1024 * 1024;
-                          if (tooBig) {
-                            toast.error(`El archivo supera ${MAX_FILE_MB} MB`);
-                            e.currentTarget.value = "";
-                            return;
-                          }
-                          setArchivoFile(f);
+                          const files = Array.from(e.target.files ?? []);
+                          const validos = files.filter((f) => {
+                            if (f.size > MAX_FILE_MB * 1024 * 1024) {
+                              toast.error(`"${f.name}" supera ${MAX_FILE_MB} MB y fue omitido`);
+                              return false;
+                            }
+                            return true;
+                          });
+                          setArchivoFiles((prev) => [...prev, ...validos]);
+                          e.currentTarget.value = "";
                         }}
                       />
                       <Button
@@ -497,35 +504,38 @@ const canEdit = canView && isCliente;
                         className="border-brand-secondary/30"
                       >
                         <Upload className="h-4 w-4 mr-2" />
-                        Seleccionar archivo
+                        Seleccionar archivos
                       </Button>
 
-                      {archivoFile ? (
-                        <div className="text-sm flex items-center gap-2 flex-1">
-                          <FileText className="h-4 w-4 text-brand-primary" />
-                          <span className="font-medium">{archivoFile.name}</span>
-                          <span >({formatBytes(archivoFile.size)})</span>
-                        </div>
-                      ) : (
-                        <div className="text-sm ">No hay archivo seleccionado</div>
-                      )}
-
-                      {archivoFile && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setArchivoFile(undefined)}
-                          disabled={saving}
-                          className="hover:bg-red-50"
-                        >
-                          <Trash2 className="h-4 w-4 text-red-600" />
-                        </Button>
+                      {archivoFiles.length === 0 && (
+                        <div className="text-sm">No hay archivos nuevos seleccionados</div>
                       )}
                     </div>
 
+                    {archivoFiles.length > 0 && (
+                      <div className="flex flex-col gap-1.5">
+                        {archivoFiles.map((f, i) => (
+                          <div key={i} className="flex items-center gap-2 text-sm">
+                            <FileText className="h-4 w-4 text-brand-primary shrink-0" />
+                            <span className="font-medium flex-1 truncate">{f.name}</span>
+                            <span className="text-gray-500">({formatBytes(f.size)})</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setArchivoFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                              disabled={saving}
+                              className="hover:bg-red-50 p-1"
+                            >
+                              <Trash2 className="h-4 w-4 text-red-600" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
                     <p className="text-xs">
-                      Formatos permitidos: PDF, Word, Excel, JPG/PNG. Tamaño máximo: {MAX_FILE_MB} MB.
+                      Formatos permitidos: PDF, Word, Excel, JPG/PNG. Tamaño máximo: {MAX_FILE_MB} MB por archivo.
                     </p>
                   </div>
                 </form>
@@ -535,7 +545,7 @@ const canEdit = canView && isCliente;
                     variant="outline"
                     onClick={() => {
                       setOpen(false);
-                      setArchivoFile(undefined);
+                      setArchivoFiles([]);
                     }}
                     disabled={saving}
                     className="border-brand-secondary/30"

@@ -1,5 +1,6 @@
 // src/modules/cobranza/services/historialTipificacionService.ts
 import { db } from "@/firebase";
+import { registrarEliminacion } from "@/shared/services/auditLog/auditLogService";
 import {
   collection,
   getDocs,
@@ -84,6 +85,11 @@ export async function eliminarHistorialTipificacion(
     `clientes/${clienteId}/deudores/${deudorId}/historialTipificaciones/${historialId}`
   );
   await deleteDoc(ref);
+  await registrarEliminacion({
+    modulo: "historialTipificacion",
+    descripcion: `Historial de tipificación ${historialId} - deudor ${deudorId}`,
+    coleccionPath: `clientes/${clienteId}/deudores/${deudorId}/historialTipificaciones`,
+  });
 }
 
 /**

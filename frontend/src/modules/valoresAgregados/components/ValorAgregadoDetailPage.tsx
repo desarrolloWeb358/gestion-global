@@ -63,7 +63,7 @@ export default function ValorAgregadoDetailPage() {
 
   // Nuevo mensaje
   const [texto, setTexto] = React.useState("");
-  const [archivoFile, setArchivoFile] = React.useState<File | undefined>(undefined);
+  const [archivoFiles, setArchivoFiles] = React.useState<File[]>([]);
 
   // ===== Cargar detalle
   React.useEffect(() => {
@@ -111,7 +111,7 @@ export default function ValorAgregadoDetailPage() {
     if (!clienteId || !valorId) return;
 
     const desc = texto.replace(/<[^>]*>/g, "").trim() ? texto : "";
-    if (!desc && !archivoFile) {
+    if (!desc && archivoFiles.length === 0) {
       toast.error("Escribe una descripción o adjunta un archivo.");
       return;
     }
@@ -127,11 +127,11 @@ export default function ValorAgregadoDetailPage() {
           descripcion: desc,
           autorTipo,
         },
-        archivoFile
+        archivoFiles.length > 0 ? archivoFiles : undefined
       );
 
       setTexto("");
-      setArchivoFile(undefined);
+      setArchivoFiles([]);
       await fetchMensajes();
       toast.success("✓ Mensaje enviado correctamente");
     } catch (e) {
@@ -285,18 +285,25 @@ export default function ValorAgregadoDetailPage() {
               }
             </div>
 
-            {item.archivoURL && (
+            {item.archivos && item.archivos.length > 0 && (
               <div className="rounded-lg border border-brand-secondary/20 bg-gray-50 p-4">
-                <div className="text-sm text-gray-600 mb-2">Archivo adjunto</div>
-                <a
-                  href={item.archivoURL}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-2 text-brand-primary hover:text-brand-secondary transition-colors font-medium"
-                >
-                  <FileText className="h-4 w-4" />
-                  {item.archivoNombre ?? "Ver archivo"}
-                </a>
+                <div className="text-sm text-gray-600 mb-2">
+                  Archivos adjuntos ({item.archivos.length})
+                </div>
+                <div className="flex flex-col gap-2">
+                  {item.archivos.map((a, i) => (
+                    <a
+                      key={i}
+                      href={a.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 text-brand-primary hover:text-brand-secondary transition-colors font-medium"
+                    >
+                      <FileText className="h-4 w-4 shrink-0" />
+                      {a.nombre || "Ver archivo"}
+                    </a>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -370,17 +377,20 @@ export default function ValorAgregadoDetailPage() {
                         <RichTextViewer html={m.descripcion} />
                       )}
 
-                      {m.archivoURL && (
-                        <div className="mt-3 pt-3 border-t border-gray-200">
-                          <a
-                            href={m.archivoURL}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-2 text-sm text-brand-primary hover:text-brand-secondary transition-colors font-medium"
-                          >
-                            <FileText className="h-4 w-4" />
-                            {m.archivoNombre ?? "Ver archivo adjunto"}
-                          </a>
+                      {m.archivos && m.archivos.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-gray-200 flex flex-col gap-1.5">
+                          {m.archivos.map((a, i) => (
+                            <a
+                              key={i}
+                              href={a.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-2 text-sm text-brand-primary hover:text-brand-secondary transition-colors font-medium"
+                            >
+                              <FileText className="h-4 w-4 shrink-0" />
+                              {a.nombre || "Ver archivo adjunto"}
+                            </a>
+                          ))}
                         </div>
                       )}
                     </div>
@@ -404,27 +414,26 @@ export default function ValorAgregadoDetailPage() {
                   minHeight="7rem"
                 />
 
-                {/* Archivo adjunto */}
+                {/* Archivos adjuntos */}
                 <div className="space-y-2">
                   <Input
                     id="archivo-conversacion-valor"
                     type="file"
+                    multiple
                     className="hidden"
                     accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
                     disabled={msgSaving}
                     onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (!f) {
-                        setArchivoFile(undefined);
-                        return;
-                      }
-                      const tooBig = f.size > MAX_FILE_MB * 1024 * 1024;
-                      if (tooBig) {
-                        toast.error(`El archivo supera ${MAX_FILE_MB} MB`);
-                        e.currentTarget.value = "";
-                        return;
-                      }
-                      setArchivoFile(f);
+                      const files = Array.from(e.target.files ?? []);
+                      const validos = files.filter((f) => {
+                        if (f.size > MAX_FILE_MB * 1024 * 1024) {
+                          toast.error(`"${f.name}" supera ${MAX_FILE_MB} MB y fue omitido`);
+                          return false;
+                        }
+                        return true;
+                      });
+                      setArchivoFiles((prev) => [...prev, ...validos]);
+                      e.currentTarget.value = "";
                     }}
                   />
 
@@ -440,36 +449,43 @@ export default function ValorAgregadoDetailPage() {
                       className="border-brand-secondary/30"
                     >
                       <Upload className="h-4 w-4 mr-2" />
-                      Adjuntar archivo
+                      Adjuntar archivos
                     </Button>
-
-                    {archivoFile && (
-                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200">
-                        <FileText className="h-4 w-4 text-blue-600" />
-                        <span className="text-sm font-medium text-blue-900">
-                          {archivoFile.name}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setArchivoFile(undefined)}
-                          disabled={msgSaving}
-                          className="ml-2 text-blue-600 hover:text-blue-800"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    )}
                   </div>
 
+                  {archivoFiles.length > 0 && (
+                    <div className="flex flex-col gap-1.5">
+                      {archivoFiles.map((f, i) => (
+                        <div
+                          key={i}
+                          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200"
+                        >
+                          <FileText className="h-4 w-4 text-blue-600 shrink-0" />
+                          <span className="text-sm font-medium text-blue-900 flex-1 truncate">
+                            {f.name}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setArchivoFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                            disabled={msgSaving}
+                            className="text-blue-600 hover:text-blue-800"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <p className="text-xs text-gray-600">
-                    Formatos: PDF, Word, Excel, JPG/PNG. Máx: {MAX_FILE_MB} MB
+                    Formatos: PDF, Word, Excel, JPG/PNG. Máx: {MAX_FILE_MB} MB por archivo
                   </p>
                 </div>
 
                 <div className="flex justify-end">
                   <Button
                     onClick={onCrearMensaje}
-                    disabled={msgSaving || (!texto.trim() && !archivoFile)}
+                    disabled={msgSaving || (!texto.trim() && archivoFiles.length === 0)}
                     variant="brand"
                     className="gap-2"
                   >

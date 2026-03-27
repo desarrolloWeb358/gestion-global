@@ -1,4 +1,5 @@
 import { db } from "@/firebase";
+import { registrarEliminacion } from "@/shared/services/auditLog/auditLogService";
 import {
   collection,
   getDocs,
@@ -202,6 +203,11 @@ export async function actualizarCliente(id: string, data: Partial<Cliente>) {
 export const eliminarCliente = async (id: string): Promise<void> => {
   const ref = doc(db, "clientes", id);
   await deleteDoc(ref);
+  await registrarEliminacion({
+    modulo: "cliente",
+    descripcion: `Cliente eliminado - ID: ${id}`,
+    coleccionPath: "clientes",
+  });
 };
 
 // ===============================

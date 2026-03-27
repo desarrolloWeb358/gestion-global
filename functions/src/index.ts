@@ -155,6 +155,14 @@ export const borrarDeudorCompleto = onCall(
 
     await db.recursiveDelete(deudorRef);
 
+    await db.collection("registrosEliminados").add({
+      uid: request.auth.uid,
+      modulo: "deudor",
+      descripcion: `Deudor eliminado con todas sus subcolecciones - deudorId: ${deudorId}`,
+      coleccionPath: `clientes/${clienteId}/deudores`,
+      fechaEliminacion: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
     return { ok: true };
   }
 );

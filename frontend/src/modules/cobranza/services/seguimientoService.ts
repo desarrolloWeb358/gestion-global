@@ -1,4 +1,5 @@
 import { db, storage } from "../../../firebase";
+import { registrarEliminacion } from "@/shared/services/auditLog/auditLogService";
 import {
   collection,
   addDoc,
@@ -152,7 +153,12 @@ export async function deleteSeguimiento(
     const d = snap.data() as Seguimiento;
     await safeDeleteByUrl(d.archivoUrl);
   }
-  return deleteDoc(refDocu);
+  await deleteDoc(refDocu);
+  await registrarEliminacion({
+    modulo: "seguimientoPreJuridico",
+    descripcion: snap.exists() ? (snap.data() as Seguimiento).descripcion : seguimientoId,
+    coleccionPath: `clientes/${clienteId}/deudores/${deudorId}/seguimiento`,
+  });
 }
 
 /* ======================================================
@@ -252,5 +258,10 @@ export async function deleteSeguimientoJuridico(
     const d = snap.data() as Seguimiento;
     await safeDeleteByUrl(d.archivoUrl);
   }
-  return deleteDoc(refDocu);
+  await deleteDoc(refDocu);
+  await registrarEliminacion({
+    modulo: "seguimientoJuridico",
+    descripcion: snap.exists() ? (snap.data() as Seguimiento).descripcion : seguimientoId,
+    coleccionPath: `clientes/${clienteId}/deudores/${deudorId}/seguimientoJuridico`,
+  });
 }
