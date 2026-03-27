@@ -48,6 +48,7 @@ export default function ValorAgregadoDetailPage() {
 
   const { can, roles = [] } = useAcl();
   const canView = can(PERMS.Valores_Read);
+  const canEdit = can(PERMS.Valores_agregados_Edit);
   const isCliente = Array.isArray(roles) && roles.includes("cliente");
 
   // ===== Detalle principal
@@ -220,7 +221,7 @@ export default function ValorAgregadoDetailPage() {
                 </Typography>
               </div>
             </div>
-            {!isCliente && (
+            {canEdit && !isCliente && (
               item.completado ? (
                 <span className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5">
                   <CheckCircle className="h-4 w-4" />
