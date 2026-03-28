@@ -29,6 +29,7 @@ import {
 } from "@/shared/ui/table";
 
 import { useAcl } from "@/modules/auth/hooks/useAcl";
+import { useUsuarioActual } from "@/modules/auth/hooks/useUsuarioActual";
 import { PERMS } from "@/shared/constants/acl";
 
 import SeguimientoForm, { DestinoColeccion } from "./SeguimientoForm";
@@ -147,7 +148,8 @@ export default function SeguimientoTable() {
 
   const [refreshJuridicoKey, setRefreshJuridicoKey] = React.useState(0);
 
-  const { can, loading: aclLoading } = useAcl();
+  const { can, loading: aclLoading, roles } = useAcl();
+  const esDeudor = roles?.includes("deudor") ?? false;
   const [busyObs, setBusyObs] = React.useState(false);
 
   // Editar por sección
@@ -397,9 +399,9 @@ export default function SeguimientoTable() {
           <div className="flex items-center gap-2">
             <AppBreadcrumb
               items={[
-                { label: "Clientes", href: "/clientes-tables" },
-                { label: nombreCliente, href: `/deudores/${clienteId}` },
-                { label: `${nombreDeudor}${ubicacionDeudor ? ` - ${ubicacionDeudor}` : ""}`, href: `/clientes/${clienteId}/deudores/${deudorId}` },
+                ...(!esDeudor ? [{ label: "Clientes", href: "/clientes-tables" }] : []),
+                { label: nombreCliente, href: esDeudor ? `/clientes/${clienteId}/deudores/${deudorId}` : `/deudores/${clienteId}` },
+                ...(!esDeudor ? [{ label: `${nombreDeudor}${ubicacionDeudor ? ` - ${ubicacionDeudor}` : ""}`, href: `/clientes/${clienteId}/deudores/${deudorId}` }] : []),
                 { label: "Seguimiento" },
               ]}
             />

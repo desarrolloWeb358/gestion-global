@@ -754,9 +754,9 @@ export default function AcuerdoPagoPage() {
                 <div className="max-w-4xl mx-auto p-6 space-y-4">
                     <AppBreadcrumb
                         items={[
-                            { label: "Clientes", href: "/clientes-tables" },
-                            { label: clienteNombre, href: `/deudores/${clienteId}` },
-                            { label: `${deudorNombre}${datosWord.deudorUbicacion ? ` - ${datosWord.deudorUbicacion}` : ""}`, href: `/clientes/${clienteId}/deudores/${deudorId}` },
+                            ...(!esDeudor ? [{ label: "Clientes", href: "/clientes-tables" }] : []),
+                            { label: clienteNombre, href: esDeudor ? `/clientes/${clienteId}/deudores/${deudorId}` : `/deudores/${clienteId}` },
+                            ...(!esDeudor ? [{ label: `${deudorNombre}${datosWord.deudorUbicacion ? ` - ${datosWord.deudorUbicacion}` : ""}`, href: `/clientes/${clienteId}/deudores/${deudorId}` }] : []),
                             { label: "Acuerdo de Pago" },
                         ]}
                     />
@@ -819,9 +819,9 @@ export default function AcuerdoPagoPage() {
 
                 <AppBreadcrumb
                     items={[
-                        { label: "Clientes", href: "/clientes-tables" },
-                        { label: clienteNombre, href: `/deudores/${clienteId}` },
-                        { label: `${deudorNombre}${datosWord.deudorUbicacion ? ` - ${datosWord.deudorUbicacion}` : ""}`, href: `/clientes/${clienteId}/deudores/${deudorId}` },
+                        ...(!esDeudor ? [{ label: "Clientes", href: "/clientes-tables" }] : []),
+                        { label: clienteNombre, href: esDeudor ? `/clientes/${clienteId}/deudores/${deudorId}` : `/deudores/${clienteId}` },
+                        ...(!esDeudor ? [{ label: `${deudorNombre}${datosWord.deudorUbicacion ? ` - ${datosWord.deudorUbicacion}` : ""}`, href: `/clientes/${clienteId}/deudores/${deudorId}` }] : []),
                         { label: "Acuerdo de Pago" },
                     ]}
                 />

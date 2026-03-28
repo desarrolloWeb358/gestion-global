@@ -338,9 +338,9 @@ export default function EstadosMensualesTable() {
           <div className="flex items-center gap-2">
             <AppBreadcrumb
               items={[
-                { label: "Clientes", href: "/clientes-tables" },
-                { label: nombreCliente, href: `/deudores/${clienteId}` },
-                { label: deudorLabel, href: `/clientes/${clienteId}/deudores/${deudorId}` },
+                ...(!esDeudor ? [{ label: "Clientes", href: "/clientes-tables" }] : []),
+                { label: nombreCliente, href: esDeudor ? `/clientes/${clienteId}/deudores/${deudorId}` : `/deudores/${clienteId}` },
+                ...(!esDeudor ? [{ label: deudorLabel, href: `/clientes/${clienteId}/deudores/${deudorId}` }] : []),
                 { label: "Estados Mensuales" },
               ]}
             />

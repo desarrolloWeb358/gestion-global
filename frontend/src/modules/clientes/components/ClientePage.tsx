@@ -114,6 +114,28 @@ export default function ClientePage() {
         );
     }
 
+    const isDeudor = roles?.includes("deudor");
+    if (isDeudor || !can(PERMS.Clientes_Read)) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30 flex items-center justify-center">
+                <div className="text-center">
+                    <div className="p-4 rounded-full bg-red-100 mb-4 inline-block">
+                        <User className="h-8 w-8 text-red-600" />
+                    </div>
+                    <Typography variant="h2" className="text-red-600 mb-2">
+                        Acceso no permitido
+                    </Typography>
+                    <Typography variant="body" className="mb-4">
+                        No tienes permiso para ver esta página.
+                    </Typography>
+                    <Button variant="outline" onClick={() => navigate(-1)} className="border-brand-secondary/30">
+                        Volver
+                    </Button>
+                </div>
+            </div>
+        );
+    }
+
     if (!cliente) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30 flex items-center justify-center">

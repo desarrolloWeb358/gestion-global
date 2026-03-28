@@ -702,7 +702,10 @@ export default function DeudoresTable() {
             <BackButton
               variant="ghost"
               size="sm"
-              to={`/clientes/${clienteId}`}
+              to={esDeudor
+                ? `/clientes/${clienteId}/deudores/${usuarioSistema?.deudorIdAsociado}`
+                : `/clientes/${clienteId}`
+              }
             />
           </div>
 

@@ -137,9 +137,9 @@ export default function ObservacionesDeudorPage() {
         {/* Breadcrumb */}
         <AppBreadcrumb
           items={[
-            { label: "Clientes", href: "/clientes-tables" },
-            { label: clienteNombre, href: `/deudores/${clienteId}` },
-            { label: deudorLabel, href: `/clientes/${clienteId}/deudores/${deudorId}` },
+            ...(!esDeudor ? [{ label: "Clientes", href: "/clientes-tables" }] : []),
+            { label: clienteNombre, href: esDeudor ? `/clientes/${clienteId}/deudores/${deudorId}` : `/deudores/${clienteId}` },
+            ...(!esDeudor ? [{ label: deudorLabel, href: `/clientes/${clienteId}/deudores/${deudorId}` }] : []),
             { label: "Observaciones" },
           ]}
         />
