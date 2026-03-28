@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Fondo circular azul oscuro -->
+  <circle cx="32" cy="32" r="32" fill="#1e3a5f"/>
+
+  <!-- Globo terráqueo - círculo base -->
+  <circle cx="32" cy="32" r="20" fill="#2563eb" stroke="#93c5fd" stroke-width="1.5"/>
+
+  <!-- Líneas de longitud (meridianos) -->
+  <ellipse cx="32" cy="32" rx="8" ry="20" fill="none" stroke="#93c5fd" stroke-width="1" opacity="0.7"/>
+  <ellipse cx="32" cy="32" rx="16" ry="20" fill="none" stroke="#93c5fd" stroke-width="1" opacity="0.5"/>
+
+  <!-- Líneas de latitud (paralelos) -->
+  <line x1="12" y1="32" x2="52" y2="32" stroke="#93c5fd" stroke-width="1" opacity="0.7"/>
+  <ellipse cx="32" cy="24" rx="19" ry="5" fill="none" stroke="#93c5fd" stroke-width="1" opacity="0.5"/>
+  <ellipse cx="32" cy="40" rx="19" ry="5" fill="none" stroke="#93c5fd" stroke-width="1" opacity="0.5"/>
+
+  <!-- Continente simplificado (mancha verde) -->
+  <ellipse cx="27" cy="28" rx="7" ry="5" fill="#16a34a" opacity="0.85"/>
+  <ellipse cx="38" cy="33" rx="5" ry="4" fill="#16a34a" opacity="0.85"/>
+  <ellipse cx="30" cy="38" rx="4" ry="3" fill="#16a34a" opacity="0.75"/>
+
+  <!-- Borde del globo -->
+  <circle cx="32" cy="32" r="20" fill="none" stroke="#93c5fd" stroke-width="1.5"/>
+</svg>

@@ -135,6 +135,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Abonos_Edit,
     PERMS.Valores_Read,
     PERMS.Recaudos_Read,
+    PERMS.Valores_agregados_Read,
     PERMS.ReporteCliente_Download_Word,
   ],
 

@@ -19,6 +19,9 @@ import {
   Percent,
   DollarSign,
   MessageSquare,
+  Gavel,
+  Hash,
+  MapPin,
 } from "lucide-react";
 
 import { getDeudorById, vincularDeudorConUsuario } from "../../services/deudorService";
@@ -589,6 +592,64 @@ export default function DeudorDetailPage() {
             </div>
           </div>
         </section>
+
+        {/* DATOS DE DEMANDA */}
+        {(deudor.tipificacion === TipificacionDeuda.DEMANDA ||
+          deudor.tipificacion === TipificacionDeuda.DEMANDA_ACUERDO ||
+          (deudor.tipificacion as string) === "DEMANDA_TERMINADO" ||
+          (deudor.tipificacion as string) === "DEMANDA_INSOLVENCIA") && (
+          <section className="rounded-2xl border border-red-200 bg-white shadow-sm overflow-hidden">
+            <div className="bg-gradient-to-r from-red-50 to-orange-50 p-4 md:p-5 border-b border-red-100">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-red-100">
+                  <Gavel className="h-4 w-4 text-red-600" />
+                </div>
+                <Typography variant="h3" className="!text-red-700 font-semibold">
+                  Información judicial
+                </Typography>
+              </div>
+            </div>
+            <div className="p-4 md:p-5">
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="flex items-start gap-3 p-4 rounded-lg bg-red-50 border border-red-100">
+                  <div className="p-2 rounded-lg bg-white shadow-sm shrink-0">
+                    <Gavel className="h-4 w-4 text-red-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs text-gray-500 mb-1">Juzgado</p>
+                    <p className="text-sm font-semibold text-gray-800 break-words">
+                      {deudor.juzgado || "—"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 p-4 rounded-lg bg-orange-50 border border-orange-100">
+                  <div className="p-2 rounded-lg bg-white shadow-sm shrink-0">
+                    <Hash className="h-4 w-4 text-orange-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs text-gray-500 mb-1">Radicado</p>
+                    <p className="text-sm font-semibold text-gray-800 break-words">
+                      {deudor.numeroRadicado || "—"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 p-4 rounded-lg bg-amber-50 border border-amber-100">
+                  <div className="p-2 rounded-lg bg-white shadow-sm shrink-0">
+                    <MapPin className="h-4 w-4 text-amber-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs text-gray-500 mb-1">Localidad</p>
+                    <p className="text-sm font-semibold text-gray-800 break-words">
+                      {deudor.localidad || "—"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* ACCIONES RÁPIDAS */}
         <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">

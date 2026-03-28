@@ -126,39 +126,22 @@ export async function addObservacionClienteGlobal(
   if (!clienteSnap.exists()) return;
 
   const clienteData = clienteSnap.data();
-
-  /* ================================
-     DETERMINAR DESTINATARIO
-  ================================= */
-
-  // Cuando el cliente escribe → notificar al ejecutivo pre-jurídico asignado.
-  // Cuando el ejecutivo escribe → notificar al cliente (su uid = id del documento).
-  const destinatarioId: string | undefined =
-    rol === "cliente"
-      ? (clienteData?.ejecutivoPrejuridicoId ?? undefined)
-      : clienteSnap.id;
-
-  const descripcion =
-    rol === "cliente"
-      ? "Nuevo mensaje del cliente en seguimiento del conjunto"
-      : "Nuevo mensaje del ejecutivo en seguimiento del conjunto";
-
-  /* ================================
-     EVITAR NOTIFICARSE A SÍ MISMO
-  ================================= */
-
-  if (!destinatarioId || destinatarioId === usuarioId) return;
+  const nombreCliente: string = clienteData?.nombre?.trim() || "Cliente";
 
   const ruta = `/clientes/${clienteId}/seguimiento-conjunto`;
 
   if (rol === "ejecutivo") {
-    // Ejecutivo escribe → alerta + correo al conjunto (cliente)
-    // correoDestino vacío → el servicio busca el correo del destinatario en usuarios/{id}
+    /* ================================
+       EJECUTIVO ESCRIBE → notificar al cliente (alerta + correo)
+    ================================= */
+    const destinatarioId: string = clienteSnap.id;
+    if (destinatarioId === usuarioId) return;
+
     await notificarUsuarioConAlertaYCorreo({
       usuarioId: destinatarioId,
       modulo: "seguimiento",
       ruta,
-      descripcionAlerta: descripcion,
+      descripcionAlerta: `Nuevo mensaje del ejecutivo en seguimiento — ${nombreCliente}`,
       nombreDestino: "",
       correoDestino: "",
       subject: "Nuevo mensaje del ejecutivo en seguimiento del conjunto",
@@ -172,13 +155,26 @@ export async function addObservacionClienteGlobal(
       `,
     });
   } else {
-    // Cliente (conjunto) escribe → solo alerta al ejecutivo, sin correo
-    await notificarUsuarioConAlerta({
-      usuarioId: destinatarioId,
-      modulo: "seguimiento",
-      ruta,
-      descripcion,
-    });
+    /* ================================
+       CLIENTE ESCRIBE → notificar a ejecutiva prejurídica y jurídica
+    ================================= */
+    const descripcion = `Nuevo mensaje del cliente en seguimiento — ${nombreCliente}`;
+
+    const destinatarios: string[] = [
+      clienteData?.ejecutivoPrejuridicoId,
+      clienteData?.ejecutivoJuridicoId,
+    ].filter((id): id is string => !!id && id !== usuarioId);
+
+    await Promise.all(
+      destinatarios.map((uid) =>
+        notificarUsuarioConAlerta({
+          usuarioId: uid,
+          modulo: "seguimiento",
+          ruta,
+          descripcion,
+        })
+      )
+    );
   }
 
 }

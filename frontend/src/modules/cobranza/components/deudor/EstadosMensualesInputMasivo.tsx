@@ -126,16 +126,28 @@ export default function EstadosMensualesInputMasivo() {
         const deudores: Deudor[] = await obtenerDeudorPorCliente(clienteId);
 
         const nuevasFilas: FilaEstadoBase[] = deudores.map((d) => {
-          const porcDb =
-            d.porcentajeHonorarios !== undefined && d.porcentajeHonorarios !== null
-              ? String(d.porcentajeHonorarios)
-              : "0"; // default solo si no existe en Firestore
+          const tipificacion = d.tipificacion ?? TipificacionDeuda.GESTIONANDO;
+          const esDemanda =
+            tipificacion === TipificacionDeuda.DEMANDA ||
+            tipificacion === TipificacionDeuda.DEMANDA_ACUERDO;
+
+          // Si está en demanda y no tiene porcentaje registrado, usar 20 por defecto
+          const tienePorc =
+            d.porcentajeHonorarios !== undefined &&
+            d.porcentajeHonorarios !== null &&
+            d.porcentajeHonorarios !== 0;
+
+          const porcDb = tienePorc
+            ? String(d.porcentajeHonorarios)
+            : esDemanda
+            ? "20"
+            : "0";
 
           return {
             deudorId: d.id!,
             nombre: d.nombre || "Sin nombre",
             ubicacion: d.ubicacion || "",
-            tipificacion: d.tipificacion ?? TipificacionDeuda.GESTIONANDO,
+            tipificacion,
             porcentajeHonorarios: porcDb,
             deuda: "",
             recaudo: "",

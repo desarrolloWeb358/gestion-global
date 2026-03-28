@@ -12,6 +12,7 @@ import { useNavigate } from "react-router-dom";
 
 import { NAV_ITEMS, type NavItem } from "@/app/layout/nav.config";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
+import { useUsuarioActual } from "@/modules/auth/hooks/useUsuarioActual";
 import { cerrarSesion } from "@/modules/auth/services/authService";
 
 import { NavMain } from "@/app/layout/sidebar/nav-main";
@@ -48,6 +49,7 @@ function useFilteredNav(items: NavItem[]) {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { usuario, roles } = useAcl();
+  const { usuarioSistema } = useUsuarioActual();
   const { totalNoVistas } = useNotificacionesUsuario(usuario?.uid);
   const navigate = useNavigate();
   const { items, loading } = useFilteredNav(NAV_ITEMS);
@@ -100,7 +102,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   };
 
   // Obtener información del usuario
-  const userName = usuario?.email?.split('@')[0] || "Usuario";
+  const userName = usuarioSistema?.nombre?.trim() || usuario?.displayName?.trim() || usuario?.email?.split('@')[0] || "Usuario";
   const userEmail = usuario?.email || "";
   const userRole = roles.length > 0 ? roles[0] : "usuario";
 
