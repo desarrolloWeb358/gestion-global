@@ -33,7 +33,6 @@ import EjecutivoDashboardPage from "@/modules/dashboard/pages/EjecutivoDashboard
 import AbogadoDashboardPage from "@/modules/dashboard/pages/AbogadoDashboardPage";
 import ClienteDashboardPage from "@/modules/dashboard/pages/ClienteDashboardPage";
 import DeudorDashboardPage from "@/modules/dashboard/pages/DeudorDashboardPage";
-import { DemandaInfoPage } from "./modules/cobranza/components/demanda/DemandaInfoPage";
 import { ThemeProvider } from "./app/providers/ThemeContext";
 import AcuerdoPagoPage from "./modules/cobranza/components/acuerdoPago/AcuerdoPagoPage";
 import ProtectedRoute from "@/modules/auth/components/ProtectedRoute";
@@ -82,7 +81,6 @@ export default function App() {
             <Route path="/consulta-personas" element={<ConsultaPersonasPage />} />
             <Route path="/probar-notificaciones" element={<ProbarNotificacionesPage />} />
             <Route path="/clientes/:clienteId/reporte" element={<ReporteClientePage />} />
-            <Route path="/clientes/:clienteId/deudores/:deudorId/demanda" element={<DemandaInfoPage />} />
             <Route path="/clientes/:clienteId/deudores/:deudorId/observacionesDeudor" element={<ObservacionesDeudorPage />} />
             <Route
               path="/clientes/:clienteId/seguimiento-conjunto"

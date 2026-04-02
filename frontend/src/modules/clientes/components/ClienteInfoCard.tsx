@@ -37,6 +37,11 @@ export function ClienteInfoCard({ cliente, ejecutivos = [], usuarios = [], total
       ? cliente.abogadoId.trim()
       : null;
 
+  const dependienteAbogadoId =
+    typeof cliente.dependienteAbogadoId === "string" && cliente.dependienteAbogadoId.trim() !== ""
+      ? cliente.dependienteAbogadoId.trim()
+      : null;
+
   // Ahora sí buscamos SOLO si hay id válido
   const ejecutivoPre =
     ejecutivoPreId !== null
@@ -56,6 +61,11 @@ export function ClienteInfoCard({ cliente, ejecutivos = [], usuarios = [], total
   const abogado =
     abogadoId !== null
       ? usuarios.find((u) => u.uid === abogadoId) ?? null
+      : null;
+
+  const dependienteAbogado =
+    dependienteAbogadoId !== null
+      ? usuarios.find((u) => u.uid === dependienteAbogadoId) ?? null
       : null;
 
   const uidCliente = (cliente as any).usuarioUid ?? cliente.id ?? null;
@@ -215,6 +225,13 @@ export function ClienteInfoCard({ cliente, ejecutivos = [], usuarios = [], total
             <div className="text-sm text-gray-600 mb-1">Abogado</div>
             <div className="text-base font-semibold text-gray-900">
               {getNombreUsuario(abogado)}
+            </div>
+          </div>
+
+          <div className="border border-gray-200 rounded-lg p-4 bg-white">
+            <div className="text-sm text-gray-600 mb-1">Dependiente Abogado</div>
+            <div className="text-base font-semibold text-gray-900">
+              {getNombreUsuario(dependienteAbogado)}
             </div>
           </div>
         </div>

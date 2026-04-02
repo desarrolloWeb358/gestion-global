@@ -18,7 +18,7 @@ import { registrarEliminacion } from "@/shared/services/auditLog/auditLogService
 import { ArchivoAdjunto, ValorAgregado } from "../models/valorAgregado.model";
 import { TipoValorAgregado, TipoValorAgregadoLabels } from "../../../shared/constants/tipoValorAgregado";
 import { MensajeValorAgregado } from "../models/mensajeValorAgregado.model";
-import { notificarUsuarioConAlertaYCorreo } from "@/modules/notificaciones/services/notificacionService";
+import { notificarUsuarioConAlertaYCorreo, notificarUsuarioConAlerta } from "@/modules/notificaciones/services/notificacionService";
 
 
 const nombreDestinatarioAbogado = "Abogado";
@@ -196,23 +196,16 @@ export async function crearValorAgregado(
     await updateDoc(docRef(clienteId, valorId), updateData);
   }
 
-  // 3️⃣ Notificar al ABOGADO del cliente (si aplica)
+  // 3️⃣ Notificar al ABOGADO y al DEPENDIENTE ABOGADO del cliente (si aplican)
   try {
     const clienteInfo = await obtenerClienteInfoParaNotificacion(clienteId);
     const abogadoId = clienteInfo.abogadoId;
-    if (!abogadoId) {
-      console.warn(
-        `[crearValorAgregado] Cliente ${clienteId} sin abogadoId; no se notifica.`
-      );
-      return valorId;
-    }
+    const dependienteAbogadoId = clienteInfo.dependienteAbogadoId;
 
     const nombreCliente = clienteInfo.nombreCliente;
     const tipoLabel = TipoValorAgregadoLabels[data.tipo];
     const nombreValor = data.titulo || "Documento";
     const descripcionValor = data.descripcion || "";
-
-    // Ruta dentro de tu app a donde debe ir el abogado
     const ruta = `/clientes/${clienteId}/valores-agregados/${valorId}`;
 
     const descripcionAlerta = `Nuevo valor agregado (${tipoLabel}) para el cliente ${nombreCliente}: ${nombreValor}`;
@@ -228,17 +221,32 @@ export async function crearValorAgregado(
       <p>Puedes revisar el detalle directamente en la plataforma.</p>
     `;
 
-    await notificarUsuarioConAlertaYCorreo({
-      usuarioId: abogadoId,
-      modulo: "valor agregado",
-      ruta,
-      descripcionAlerta,
-      nombreDestino: nombreDestinatarioAbogado,
-      correoDestino: correoDestinatarioAbogado,
-      subject: `Nuevo valor agregado: ${tipoLabel}`,
-      tituloCorreo: "Se ha registrado un nuevo valor agregado",
-      cuerpoHtmlCorreo,      
-    });
+    if (abogadoId) {
+      await notificarUsuarioConAlertaYCorreo({
+        usuarioId: abogadoId,
+        modulo: "valor agregado",
+        ruta,
+        descripcionAlerta,
+        nombreDestino: nombreDestinatarioAbogado,
+        correoDestino: correoDestinatarioAbogado,
+        subject: `Nuevo valor agregado: ${tipoLabel}`,
+        tituloCorreo: "Se ha registrado un nuevo valor agregado",
+        cuerpoHtmlCorreo,
+      });
+    } else {
+      console.warn(
+        `[crearValorAgregado] Cliente ${clienteId} sin abogadoId; no se notifica al abogado.`
+      );
+    }
+
+    if (dependienteAbogadoId) {
+      await notificarUsuarioConAlerta({
+        usuarioId: dependienteAbogadoId,
+        modulo: "valor agregado",
+        ruta,
+        descripcion: descripcionAlerta,
+      });
+    }
   } catch (err) {
     console.error("[crearValorAgregado] Error al notificar:", err);
   }
@@ -248,6 +256,7 @@ export async function crearValorAgregado(
 
 type ClienteInfoParaNotificacion = {
   abogadoId?: string;
+  dependienteAbogadoId?: string;
   nombreCliente?: string;
 };
 
@@ -266,8 +275,8 @@ async function obtenerClienteInfoParaNotificacion(
   const cData: any = cSnap.data() || {};
 
   const abogadoId: string | undefined = cData.abogadoId;
-  const nombreCliente: string | undefined =
-    cData.nombre;
+  const dependienteAbogadoId: string | undefined = cData.dependienteAbogadoId;
+  const nombreCliente: string | undefined = cData.nombre;
 
   if (!abogadoId) {
     console.warn(
@@ -275,7 +284,7 @@ async function obtenerClienteInfoParaNotificacion(
     );
   }
 
-  return { abogadoId, nombreCliente };
+  return { abogadoId, dependienteAbogadoId, nombreCliente };
 }
 
 
@@ -575,7 +584,7 @@ export async function crearMensajeConversacionValorAgregado(
         <p>${descripcionMsg || "(sin texto, solo archivo adjunto)"}</p>
         <p>Puedes revisar la conversación y responder directamente desde la plataforma.</p>
       `;
-    } else {      
+    } else {
       // 👉 Mensaje creado por el ABOGADO → se notifica al CLIENTE
       //    Aquí el usuarioId del cliente es el mismo clienteId ✅
       usuarioDestinoId = clienteId;
@@ -606,8 +615,19 @@ export async function crearMensajeConversacionValorAgregado(
       correoDestino: correoDestinatario,
       subject,
       tituloCorreo,
-      cuerpoHtmlCorreo,     
+      cuerpoHtmlCorreo,
     });
+
+    // 👉 Notificar al DEPENDIENTE ABOGADO (solo alerta in-app, sin correo)
+    const dependienteAbogadoId = clienteInfo.dependienteAbogadoId;
+    if (dependienteAbogadoId) {
+      await notificarUsuarioConAlerta({
+        usuarioId: dependienteAbogadoId,
+        modulo: "valor agregado conversacion",
+        ruta,
+        descripcion: descripcionAlerta,
+      });
+    }
   } catch (err) {
     console.error("[crearMensajeConversacionValorAgregado] Error al notificar:", err);
   }

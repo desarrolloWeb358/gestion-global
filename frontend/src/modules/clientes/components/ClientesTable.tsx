@@ -78,6 +78,7 @@ export default function ClientesCrud() {
 
   const [dependienteSel, setDependienteSel] = useState<string>("");
   const [abogadoSel, setAbogadoSel] = useState<string>("");
+  const [dependienteAbogadoSel, setDependienteAbogadoSel] = useState<string>("");
 
   // Auth / Roles / ACL
   const { usuario, roles, loading: userLoading } = useUsuarioActual();
@@ -176,6 +177,7 @@ export default function ClientesCrud() {
     setEjecutivoJurSel(cliente.ejecutivoJuridicoId ?? "");
     setDependienteSel(cliente.ejecutivoDependienteId ?? "");
     setAbogadoSel(cliente.abogadoId ?? "");
+    setDependienteAbogadoSel(cliente.dependienteAbogadoId ?? "");
     setActivoSel(cliente.activo ?? true);
     setMostrarDialogo(true);
   };
@@ -424,16 +426,18 @@ export default function ClientesCrud() {
                 const ejecutivoJuridicoId = ejecutivoJurSel || null;
                 const ejecutivoDependienteId = dependienteSel || null;
                 const abogadoId = abogadoSel || null;
+                const dependienteAbogadoId = dependienteAbogadoSel || null;
                 const activo = activoSel;
 
                 const payload: Partial<Cliente> = {
                   direccion: direccion || "",
                   administrador: administrador || "",
-                  formaPago: formaPago || "",                  
+                  formaPago: formaPago || "",
                   ejecutivoPrejuridicoId,
                   ejecutivoJuridicoId,
                   ejecutivoDependienteId,
                   abogadoId,
+                  dependienteAbogadoId,
                   activo,
                 };
 
@@ -524,6 +528,24 @@ export default function ClientesCrud() {
                       </SelectTrigger>
                       <SelectContent>
                         {abogados.map((u) => (
+                          <SelectItem key={u.uid} value={u.uid}>
+                            {u.nombre ?? (u as any).displayName ?? u.email}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label className="text-brand-secondary font-medium">
+                      Dependiente Abogado
+                    </Label>
+                    <Select value={dependienteAbogadoSel} onValueChange={setDependienteAbogadoSel}>
+                      <SelectTrigger className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20">
+                        <SelectValue placeholder="Selecciona un dependiente" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {dependientes.map((u) => (
                           <SelectItem key={u.uid} value={u.uid}>
                             {u.nombre ?? (u as any).displayName ?? u.email}
                           </SelectItem>

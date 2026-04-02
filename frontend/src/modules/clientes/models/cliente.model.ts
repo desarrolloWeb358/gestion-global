@@ -12,6 +12,7 @@ export interface Cliente {
   ejecutivoJuridicoId?: string | null;
   ejecutivoDependienteId?: string | null;
   abogadoId?: string | null;
+  dependienteAbogadoId?: string | null;
 
   activo?: boolean;
 }

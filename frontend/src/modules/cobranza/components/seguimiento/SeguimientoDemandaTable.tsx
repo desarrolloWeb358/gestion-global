@@ -303,6 +303,20 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
         }
         // se adiciona el uid del usuario que crea el registro
         await addSeguimientoDemanda(uidUsuario, clienteId, deudorId, payload, archivo);
+
+        // Si no es interno y la fecha del seguimiento es mayor a fechaUltimaRevision, actualizarla
+        if (!esInterno && fecha) {
+          const newDateStr = toDateInputValue(fecha);
+          const currentStr = form.fechaUltimaRevision;
+          if (!currentStr || newDateStr > currentStr) {
+            const deudorRef = doc(db, `clientes/${clienteId}/deudores/${deudorId}`);
+            await updateDoc(deudorRef, {
+              fechaUltimaRevision: parseLocalYmd(newDateStr) ?? fecha,
+            });
+            setForm((s) => ({ ...s, fechaUltimaRevision: newDateStr }));
+          }
+        }
+
         toast.success("✓ Seguimiento creado correctamente");
       }
       setOpen(false);
@@ -369,7 +383,7 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
       }
 
       if (form.fechaUltimaRevision) {
-        payload.fechaUltimaRevision = new Date(form.fechaUltimaRevision);
+        payload.fechaUltimaRevision = parseLocalYmd(form.fechaUltimaRevision) ?? new Date(form.fechaUltimaRevision);
       } else {
         payload.fechaUltimaRevision = null as any;
       }

@@ -48,6 +48,7 @@ export function crearClienteDesdeUsuario(
     ejecutivoJuridicoId: null,
     ejecutivoDependienteId: null,
     abogadoId: null,
+    dependienteAbogadoId: null,
     activo: usuario.activo ?? true,
   };
 }
