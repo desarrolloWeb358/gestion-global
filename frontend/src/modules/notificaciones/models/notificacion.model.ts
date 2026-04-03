@@ -8,4 +8,5 @@ export interface NotificacionAlerta {
   ruta: string;           // ruta dentro de tu app (/clientes/xxx/...)
   modulo: string;         // "valor_agregado" | "seguimiento" | etc.
   visto: boolean;         // false al crear
+  resuelta?: boolean;     // true cuando la contraparte responde (solo módulos VA)
 }

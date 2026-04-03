@@ -44,10 +44,17 @@ export function useNotificacionesUsuario(usuarioId?: string) {
     unsubDisplay = onSnapshot(
       qTodas,
       (snap) => {
-        const arr: NotificacionAlerta[] = snap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as Omit<NotificacionAlerta, "id">),
-        }));
+        const arr: NotificacionAlerta[] = snap.docs
+          .map((d) => ({
+            id: d.id,
+            ...(d.data() as Omit<NotificacionAlerta, "id">),
+          }))
+          .filter((n) => {
+            const esModuloVA =
+              n.modulo === "valor agregado" ||
+              n.modulo === "valor agregado conversacion";
+            return !(esModuloVA && n.resuelta === true);
+          });
         setTodas(arr);
         setLoading(false);
       },
@@ -64,10 +71,17 @@ export function useNotificacionesUsuario(usuarioId?: string) {
           unsubDisplay = onSnapshot(
             qFallback,
             (snap2) => {
-              const arr2: NotificacionAlerta[] = snap2.docs.map((d) => ({
-                id: d.id,
-                ...(d.data() as Omit<NotificacionAlerta, "id">),
-              }));
+              const arr2: NotificacionAlerta[] = snap2.docs
+                .map((d) => ({
+                  id: d.id,
+                  ...(d.data() as Omit<NotificacionAlerta, "id">),
+                }))
+                .filter((n) => {
+                  const esModuloVA =
+                    n.modulo === "valor agregado" ||
+                    n.modulo === "valor agregado conversacion";
+                  return !(esModuloVA && n.resuelta === true);
+                });
               setTodas(arr2);
               setLoading(false);
             },

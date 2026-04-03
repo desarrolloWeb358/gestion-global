@@ -10,6 +10,7 @@ import {
   query,
   serverTimestamp,
   updateDoc,
+  where,
 } from "firebase/firestore";
 import { db } from "@/firebase";
 import { sendNotification } from "@/shared/services/sendNotification";
@@ -385,4 +386,38 @@ export async function marcarNotificacionComoVista(
 ) {
   const ref = doc(db, `usuarios/${usuarioId}/notificaciones/${notificacionId}`);
   await updateDoc(ref, { visto: true });
+}
+
+/**
+ * Busca la notificación más antigua (por fecha) del usuario para una ruta
+ * de valor agregado que aún no esté resuelta, y la marca como resuelta.
+ * Se llama cada vez que alguien envía un mensaje en la conversación del VA.
+ */
+export async function resolverNotificacionMasAntigua(
+  usuarioId: string,
+  ruta: string
+): Promise<void> {
+  try {
+    const colRef = collection(db, `usuarios/${usuarioId}/notificaciones`);
+    const q = query(colRef, where("ruta", "==", ruta));
+    const snap = await getDocs(q);
+
+    if (snap.empty) return;
+
+    // Filtrar las no resueltas y ordenar por fecha ascendente (más antigua primero)
+    const noResueltas = snap.docs
+      .filter((d) => d.data().resuelta !== true)
+      .sort((a, b) => {
+        const fa = a.data().fecha?.seconds ?? 0;
+        const fb = b.data().fecha?.seconds ?? 0;
+        return fa - fb;
+      });
+
+    if (noResueltas.length === 0) return;
+
+    const masAntigua = noResueltas[0];
+    await updateDoc(masAntigua.ref, { resuelta: true });
+  } catch (err) {
+    console.error("[resolverNotificacionMasAntigua] Error:", err);
+  }
 }

@@ -18,7 +18,7 @@ import { registrarEliminacion } from "@/shared/services/auditLog/auditLogService
 import { ArchivoAdjunto, ValorAgregado } from "../models/valorAgregado.model";
 import { TipoValorAgregado, TipoValorAgregadoLabels } from "../../../shared/constants/tipoValorAgregado";
 import { MensajeValorAgregado } from "../models/mensajeValorAgregado.model";
-import { notificarUsuarioConAlertaYCorreo, notificarUsuarioConAlerta } from "@/modules/notificaciones/services/notificacionService";
+import { notificarUsuarioConAlertaYCorreo, notificarUsuarioConAlerta, resolverNotificacionMasAntigua } from "@/modules/notificaciones/services/notificacionService";
 
 
 const nombreDestinatarioAbogado = "Abogado";
@@ -618,15 +618,30 @@ export async function crearMensajeConversacionValorAgregado(
       cuerpoHtmlCorreo,
     });
 
-    // 👉 Notificar al DEPENDIENTE ABOGADO (solo alerta in-app, sin correo)
     const dependienteAbogadoId = clienteInfo.dependienteAbogadoId;
-    if (dependienteAbogadoId) {
-      await notificarUsuarioConAlerta({
-        usuarioId: dependienteAbogadoId,
-        modulo: "valor agregado conversacion",
-        ruta,
-        descripcion: descripcionAlerta,
-      });
+
+    if (base.autorTipo === "cliente") {
+      // 👉 Cliente escribe → notificar al DEPENDIENTE ABOGADO también
+      if (dependienteAbogadoId) {
+        await notificarUsuarioConAlerta({
+          usuarioId: dependienteAbogadoId,
+          modulo: "valor agregado conversacion",
+          ruta,
+          descripcion: descripcionAlerta,
+        });
+      }
+
+      // 👉 Cliente escribe → resolver la notificación más antigua del CLIENTE
+      await resolverNotificacionMasAntigua(clienteId, ruta);
+    } else {
+      // 👉 Abogado escribe → resolver la notificación más antigua del ABOGADO y del DEPENDIENTE
+      const abogadoId = clienteInfo.abogadoId;
+      if (abogadoId) {
+        await resolverNotificacionMasAntigua(abogadoId, ruta);
+      }
+      if (dependienteAbogadoId) {
+        await resolverNotificacionMasAntigua(dependienteAbogadoId, ruta);
+      }
     }
   } catch (err) {
     console.error("[crearMensajeConversacionValorAgregado] Error al notificar:", err);
