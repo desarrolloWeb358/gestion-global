@@ -41,6 +41,7 @@ import RootRedirect from "./modules/auth/pages/RootRedirect";
 import AuthLayout from "./modules/auth/components/AuthLayout";
 import ClienteSeguimiento from "./modules/cobranza/components/observaciones/ClienteSeguimiento";
 import ObservacionesDeudorPage from "./modules/cobranza/components/observaciones/ObservacionesDeudorPage";
+import RegistrosEliminadosPage from "./modules/registrosEliminados/components/RegistrosEliminadosPage";
 
 
 export default function App() {
@@ -77,6 +78,7 @@ export default function App() {
             <Route path="/clientes/:clienteId/estado-mensual" element={<EstadosMensualesInputMasivo />} />
             <Route path="/clientes-tables" element={<ClientesTable />} />
             <Route path="/usuarios-tables" element={<UsuariosTable />} />
+            <Route path="/registros-eliminados" element={<RegistrosEliminadosPage />} />
             <Route path="/deudores/:clienteId" element={<DeudoresTable />} />
             <Route path="/consulta-personas" element={<ConsultaPersonasPage />} />
             <Route path="/probar-notificaciones" element={<ProbarNotificacionesPage />} />

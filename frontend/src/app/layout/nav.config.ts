@@ -11,6 +11,7 @@ import {
   IconBell,
   IconLayoutDashboard,
   IconBriefcase,
+  IconTrash,
 } from "@tabler/icons-react";
 
 export type NavItem = {
@@ -63,11 +64,17 @@ export const NAV_ITEMS: NavItem[] = [
   // ========================================
   // ADMINISTRACIÓN
   // ========================================
-  { 
-    to: "/usuarios-tables", 
-    label: "Usuarios", 
-    icon: IconUsers, 
-    roles: ["admin", "ejecutivoAdmin"] 
+  {
+    to: "/usuarios-tables",
+    label: "Usuarios",
+    icon: IconUsers,
+    roles: ["admin", "ejecutivoAdmin"]
+  },
+  {
+    to: "/registros-eliminados",
+    label: "Registros Eliminados",
+    icon: IconTrash,
+    roles: ["admin", "ejecutivoAdmin"],
   },
 
   // ========================================

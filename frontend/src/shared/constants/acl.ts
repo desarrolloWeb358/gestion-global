@@ -77,6 +77,8 @@ export const PERMS = {
 
   ReporteCliente_Download_Word: "reporteCliente.download.word",
   ReporteCliente_Download_Pdf: "reporteCliente.download.pdf",
+
+  RegistrosEliminados_Read: "registrosEliminados.read",
 } as const;
 export type Perm = (typeof PERMS)[keyof typeof PERMS];
 
@@ -101,6 +103,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Valores_agregados_Read,
     PERMS.Valores_agregados_Edit,
     PERMS.ReporteCliente_Download_Word,
+    PERMS.RegistrosEliminados_Read,
   ],
 
   ejecutivoAdmin: [
@@ -121,6 +124,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Valores_agregados_Read,
     PERMS.Valores_agregados_Edit,
     PERMS.ReporteCliente_Download_Word,
+    PERMS.RegistrosEliminados_Read,
   ],
 
   ejecutivo: [
