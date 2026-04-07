@@ -62,6 +62,8 @@ import { cn } from "@/shared/lib/cn";
 import AppBreadcrumb from "@/shared/components/app-breadcrumb";
 import { getClienteById } from "@/modules/clientes/services/clienteService";
 import { getDeudorById } from "@/modules/cobranza/services/deudorService";
+import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
+import { useUnsavedChanges } from "@/shared/hooks/useUnsavedChanges";
 
 /* ─── Tipos internos ─── */
 interface Filtros {
@@ -105,11 +107,21 @@ function aplicarFiltros(items: EstadoMensual[], f: Filtros): EstadoMensual[] {
 export default function EstadosMensualesTable() {
   const { clienteId, deudorId } = useParams();
   const navigate = useNavigate();
+  const savedDeudoresFilter = sessionStorage.getItem(`deudores_filter_${clienteId}`) ?? "";
+  const deudoresHref = `/deudores/${clienteId}${savedDeudoresFilter ? `?${savedDeudoresFilter}` : ""}`;
 
   // Nombres para el breadcrumb
   const [nombreCliente, setNombreCliente] = React.useState<string>("");
   const [nombreDeudor, setNombreDeudor] = React.useState<string>("");
   const [ubicacionDeudor, setUbicacionDeudor] = React.useState<string>("");
+
+  const TIPIFICACIONES_DEMANDA = new Set<TipificacionDeuda>([
+    TipificacionDeuda.DEMANDA,
+    TipificacionDeuda.DEMANDA_ACUERDO,
+    TipificacionDeuda.DEMANDA_TERMINADO,
+    TipificacionDeuda.DEMANDA_INSOLVENCIA,
+  ]);
+  const [porcentajeDefault, setPorcentajeDefault] = React.useState(15);
 
   // Datos
   const [estadosMensuales, setEstadosMensuales] = React.useState<EstadoMensual[]>([]);
@@ -149,6 +161,8 @@ export default function EstadosMensualesTable() {
       recibo: "",
       observaciones: "",
     });
+
+  useUnsavedChanges(open);
 
   // Calcular honorarios automáticamente
   React.useEffect(() => {
@@ -201,6 +215,10 @@ export default function EstadosMensualesTable() {
         setNombreCliente(cliente?.nombre ?? "Cliente");
         setNombreDeudor(deudor?.nombre ?? "Deudor");
         setUbicacionDeudor(deudor?.ubicacion?.trim() ?? "");
+
+        const pct = deudor?.tipificacion && TIPIFICACIONES_DEMANDA.has(deudor.tipificacion) ? 20 : 15;
+        setPorcentajeDefault(pct);
+        setNuevoEstadoMensual((prev) => ({ ...prev, porcentajeHonorarios: pct }));
       } catch (error) {
         console.error("Error cargando nombres:", error);
       }
@@ -219,7 +237,7 @@ export default function EstadosMensualesTable() {
       clienteUID: clienteId || "",
       deuda: undefined,
       recaudo: undefined,
-      porcentajeHonorarios: 15,
+      porcentajeHonorarios: porcentajeDefault,
       honorariosDeuda: undefined,
       honorariosRecaudo: undefined,
       recibo: "",
@@ -339,7 +357,7 @@ export default function EstadosMensualesTable() {
             <AppBreadcrumb
               items={[
                 ...(!esDeudor ? [{ label: "Clientes", href: "/clientes-tables" }] : []),
-                { label: nombreCliente, href: esDeudor ? `/clientes/${clienteId}/deudores/${deudorId}` : `/deudores/${clienteId}` },
+                { label: nombreCliente, href: esDeudor ? `/clientes/${clienteId}/deudores/${deudorId}` : deudoresHref },
                 ...(!esDeudor ? [{ label: deudorLabel, href: `/clientes/${clienteId}/deudores/${deudorId}` }] : []),
                 { label: "Estados Mensuales" },
               ]}

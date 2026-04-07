@@ -1321,11 +1321,21 @@ export default function ReporteClientePage() {
       {/* Detalle de deudores por tipificación */}
       <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
         <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5 border-b border-brand-secondary/10">
-          <div className="flex items-center gap-2">
-            <Home className="h-5 w-5 text-brand-primary" />
-            <Typography variant="h3" className="!text-brand-secondary font-semibold">
-              Detalle de deudores por tipificación
-            </Typography>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Home className="h-5 w-5 text-brand-primary" />
+              <Typography variant="h3" className="!text-brand-secondary font-semibold">
+                Detalle de deudores por tipificación
+              </Typography>
+            </div>
+            {resumenFiltrado.length > 0 && (
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-primary/10 border border-brand-primary/20">
+                <Users className="h-3.5 w-3.5 text-brand-primary" />
+                <span className="text-xs font-semibold text-brand-primary">
+                  {resumenFiltrado.reduce((acc, r) => acc + r.inmuebles, 0)} deudores en total
+                </span>
+              </div>
+            )}
           </div>
         </div>
         <div className="p-4 md:p-5 space-y-4">
@@ -1366,11 +1376,16 @@ export default function ReporteClientePage() {
               </div>
 
               {tipSeleccionada && (
-                <div className="flex items-center gap-2 px-1">
+                <div className="flex items-center gap-3 px-1">
                   <DollarSign className="h-4 w-4 text-brand-primary" />
                   <Typography variant="body" className="font-semibold text-brand-secondary">
                     Deudores en tipificación: {tipSeleccionada}
                   </Typography>
+                  {!loadingDetalle && detalleTip.length > 0 && (
+                    <span className="px-2.5 py-0.5 rounded-full bg-brand-primary/10 text-brand-primary text-xs font-semibold">
+                      {detalleTip.length} {detalleTip.length === 1 ? "deudor" : "deudores"}
+                    </span>
+                  )}
                 </div>
               )}
 

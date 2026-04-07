@@ -8,6 +8,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/shared/ui/alert-dialog";
 import { Input } from "@/shared/ui/input";
 import { Textarea } from "@/shared/ui/textarea";
 import { Button } from "@/shared/ui/button";
@@ -193,6 +203,17 @@ export default function SeguimientoForm({
   const [archivo, setArchivo] = React.useState<File | undefined>(undefined);
   const [reemplazarArchivo, setReemplazarArchivo] = React.useState<boolean>(false);
   const [saving, setSaving] = React.useState(false);
+  const [showExitConfirm, setShowExitConfirm] = React.useState(false);
+
+  const isDirty = descripcion.trim() !== "";
+
+  function tryClose() {
+    if (isDirty) {
+      setShowExitConfirm(true);
+    } else {
+      onClose();
+    }
+  }
 
   React.useEffect(() => {
     const d = seguimiento?.fecha?.toDate?.() ?? new Date();
@@ -233,8 +254,34 @@ export default function SeguimientoForm({
       {/* ⬇️ Overlay global a pantalla completa cuando saving = true */}
       {saving && <GlobalSavingOverlay />}
 
-      <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent className="max-w-3xl w-[95vw] md:w-full h-[90vh] !p-0 rounded-none md:rounded-xl overflow-hidden">
+      <AlertDialog open={showExitConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Salir sin guardar?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Si sales ahora, cualquier información que hayas ingresado se perderá.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowExitConfirm(false)}>
+              Quedarme aquí
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { setShowExitConfirm(false); onClose(); }}
+              className="bg-red-500 hover:bg-red-600 text-white"
+            >
+              Salir sin guardar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) tryClose(); }}>
+        <DialogContent
+          className="max-w-3xl w-[95vw] md:w-full h-[90vh] !p-0 rounded-none md:rounded-xl overflow-hidden"
+          onInteractOutside={(e) => { e.preventDefault(); setShowExitConfirm(true); }}
+          onEscapeKeyDown={(e) => { e.preventDefault(); tryClose(); }}
+        >
           {/* Wrapper principal */}
           <div className="flex h-full min-h-0 flex-col overflow-hidden">
             {/* Header */}
@@ -387,7 +434,7 @@ export default function SeguimientoForm({
                   type="button"
                   variant="outline"
                   className="h-11 text-base font-medium"
-                  onClick={onClose}
+                  onClick={tryClose}
                   disabled={saving}
                 >
                   Cancelar

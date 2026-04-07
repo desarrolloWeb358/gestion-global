@@ -85,6 +85,7 @@ import { BackButton } from "@/shared/design-system/components/BackButton";
 import { cn } from "@/shared/lib/cn";
 import { ExpandableCell } from "@/shared/components/expandable-cell";
 import AppBreadcrumb from "@/shared/components/app-breadcrumb";
+import { useUnsavedChanges } from "@/shared/hooks/useUnsavedChanges";
 
 type SortDir = "desc" | "asc";
 
@@ -136,6 +137,8 @@ function inRange(millis: number, range?: DateRange): boolean {
 export default function SeguimientoTable() {
   const { clienteId, deudorId } = useParams();
   const navigate = useNavigate();
+  const savedDeudoresFilter = sessionStorage.getItem(`deudores_filter_${clienteId}`) ?? "";
+  const deudoresHref = `/deudores/${clienteId}${savedDeudoresFilter ? `?${savedDeudoresFilter}` : ""}`;
   const [nombreCliente, setNombreCliente] = React.useState<string>("");
   const [nombreDeudor, setNombreDeudor] = React.useState<string>("");
   const [ubicacionDeudor, setUbicacionDeudor] = React.useState<string>("");
@@ -182,6 +185,8 @@ export default function SeguimientoTable() {
   const [obsFilters, setObsFilters] = React.useState<ObsFilters>({ order: "desc" });
   const setObsFilter = (key: keyof ObsFilters, value: any) =>
     setObsFilters((s) => ({ ...s, [key]: value }));
+
+  useUnsavedChanges(open || obsTexto.trim() !== "");
 
   const obsFields: FilterField<ObservacionCliente>[] = [
     { key: "fecha", label: "Rango de fechas", kind: "daterange", getDate: (o) => toDate(o.fecha) },
@@ -400,7 +405,7 @@ export default function SeguimientoTable() {
             <AppBreadcrumb
               items={[
                 ...(!esDeudor ? [{ label: "Clientes", href: "/clientes-tables" }] : []),
-                { label: nombreCliente, href: esDeudor ? `/clientes/${clienteId}/deudores/${deudorId}` : `/deudores/${clienteId}` },
+                { label: nombreCliente, href: esDeudor ? `/clientes/${clienteId}/deudores/${deudorId}` : deudoresHref },
                 ...(!esDeudor ? [{ label: `${nombreDeudor}${ubicacionDeudor ? ` - ${ubicacionDeudor}` : ""}`, href: `/clientes/${clienteId}/deudores/${deudorId}` }] : []),
                 { label: "Seguimiento" },
               ]}

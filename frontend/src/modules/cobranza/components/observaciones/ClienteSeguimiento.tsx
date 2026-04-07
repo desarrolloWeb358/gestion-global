@@ -33,6 +33,7 @@ import RichTextEditor from "@/shared/components/RichTextEditor";
 import RichTextViewer from "@/shared/components/RichTextViewer";
 
 import { ObservacionClienteGlobal } from "@/modules/cobranza/models/observacionClienteGlobal.model";
+import { useUnsavedChanges } from "@/shared/hooks/useUnsavedChanges";
 
 
 export default function ClienteSeguimientoConjunto() {
@@ -52,6 +53,8 @@ export default function ClienteSeguimientoConjunto() {
 
   const [loading, setLoading] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
+
+  useUnsavedChanges(texto.trim() !== "" || notaInternaTexto.trim() !== "");
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -158,7 +161,6 @@ export default function ClienteSeguimientoConjunto() {
   return (
 
     <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30">
-
       <div className="max-w-3xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
 
         <div className="flex items-center gap-2">

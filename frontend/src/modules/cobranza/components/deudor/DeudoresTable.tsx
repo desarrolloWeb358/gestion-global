@@ -446,7 +446,14 @@ export default function DeudoresTable() {
     if (currentPage > 1) params.page = String(currentPage);
 
     setSearchParams(params, { replace: true });
-  }, [search, tipFilter, currentPage]);
+
+    // Persiste el filtro para que las subpáginas puedan volver con él
+    const qs = new URLSearchParams();
+    if (search) qs.set("q", search);
+    if (tipFilter && tipFilter !== ALL) qs.set("tip", tipFilter);
+    if (currentPage > 1) qs.set("page", String(currentPage));
+    sessionStorage.setItem(`deudores_filter_${clienteId}`, qs.toString());
+  }, [search, tipFilter, currentPage, clienteId]);
 
   useEffect(() => {
     if (aclLoading) return;

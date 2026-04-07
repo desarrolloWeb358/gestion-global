@@ -30,6 +30,7 @@ import { Button } from "@/shared/ui/button";
 import { Typography } from "@/shared/design-system/components/Typography";
 import AppBreadcrumb from "@/shared/components/app-breadcrumb";
 import { cn } from "@/shared/lib/cn";
+import { useUnsavedChanges } from "@/shared/hooks/useUnsavedChanges";
 
 const MAX_CHARS = 1000;
 
@@ -57,6 +58,8 @@ export default function ObservacionesDeudorPage() {
   const [editandoId, setEditandoId] = React.useState<string | null>(null);
   const [editTexto, setEditTexto] = React.useState("");
   const [savingEdit, setSavingEdit] = React.useState(false);
+
+  useUnsavedChanges(texto.trim() !== "");
 
   React.useEffect(() => {
     if (!clienteId || !deudorId) return;

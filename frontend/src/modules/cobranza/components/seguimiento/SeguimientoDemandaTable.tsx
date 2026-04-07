@@ -48,6 +48,7 @@ import { PERMS, sanitizeRoles, type Rol, type Perm } from "@/shared/constants/ac
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { Deudor } from "../../models/deudores.model";
 import { ExpandableCell } from "@/shared/components/expandable-cell";
+import { useUnsavedChanges } from "@/shared/hooks/useUnsavedChanges";
 
 type SortDir = "desc" | "asc";
 
@@ -171,6 +172,8 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
   const [savingInfo, setSavingInfo] = React.useState(false);
 
   const [esInterno, setEsInterno] = React.useState<boolean>(false);
+
+  useUnsavedChanges(open);
 
   const resetForm = () => {
     setEdit(null);
