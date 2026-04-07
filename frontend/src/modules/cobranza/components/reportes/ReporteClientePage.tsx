@@ -1321,21 +1321,11 @@ export default function ReporteClientePage() {
       {/* Detalle de deudores por tipificación */}
       <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
         <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5 border-b border-brand-secondary/10">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Home className="h-5 w-5 text-brand-primary" />
-              <Typography variant="h3" className="!text-brand-secondary font-semibold">
-                Detalle de deudores por tipificación
-              </Typography>
-            </div>
-            {resumenFiltrado.length > 0 && (
-              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-primary/10 border border-brand-primary/20">
-                <Users className="h-3.5 w-3.5 text-brand-primary" />
-                <span className="text-xs font-semibold text-brand-primary">
-                  {resumenFiltrado.reduce((acc, r) => acc + r.inmuebles, 0)} deudores en total
-                </span>
-              </div>
-            )}
+          <div className="flex items-center gap-2">
+            <Home className="h-5 w-5 text-brand-primary" />
+            <Typography variant="h3" className="!text-brand-secondary font-semibold">
+              Detalle de deudores por tipificación
+            </Typography>
           </div>
         </div>
         <div className="p-4 md:p-5 space-y-4">
@@ -1461,7 +1451,7 @@ export default function ReporteClientePage() {
                         style={{ height: DETALLE_ROW_H }}
                       >
                         <TableCell className="text-brand-secondary">Total</TableCell>
-                        <TableCell className="text-right text-brand-secondary">{totalesDetalle.inmuebles}</TableCell>
+                        <TableCell className="text-brand-secondary">{totalesDetalle.inmuebles}</TableCell>
                         <TableCell className="text-right text-brand-secondary">{formatCOP(totalesDetalle.recaudoTotal)}</TableCell>
                         <TableCell className="text-right text-brand-secondary">{formatCOP(totalesDetalle.honorariosRecaudoTotal)}</TableCell>
                         <TableCell className="text-right text-brand-secondary">{formatCOP(totalesDetalle.ingresoConjunto)}</TableCell>
