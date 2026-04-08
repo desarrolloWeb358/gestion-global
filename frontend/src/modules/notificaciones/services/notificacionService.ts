@@ -416,7 +416,7 @@ export async function resolverNotificacionMasAntigua(
     if (noResueltas.length === 0) return;
 
     const masAntigua = noResueltas[0];
-    await updateDoc(masAntigua.ref, { resuelta: true });
+    await updateDoc(masAntigua.ref, { resuelta: true, visto: true });
   } catch (err) {
     console.error("[resolverNotificacionMasAntigua] Error:", err);
   }
