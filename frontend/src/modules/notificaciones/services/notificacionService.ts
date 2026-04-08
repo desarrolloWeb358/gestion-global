@@ -260,7 +260,7 @@ async function enviarEmailAUsuario({
   });
 }
 
-async function enviarEmail({
+export async function enviarEmail({
   nombreDestino,
   correoDestino,
   subject,

@@ -18,11 +18,13 @@ import { registrarEliminacion } from "@/shared/services/auditLog/auditLogService
 import { ArchivoAdjunto, ValorAgregado } from "../models/valorAgregado.model";
 import { TipoValorAgregado, TipoValorAgregadoLabels } from "../../../shared/constants/tipoValorAgregado";
 import { MensajeValorAgregado } from "../models/mensajeValorAgregado.model";
-import { notificarUsuarioConAlertaYCorreo, notificarUsuarioConAlerta, resolverNotificacionMasAntigua } from "@/modules/notificaciones/services/notificacionService";
+import { notificarUsuarioConAlertaYCorreo, notificarUsuarioConAlerta, resolverNotificacionMasAntigua, enviarEmail } from "@/modules/notificaciones/services/notificacionService";
 
 
 const nombreDestinatarioAbogado = "Abogado";
 const correoDestinatarioAbogado = "comercial@gestionglobalacg.com";
+const correoAsistenteJuridico = "asistentejuridico@gestionglobalacg.com";
+const nombreAsistenteJuridico = "Asistente Jurídico";
 
 
 // =====================================================
@@ -233,6 +235,13 @@ export async function crearValorAgregado(
         tituloCorreo: "Se ha registrado un nuevo valor agregado",
         cuerpoHtmlCorreo,
       });
+      await enviarEmail({
+        nombreDestino: nombreAsistenteJuridico,
+        correoDestino: correoAsistenteJuridico,
+        subject: `Nuevo valor agregado: ${tipoLabel}`,
+        titulo: "Se ha registrado un nuevo valor agregado",
+        cuerpoHtml: cuerpoHtmlCorreo,
+      });
     } else {
       console.warn(
         `[crearValorAgregado] Cliente ${clienteId} sin abogadoId; no se notifica al abogado.`
@@ -376,7 +385,14 @@ export async function actualizarValorAgregado(
       correoDestino: correoDestinatarioAbogado,
       subject: `Valor agregado modificado: ${tipoLabel} - ${nombreCliente}`,
       tituloCorreo: "Se ha modificado un valor agregado",
-      cuerpoHtmlCorreo,     
+      cuerpoHtmlCorreo,
+    });
+    await enviarEmail({
+      nombreDestino: nombreAsistenteJuridico,
+      correoDestino: correoAsistenteJuridico,
+      subject: `Valor agregado modificado: ${tipoLabel} - ${nombreCliente}`,
+      titulo: "Se ha modificado un valor agregado",
+      cuerpoHtml: cuerpoHtmlCorreo,
     });
   } catch (err) {
     console.error("[actualizarValorAgregado] Error al notificar:", err);
@@ -617,6 +633,16 @@ export async function crearMensajeConversacionValorAgregado(
       tituloCorreo,
       cuerpoHtmlCorreo,
     });
+
+    if (base.autorTipo === "cliente") {
+      await enviarEmail({
+        nombreDestino: nombreAsistenteJuridico,
+        correoDestino: correoAsistenteJuridico,
+        subject,
+        titulo: tituloCorreo,
+        cuerpoHtml: cuerpoHtmlCorreo,
+      });
+    }
 
     const dependienteAbogadoId = clienteInfo.dependienteAbogadoId;
 
