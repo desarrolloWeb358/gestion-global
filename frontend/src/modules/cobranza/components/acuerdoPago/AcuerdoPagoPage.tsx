@@ -1,6 +1,6 @@
 // src/modules/cobranza/pages/AcuerdoPagoPage.tsx
 import React, { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { doc, getDoc, Timestamp, collection, query, orderBy, limit, getDocs } from "firebase/firestore";
 import { db } from "@/firebase";
@@ -55,7 +55,7 @@ import { ACUERDO_ESTADO } from "@/shared/constants/acuerdoEstado";
 import { subirYGuardarPdfFirmadoBorrador, activarAcuerdoEnFirme } from "@/modules/cobranza/services/acuerdoPagoService";
 
 import { AlertTriangle, List } from "lucide-react";
-import { listarAcuerdos, incumplirAcuerdoYCrearNuevoBorrador } from "@/modules/cobranza/services/acuerdoPagoService";
+import { listarAcuerdos, incumplirAcuerdoYCrearNuevoBorrador, eliminarBorrador } from "@/modules/cobranza/services/acuerdoPagoService";
 import {
     Dialog,
     DialogContent,
@@ -107,6 +107,7 @@ export default function AcuerdoPagoPage() {
 
     // Permisos
     const { clienteId, deudorId } = useParams();
+    const navigate = useNavigate();
     const { can, loading: aclLoading } = useAcl();
 
     const puedeEditar = can(PERMS.Deudores_Edit); // admin/ejecutivo normalmente
@@ -181,6 +182,8 @@ export default function AcuerdoPagoPage() {
 
     const [openIncumplio, setOpenIncumplio] = useState(false);
     const [incumpliendo, setIncumpliendo] = useState(false);
+    const [openEliminarBorrador, setOpenEliminarBorrador] = useState(false);
+    const [eliminando, setEliminando] = useState(false);
 
 
     const cargarHistorial = async () => {
@@ -694,6 +697,25 @@ export default function AcuerdoPagoPage() {
     };
 
     // ==============================
+    // Eliminar borrador
+    // ==============================
+    const handleEliminarBorrador = async () => {
+        if (!clienteId || !deudorId || !currentAcuerdoId) return;
+        setEliminando(true);
+        try {
+            await eliminarBorrador(clienteId, deudorId, currentAcuerdoId);
+            toast.success("Borrador eliminado");
+            await cargarAcuerdoActual();
+        } catch (e) {
+            console.error(e);
+            toast.error("No se pudo eliminar el borrador");
+        } finally {
+            setEliminando(false);
+            setOpenEliminarBorrador(false);
+        }
+    };
+
+    // ==============================
     // Firmar acuerdo: subir PDF + pasar a EN_FIRME
     // ==============================
     const onPickFirmado = async (file?: File | null) => {
@@ -873,6 +895,16 @@ export default function AcuerdoPagoPage() {
                                 <List className="h-4 w-4" />
                                 Historial
                             </Button>
+                            {!readOnly && canEdit && currentAcuerdoId && acuerdoEstado === ACUERDO_ESTADO.BORRADOR && (
+                                <Button
+                                    variant="destructive"
+                                    className="gap-2"
+                                    onClick={() => setOpenEliminarBorrador(true)}
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                    Eliminar borrador
+                                </Button>
+                            )}
                             {readOnly && puedeEditar && (
                                 <Button
                                     variant="destructive"
@@ -1278,6 +1310,42 @@ export default function AcuerdoPagoPage() {
 
 
                 </div>
+
+                {/* Diálogo: Eliminar borrador */}
+                <Dialog open={openEliminarBorrador} onOpenChange={setOpenEliminarBorrador}>
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2 text-red-600">
+                                <Trash2 className="h-5 w-5" />
+                                Eliminar borrador
+                            </DialogTitle>
+                            <DialogDescription>
+                                ¿Estás seguro de que deseas eliminar este borrador? <br />
+                                Esta acción es <b>irreversible</b> y se eliminará el acuerdo junto con todas sus cuotas.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter className="gap-2">
+                            <Button
+                                variant="ghost"
+                                onClick={() => setOpenEliminarBorrador(false)}
+                                disabled={eliminando}
+                            >
+                                Cancelar
+                            </Button>
+                            <Button
+                                variant="destructive"
+                                onClick={handleEliminarBorrador}
+                                disabled={eliminando}
+                                className="gap-2"
+                            >
+                                {eliminando
+                                    ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white inline-block" /> Eliminando...</>
+                                    : <><Trash2 className="h-4 w-4" /> Eliminar borrador</>
+                                }
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
 
                 <Dialog open={openIncumplio} onOpenChange={setOpenIncumplio}>
                     <DialogContent className="sm:max-w-lg">

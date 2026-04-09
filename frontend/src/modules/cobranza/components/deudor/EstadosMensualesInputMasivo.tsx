@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Input } from "@/shared/ui/input";
 import { Button } from "@/shared/ui/button";
@@ -33,7 +33,8 @@ interface FilaEstadoBase {
   tipificacion: TipificacionDeuda;
   porcentajeHonorarios: string;
   deuda: string;
-  recaudo: string;  
+  recaudo: string;
+  tieneExistente?: boolean;
 }
 
 const TIPIFICACIONES_FILTRABLES: TipificacionDeuda[] = [
@@ -67,6 +68,11 @@ export default function EstadosMensualesInputMasivo() {
   const [filas, setFilas] = useState<FilaEstadoBase[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [cargandoExistentes, setCargandoExistentes] = useState(false);
+
+  // Estructura base de deudores (sin estados) para reutilizar al cambiar el mes
+  const filasBaseRef = useRef<FilaEstadoBase[]>([]);
+  const esPrimerRenderMes = useRef(true);
 
   // Traer nombre del cliente
   useEffect(() => {
@@ -116,7 +122,41 @@ export default function EstadosMensualesInputMasivo() {
     };
   }, [clienteId]);
 
-  // Cargar deudores
+  // Precarga los estados existentes del mes sobre una lista de filas base
+  const aplicarEstadosMes = async (mes: string, base: FilaEstadoBase[]) => {
+    if (!clienteId || base.length === 0 || !mes) return;
+    setCargandoExistentes(true);
+    try {
+      const resultado = await Promise.all(
+        base.map(async (fila) => {
+          try {
+            const snap = await getDoc(
+              doc(db, `clientes/${clienteId}/deudores/${fila.deudorId}/estadosMensuales/${mes}`)
+            );
+            if (snap.exists()) {
+              const d = snap.data();
+              return {
+                ...fila,
+                deuda: d.deuda != null ? String(d.deuda) : "",
+                recaudo: d.recaudo != null ? String(d.recaudo) : "",
+                porcentajeHonorarios:
+                  d.porcentajeHonorarios != null
+                    ? String(d.porcentajeHonorarios)
+                    : fila.porcentajeHonorarios,
+                tieneExistente: true,
+              };
+            }
+          } catch { /* ignorar errores por deudor individual */ }
+          return { ...fila, deuda: "", recaudo: "", tieneExistente: false };
+        })
+      );
+      setFilas(resultado);
+    } finally {
+      setCargandoExistentes(false);
+    }
+  };
+
+  // Cargar deudores (solo al montar)
   useEffect(() => {
     if (!clienteId) return;
 
@@ -131,7 +171,6 @@ export default function EstadosMensualesInputMasivo() {
             tipificacion === TipificacionDeuda.DEMANDA ||
             tipificacion === TipificacionDeuda.DEMANDA_ACUERDO;
 
-          // Si está en demanda y no tiene porcentaje registrado, usar 20 por defecto
           const tienePorc =
             d.porcentajeHonorarios !== undefined &&
             d.porcentajeHonorarios !== null &&
@@ -151,11 +190,12 @@ export default function EstadosMensualesInputMasivo() {
             porcentajeHonorarios: porcDb,
             deuda: "",
             recaudo: "",
+            tieneExistente: false,
           };
         });
 
-
-        setFilas(nuevasFilas);
+        filasBaseRef.current = nuevasFilas;
+        await aplicarEstadosMes(mesGlobal, nuevasFilas);
       } catch (error) {
         console.error(error);
         toast.error("No se pudieron cargar los deudores");
@@ -167,6 +207,15 @@ export default function EstadosMensualesInputMasivo() {
 
     cargar();
   }, [clienteId]);
+
+  // Recargar estados cuando cambia el mes
+  useEffect(() => {
+    if (esPrimerRenderMes.current) {
+      esPrimerRenderMes.current = false;
+      return;
+    }
+    aplicarEstadosMes(mesGlobal, filasBaseRef.current);
+  }, [mesGlobal]);
 
 
 
@@ -446,8 +495,15 @@ export default function EstadosMensualesInputMasivo() {
             </div>
           </div>
 
+          {cargandoExistentes && (
+            <div className="flex items-center gap-2 px-5 py-2.5 bg-blue-50 border-b border-blue-100 text-sm text-blue-700">
+              <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-300 border-t-blue-600" />
+              Cargando datos existentes del mes...
+            </div>
+          )}
+
           <div className="overflow-x-auto">
-            <fieldset disabled={saving}>
+            <fieldset disabled={saving || cargandoExistentes}>
               <Table className="min-w-[1000px]">
                 <TableHeader className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5">
                   <TableRow className="border-brand-secondary/10 hover:bg-transparent">
@@ -477,8 +533,11 @@ export default function EstadosMensualesInputMasivo() {
                         key={fila.deudorId}
                         className={cn(
                           "border-brand-secondary/5 transition-colors",
-                          i % 2 === 0 ? "bg-white" : "bg-brand-primary/[0.02]",
-                          "hover:bg-brand-primary/5"
+                          fila.tieneExistente
+                            ? "bg-blue-50/50 hover:bg-blue-50"
+                            : i % 2 === 0
+                            ? "bg-white hover:bg-brand-primary/5"
+                            : "bg-brand-primary/[0.02] hover:bg-brand-primary/5"
                         )}
                       >
                         <TableCell className="font-medium text-gray-700">{fila.nombre}</TableCell>

@@ -307,6 +307,24 @@ export async function listarAcuerdos(clienteId: string, deudorId: string) {
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
 }
 
+// ================= ELIMINAR BORRADOR =================
+export async function eliminarBorrador(
+  clienteId: string,
+  deudorId: string,
+  acuerdoId: string
+) {
+  const batch = writeBatch(db);
+
+  // Borrar todas las cuotas de la subcollección
+  const cuotasSnap = await getDocs(cuotasCol(clienteId, deudorId, acuerdoId));
+  cuotasSnap.docs.forEach((d) => batch.delete(d.ref));
+
+  // Borrar el documento del acuerdo
+  batch.delete(acuerdoDoc(clienteId, deudorId, acuerdoId));
+
+  await batch.commit();
+}
+
 export async function incumplirAcuerdoYCrearNuevoBorrador(params: {
   clienteId: string;
   deudorId: string;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Eye, Pencil, Search, X, Users, UserPlus, Filter, FileText, Trash2, CalendarIcon } from "lucide-react";
 import { createPortal } from "react-dom";
 
@@ -350,7 +350,6 @@ function HistorialTipificacionesDialog(props: {
 ========================= */
 
 export default function DeudoresTable() {
-  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { clienteId } = useParams<{ clienteId: string }>();
@@ -381,10 +380,17 @@ export default function DeudoresTable() {
   const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([]);
   const [nombreCliente, setNombreCliente] = useState<string>("Cargando...");
 
-  const [search, setSearch] = useState(searchParams.get("q") ?? "");
-  const [tipFilter, setTipFilter] = useState(searchParams.get("tip") ?? ALL);
+  const savedFilter = new URLSearchParams(
+    sessionStorage.getItem(`deudores_filter_${clienteId}`) ?? ""
+  );
+  const [search, setSearch] = useState(
+    searchParams.get("q") ?? savedFilter.get("q") ?? ""
+  );
+  const [tipFilter, setTipFilter] = useState(
+    searchParams.get("tip") ?? savedFilter.get("tip") ?? ALL
+  );
   const [currentPage, setCurrentPage] = useState(
-    Number(searchParams.get("page") ?? 1)
+    Number(searchParams.get("page") ?? savedFilter.get("page") ?? 1)
   );
 
   const itemsPerPage = 300;
@@ -1106,14 +1112,7 @@ export default function DeudoresTable() {
                                   onClick={() => {
                                     sessionStorage.setItem("deudoresScroll", String(window.scrollY));
 
-                                    navigate(
-                                      `/clientes/${clienteId}/deudores/${deudor.id}${location.search}`,
-                                      {
-                                        state: {
-                                          from: location.pathname + location.search
-                                        }
-                                      }
-                                    );
+                                    navigate(`/clientes/${clienteId}/deudores/${deudor.id}`);
                                   }}
                                   className="hover:bg-blue-50 transition-colors"
                                 >

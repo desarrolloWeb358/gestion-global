@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import {
   obtenerHistorialTipificaciones
 } from "../../services/historialTipificacionesService";
@@ -34,7 +34,7 @@ import {
 import type { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 
 import { Typography } from "@/shared/design-system/components/Typography";
-import { BackButton } from "@/shared/design-system/components/BackButton";
+import AppBreadcrumb from "@/shared/components/app-breadcrumb";
 import { cn } from "@/shared/lib/cn";
 
 import { getClienteById } from "@/modules/clientes/services/clienteService";
@@ -71,7 +71,6 @@ export default function DeudorDetailPage() {
     mes: "",
   });
 
-  const location = useLocation();
   const money = (n: number) => `$${Math.round(n).toLocaleString("es-CO")}`;
   const [fechaTerminado, setFechaTerminado] = React.useState<Date | null>(null);
   const { clienteId, deudorId } = useParams<{ clienteId: string; deudorId: string }>();
@@ -379,19 +378,13 @@ export default function DeudorDetailPage() {
         {/* HEADER */}
         <header className="space-y-4">
           {!esDeudor && (
-            <div className="flex items-center gap-2">
-              <BackButton
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  if (location.state?.from) {
-                    navigate(location.state.from);
-                  } else {
-                    navigate(`/deudores/${clienteId}`);
-                  }
-                }}
-              />
-            </div>
+            <AppBreadcrumb
+              items={[
+                { label: "Clientes", href: "/clientes-tables" },
+                { label: nombreCliente, href: `/deudores/${clienteId}` },
+                { label: `${deudor.nombre}${deudor.ubicacion ? ` - ${deudor.ubicacion}` : ""}` },
+              ]}
+            />
           )}
 
           <div className="flex flex-col gap-2">
