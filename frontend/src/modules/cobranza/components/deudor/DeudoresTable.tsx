@@ -51,7 +51,15 @@ import {
   tipificacionActivaDesdeHistorial,
 } from "../../services/historialTipificacionesService";
 
+import {
+  isFinalTip,
+  inicioDentroDelAnio,
+  getTipificacionEnFechaCorte,
+} from "../../services/reportes/tipificacionService";
+
 const ALL = "__ALL__";
+const ALL_ANIO = "__ALL_ANIO__";
+const CURRENT_YEAR = new Date().getFullYear();
 
 /** Timestamp-like -> Date */
 const toDateSafe = (v: any): Date | undefined => {
@@ -367,6 +375,8 @@ export default function DeudoresTable() {
 
   const [deudores, setDeudores] = useState<Deudor[]>([]);
   const [loading, setLoading] = useState(false);
+  const [startDatesAnio, setStartDatesAnio] = useState<Map<string, Date | null>>(new Map());
+  const [loadingAnio, setLoadingAnio] = useState(false);
 
   const [open, setOpen] = useState(false);
   const [deudorEditando, setDeudorEditando] = useState<Deudor | null>(null);
@@ -484,7 +494,33 @@ export default function DeudoresTable() {
     }
   }, [loading, deudores]);
 
+  // Carga las fechas de inicio de tipificaciones finales cuando se activa el filtro "Todos (año)"
+  useEffect(() => {
+    if (tipFilter !== ALL_ANIO || !clienteId || deudores.length === 0) return;
 
+    const finales = deudores.filter((d) => isFinalTip(d.tipificacion as TipificacionDeuda));
+    if (finales.length === 0) {
+      setStartDatesAnio(new Map());
+      return;
+    }
+
+    setLoadingAnio(true);
+    Promise.all(
+      finales.map(async (d) => {
+        const { startDate } = await getTipificacionEnFechaCorte(
+          clienteId,
+          d.id!,
+          new Date(),
+          d.tipificacion as TipificacionDeuda
+        );
+        return [d.id!, startDate] as [string, Date | null];
+      })
+    )
+      .then((entries) => setStartDatesAnio(new Map(entries)))
+      .catch((e) => console.error("Error cargando fechas de tipificación:", e))
+      .finally(() => setLoadingAnio(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tipFilter, clienteId, deudores]);
 
   const normalizedQ = search.trim().toLowerCase();
 
@@ -510,6 +546,14 @@ export default function DeudoresTable() {
       const tip = d.tipificacion as TipificacionDeuda;
       if (tipFilter === ALL) {
         if (EXCLUIR_EN_ACTIVOS.has(tip)) return false;
+      } else if (tipFilter === ALL_ANIO) {
+        if (tip === TipificacionDeuda.INACTIVO) return false;
+        if (isFinalTip(tip)) {
+          const startDate = startDatesAnio.get(d.id!);
+          // Si aún no cargó la fecha (undefined), excluir hasta que esté disponible
+          if (startDate === undefined) return false;
+          if (!inicioDentroDelAnio(startDate, CURRENT_YEAR)) return false;
+        }
       } else {
         if (String(tip) !== tipFilter) return false;
       }
@@ -1019,6 +1063,7 @@ export default function DeudoresTable() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={ALL}>Todos (Activos)</SelectItem>
+                    <SelectItem value={ALL_ANIO}>Todos ({CURRENT_YEAR})</SelectItem>
                     {Object.values(TipificacionDeuda).map((t) => (
                       <SelectItem key={t} value={t}>{t}</SelectItem>
                     ))}
@@ -1047,7 +1092,7 @@ export default function DeudoresTable() {
         </section>
 
         {/* TABLA */}
-        {loading ? (
+        {loading || (tipFilter === ALL_ANIO && loadingAnio) ? (
           <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
             <div className="flex flex-col items-center gap-4">
               <div className="h-12 w-12 animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary" />
