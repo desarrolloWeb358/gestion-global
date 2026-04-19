@@ -907,8 +907,8 @@ export default function AcuerdoPagoPage() {
                             )}
                             {readOnly && puedeEditar && (
                                 <Button
-                                    variant="destructive"
-                                    className="gap-2"
+                                    variant="outline"
+                                    className="gap-2 border-gray-300 text-gray-600 hover:border-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
                                     onClick={() => setOpenIncumplio(true)}
                                 >
                                     <AlertTriangle className="h-4 w-4" />
