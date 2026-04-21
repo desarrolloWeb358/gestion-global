@@ -74,6 +74,7 @@ import {
 } from "@/shared/ui/table";
 
 import { getClienteById } from "@/modules/clientes/services/clienteService";
+import { normalizeDemandados, demandadosToString } from "../../models/deudores.model";
 
 import { obtenerRecaudosMensuales, MesTotal, existeEstadoMensualClienteEnPeriodo } from "../../services/reportes/recaudosService";
 
@@ -644,7 +645,7 @@ export default function ReporteClientePage() {
 
           return {
             ubicacion: d.ubicacion || "Sin inmueble",
-            demandados: d.demandados || "",
+            demandados: demandadosToString(normalizeDemandados(d.demandados)),
             numeroRadicado: d.numeroRadicado || "",
             juzgado: d.juzgado || "",
             observacionCliente: d.observacionCliente || "",

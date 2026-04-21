@@ -19,6 +19,7 @@ import {
 import { buildHeaderGG, buildFooterGG, cm, formatCOP, formatFechaLargaES } from "./helperWord";
 
 import numeroALetras from "@/shared/numeroALetras";
+import { normalizeDemandados, demandadosToString } from "../../models/deudores.model";
 
 const PURPLE = "4F46E5";
 const LIGHT = "EEF2FF";
@@ -505,7 +506,7 @@ function buildProcesoDemandaCard(input: {
   observacionCliente?: string;
 }) {
   const ubicacion = input.ubicacion || "SIN INMUEBLE";
-  const demandados = (input.demandados || "").trim() || "-";
+  const demandados = (input.demandados || "").trim() || "-"; // ya viene como string desde el caller
   const radicado = (input.numeroRadicado || "").trim() || "-";
   const juzgado = (input.juzgado || "").trim() || "-";
 
@@ -1492,7 +1493,7 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
     input.demandas.forEach((d) => {
       const blocks = buildProcesoDemandaCard({
         ubicacion: d.ubicacion || "Sin inmueble",
-        demandados: d.demandados || "",
+        demandados: demandadosToString(normalizeDemandados(d.demandados)),
         numeroRadicado: d.numeroRadicado || "",
         juzgado: d.juzgado || "",
         seguimientos: d.seguimientos || [],

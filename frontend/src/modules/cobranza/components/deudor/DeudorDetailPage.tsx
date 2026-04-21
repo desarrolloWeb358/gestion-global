@@ -22,6 +22,7 @@ import {
   Gavel,
   Hash,
   MapPin,
+  Scale,
 } from "lucide-react";
 
 import { getDeudorById, vincularDeudorConUsuario } from "../../services/deudorService";
@@ -748,6 +749,32 @@ export default function DeudorDetailPage() {
                     </Typography>
                     <Typography variant="small">
                       Observaciones registradas por el deudor
+                    </Typography>
+                  </div>
+                </button>
+              )}
+
+              {/* Información de la Demanda — solo cuando tipificación es tipo demanda */}
+              {(deudor.tipificacion === TipificacionDeuda.DEMANDA ||
+                deudor.tipificacion === TipificacionDeuda.DEMANDA_ACUERDO ||
+                (deudor.tipificacion as string) === "DEMANDA_TERMINADO" ||
+                (deudor.tipificacion as string) === "DEMANDA_INSOLVENCIA") && (
+                <button
+                  onClick={() =>
+                    navigate(`/clientes/${clienteId}/deudores/${deudor.id}/informacion-demanda`)
+                  }
+                  className="group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-5 text-left transition-all hover:border-red-500 hover:shadow-lg hover:-translate-y-1"
+                >
+                  <div className="absolute top-0 right-0 h-20 w-20 translate-x-8 -translate-y-8 rounded-full bg-red-500/5 transition-transform group-hover:scale-150" />
+                  <div className="relative">
+                    <div className="mb-3 inline-flex rounded-lg bg-red-500/10 p-3 transition-colors group-hover:bg-red-500/20">
+                      <Scale className="h-5 w-5 text-red-600" />
+                    </div>
+                    <Typography variant="h3" className="!text-brand-secondary mb-1 text-base">
+                      Información de la demanda
+                    </Typography>
+                    <Typography variant="small">
+                      Juzgado, radicado, demandados y datos judiciales.
                     </Typography>
                   </div>
                 </button>

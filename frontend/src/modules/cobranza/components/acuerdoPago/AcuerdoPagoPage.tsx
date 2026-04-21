@@ -34,7 +34,8 @@ import numeroALetras from "@/shared/numeroALetras";
 import type { AcuerdoPago, CuotaAcuerdo } from "@/modules/cobranza/models/acuerdoPago.model";
 import { generarTablaAcuerdo } from "@/modules/cobranza/lib/generarTablaAcuerdo";
 import TablaAmortizacionEditable from "./TablaAmortizacionEditable";
-import { descargarAcuerdoPagoWord } from "@/modules/cobranza/services/acuerdoPagoWordService";
+import { descargarAcuerdoPagoWord, descargarAcuerdoPagoDemandaWord } from "@/modules/cobranza/services/acuerdoPagoWordService";
+import { normalizeDemandados, type DemandadoItem } from "@/modules/cobranza/models/deudores.model";
 
 import {
     obtenerAcuerdoActual,
@@ -90,6 +91,13 @@ type DatosWord = {
     deudorUbicacion?: string;
     deudorEmails?: string[];
     deudorTelefonos?: string[];
+
+    // Demanda
+    tipificacion?: string;
+    demandados?: DemandadoItem[] | string;
+    numeroRadicado?: string;
+    juzgado?: string;
+    localidad?: string;
 };
 
 function toDateSafe(v: any): Date {
@@ -373,7 +381,9 @@ export default function AcuerdoPagoPage() {
             const deudorEmail = String(deudorEmailsArr[0] || "").trim();
             const deudorCelular = String(deudorTelefonosArr[0] || "").trim();
 
-            await descargarAcuerdoPagoWord({
+            const esDemanda = String(datosWord.tipificacion || "").startsWith("Demanda");
+
+            const wordPayload = {
                 ciudadFirma: "Bogotá D.C.",
                 fechaFirma: form.fechaAcuerdo,
 
@@ -405,7 +415,19 @@ export default function AcuerdoPagoPage() {
                 canalSoportesTexto: "Enviar soporte de pago al email XXXXX o al WhatsApp XXXXX de manera inmediata.",
 
                 detalles: form.detalles,
-            });
+            };
+
+            if (esDemanda) {
+                await descargarAcuerdoPagoDemandaWord({
+                    ...wordPayload,
+                    demandados: datosWord.demandados,
+                    numeroRadicado: datosWord.numeroRadicado,
+                    juzgado: datosWord.juzgado,
+                    localidad: datosWord.localidad,
+                });
+            } else {
+                await descargarAcuerdoPagoWord(wordPayload);
+            }
 
             toast.success("Word generado correctamente");
         } catch (e) {
@@ -451,6 +473,12 @@ export default function AcuerdoPagoPage() {
             .map((x: any) => String(x || "").trim())
             .filter((x: string) => x.length > 0);
 
+        const tipificacion = String(dd?.tipificacion || "").trim();
+        const demandados = normalizeDemandados(dd?.demandados);
+        const numeroRadicado = String(dd?.numeroRadicado || "").trim();
+        const juzgado = String(dd?.juzgado || "").trim();
+        const localidad = String(dd?.localidad || "").trim();
+
         // -------- Cliente --------
         const clienteRef = doc(db, `clientes/${clienteId}`);
         const clienteSnap = await getDoc(clienteRef);
@@ -477,6 +505,11 @@ export default function AcuerdoPagoPage() {
             deudorUbicacion,
             deudorEmails,
             deudorTelefonos,
+            tipificacion,
+            demandados,
+            numeroRadicado,
+            juzgado,
+            localidad,
         });
     };
 

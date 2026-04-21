@@ -18,6 +18,7 @@ import {
 
 import type { IRunOptions, IParagraphOptions } from "docx";
 import type { CuotaAcuerdo } from "@/modules/cobranza/models/acuerdoPago.model";
+import { normalizeDemandados, type DemandadoItem } from "@/modules/cobranza/models/deudores.model";
 
 import {
   buildFooterGG,
@@ -866,4 +867,375 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
   const fileName = `Acuerdo_Pago_${(input.numeroAcuerdo || "SIN_NUMERO").replace(/\s+/g, "_")}.docx`;
   saveDocx(blob, fileName);
 
+}
+
+// =====================
+// Tipo para acuerdo demanda
+// =====================
+export type AcuerdoPagoDemandaWordInput = AcuerdoPagoWordInput & {
+  demandados?: DemandadoItem[] | string;
+  numeroRadicado?: string;
+  juzgado?: string;
+  localidad?: string;
+};
+
+// =====================
+// Export para tipificación DEMANDA
+// =====================
+export async function descargarAcuerdoPagoDemandaWord(input: AcuerdoPagoDemandaWordInput) {
+  const branding: GGBrandingOptions = {
+    footerDireccion: input.footerDireccion,
+    footerTelefonos: input.footerTelefonos,
+    footerEmail: input.footerEmail,
+    footerWeb: input.footerWeb,
+  };
+
+  const header = await buildHeaderGG(branding);
+  const footer = buildFooterGG(branding);
+
+  const empresaNombre = input.empresaNombre ?? "GESTION GLOBAL ACG S.A.S";
+  const empresaNit = input.empresaNit ?? "901.662.783-7";
+  const empresaRepresentante = input.empresaRepresentante ?? "XXXXX";
+
+  const formaPago = input.formaPago ?? "XXXXX";
+
+  const fechaFirma = input.fechaFirma ?? new Date();
+
+  const total = input.totalAcordado ?? input.capitalInicial ?? 0;
+  const totalLetras = input.totalAcordadoLetras;
+
+  const deudorUbicacion = input.deudorUbicacion;
+  const deudorDireccion = input.deudorDireccion;
+
+  const acreedor = input.entidadAcreedoraNombre;
+  const acreedorDir = input.entidadAcreedoraDireccion;
+
+  const deudor = input.deudorNombre?.toUpperCase();
+
+  // Construir string de demandados separados por " / " (para el título)
+  const demandadosItems = normalizeDemandados(input.demandados);
+  const demandadosNombres =
+    demandadosItems.length > 0
+      ? demandadosItems.map((d) => d.nombre.trim().toUpperCase()).filter(Boolean).join(" / ")
+      : (deudor || "XXXXX (NOMBRE DEMANDADO)");
+
+  // Construir runs del párrafo intro para cada demandado del array
+  const demandadosIntroRuns: TextRun[] = [];
+  if (demandadosItems.length === 0) {
+    demandadosIntroRuns.push(rRed("XXXXX (NOMBRE(S) DEMANDADO(S))"));
+    demandadosIntroRuns.push(r(", "));
+  } else {
+    demandadosItems.forEach((d, idx) => {
+      const isLast = idx === demandadosItems.length - 1;
+      if (isLast && demandadosItems.length > 1) {
+        demandadosIntroRuns.push(r("y el señor "));
+      }
+      demandadosIntroRuns.push(rBold(d.nombre.trim().toUpperCase() || "XXXXX"));
+      demandadosIntroRuns.push(r(", identificad(a) con cedula de ciudadanía No. "));
+      demandadosIntroRuns.push(
+        d.numeroDocumento.trim() ? rBold(d.numeroDocumento.trim()) : rRed("XXXXX (DOC)")
+      );
+      demandadosIntroRuns.push(r(" de Bogotá, "));
+    });
+  }
+
+  // Runs solo con nombres (sin doc) separados por ", " y el último con " y "
+  const demandadosNombresRuns: TextRun[] = [];
+  if (demandadosItems.length === 0) {
+    demandadosNombresRuns.push(rRed("XXXXX (NOMBRE(S) DEMANDADO(S))"));
+  } else if (demandadosItems.length === 1) {
+    demandadosNombresRuns.push(rBold(demandadosItems[0].nombre.trim().toUpperCase()));
+  } else {
+    demandadosItems.forEach((d, idx) => {
+      const isLast = idx === demandadosItems.length - 1;
+      if (isLast) {
+        demandadosNombresRuns.push(r(" y "));
+      } else if (idx > 0) {
+        demandadosNombresRuns.push(r(", "));
+      }
+      demandadosNombresRuns.push(rBold(d.nombre.trim().toUpperCase()));
+    });
+  }
+
+  const doc = new Document({
+    sections: [
+      {
+        properties: {
+          page: {
+            size: { width: 12240, height: 15840 },
+            margin: { top: cm(2), bottom: cm(2), left: cm(3), right: cm(2) },
+          },
+        },
+        headers: { default: header },
+        footers: { default: footer },
+        children: [
+          new Paragraph({ text: "", spacing: { before: 120 } }),
+
+          // ===== TITULOS — usa demandadosNombres en lugar de deudor =====
+          pCenterText("ACUERDO DE PAGO CELEBRADO", 14, true),
+          pCenterText(`ENTRE ${empresaNombre}`, 14, true),
+          pCenterText(`Y ${demandadosNombres}`, 14, true),
+
+          new Paragraph({ text: "", spacing: { after: 260 } }),
+
+          // ===== INTRO =====
+          pJustify([
+            r("Entre los suscritos a saber por una parte "),
+            rBold(empresaNombre),
+            r(" actuando como apoderado(a) judicial de la copropiedad "),
+            valOrRedBold(acreedor, "XXXXX (NOMBRE CONJUNTO / CLIENTE)"),
+            r(", dentro del Proceso Ejecutivo No. "),
+            isMissing(input.numeroRadicado) ? rRed("XXXXX (No. RADICADO)") : rBold(input.numeroRadicado!),
+            r(" del Juzgado "),
+            isMissing(input.juzgado) ? rRed("XXXXX (JUZGADO)") : rBold(input.juzgado!),
+            r(" de "),
+            isMissing(input.localidad) ? rRed("XXXXX (LOCALIDAD)") : rBold(input.localidad!),
+            r(" y por otra parte "),
+            ...demandadosIntroRuns,
+            r("personas mayores de edad quienes en adelante se denominarán los "),
+            rBold("DEUDORES"),
+            r(", hemos convenido celebrar el presente "),
+            rBold("ACUERDO DE PAGO"),
+            r(", que en adelante se regirá por las cláusulas que a continuación se enuncian, previas las siguientes"),
+          ]),
+
+          sectionTitle("CONSIDERACIONES:"),
+
+          pJustify([
+            r("Que los señores "),
+            ...demandadosNombresRuns,
+            r(", adeuda acreencias a favor de la copropiedad "),
+            valOrRedBold(acreedor, "XXXXX (NOMBRE CONJUNTO / CLIENTE)"),
+            r(", por valor de "),
+            rBold(formatCOP(total)),
+            r("("),
+            isMissing(totalLetras) ? rRed("XXXXX (VALOR EN LETRAS)") : rBold(String(totalLetras)),
+            r("). Conforme al estado de deuda bajado directamente del sistema a la fecha "),
+            isMissing(input.fechaEstadoDeuda)
+              ? rRed("XXXXX (FECHA)")
+              : rBold(formatDateDDMMYYYY(input.fechaEstadoDeuda!)),
+            r(", el cual forma parte de este documento."),
+          ]),
+
+          pJustify([
+            r("Que la anterior suma de dinero corresponde a las cuotas vencidas de las expensas de administración, intereses de mora, honorarios y demás Ítems, causados del inmueble "),
+            valOrRedBold(deudorUbicacion, "XXXXX (TORRE/APTO o CASA)"),
+            r(" "),
+            valOrRedBold(acreedor, "XXXXX (NOMBRE CONJUNTO / CLIENTE)"),
+            r(", ubicado en la "),
+            valOrRedBold(acreedorDir, "XXXXX (DIRECCIÓN INMUEBLE)"),
+            r("."),
+          ]),
+
+          pJustify([
+            r("Que en virtud de lo anterior y con el fin de resolver el inconveniente presentado de manera amigable "),
+            rBold(empresaNombre),
+            r(", de una parte y por otra parte "),
+            valOrRedBold(deudor, "XXXXX (NOMBRE DEUDOR)"),
+            r(", hemos acordado celebrar el presente acuerdo de pago, que se regirá en especial por las siguientes:"),
+          ]),
+
+          sectionTitle("CLAUSULAS:"),
+
+          pJustify([
+            rBold("CLÁUSULA PRIMERA. - OBJETO: "),
+            r("El presente acuerdo tiene como objeto principal, facilitar a EL DEUDOR, el pago de las obligaciones a favor de la Propiedad Horizontal por valor de "),
+            rBold(formatCOP(total)),
+            r("("),
+            isMissing(totalLetras) ? rRed("XXXXX (VALOR EN LETRAS)") : rBold(String(totalLetras)),
+            r("). Frente a lo cual asume desde ya los compromisos y obligaciones contenidos en este acuerdo."),
+          ]),
+
+          pJustify([
+            rBold("CLÁUSULA SEGUNDA. - FACILIDAD DE PAGO DE LAS OBLIGACIONES: "),
+            r("Las condiciones de pago objeto del presente acuerdo, son las siguientes:"),
+          ]),
+
+          pJustify([
+            rBold("LA SUMA DE "),
+            rBold(formatCOP(total)),
+            r("("),
+            isMissing(totalLetras) ? rRed("XXXXX (VALOR EN LETRAS)") : rBold(String(totalLetras)),
+            r("). "),
+            r("Serán cancelados por el DEUDOR a la copropiedad "),
+            valOrRedBold(acreedor, "XXXXX (NOMBRE CONJUNTO / CLIENTE)"),
+            r(", según tabla de amortización."),
+          ]),
+
+          new Paragraph({ text: "", spacing: { after: 120 } }),
+          new Paragraph({ text: "", spacing: { after: 120 } }),
+          new Paragraph({ text: "", spacing: { after: 120 } }),
+
+          // TABLA AMORTIZACION
+          ...(input.cuotas?.length
+            ? (() => {
+                const { mainTable } = buildAmortTableExcelStyle(input);
+                return [
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER,
+                    spacing: { before: 120, after: 180 },
+                    children: [
+                      new TextRun({
+                        text: "TABLA DE AMORTIZACIÓN SEGÚN ACUERDO EXTRAPROCESO",
+                        font: FONT,
+                        bold: true,
+                        size: 30,
+                      }),
+                    ],
+                  }),
+                  mainTable,
+                  new Paragraph({ text: "", spacing: { after: 180 } }),
+                ];
+              })()
+            : [p([rRed("XXXXX (Aca va la tabla de amortización - NO HAY CUOTAS)")])]),
+
+          new Paragraph({ text: "", spacing: { after: 180 } }),
+
+          pJustify([
+            rBold("PARÁGRAFO 1: "),
+            r("LAS CUOTAS PACTADAS EN EL PRESENTE ACUERDO DEBERÁ SER CONSIGNADA ASÍ:"),
+          ]),
+
+          new Paragraph({
+            alignment: AlignmentType.JUSTIFIED,
+            bullet: { level: 0 },
+            spacing: { after: 180, line: 240 },
+            children: [
+              rBold("CUOTA ACUERDO DE PAGO "),
+              valOrRedBold(formaPago?.toUpperCase(), " CONSIGNACION "),
+              rBold(" ("),
+              valOrRedBold(acreedor?.toUpperCase(), "XXXXX (NOMBRE CONJUNTO)"),
+              rBold(") Y HACER LLEGAR DE MANERA INMEDIATA AL EMAIL carterazona1@gestionglobalacg.com O AL WHATSAPP "),
+              rBold(" XXXXXX "),
+              rBold(" COPIA DE CADA UNA DE LAS CONSIGNACIONES QUE SE REALICEN DENTRO DE ESTE ACUERDO."),
+            ],
+          }),
+
+          pJustify([
+            r("PARÁGRAFO 2: ", { bold: true, underline: {} }),
+            r("ALTERNAMENTE Y AL CUMPLIMIENTO DE ESTE ACUERDO SE DEBE SEGUIR DANDO CANCELACIÓN A LAS CUOTAS DE ADMINISTRACIÓN MENSUAL Y CONFORME A LOS INCREMENTOS ANUALES QUE ESTABLEZCAN LAS LEYES NACIONALES", { bold: true, underline: {} }),
+          ]),
+
+          pJustify([
+            rBold("CLÁUSULA TERCERA. CONDICIÓN RESOLUTORIA: "),
+            r("En el evento en que EL DEUDOR incumpla el pago de una cualquiera de las cuotas previstas en este acuerdo, la Propiedad Horizontal representada por el Abogado que designe, podrá declarar de plazo vencido todas y cada una de las obligaciones que adicionalmente tenga a nuestro cargo el DEUDOR, aun cuando respecto de ellas se hubiera pactado algún plazo para su exigibilidad y el mismo estuviera pendiente."),
+          ]),
+
+          pJustify([
+            rBold("PARÁGRAFO: "),
+            r("El presente acuerdo no significa novación, ni transacción de las obligaciones respectivas, ni desistimiento de La Propiedad Horizontal de las acciones judiciales que se deban iniciar para la recuperación de las obligaciones a cargo del deudor."),
+          ]),
+
+          pJustify([
+            rBold("CLAUSULA CUARTA. CESIONES: "),
+            r("La Propiedad Horizontal podrá ceder en cualquier tiempo y a cualquier título las obligaciones que regulan este acuerdo, así como las garantías a ella concedidas, sin necesidad de notificación alguna a EL DEUDOR. Para el efecto, bastará que la Propiedad Horizontal informe por escrito a EL DEUDOR sobre esta circunstancia a la dirección adelante indicada."),
+          ]),
+
+          pJustify([
+            rBold("CLÁUSULA QUINTA. MODIFICACIONES: "),
+            r("En caso de que el deudor llegue a aumentar su capacidad de pago, las sumas aquí adeudadas se plasmarán por escrito; el cual será anexo al presente acuerdo. Cualquier otra modificación a este ACUERDO DE PAGO deberá constar por escrito y sólo será válida y obligatoria en cuanto sea suscrita por las partes o sus apoderados debidamente constituidos."),
+          ]),
+
+          pJustify([
+            rBold("CLÁUSULA SEXTA. AUTORIZACIÓN: "),
+            r("En mi calidad de titular de información, actuando libre y voluntariamente, autorizo de manera expresa e irrevocable a la copropiedad "),
+            valOrRedBold(acreedor, "XXXXX (NOMBRE CONJUNTO / CLIENTE)"),
+            r(", o quien represente sus derechos, a consultar, suministrar, reportar, procesar y divulgar toda la información que se requiera a mi comportamiento crediticio, financiero, comercial de servicios y de terceros países de la misma naturaleza a la central de información DATACREDITO- CIFIN, que administra la asociación bancaria y de entidades financieras de Colombia, o quien represente sus derechos."),
+          ]),
+
+          pJustify([
+            rBold("CLÁUSULA SEPTIMA. MÉRITO EJECUTIVO. "),
+            r("Para todos sus efectos el presente acuerdo presta mérito ejecutivo y en consecuencia el deudor renuncia a cualquier clase de requerimiento o constitución en mora previa de cualquier índole bien sea este judicial, privada o administrativa."),
+          ]),
+
+          pJustify([
+            rBold("CLAUSULA OCTAVA. COMUNICACIONES: "),
+            r("Para efectos de las comunicaciones a que haya lugar en virtud del presente Acuerdo, las direcciones son las siguientes: la Propiedad Horizontal las recibirá en la "),
+            valOrRedBold(acreedorDir, "XXXXX (DIRECCIÓN ADMINISTRACIÓN / SEDE)"),
+            r(" y "),
+            valOrRedBold(deudor, "XXXXX (NOMBRE DEUDOR)"),
+            r(" del inmueble "),
+            valOrRedBold(deudorUbicacion, "XXXXX (TORRE/APTO o CASA)"),
+            r(" celular "),
+            valOrRedBold(input.deudorCelular, "XXXXX (CELULAR)"),
+            r(" y correo electrónico "),
+            valOrRedBold(input.deudorEmail, "XXXXX (EMAIL)"),
+          ]),
+
+          pJustify([r("Los cambios de direcciones serán informados por escrito.")]),
+
+          pJustify([
+            rBold("CLAUSULA NOVENA. PAZ Y SALVO: "),
+            r("Una vez cumplida la totalidad del presente acuerdo, las partes firmantes se declararán a paz y salvo y se abstendrán mutuamente de iniciar cualquier acción judicial o administrativa, respecto a las obligaciones aquí pactadas."),
+          ]),
+
+          pJustify([
+            rBold("CLAUSULA DÉCIMA. DOMICILIO CONTRACTUAL: "),
+            r("Para todos los efectos el domicilio del presente contrato es en la ciudad de Bogotá D.C."),
+          ]),
+
+          new Paragraph({ text: "", spacing: { after: 220 } }),
+
+          pJustify([
+            r("En constancia se suscribe el presente acuerdo de pago en la ciudad de Bogotá D.C., "),
+            r("a los "),
+            rBold(String(fechaFirma.getDate())),
+            r(" días del mes de "),
+            rBold(fechaFirma.toLocaleString("es-CO", { month: "long" })),
+            r(" de "),
+            rBold(String(fechaFirma.getFullYear())),
+            r("."),
+          ]),
+
+          new Paragraph({ text: "", spacing: { after: 320 } }),
+
+          p([rBold("EL DEUDOR,")]),
+          new Paragraph({ text: "", spacing: { after: 220 } }),
+
+          new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            layout: TableLayoutType.FIXED,
+            rows: [
+              new TableRow({
+                children: [
+                  new TableCell({
+                    width: { size: 9000, type: WidthType.DXA },
+                    borders: noBorders(),
+                    verticalAlign: VerticalAlign.TOP,
+                    children: [
+                      new Paragraph({ text: "", spacing: { after: 1800 } }),
+                      p([valOrRedBold(deudor, "XXXXX (NOMBRE DEUDOR)")]),
+                      p([
+                        r("C.C No. "),
+                        valOrRedBold(input.deudorDocumento, "XXXXX (CÉDULA)"),
+                        r(" de "),
+                        valOrRedBold(input.deudorCiudadDoc, "XXXXX (CIUDAD)"),
+                        r("."),
+                      ]),
+                    ],
+                  }),
+                ],
+              }),
+            ],
+          }),
+
+          new Paragraph({ text: "", spacing: { after: 600 } }),
+
+          p([rBold("EL ACREEDOR,")]),
+          new Paragraph({ text: "", spacing: { after: 200 } }),
+
+          ...(await buildFirmaAcreedor({
+            nombre: empresaRepresentante,
+            cargo: "Representante Legal",
+            empresa: empresaNombre,
+            nit: empresaNit,
+          })),
+        ],
+      },
+    ],
+  });
+
+  const blob = await Packer.toBlob(doc);
+  const fileName = `Acuerdo_Pago_Demanda_${(input.numeroAcuerdo || "SIN_NUMERO").replace(/\s+/g, "_")}.docx`;
+  saveDocx(blob, fileName);
 }

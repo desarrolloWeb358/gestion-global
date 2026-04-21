@@ -42,6 +42,7 @@ import AuthLayout from "./modules/auth/components/AuthLayout";
 import ClienteSeguimiento from "./modules/cobranza/components/observaciones/ClienteSeguimiento";
 import ObservacionesDeudorPage from "./modules/cobranza/components/observaciones/ObservacionesDeudorPage";
 import RegistrosEliminadosPage from "./modules/registrosEliminados/components/RegistrosEliminadosPage";
+import InformacionDemandaPage from "./modules/cobranza/components/seguimiento/InformacionDemandaPage";
 
 
 export default function App() {
@@ -92,6 +93,7 @@ export default function App() {
             <Route path="/valores-agregados/:clienteId" element={<ValoresAgregadosTable />} />
             <Route path="/clientes/:clienteId/valores-agregados/:valorId" element={<ValorAgregadoDetailPage />} />
             <Route path="/clientes/:clienteId/deudores/:deudorId/AcuerdoPago" element={<AcuerdoPagoPage />} />
+            <Route path="/clientes/:clienteId/deudores/:deudorId/informacion-demanda" element={<InformacionDemandaPage />} />
 
             {/* Dashboards por rol */}
             <Route path="/dashboard/admin" element={<AdminDashboardPage />} />

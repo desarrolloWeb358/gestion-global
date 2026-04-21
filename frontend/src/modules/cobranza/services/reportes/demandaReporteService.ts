@@ -17,6 +17,7 @@ import {
   inicioDentroDelAnio,
   isFinalTip,
 } from "./tipificacionService"; // ajusta ruta si es diferente
+import { normalizeDemandados, demandadosToString } from "../../models/deudores.model";
 
 export type SeguimientoDemandaItem = {
   id: string;
@@ -124,7 +125,7 @@ export async function obtenerDemandasConSeguimientoCliente(
   const itemsAll = await Promise.all(
     deudoresDemanda.map(async ({ id, data, tipificacion }) => {
       const ubicacion = String(data.ubicacion ?? "");
-      const demandados = String(data.demandados ?? "");
+      const demandados = demandadosToString(normalizeDemandados(data.demandados));
       const numeroRadicado = String(data.numeroRadicado ?? "");
       const juzgado = String(data.juzgado ?? "");
       const observacionCliente = String(data.observacionesDemandaCliente ?? "");
