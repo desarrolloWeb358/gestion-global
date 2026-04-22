@@ -27,6 +27,12 @@ import ReporteClientePage from "./modules/cobranza/components/reportes/ReporteCl
 import ValorAgregadoDetailPage from "./modules/valoresAgregados/components/ValorAgregadoDetailPage";
 import ValoresAgregadosTable from "./modules/valoresAgregados/components/ValoresAgregadosTable";
 
+// WhatsApp
+import NumberSelectPage from "./modules/whatsapp/components/NumberSelectPage";
+import WhatsAppLayout from "./modules/whatsapp/components/WhatsAppLayout";
+import TemplatesPage from "./modules/whatsapp/components/TemplatesPage";
+import SendWhatsAppPage from "./modules/whatsapp/components/SendWhatsAppPage";
+
 // Dashboards
 import AdminDashboardPage from "@/modules/dashboard/pages/AdminDashboardPage";
 import EjecutivoDashboardPage from "@/modules/dashboard/pages/EjecutivoDashboardPage";
@@ -94,6 +100,13 @@ export default function App() {
             <Route path="/clientes/:clienteId/valores-agregados/:valorId" element={<ValorAgregadoDetailPage />} />
             <Route path="/clientes/:clienteId/deudores/:deudorId/AcuerdoPago" element={<AcuerdoPagoPage />} />
             <Route path="/clientes/:clienteId/deudores/:deudorId/informacion-demanda" element={<InformacionDemandaPage />} />
+
+            {/* WhatsApp */}
+            <Route path="/whatsapp" element={<NumberSelectPage />} />
+            <Route path="/whatsapp/:numberId" element={<WhatsAppLayout />} />
+            <Route path="/whatsapp/:numberId/:convId" element={<WhatsAppLayout />} />
+            <Route path="/whatsapp/:numberId/templates" element={<TemplatesPage />} />
+            <Route path="/clientes/:clienteId/deudores/:deudorId/enviar-whatsapp" element={<SendWhatsAppPage />} />
 
             {/* Dashboards por rol */}
             <Route path="/dashboard/admin" element={<AdminDashboardPage />} />

@@ -12,6 +12,12 @@ import {
   Calendar as CalendarIcon,
   FileText,
   Filter as FilterIcon,
+  Users,
+  Building2,
+  MapPin,
+  Hash,
+  Plus,
+  ChevronDown,
 } from "lucide-react";
 
 import { Button } from "@/shared/ui/button";
@@ -40,7 +46,7 @@ import { Typography } from "@/shared/design-system/components/Typography";
 import { cn } from "@/shared/lib/cn";
 import { PERMS, type Rol, type Perm } from "@/shared/constants/acl";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
-import { Deudor } from "../../models/deudores.model";
+import { Deudor, normalizeDemandados, type DemandadoItem } from "../../models/deudores.model";
 import { ExpandableCell } from "@/shared/components/expandable-cell";
 import { useUnsavedChanges } from "@/shared/hooks/useUnsavedChanges";
 
@@ -156,6 +162,16 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
 
   const [esInterno, setEsInterno] = React.useState<boolean>(false);
 
+  // Estado para información de la demanda
+  const [demandados, setDemandados] = React.useState<DemandadoItem[]>([]);
+  const [infoDemanda, setInfoDemanda] = React.useState({
+    juzgado: "",
+    numeroRadicado: "",
+    localidad: "",
+  });
+  const [savingInfo, setSavingInfo] = React.useState(false);
+  const [infoDemandaAbierta, setInfoDemandaAbierta] = React.useState(false);
+
   useUnsavedChanges(open);
 
   const resetForm = () => {
@@ -198,6 +214,12 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
       setObsInterna((data as any).observacionesDemanda ?? "");
       setObsCliente((data as any).observacionesDemandaCliente ?? "");
       setFechaUltimaRevision(toDateInputValue((data as any).fechaUltimaRevision));
+      setDemandados(normalizeDemandados((data as any)?.demandados));
+      setInfoDemanda({
+        juzgado: (data as any)?.juzgado ?? "",
+        numeroRadicado: (data as any)?.numeroRadicado ?? "",
+        localidad: (data as any)?.localidad ?? "",
+      });
     } catch {
       toast.error("⚠️ Error cargando observaciones");
     } finally {
@@ -337,9 +359,48 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
     }
   };
 
+  const addDemandado = () =>
+    setDemandados((prev) => [...prev, { nombre: "", numeroDocumento: "" }]);
+
+  const removeDemandado = (idx: number) =>
+    setDemandados((prev) => prev.filter((_, i) => i !== idx));
+
+  const updateDemandadoField = (idx: number, field: keyof DemandadoItem, value: string) =>
+    setDemandados((prev) =>
+      prev.map((item, i) => (i === idx ? { ...item, [field]: value } : item))
+    );
+
+  const handleGuardarInfoDemanda = async () => {
+    if (!clienteId || !deudorId || !puedeEditar) return;
+    try {
+      setSavingInfo(true);
+      const deudorRef = doc(db, `clientes/${clienteId}/deudores/${deudorId}`);
+      const demandadosLimpios = demandados.filter((d) => d.nombre.trim());
+      const payload: Record<string, any> = {
+        demandados: demandadosLimpios,
+        juzgado: infoDemanda.juzgado || "",
+        numeroRadicado: infoDemanda.numeroRadicado || "",
+        localidad: infoDemanda.localidad || "",
+        fechaActualizacion: serverTimestamp(),
+      };
+      if (fechaUltimaRevision) {
+        payload.fechaUltimaRevision =
+          parseLocalYmd(fechaUltimaRevision) ?? new Date(fechaUltimaRevision);
+      } else {
+        payload.fechaUltimaRevision = null;
+      }
+      await updateDoc(deudorRef, payload);
+      toast.success("✓ Información de la demanda guardada");
+    } catch {
+      toast.error("⚠️ No se pudo guardar la información");
+    } finally {
+      setSavingInfo(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
-      {savingObs && (
+      {(savingObs || savingInfo) && (
         <div className="fixed inset-0 z-[1000] bg-black/40 backdrop-blur-sm flex items-center justify-center">
           <div className="rounded-xl bg-white shadow-lg px-6 py-5 flex items-center gap-3">
             <div className="h-5 w-5 animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary" />
@@ -348,6 +409,176 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
             </Typography>
           </div>
         </div>
+      )}
+
+      {/* Información de la demanda */}
+      {!loadingObs && puedeEditar && (
+        <section className="rounded-2xl border border-red-200 bg-white shadow-sm overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setInfoDemandaAbierta((v) => !v)}
+            className="w-full bg-gradient-to-r from-red-50 to-orange-50 p-4 md:p-5 flex items-center justify-between hover:from-red-100 hover:to-orange-100 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Gavel className="h-5 w-5 text-red-600" />
+              <Typography variant="h3" className="!text-red-700 font-semibold">
+                Datos de la demanda
+              </Typography>
+            </div>
+            <ChevronDown
+              className={cn(
+                "h-5 w-5 text-red-600 transition-transform duration-200",
+                infoDemandaAbierta && "rotate-180"
+              )}
+            />
+          </button>
+
+          {infoDemandaAbierta && (
+          <div className="p-4 md:p-5 space-y-6">
+            {/* Lista de demandados */}
+            <div className="space-y-3">
+              <Label className="text-brand-secondary font-medium flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Demandados
+              </Label>
+
+              {demandados.length === 0 && (
+                <p className="text-sm text-muted-foreground py-2">
+                  Agrega al menos un demandado.
+                </p>
+              )}
+
+              <div className="space-y-2">
+                {demandados.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-start gap-2 p-3 rounded-lg border border-brand-secondary/15 bg-brand-primary/[0.02]"
+                  >
+                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground font-medium">Nombre completo</p>
+                        <Input
+                          placeholder="Ej: Juan Pérez Gómez"
+                          value={item.nombre}
+                          onChange={(e) => updateDemandadoField(idx, "nombre", e.target.value)}
+                          className="border-brand-secondary/30"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground font-medium">Número de documento</p>
+                        <Input
+                          placeholder="Ej: 12345678"
+                          value={item.numeroDocumento}
+                          onChange={(e) => updateDemandadoField(idx, "numeroDocumento", e.target.value)}
+                          className="border-brand-secondary/30"
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeDemandado(idx)}
+                      className="hover:bg-red-50 mt-5 shrink-0"
+                    >
+                      <Trash2 className="h-4 w-4 text-red-500" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={addDemandado}
+                className="gap-2 border-brand-secondary/30 mt-1"
+              >
+                <Plus className="h-4 w-4" />
+                Agregar demandado
+              </Button>
+            </div>
+
+            {/* Campos juzgado, radicado, localidad, fecha revisión */}
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label className="text-brand-secondary font-medium flex items-center gap-2">
+                  <Building2 className="h-4 w-4" />
+                  Juzgado
+                </Label>
+                <Input
+                  value={infoDemanda.juzgado}
+                  onChange={(e) => setInfoDemanda((s) => ({ ...s, juzgado: e.target.value }))}
+                  className="border-brand-secondary/30"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-brand-secondary font-medium flex items-center gap-2">
+                  <Hash className="h-4 w-4" />
+                  Número de radicado
+                </Label>
+                <Input
+                  value={infoDemanda.numeroRadicado}
+                  onChange={(e) => setInfoDemanda((s) => ({ ...s, numeroRadicado: e.target.value }))}
+                  className="border-brand-secondary/30"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-brand-secondary font-medium flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  Localidad
+                </Label>
+                <Input
+                  value={infoDemanda.localidad}
+                  onChange={(e) => setInfoDemanda((s) => ({ ...s, localidad: e.target.value }))}
+                  className="border-brand-secondary/30"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-brand-secondary font-medium flex items-center gap-2">
+                  <CalendarIcon className="h-4 w-4" />
+                  Fecha última revisión
+                </Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal border-brand-secondary/30",
+                        !fechaUltimaRevision && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {fechaUltimaRevision ? formatEs(fechaUltimaRevision) : "Seleccionar fecha"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={fechaUltimaRevision ? parseLocalYmd(fechaUltimaRevision) : undefined}
+                      onSelect={(d) => setFechaUltimaRevision(d ? d.toISOString().slice(0, 10) : "")}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <Button
+                onClick={handleGuardarInfoDemanda}
+                disabled={savingInfo}
+                variant="brand"
+                className="gap-2 shadow-md hover:shadow-lg transition-all"
+              >
+                <Save className="h-4 w-4" />
+                {savingInfo ? "Guardando..." : "Guardar cambios"}
+              </Button>
+            </div>
+          </div>
+          )}
+        </section>
       )}
 
       {/* Filtros */}

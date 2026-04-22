@@ -79,6 +79,10 @@ export const PERMS = {
   ReporteCliente_Download_Pdf: "reporteCliente.download.pdf",
 
   RegistrosEliminados_Read: "registrosEliminados.read",
+
+  // WhatsApp
+  Whatsapp_Read:  "whatsapp.read",
+  Whatsapp_Write: "whatsapp.write",
 } as const;
 export type Perm = (typeof PERMS)[keyof typeof PERMS];
 
@@ -104,6 +108,8 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Valores_agregados_Edit,
     PERMS.ReporteCliente_Download_Word,
     PERMS.RegistrosEliminados_Read,
+    PERMS.Whatsapp_Read,
+    PERMS.Whatsapp_Write,
   ],
 
   ejecutivoAdmin: [

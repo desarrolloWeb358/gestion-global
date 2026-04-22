@@ -23,6 +23,7 @@ import {
   Hash,
   MapPin,
   Scale,
+  MessageCircle,
 } from "lucide-react";
 
 import { getDeudorById, vincularDeudorConUsuario } from "../../services/deudorService";
@@ -775,6 +776,29 @@ export default function DeudorDetailPage() {
                     </Typography>
                     <Typography variant="small">
                       Juzgado, radicado, demandados y datos judiciales.
+                    </Typography>
+                  </div>
+                </button>
+              )}
+
+              {/* Enviar mensaje WhatsApp — solo admin */}
+              {esAdmin && (
+                <button
+                  onClick={() =>
+                    navigate(`/clientes/${clienteId}/deudores/${deudor.id}/enviar-whatsapp`)
+                  }
+                  className="group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-5 text-left transition-all hover:border-green-500 hover:shadow-lg hover:-translate-y-1"
+                >
+                  <div className="absolute top-0 right-0 h-20 w-20 translate-x-8 -translate-y-8 rounded-full bg-green-500/5 transition-transform group-hover:scale-150" />
+                  <div className="relative">
+                    <div className="mb-3 inline-flex rounded-lg bg-green-500/10 p-3 transition-colors group-hover:bg-green-500/20">
+                      <MessageCircle className="h-5 w-5 text-green-600" />
+                    </div>
+                    <Typography variant="h3" className="!text-brand-secondary mb-1 text-base">
+                      Enviar mensaje WhatsApp
+                    </Typography>
+                    <Typography variant="small">
+                      Envía un mensaje de plantilla al deudor por WhatsApp.
                     </Typography>
                   </div>
                 </button>
