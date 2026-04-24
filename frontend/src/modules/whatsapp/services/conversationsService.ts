@@ -154,6 +154,17 @@ export async function getDeudorDoc(
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
+// Busca todas las conversaciones vinculadas a un deudor (collection group query)
+// Requiere índice en Firestore: conversations / deudorId (ASC)
+export async function getConversationsByDeudorId(
+  deudorId: string
+): Promise<WaConversation[]> {
+  const snap = await getDocs(
+    query(collectionGroup(db, "conversations"), where("deudorId", "==", deudorId))
+  );
+  return snap.docs.map((d) => mapConversation(d.id, d.data() as Record<string, any>));
+}
+
 // Desvincula el deudor de la conversación (no toca telefonos del deudor)
 export async function unlinkDeudorFromConversation(
   numberId: string,

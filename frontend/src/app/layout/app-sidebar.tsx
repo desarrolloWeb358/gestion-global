@@ -31,6 +31,7 @@ import { Separator } from "@/shared/ui/separator";
 import { cn } from "@/shared/lib/cn";
 import { Earth } from "lucide-react";
 import { useNotificacionesUsuario } from "@/modules/notificaciones/hooks/useNotificacionesUsuario";
+import { useWaUnreadCount } from "@/modules/whatsapp/hooks/useWaUnreadCount";
 
 function useFilteredNav(items: NavItem[]) {
   const { roles, can, loading } = useAcl();
@@ -51,6 +52,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { usuario, roles } = useAcl();
   const { usuarioSistema } = useUsuarioActual();
   const { totalNoVistas } = useNotificacionesUsuario(usuario?.uid);
+  const waUnread = useWaUnreadCount();
   const navigate = useNavigate();
   const { items, loading } = useFilteredNav(NAV_ITEMS);
   const { state } = useSidebar();
@@ -90,11 +92,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   }
 
   const navMain = items.map((it) => ({
-  title: it.label,
-  path: it.to,
-  icon: it.icon,
-  badge: it.to === "/notificaciones" ? totalNoVistas : undefined,
-}));
+    title: it.label,
+    path: it.to,
+    icon: it.icon,
+    badge:
+      it.to === "/notificaciones" ? totalNoVistas :
+      it.to === "/whatsapp"       ? waUnread       :
+      undefined,
+  }));
 
   const onLogout = async () => {
     await cerrarSesion();

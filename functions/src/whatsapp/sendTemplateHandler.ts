@@ -71,13 +71,16 @@ export const sendMetaTemplate = onCall(
       throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
     }
 
-    const { numberId, to, templateId, parameters } = (
+    const { numberId, to, templateId, parameters, clienteId, deudorId, deudorNombre } = (
       request.data ?? {}
     ) as {
       numberId?: string;
       to?: string;           // número destino en formato internacional, ej: "573001234567"
       templateId?: string;
       parameters?: TemplateParameter[];
+      clienteId?: string;
+      deudorId?: string;
+      deudorNombre?: string;
     };
 
     if (!numberId || !to?.trim() || !templateId) {
@@ -116,7 +119,11 @@ export const sendMetaTemplate = onCall(
     };
 
     // Crea la conversación si no existe (nuevo contacto)
-    const conv = await getOrCreateConversation(numberId, userAddress);
+    const conv = await getOrCreateConversation(numberId, userAddress, {
+      clienteId,
+      deudorId,
+      deudorNombre,
+    });
 
     const params = parameters ?? [];
 

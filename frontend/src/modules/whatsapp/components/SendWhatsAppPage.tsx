@@ -122,7 +122,15 @@ export default function SendWhatsAppPage() {
         functions,
         "sendMetaTemplate"
       );
-      const result = await fn({ numberId, to: intlPhone, templateId: selectedId, parameters });
+      const result = await fn({
+        numberId,
+        to: intlPhone,
+        templateId: selectedId,
+        parameters,
+        clienteId,
+        deudorId,
+        deudorNombre: deudor?.nombre,
+      });
       toast.success("Mensaje enviado correctamente");
       navigate(`/whatsapp/${numberId}/${result.data.conversationId}`);
     } catch (err: unknown) {

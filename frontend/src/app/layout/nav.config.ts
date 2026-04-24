@@ -9,7 +9,7 @@ export type SidebarIcon = ComponentType<{ className?: string }>;
 import {
   IconUsers,
   IconBell,
-  IconLayoutDashboard,
+  IconHome,
   IconBriefcase,
   IconTrash,
   IconBrandWhatsapp,
@@ -30,7 +30,7 @@ export const NAV_ITEMS: NavItem[] = [
   { 
     to: "/dashboard/admin", 
     label: "Administrador", 
-    icon: IconLayoutDashboard,
+    icon: IconHome,
     roles: ["admin"] 
   },  
   // (POR AHORA) SIN DASHBOARD PARA EJECUTIVO
@@ -39,26 +39,26 @@ export const NAV_ITEMS: NavItem[] = [
   { 
     to: "/dashboard/ejecutivo", 
     label: "Ejecutivo", 
-    icon: IconLayoutDashboard,
+    icon: IconHome,
     roles: ["ejecutivo", "ejecutivoAdmin"] 
   },
   */
   { 
     to: "/dashboard/abogado", 
     label: "Abogado", 
-    icon: IconLayoutDashboard,
+    icon: IconHome,
     roles: ["abogado"] 
   },
   { 
     to: "/dashboard/cliente", 
-    label: "Dashboard Cliente", 
-    icon: IconLayoutDashboard,
+    label: "Inicio", 
+    icon: IconHome,
     roles: ["cliente"] 
   },
   { 
     to: "/dashboard/deudor", 
-    label: "Dashboard Deudor", 
-    icon: IconLayoutDashboard,
+    label: "Inicio", 
+    icon: IconHome,
     roles: ["deudor"] 
   },
 

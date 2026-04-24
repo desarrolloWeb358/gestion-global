@@ -8,6 +8,7 @@ import {
   FileText,
   History,
   MessageSquare,
+  MessageCircle,
   Scale,
   Gavel,
   Plus,
@@ -80,6 +81,7 @@ import {
   SelectValue,
 } from "@/shared/ui/select";
 import SeguimientoDemandaTable from "./SeguimientoDemandaTable";
+import { DeudorWhatsAppTab } from "@/modules/whatsapp/components/DeudorWhatsAppTab";
 import { Typography } from "@/shared/design-system/components/Typography";
 import { BackButton } from "@/shared/design-system/components/BackButton";
 import { cn } from "@/shared/lib/cn";
@@ -170,7 +172,9 @@ export default function SeguimientoTable() {
   const auth = getAuth();
   const demandaRef = React.useRef<{ openForm?: () => void } | null>(null);
 
-  const [tab, setTab] = React.useState<"pre" | "juridico" | "demanda" | "obs">("pre");
+  const isAdmin = roles?.includes("admin") ?? false;
+
+  const [tab, setTab] = React.useState<"pre" | "juridico" | "demanda" | "obs" | "whatsapp">("pre");
 
   type PreFilters = { fecha?: DateRange; order: SortDir };
   const [preFilters, setPreFilters] = React.useState<PreFilters>({ order: "desc" });
@@ -391,6 +395,7 @@ export default function SeguimientoTable() {
     juridico: Scale,
     demanda: Gavel,
     obs: MessageSquare,
+    whatsapp: MessageCircle,
   };
 
   const TabIcon = tabIcons[tab];
@@ -428,6 +433,7 @@ export default function SeguimientoTable() {
                   {tab === "juridico" && "Seguimiento jurídico"}
                   {tab === "demanda" && "Seguimiento de demanda"}
                   {tab === "obs" && "Observaciones del cliente"}
+                  {tab === "whatsapp" && "Conversación de WhatsApp"}
                 </Typography>
               </div>
             </div>
@@ -476,7 +482,7 @@ export default function SeguimientoTable() {
 
         {/* TABS */}
         <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="w-full">
-          <TabsList className="grid grid-cols-4 w-full bg-white border border-brand-secondary/20 p-1 rounded-xl">
+          <TabsList className={`grid ${isAdmin ? "grid-cols-5" : "grid-cols-4"} w-full bg-white border border-brand-secondary/20 p-1 rounded-xl`}>
             <TabsTrigger
               value="pre"
               className="data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all"
@@ -505,6 +511,15 @@ export default function SeguimientoTable() {
               <MessageSquare className="h-4 w-4 mr-2" />
               Observaciones de cliente
             </TabsTrigger>
+            {isAdmin && (
+              <TabsTrigger
+                value="whatsapp"
+                className="data-[state=active]:bg-green-600 data-[state=active]:text-white rounded-lg transition-all"
+              >
+                <MessageCircle className="h-4 w-4 mr-2" />
+                WhatsApp
+              </TabsTrigger>
+            )}
           </TabsList>
 
           {/* PRE-JURÍDICO */}
@@ -697,6 +712,19 @@ export default function SeguimientoTable() {
               return <SeguimientoDemandaTableAny ref={demandaRef} />;
             })()}
           </TabsContent>
+
+          {/* WHATSAPP — solo admin */}
+          {isAdmin && (
+            <TabsContent value="whatsapp" className="mt-6">
+              {clienteId && deudorId && (
+                <DeudorWhatsAppTab
+                  deudorId={deudorId}
+                  clienteId={clienteId}
+                  deudorNombre={nombreDeudor}
+                />
+              )}
+            </TabsContent>
+          )}
 
           {/* OBSERVACIONES */}
           <TabsContent value="obs" className="mt-6 space-y-4">
