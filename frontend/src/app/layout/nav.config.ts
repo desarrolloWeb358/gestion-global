@@ -95,7 +95,7 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/whatsapp",
     label: "WhatsApp",
     icon: IconBrandWhatsapp,
-    roles: ["admin"],
+    roles: ["admin", "ejecutivo", "ejecutivoAdmin"],
   },
 
   // ========================================

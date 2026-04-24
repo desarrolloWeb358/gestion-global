@@ -84,6 +84,7 @@ export default function DeudorDetailPage() {
   const esDeudor = userRoles.includes("deudor");
   const esCliente = userRoles.includes("cliente");
   const esEjecutivo = userRoles.includes("ejecutivo");
+  const esEjecutivoAdmin = userRoles.includes("ejecutivoAdmin");
   const esAdmin = userRoles.includes("admin");
   const puedeCrearAccesoDeudor = !esDeudor && !esCliente && (esAdmin || esEjecutivo);
   const puedeGestionarAccesos = puedeCrearAccesoDeudor;
@@ -781,8 +782,8 @@ export default function DeudorDetailPage() {
                 </button>
               )}
 
-              {/* Enviar mensaje WhatsApp — solo admin */}
-              {esAdmin && (
+              {/* Enviar mensaje WhatsApp */}
+              {(esAdmin || esEjecutivo || esEjecutivoAdmin) && (
                 <button
                   onClick={() =>
                     navigate(`/clientes/${clienteId}/deudores/${deudor.id}/enviar-whatsapp`)

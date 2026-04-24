@@ -3,8 +3,11 @@ import { useParams, useNavigate } from "react-router-dom";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/firebase";
 import { toast } from "sonner";
+import { useAuth } from "@/app/providers/AuthContext";
+import { addSeguimiento } from "@/modules/cobranza/services/seguimientoService";
+import { Timestamp } from "firebase/firestore";
 import {
-  Phone, User, IdCard, DollarSign, Tag, FileCheck, ArrowLeft, Send,
+  Phone, IdCard, DollarSign, Tag, FileCheck, ArrowLeft, Send,
 } from "lucide-react";
 import { IconVariable } from "@tabler/icons-react";
 import { Button } from "@/shared/ui/button";
@@ -49,6 +52,7 @@ function InfoCard({
 export default function SendWhatsAppPage() {
   const { clienteId, deudorId } = useParams<{ clienteId: string; deudorId: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   // Deudor data
   const [deudor, setDeudor] = useState<Deudor | null>(null);
@@ -132,6 +136,26 @@ export default function SendWhatsAppPage() {
         deudorNombre: deudor?.nombre,
       });
       toast.success("Mensaje enviado correctamente");
+
+      if (user && clienteId && deudorId) {
+        const mensajeEnviado = selectedTemplate
+          ? selectedTemplate.variables.reduce(
+              (text, v) =>
+                text.replace(
+                  new RegExp(`\\{\\{${v.name}\\}\\}`, "g"),
+                  v.name === "telefono" ? intlPhone : (varValues[v.name]?.trim() ?? "")
+                ),
+              selectedTemplate.bodyText
+            )
+          : selectedId;
+
+        await addSeguimiento(user.uid, clienteId, deudorId, {
+          fecha: Timestamp.fromDate(new Date()),
+          tipoSeguimiento: "whatsapp",
+          descripcion: `Se envió el mensaje:\n${mensajeEnviado}\n\nNúmero: ${intlPhone}`,
+        });
+      }
+
       navigate(`/whatsapp/${numberId}/${result.data.conversationId}`);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "No se pudo enviar el mensaje");

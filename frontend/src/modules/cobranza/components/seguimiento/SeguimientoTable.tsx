@@ -482,44 +482,42 @@ export default function SeguimientoTable() {
 
         {/* TABS */}
         <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="w-full">
-          <TabsList className={`grid ${isAdmin ? "grid-cols-5" : "grid-cols-4"} w-full bg-white border border-brand-secondary/20 p-1 rounded-xl`}>
+          <TabsList className="grid grid-cols-6 h-auto w-full bg-white border border-brand-secondary/20 p-1.5 rounded-xl gap-1">
             <TabsTrigger
               value="pre"
-              className="data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all"
+              className="col-span-2 data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all py-2"
             >
-              <History className="h-4 w-4 mr-2" />
+              <History className="h-4 w-4 mr-2 flex-shrink-0" />
               Ejecutiv@ Pre-jurídico
             </TabsTrigger>
             <TabsTrigger
               value="juridico"
-              className="data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all"
+              className="col-span-2 data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all py-2"
             >
-              <Scale className="h-4 w-4 mr-2" />
+              <Scale className="h-4 w-4 mr-2 flex-shrink-0" />
               Ejecutiv@ Jurídico
             </TabsTrigger>
             <TabsTrigger
               value="demanda"
-              className="data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all"
+              className="col-span-2 data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all py-2"
             >
-              <Gavel className="h-4 w-4 mr-2" />
+              <Gavel className="h-4 w-4 mr-2 flex-shrink-0" />
               Dependiente(Demanda)
             </TabsTrigger>
             <TabsTrigger
               value="obs"
-              className="data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all"
+              className="col-span-3 data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all py-2"
             >
-              <MessageSquare className="h-4 w-4 mr-2" />
+              <MessageSquare className="h-4 w-4 mr-2 flex-shrink-0" />
               Observaciones de cliente
             </TabsTrigger>
-            {isAdmin && (
-              <TabsTrigger
-                value="whatsapp"
-                className="data-[state=active]:bg-green-600 data-[state=active]:text-white rounded-lg transition-all"
-              >
-                <MessageCircle className="h-4 w-4 mr-2" />
-                WhatsApp
-              </TabsTrigger>
-            )}
+            <TabsTrigger
+              value="whatsapp"
+              className="col-span-3 data-[state=active]:bg-green-600 data-[state=active]:text-white rounded-lg transition-all py-2"
+            >
+              <MessageCircle className="h-4 w-4 mr-2 flex-shrink-0" />
+              WhatsApp
+            </TabsTrigger>
           </TabsList>
 
           {/* PRE-JURÍDICO */}
@@ -713,18 +711,16 @@ export default function SeguimientoTable() {
             })()}
           </TabsContent>
 
-          {/* WHATSAPP — solo admin */}
-          {isAdmin && (
-            <TabsContent value="whatsapp" className="mt-6">
-              {clienteId && deudorId && (
-                <DeudorWhatsAppTab
-                  deudorId={deudorId}
-                  clienteId={clienteId}
-                  deudorNombre={nombreDeudor}
-                />
-              )}
-            </TabsContent>
-          )}
+          {/* WHATSAPP */}
+          <TabsContent value="whatsapp" className="mt-6">
+            {clienteId && deudorId && (
+              <DeudorWhatsAppTab
+                deudorId={deudorId}
+                clienteId={clienteId}
+                deudorNombre={nombreDeudor}
+              />
+            )}
+          </TabsContent>
 
           {/* OBSERVACIONES */}
           <TabsContent value="obs" className="mt-6 space-y-4">
