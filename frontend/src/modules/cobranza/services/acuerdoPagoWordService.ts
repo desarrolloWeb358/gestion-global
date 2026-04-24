@@ -935,7 +935,9 @@ export async function descargarAcuerdoPagoDemandaWord(input: AcuerdoPagoDemandaW
       demandadosIntroRuns.push(
         d.numeroDocumento.trim() ? rBold(d.numeroDocumento.trim()) : rRed("XXXXX (DOC)")
       );
-      demandadosIntroRuns.push(r(" de Bogotá, "));
+      demandadosIntroRuns.push(r(" de "));
+      demandadosIntroRuns.push(rRed("XXXXX (CIUDAD)"));
+      demandadosIntroRuns.push(r(", "));
     });
   }
 
@@ -1031,7 +1033,7 @@ export async function descargarAcuerdoPagoDemandaWord(input: AcuerdoPagoDemandaW
             r("Que en virtud de lo anterior y con el fin de resolver el inconveniente presentado de manera amigable "),
             rBold(empresaNombre),
             r(", de una parte y por otra parte "),
-            valOrRedBold(deudor, "XXXXX (NOMBRE DEUDOR)"),
+            ...demandadosNombresRuns,
             r(", hemos acordado celebrar el presente acuerdo de pago, que se regirá en especial por las siguientes:"),
           ]),
 
@@ -1153,7 +1155,7 @@ export async function descargarAcuerdoPagoDemandaWord(input: AcuerdoPagoDemandaW
             r("Para efectos de las comunicaciones a que haya lugar en virtud del presente Acuerdo, las direcciones son las siguientes: la Propiedad Horizontal las recibirá en la "),
             valOrRedBold(acreedorDir, "XXXXX (DIRECCIÓN ADMINISTRACIÓN / SEDE)"),
             r(" y "),
-            valOrRedBold(deudor, "XXXXX (NOMBRE DEUDOR)"),
+            ...demandadosNombresRuns,
             r(" del inmueble "),
             valOrRedBold(deudorUbicacion, "XXXXX (TORRE/APTO o CASA)"),
             r(" celular "),
@@ -1165,12 +1167,23 @@ export async function descargarAcuerdoPagoDemandaWord(input: AcuerdoPagoDemandaW
           pJustify([r("Los cambios de direcciones serán informados por escrito.")]),
 
           pJustify([
-            rBold("CLAUSULA NOVENA. PAZ Y SALVO: "),
+            rBold("CLAUSULA NOVENA. SUSPENSIÓN: "),
+            r("El presente acuerdo Extra-proceso, dará suspensión al proceso ejecutivo singular No. "),
+            isMissing(input.numeroRadicado) ? rRed("XXXXX (No. RADICADO)") : rBold(input.numeroRadicado!),
+            r(", el cual cursa en el Juzgado "),
+            isMissing(input.juzgado) ? rRed("XXXXX (JUZGADO)") : rBold(input.juzgado!),
+            r(" de "),
+            isMissing(input.localidad) ? rRed("XXXXX (LOCALIDAD)") : rBold(input.localidad!),
+            r(", mientras se cumple el mismo dentro de un periodo de 30 meses."),
+          ]),
+
+          pJustify([
+            rBold("CLAUSULA DÉCIMA. PAZ Y SALVO: "),
             r("Una vez cumplida la totalidad del presente acuerdo, las partes firmantes se declararán a paz y salvo y se abstendrán mutuamente de iniciar cualquier acción judicial o administrativa, respecto a las obligaciones aquí pactadas."),
           ]),
 
           pJustify([
-            rBold("CLAUSULA DÉCIMA. DOMICILIO CONTRACTUAL: "),
+            rBold("CLAUSULA UNDÉCIMA. DOMICILIO CONTRACTUAL: "),
             r("Para todos los efectos el domicilio del presente contrato es en la ciudad de Bogotá D.C."),
           ]),
 
@@ -1189,37 +1202,63 @@ export async function descargarAcuerdoPagoDemandaWord(input: AcuerdoPagoDemandaW
 
           new Paragraph({ text: "", spacing: { after: 320 } }),
 
-          p([rBold("EL DEUDOR,")]),
+          p([rBold(demandadosItems.length > 1 ? "LOS DEUDORES," : "EL DEUDOR,")]),
           new Paragraph({ text: "", spacing: { after: 220 } }),
 
-          new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            layout: TableLayoutType.FIXED,
-            rows: [
-              new TableRow({
-                children: [
-                  new TableCell({
-                    width: { size: 9000, type: WidthType.DXA },
-                    borders: noBorders(),
-                    verticalAlign: VerticalAlign.TOP,
-                    children: [
-                      new Paragraph({ text: "", spacing: { after: 1800 } }),
-                      p([valOrRedBold(deudor, "XXXXX (NOMBRE DEUDOR)")]),
-                      p([
-                        r("C.C No. "),
-                        valOrRedBold(input.deudorDocumento, "XXXXX (CÉDULA)"),
-                        r(" de "),
-                        valOrRedBold(input.deudorCiudadDoc, "XXXXX (CIUDAD)"),
-                        r("."),
-                      ]),
-                    ],
-                  }),
-                ],
-              }),
-            ],
-          }),
-
-          new Paragraph({ text: "", spacing: { after: 600 } }),
+          ...(demandadosItems.length === 0
+            ? [
+                new Table({
+                  width: { size: 100, type: WidthType.PERCENTAGE },
+                  layout: TableLayoutType.FIXED,
+                  rows: [
+                    new TableRow({
+                      children: [
+                        new TableCell({
+                          width: { size: 9000, type: WidthType.DXA },
+                          borders: noBorders(),
+                          verticalAlign: VerticalAlign.TOP,
+                          children: [
+                            new Paragraph({ text: "", spacing: { after: 1800 } }),
+                            p([rRed("XXXXX (NOMBRE DEMANDADO)")]),
+                            p([r("C.C No. "), rRed("XXXXX (CÉDULA)"), r(" de "), rRed("XXXXX (CIUDAD)"), r(".")]),
+                          ],
+                        }),
+                      ],
+                    }),
+                  ],
+                }),
+                new Paragraph({ text: "", spacing: { after: 600 } }),
+              ]
+            : demandadosItems.flatMap((d) => [
+                new Table({
+                  width: { size: 100, type: WidthType.PERCENTAGE },
+                  layout: TableLayoutType.FIXED,
+                  rows: [
+                    new TableRow({
+                      children: [
+                        new TableCell({
+                          width: { size: 9000, type: WidthType.DXA },
+                          borders: noBorders(),
+                          verticalAlign: VerticalAlign.TOP,
+                          children: [
+                            new Paragraph({ text: "", spacing: { after: 1800 } }),
+                            p([d.nombre.trim() ? rBold(d.nombre.trim().toUpperCase()) : rRed("XXXXX (NOMBRE DEMANDADO)")]),
+                            p([
+                              r("C.C No. "),
+                              d.numeroDocumento.trim() ? rBold(d.numeroDocumento.trim()) : rRed("XXXXX (CÉDULA)"),
+                              r(" de "),
+                              rRed("XXXXX (CIUDAD)"),
+                              r("."),
+                            ]),
+                          ],
+                        }),
+                      ],
+                    }),
+                  ],
+                }),
+                new Paragraph({ text: "", spacing: { after: 600 } }),
+              ])
+          ),
 
           p([rBold("EL ACREEDOR,")]),
           new Paragraph({ text: "", spacing: { after: 200 } }),
