@@ -77,6 +77,7 @@ export async function appendMessage(params: {
     source: "AGENT" | "PROVIDER";
     timestampMs: number;
     providerMessageId?: string;
+    deliveryStatus?: "pending" | "sent" | "delivered" | "read" | "failed";
   };
 }): Promise<void> {
   const { numberId, conversationId, message } = params;
@@ -100,6 +101,7 @@ export async function appendMessage(params: {
       ts: Timestamp.fromMillis(message.timestampMs),
       source: message.source,
       ...(message.providerMessageId ? { providerMessageId: message.providerMessageId } : {}),
+      ...(message.deliveryStatus ? { deliveryStatus: message.deliveryStatus } : {}),
     };
 
     const msgId = message.providerMessageId ?? ref.collection("messages").doc().id;
@@ -126,4 +128,49 @@ export async function appendMessage(params: {
 
     tx.update(ref, update);
   });
+}
+
+// ── updateMessageDeliveryStatus ────────────────────────────────────────
+// Llamado desde el webhook cuando Meta notifica sent/delivered/read/failed
+export async function updateMessageDeliveryStatus(
+  numberId: string,
+  conversationId: string,
+  wamid: string,
+  status: "sent" | "delivered" | "read" | "failed",
+  errorDetails?: { code: number; title: string }
+): Promise<void> {
+  const db = getFirestore();
+  const msgRef = db.doc(
+    `numbers/${numberId}/conversations/${conversationId}/messages/${wamid}`
+  );
+
+  const snap = await msgRef.get();
+  if (!snap.exists) {
+    logger.warn("Mensaje no encontrado para actualizar deliveryStatus", {
+      wamid,
+      conversationId,
+      numberId,
+    });
+    return;
+  }
+
+  const update: Record<string, any> = { deliveryStatus: status };
+  if (errorDetails) update.deliveryError = errorDetails;
+  await msgRef.update(update);
+
+  // Actualizar el mismo mensaje en el array lastMessages de la conversación
+  const ref = convRef(numberId, conversationId);
+  const convSnap = await ref.get();
+  if (!convSnap.exists) return;
+
+  const lastMessages: any[] = Array.isArray(convSnap.data()?.lastMessages)
+    ? convSnap.data()!.lastMessages
+    : [];
+
+  const updated = lastMessages.map((m: any) =>
+    m.providerMessageId === wamid ? { ...m, deliveryStatus: status } : m
+  );
+
+  const changed = updated.some((m, i) => m !== lastMessages[i]);
+  if (changed) await ref.update({ lastMessages: updated });
 }

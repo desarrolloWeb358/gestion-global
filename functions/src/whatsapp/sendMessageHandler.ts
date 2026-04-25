@@ -5,12 +5,13 @@ import { appendMessage } from "./conversationService";
 
 // Envío directo a Meta Graph API v22.0
 // Mismo patrón que MetaMessagingProvider de omnix, simplificado a función
+// Retorna el wamid asignado por Meta o "" si no viene
 async function sendMetaText(
   phoneNumberId: string,
   token: string,
   to: string,
   text: string
-): Promise<void> {
+): Promise<string> {
   const url = `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`;
 
   const resp = await fetch(url, {
@@ -32,6 +33,9 @@ async function sendMetaText(
       `META_SEND_FAILED status=${resp.status} body=${JSON.stringify(error)}`
     );
   }
+
+  const data = await resp.json().catch(() => ({}));
+  return (data as any)?.messages?.[0]?.id ?? "";
 }
 
 // onCall: llamado desde el frontend cuando el asesor escribe un mensaje
@@ -77,7 +81,7 @@ export const sendWhatsAppMessage = onCall(
     const { userAddress } = convSnap.data() as { userAddress: string };
 
     // Enviar mensaje por Meta Cloud API
-    await sendMetaText(
+    const wamid = await sendMetaText(
       numberData.phoneNumberId,
       numberData.metaToken,
       userAddress,
@@ -93,6 +97,8 @@ export const sendWhatsAppMessage = onCall(
         text: text.trim(),
         source: "AGENT",
         timestampMs: Date.now(),
+        providerMessageId: wamid || undefined,
+        deliveryStatus: "pending",
       },
     });
 

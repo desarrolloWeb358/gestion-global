@@ -588,7 +588,8 @@ export const cambiarCorreoUsuarioDesdeAdmin = onCall(async (request) => {
 // =====================================================
 export { waWebhook }              from "./whatsapp/webhookController";
 export { sendWhatsAppMessage }    from "./whatsapp/sendMessageHandler";
-export { sendMetaTemplate } from "./whatsapp/sendTemplateHandler";
+export { sendMetaTemplate }       from "./whatsapp/sendTemplateHandler";
+export { processBulkSendJob }     from "./whatsapp/bulkSendHandler";
 
 /*
 export const pruebaCorreo = onRequest({ secrets: [SENDGRID_API_KEY, SENDGRID_SENDER_EMAIL] }, async (req, res) => {

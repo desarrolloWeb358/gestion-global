@@ -1,8 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { httpsCallable } from "firebase/functions";
-import { functions } from "@/firebase";
-import { Timestamp } from "firebase/firestore";
+import {
+  collection,
+  addDoc,
+  onSnapshot,
+  doc,
+  serverTimestamp,
+} from "firebase/firestore";
+import { db } from "@/firebase";
 import { toast } from "sonner";
 import { ArrowLeft, Send, CheckCircle, XCircle, PhoneOff, ChevronDown, ChevronUp } from "lucide-react";
 import { IconVariable } from "@tabler/icons-react";
@@ -19,8 +24,6 @@ import { listenTemplates } from "../services/templatesService";
 import type { WaTemplate } from "../models/waTemplate.model";
 import { obtenerDeudorPorCliente } from "@/modules/cobranza/services/deudorService";
 import type { Deudor } from "@/modules/cobranza/models/deudores.model";
-import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
-import { addSeguimiento } from "@/modules/cobranza/services/seguimientoService";
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -28,13 +31,8 @@ type VarMode = "auto" | "deudor" | "static";
 
 interface VarSource {
   mode: VarMode;
-  field?: string;  // si mode === "deudor"
-  value?: string;  // si mode === "static"
-}
-
-interface SendItem {
-  deudor: Deudor;
-  phone: string; // ya normalizado a internacional
+  field?: string;
+  value?: string;
 }
 
 interface SendResult {
@@ -52,11 +50,6 @@ const DEUDOR_FIELD_OPTIONS = [
   { key: "ubicacion", label: "Ubicación (Apto/Unidad)" },
   { key: "direccion", label: "Dirección" },
 ];
-
-const TIPIFICACIONES = Object.values(TipificacionDeuda);
-
-const BATCH_SIZE = 10;
-const BATCH_DELAY_MS = 600;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -105,10 +98,6 @@ function resolveMessage(
   );
 }
 
-function delay(ms: number) {
-  return new Promise((res) => setTimeout(res, ms));
-}
-
 // ── Componente principal ─────────────────────────────────────────────────────
 
 export default function BulkWhatsAppPage() {
@@ -116,28 +105,26 @@ export default function BulkWhatsAppPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  // Números y plantillas
   const { numbers, loading: loadingNumbers } = useWaNumbers();
   const [numberId, setNumberId] = useState("");
   const [templates, setTemplates] = useState<WaTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
 
-  // Variables de la plantilla → cómo resolverlas
   const [varSources, setVarSources] = useState<Record<string, VarSource>>({});
 
-  // Deudores del cliente
   const [allDeudores, setAllDeudores] = useState<Deudor[]>([]);
   const [loadingDeudores, setLoadingDeudores] = useState(true);
 
-  // Filtro de tipificación (vacío = todos)
   const [selectedTips, setSelectedTips] = useState<string[]>([]);
 
-  // Estado del proceso
   type Step = "config" | "sending" | "done";
   const [step, setStep] = useState<Step>("config");
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [results, setResults] = useState<SendResult[]>([]);
   const [showFailDetail, setShowFailDetail] = useState(false);
+
+  // ID del job de Firestore que está corriendo
+  const [jobId, setJobId] = useState<string | null>(null);
 
   // ── Carga inicial ──────────────────────────────────────────────────────────
 
@@ -158,7 +145,6 @@ export default function BulkWhatsAppPage() {
     return listenTemplates(numberId, setTemplates);
   }, [numberId]);
 
-  // Resetea sources al cambiar plantilla
   const selectedTemplate = templates.find((t) => t.id === selectedTemplateId) ?? null;
   useEffect(() => {
     if (!selectedTemplate) { setVarSources({}); return; }
@@ -168,6 +154,31 @@ export default function BulkWhatsAppPage() {
     }
     setVarSources(initial);
   }, [selectedTemplateId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Escuchar progreso del job en Firestore ─────────────────────────────────
+
+  useEffect(() => {
+    if (!jobId) return;
+
+    const unsub = onSnapshot(doc(db, "bulkSendJobs", jobId), (snap) => {
+      if (!snap.exists()) return;
+      const data = snap.data();
+
+      setResults(data.results ?? []);
+      setProgress(data.progress ?? { current: 0, total: 0 });
+
+      if (data.status === "done") {
+        setStep("done");
+        const sent = (data.results ?? []).filter((r: SendResult) => r.status === "ok").length;
+        toast.success(`Envío completado: ${sent} mensajes enviados`);
+      } else if (data.status === "error") {
+        setStep("done");
+        toast.error(`Error en el envío: ${data.error ?? "Error desconocido"}`);
+      }
+    });
+
+    return unsub;
+  }, [jobId]);
 
   // ── Deudores filtrados ─────────────────────────────────────────────────────
 
@@ -202,92 +213,69 @@ export default function BulkWhatsAppPage() {
     );
   }, []);
 
-  // ── Envío masivo ───────────────────────────────────────────────────────────
+  // ── Crear job en Firestore (el backend hace el envío) ──────────────────────
 
   const handleSend = async () => {
     if (!canSend || !selectedTemplate || !clienteId || !user) return;
 
-    // Construir lista de pares {deudor, phone}
-    const items: SendItem[] = [];
-    const noPhone: SendResult[] = [];
+    // Pre-calcular parámetros por deudor para que el backend no necesite lógica de resolución
+    const items: Array<{
+      deudorId: string;
+      deudorNombre: string;
+      phone: string;
+      parameters: Array<{ parameterName: string; value: string }>;
+      messageText: string;
+    }> = [];
+    const noPhone: Array<{ nombre: string }> = [];
 
     for (const deudor of filteredDeudores) {
       const phones = (deudor.telefonos ?? []).filter(Boolean);
       if (phones.length === 0) {
-        noPhone.push({ nombre: deudor.nombre, phone: "", status: "no_phone" });
+        noPhone.push({ nombre: deudor.nombre });
       } else {
         for (const raw of phones) {
-          items.push({ deudor, phone: normalizePhone(raw) });
+          const phone = normalizePhone(raw);
+          const parameters = selectedTemplate.variables.map((v) => ({
+            parameterName: v.name,
+            value: resolveVarValue(v.name, varSources[v.name], deudor, phone),
+          }));
+          const messageText = resolveMessage(
+            selectedTemplate.bodyText,
+            selectedTemplate,
+            deudor,
+            phone,
+            varSources
+          );
+          items.push({
+            deudorId: deudor.id!,
+            deudorNombre: deudor.nombre,
+            phone,
+            parameters,
+            messageText,
+          });
         }
       }
     }
 
-    const allResults: SendResult[] = [...noPhone];
-    setResults(allResults);
+    // Crear documento en bulkSendJobs — el trigger del backend lo procesa automáticamente
+    const jobRef = await addDoc(collection(db, "bulkSendJobs"), {
+      status: "pending",
+      numberId,
+      templateId: selectedTemplateId,
+      clienteId,
+      agentId: user.uid,
+      items,
+      noPhone,
+      progress: { current: 0, total: items.length },
+      results: noPhone.map((n) => ({ nombre: n.nombre, phone: "", status: "no_phone" })),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    setJobId(jobRef.id);
     setProgress({ current: 0, total: items.length });
+    setResults(noPhone.map((n) => ({ nombre: n.nombre, phone: "", status: "no_phone" as const })));
     setStep("sending");
-
-    const fn = httpsCallable<unknown, { ok: boolean; conversationId: string }>(
-      functions,
-      "sendMetaTemplate"
-    );
-
-    for (let i = 0; i < items.length; i += BATCH_SIZE) {
-      const batch = items.slice(i, i + BATCH_SIZE);
-
-      await Promise.allSettled(
-        batch.map(async ({ deudor, phone }) => {
-          try {
-            const parameters = selectedTemplate.variables.map((v) => ({
-              parameterName: v.name,
-              value: resolveVarValue(v.name, varSources[v.name], deudor, phone),
-            }));
-
-            await fn({
-              numberId,
-              to: phone,
-              templateId: selectedTemplateId,
-              parameters,
-              clienteId,
-              deudorId: deudor.id,
-              deudorNombre: deudor.nombre,
-            });
-
-            // Seguimiento prejurídico
-            const mensajeTexto = resolveMessage(
-              selectedTemplate.bodyText,
-              selectedTemplate,
-              deudor,
-              phone,
-              varSources
-            );
-            await addSeguimiento(user.uid, clienteId, deudor.id!, {
-              fecha: Timestamp.fromDate(new Date()),
-              tipoSeguimiento: "whatsapp",
-              descripcion: `Se envió mensaje masivo:\n${mensajeTexto}\n\nNúmero: ${phone}`,
-            });
-
-            allResults.push({ nombre: deudor.nombre, phone, status: "ok" });
-          } catch (err: unknown) {
-            allResults.push({
-              nombre: deudor.nombre,
-              phone,
-              status: "error",
-              error: err instanceof Error ? err.message : "Error desconocido",
-            });
-          }
-        })
-      );
-
-      setResults([...allResults]);
-      setProgress({ current: Math.min(i + BATCH_SIZE, items.length), total: items.length });
-
-      if (i + BATCH_SIZE < items.length) await delay(BATCH_DELAY_MS);
-    }
-
-    setStep("done");
-    const sent = allResults.filter((r) => r.status === "ok").length;
-    toast.success(`Envío completado: ${sent} mensajes enviados`);
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -330,14 +318,25 @@ export default function BulkWhatsAppPage() {
             <div className="space-y-2">
               <div className="flex justify-between text-xs text-gray-500">
                 <span>Procesando {progress.current} de {progress.total}</span>
-                <span>{Math.round((progress.current / progress.total) * 100)}%</span>
+                <span>
+                  {progress.total > 0
+                    ? `${Math.round((progress.current / progress.total) * 100)}%`
+                    : "0%"}
+                </span>
               </div>
               <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
                 <div
                   className="h-full bg-brand-primary rounded-full transition-all duration-300"
-                  style={{ width: `${(progress.current / progress.total) * 100}%` }}
+                  style={{
+                    width: progress.total > 0
+                      ? `${(progress.current / progress.total) * 100}%`
+                      : "0%",
+                  }}
                 />
               </div>
+              <p className="text-xs text-gray-400 text-center">
+                Puedes cerrar esta ventana — el envío continúa en segundo plano
+              </p>
             </div>
           )}
 
@@ -489,7 +488,6 @@ export default function BulkWhatsAppPage() {
                       key={v.name}
                       className="grid grid-cols-1 md:grid-cols-3 gap-3 items-start p-3 rounded-lg bg-gray-50 border border-gray-100"
                     >
-                      {/* Nombre de la variable */}
                       <div>
                         <p className="text-xs text-gray-500 mb-0.5">Variable</p>
                         <p className="text-sm font-mono font-semibold text-brand-primary">
@@ -497,7 +495,6 @@ export default function BulkWhatsAppPage() {
                         </p>
                       </div>
 
-                      {/* Modo */}
                       <div>
                         <p className="text-xs text-gray-500 mb-1">Tipo de valor</p>
                         {isAuto ? (
@@ -527,7 +524,6 @@ export default function BulkWhatsAppPage() {
                         )}
                       </div>
 
-                      {/* Valor */}
                       <div>
                         {!isAuto && src.mode === "deudor" && (
                           <>
