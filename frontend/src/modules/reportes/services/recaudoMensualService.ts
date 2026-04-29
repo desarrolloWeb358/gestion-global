@@ -4,6 +4,19 @@
 
 import { collectionGroup, getDocs, query, where, QueryConstraint } from "firebase/firestore";
 import { db } from "@/firebase";
+
+/** Cuenta deudores activos (no Inactivo) agrupados por clienteId (desde el path del documento). */
+export async function obtenerDeudoresActivosPorCliente(): Promise<Map<string, number>> {
+  const snap = await getDocs(collectionGroup(db, "deudores"));
+  const map = new Map<string, number>();
+  snap.forEach((doc) => {
+    const tipificacion = doc.data()?.tipificacion;
+    if (tipificacion === "Inactivo") return;
+    const clienteId = doc.ref.parent.parent?.id;
+    if (clienteId) map.set(clienteId, (map.get(clienteId) ?? 0) + 1);
+  });
+  return map;
+}
 import {
   EstadoMensualItem,
   ResumenMesSeleccionado,

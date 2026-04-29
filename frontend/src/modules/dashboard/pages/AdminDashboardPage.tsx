@@ -1,24 +1,310 @@
-// src/modules/admin/components/AdminDashboardPage.tsx
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import SeguimientoDashboardAdmin from "@/modules/reportes/components/SeguimientoDashboardAdmin";
-import RecaudoDashboardAdmin from "@/modules/reportes/components/RecaudoDashboardAdmin";
-import { Typography } from "@/shared/design-system/components/Typography";
 import {
   LayoutDashboard,
   Users,
+  TrendingUp,
+  Wallet,
+  BarChart3,
+  Building2,
+  ChevronUp,
+  ChevronDown,
+  Loader2,
+  RefreshCw,
   Activity,
-  CalendarIcon,
+  ExternalLink,
 } from "lucide-react";
-
-// 🔥 Firebase
 import { db } from "@/firebase";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, collectionGroup, getDocs, query, where } from "firebase/firestore";
+import { Typography } from "@/shared/design-system/components/Typography";
+import { Button } from "@/shared/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/ui/select";
+import { Label } from "@/shared/ui/label";
+import SeguimientoDashboardAdmin from "@/modules/reportes/components/SeguimientoDashboardAdmin";
+import {
+  obtenerResumenMesConNombres,
+  obtenerDeudoresActivosPorCliente,
+} from "@/modules/reportes/services/recaudoMensualService";
+import {
+  ResumenMesSeleccionado,
+  ResumenPorCliente,
+} from "@/modules/reportes/models/recaudoMensual.model";
+import { useAcl } from "@/modules/auth/hooks/useAcl";
+import { PERMS } from "@/shared/constants/acl";
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+const currency = (n: number) =>
+  new Intl.NumberFormat("es-CO", {
+    style: "currency",
+    currency: "COP",
+    maximumFractionDigits: 0,
+  }).format(n);
+
+const pct = (num: number, den: number) =>
+  den > 0 ? Math.round((num / den) * 100) : 0;
+
+function currentYM() {
+  const d = new Date();
+  return {
+    year: String(d.getFullYear()),
+    month: String(d.getMonth() + 1).padStart(2, "0"),
+  };
+}
+
+const MONTH_LABELS = [
+  { v: "01", l: "Enero" },
+  { v: "02", l: "Febrero" },
+  { v: "03", l: "Marzo" },
+  { v: "04", l: "Abril" },
+  { v: "05", l: "Mayo" },
+  { v: "06", l: "Junio" },
+  { v: "07", l: "Julio" },
+  { v: "08", l: "Agosto" },
+  { v: "09", l: "Septiembre" },
+  { v: "10", l: "Octubre" },
+  { v: "11", l: "Noviembre" },
+  { v: "12", l: "Diciembre" },
+];
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+type SortKey =
+  | "clienteNombre"
+  | "deudores"
+  | "deuda"
+  | "recaudo"
+  | "recuperacion"
+  | "honorario";
+type SortDir = "asc" | "desc";
+
+interface FilaCliente extends ResumenPorCliente {
+  deudores: number;
+  recuperacion: number;
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+interface KpiCardProps {
+  icon: React.ReactNode;
+  iconBg: string;
+  label: string;
+  value: string;
+  small?: boolean;
+  onClick?: () => void;
+  valueColor?: string;
+  subtitle?: string;
+}
+
+function KpiCard({
+  icon,
+  iconBg,
+  label,
+  value,
+  small,
+  onClick,
+  valueColor,
+  subtitle,
+}: KpiCardProps) {
+  return (
+    <div
+      className={`rounded-xl border bg-white p-5 shadow-sm transition-all ${
+        onClick ? "cursor-pointer hover:shadow-md hover:border-brand-primary/30" : ""
+      }`}
+      onClick={onClick}
+    >
+      <div className={`inline-flex p-2 rounded-lg ${iconBg} mb-3`}>{icon}</div>
+      <div
+        className={`font-bold mb-0.5 break-all leading-tight ${small ? "text-lg" : "text-3xl"} ${
+          valueColor ?? "text-brand-primary"
+        }`}
+      >
+        {value}
+      </div>
+      <div className="text-xs text-muted-foreground leading-tight">{label}</div>
+      {subtitle && (
+        <div className="text-xs text-muted-foreground/70 mt-0.5">{subtitle}</div>
+      )}
+    </div>
+  );
+}
+
+function ThSortable({
+  label,
+  sortKey,
+  current,
+  dir,
+  onSort,
+  align = "left",
+}: {
+  label: string;
+  sortKey: SortKey;
+  current: SortKey;
+  dir: SortDir;
+  onSort: (k: SortKey) => void;
+  align?: "left" | "right";
+}) {
+  const isActive = current === sortKey;
+  return (
+    <th
+      className={`py-3 px-4 text-${align} text-xs font-semibold text-muted-foreground uppercase tracking-wide cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap`}
+      onClick={() => onSort(sortKey)}
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        {isActive ? (
+          dir === "asc" ? (
+            <ChevronUp className="h-3 w-3" />
+          ) : (
+            <ChevronDown className="h-3 w-3" />
+          )
+        ) : null}
+      </span>
+    </th>
+  );
+}
+
+function RecupBadge({ value }: { value: number }) {
+  const color =
+    value >= 70
+      ? "bg-green-100 text-green-700"
+      : value >= 40
+      ? "bg-amber-100 text-amber-700"
+      : "bg-red-100 text-red-700";
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${color}`}
+    >
+      {value}%
+    </span>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AdminDashboardPage() {
   const navigate = useNavigate();
+  const { can } = useAcl();
+  const canView = can(PERMS.Admin_Read) || can(PERMS.Valores_Read);
+
+  const { year: y, month: m } = currentYM();
+  const [year, setYear] = useState(y);
+  const [month, setMonth] = useState(m);
+  const mesClave = `${year}-${month}`;
+
+  // ── Data
+  const [clientesActivos, setClientesActivos] = useState<number | null>(null);
+  const [deudoresPorCliente, setDeudoresPorCliente] = useState<Map<string, number>>(
+    new Map()
+  );
+  const [resumen, setResumen] = useState<ResumenMesSeleccionado | null>(null);
+
+  // ── Loading
+  const [loadingKpis, setLoadingKpis] = useState(true);
+  const [loadingMes, setLoadingMes] = useState(false);
+
+  // ── Sort
+  const [sortKey, setSortKey] = useState<SortKey>("recaudo");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  const years = useMemo(() => {
+    const max = new Date().getFullYear();
+    const arr: string[] = [];
+    for (let a = 2020; a <= max; a++) arr.push(String(a));
+    return arr.reverse();
+  }, []);
+
+  // ── Fetch clientes activos + deudores por cliente (solo al montar)
+  useEffect(() => {
+    async function fetchKpis() {
+      try {
+        const [clientesSnap, deudoresMap] = await Promise.all([
+          getDocs(query(collection(db, "clientes"), where("activo", "==", true))),
+          obtenerDeudoresActivosPorCliente(),
+        ]);
+        setClientesActivos(clientesSnap.size);
+        setDeudoresPorCliente(deudoresMap);
+      } catch (err) {
+        console.error("Error cargando KPIs globales:", err);
+      } finally {
+        setLoadingKpis(false);
+      }
+    }
+    fetchKpis();
+  }, []);
+
+  // ── Fetch resumen del mes seleccionado
+  const fetchMes = useCallback(async () => {
+    if (!canView) return;
+    setLoadingMes(true);
+    try {
+      const res = await obtenerResumenMesConNombres(mesClave);
+      setResumen(res);
+    } catch (err) {
+      console.error("Error obteniendo resumen del mes:", err);
+      setResumen(null);
+    } finally {
+      setLoadingMes(false);
+    }
+  }, [canView, mesClave]);
+
+  useEffect(() => {
+    fetchMes();
+  }, [fetchMes]);
+
+  // ── Totales calculados
+  const totalDeudores = useMemo(() => {
+    let total = 0;
+    deudoresPorCliente.forEach((v) => (total += v));
+    return total;
+  }, [deudoresPorCliente]);
+
+  const totales = resumen?.totales;
+  const pctRecuperacion = pct(totales?.totalRecaudo ?? 0, totales?.totalDeuda ?? 0);
+
+  // ── Tabla: combinar resumen + conteo deudores
+  const filas = useMemo<FilaCliente[]>(() => {
+    if (!resumen) return [];
+    return resumen.porCliente.map((r) => ({
+      ...r,
+      deudores: deudoresPorCliente.get(r.clienteUID) ?? 0,
+      recuperacion: pct(r.recaudo, r.deuda),
+    }));
+  }, [resumen, deudoresPorCliente]);
+
+  // ── Filas ordenadas
+  const filasOrdenadas = useMemo(() => {
+    return [...filas].sort((a, b) => {
+      if (sortKey === "clienteNombre") {
+        const av = a.clienteNombre.toLowerCase();
+        const bv = b.clienteNombre.toLowerCase();
+        return sortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
+      }
+      const av = Number(a[sortKey as keyof FilaCliente] ?? 0);
+      const bv = Number(b[sortKey as keyof FilaCliente] ?? 0);
+      return sortDir === "asc" ? av - bv : bv - av;
+    });
+  }, [filas, sortKey, sortDir]);
+
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("desc");
+    }
+  };
+
+  const mesLabel = MONTH_LABELS.find((mm) => mm.v === month)?.l ?? month;
 
   const currentDate = new Date().toLocaleDateString("es-CO", {
     weekday: "long",
@@ -27,111 +313,306 @@ export default function AdminDashboardPage() {
     day: "numeric",
   });
 
-  // Solo manejamos clientes activos (contador)
-  const [clientesActivos, setClientesActivos] = useState<number | null>(null);
-  const [loadingClientes, setLoadingClientes] = useState<boolean>(true);
-
-  useEffect(() => {
-    const fetchClientesActivos = async () => {
-      try {
-        const ref = collection(db, "clientes");
-        const qClientes = query(ref, where("activo", "==", true));
-        const snap = await getDocs(qClientes);
-        setClientesActivos(snap.size);
-      } catch (error) {
-        console.error("Error cargando clientes activos:", error);
-        setClientesActivos(null);
-      } finally {
-        setLoadingClientes(false);
-      }
-    };
-
-    fetchClientesActivos();
-  }, []);
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50/20">
       <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
-        {/* HEADER */}
-        <header className="space-y-4">
+
+        {/* ── HEADER ── */}
+        <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="p-3 rounded-xl bg-gradient-to-br from-brand-primary to-brand-secondary shadow-lg">
               <LayoutDashboard className="h-7 w-7 text-white" />
             </div>
             <div>
               <Typography variant="h1" className="!text-brand-primary font-bold">
-                Panel de Administración
+                Panel Gerencial
               </Typography>
-              <Typography variant="body" className="text-muted-foreground">
+              <Typography variant="body" className="text-muted-foreground capitalize">
                 {currentDate}
               </Typography>
             </div>
           </div>
+
+          {/* Filtro global año-mes */}
+          <div className="flex items-end gap-2 flex-wrap">
+            <div>
+              <Label className="text-xs text-muted-foreground block mb-1">Año</Label>
+              <Select value={year} onValueChange={setYear}>
+                <SelectTrigger className="w-24">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {years.map((yy) => (
+                    <SelectItem key={yy} value={yy}>
+                      {yy}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground block mb-1">Mes</Label>
+              <Select value={month} onValueChange={setMonth}>
+                <SelectTrigger className="w-36">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MONTH_LABELS.map((mm) => (
+                    <SelectItem key={mm.v} value={mm.v}>
+                      {mm.l}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              variant="outline"
+              onClick={fetchMes}
+              disabled={loadingMes}
+              className="gap-2"
+            >
+              {loadingMes ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Consultar
+            </Button>
+          </div>
         </header>
 
-        {/* MÉTRICA RÁPIDA: CLIENTES ACTIVOS */}
-        <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <div
-            className="rounded-xl border border-brand-secondary/20 bg-white p-5 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-            onClick={() => {
-              // Ir a la tabla de clientes
-              navigate("/clientes-tables");
-            }}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <div className="p-2 rounded-lg bg-orange-100">
-                <Users className="h-5 w-5 text-orange-600" />
+        {/* ── KPI CARDS ── */}
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <KpiCard
+            icon={<Building2 className="h-5 w-5 text-blue-600" />}
+            iconBg="bg-blue-100"
+            label="Conjuntos activos"
+            value={loadingKpis ? "…" : String(clientesActivos ?? 0)}
+            onClick={() => navigate("/clientes-tables")}
+            subtitle="Ver todos →"
+          />
+          <KpiCard
+            icon={<Users className="h-5 w-5 text-orange-600" />}
+            iconBg="bg-orange-100"
+            label="Deudores activos"
+            value={loadingKpis ? "…" : String(totalDeudores)}
+            subtitle="Excluye inactivos"
+          />
+          <KpiCard
+            icon={<Wallet className="h-5 w-5 text-amber-600" />}
+            iconBg="bg-amber-100"
+            label={`Cartera ${mesLabel} ${year}`}
+            value={loadingMes ? "…" : currency(totales?.totalDeuda ?? 0)}
+            small
+            valueColor="text-amber-700"
+          />
+          <KpiCard
+            icon={<TrendingUp className="h-5 w-5 text-green-600" />}
+            iconBg="bg-green-100"
+            label={`Recaudo ${mesLabel} ${year}`}
+            value={loadingMes ? "…" : currency(totales?.totalRecaudo ?? 0)}
+            small
+            valueColor="text-green-700"
+          />
+          <KpiCard
+            icon={<BarChart3 className="h-5 w-5 text-purple-600" />}
+            iconBg="bg-purple-100"
+            label="% Recuperación"
+            value={loadingMes ? "…" : `${pctRecuperacion}%`}
+            valueColor={
+              pctRecuperacion >= 70
+                ? "text-green-600"
+                : pctRecuperacion >= 40
+                ? "text-amber-600"
+                : "text-red-600"
+            }
+            subtitle={`Recaudo / Cartera ${mesLabel}`}
+          />
+          <KpiCard
+            icon={<BarChart3 className="h-5 w-5 text-indigo-600" />}
+            iconBg="bg-indigo-100"
+            label={`Honorarios ${mesLabel} ${year}`}
+            value={loadingMes ? "…" : currency(totales?.totalHonorario ?? 0)}
+            small
+            valueColor="text-indigo-700"
+          />
+        </section>
+
+        {/* ── TABLA POR CLIENTE ── */}
+        <section className="rounded-2xl border bg-white shadow-sm overflow-hidden">
+          <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 px-5 py-4 border-b flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-brand-primary" />
+                <Typography variant="h3" className="!text-brand-secondary font-semibold">
+                  Cartera global por conjunto — {mesLabel} {year}
+                </Typography>
               </div>
               <Typography variant="small" className="text-muted-foreground">
-                Total
+                {filasOrdenadas.length} conjuntos con movimiento · Clic en columna para ordenar
               </Typography>
             </div>
-            <Typography variant="h2" className="!text-brand-primary mb-1">
-              {loadingClientes ? "..." : clientesActivos ?? 0}
-            </Typography>
-            <Typography variant="small" className="text-muted-foreground">
-              Clientes activos
-            </Typography>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/clientes-tables")}
+              className="gap-1 self-start sm:self-auto"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Gestionar conjuntos
+            </Button>
+          </div>
+
+          <div className="overflow-x-auto">
+            {loadingMes ? (
+              <div className="h-48 flex items-center justify-center">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : filasOrdenadas.length === 0 ? (
+              <div className="h-48 flex items-center justify-center">
+                <p className="text-sm text-muted-foreground">
+                  Sin datos de estados mensuales para {mesClave}.
+                </p>
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 border-b">
+                  <tr>
+                    <ThSortable
+                      label="Conjunto"
+                      sortKey="clienteNombre"
+                      current={sortKey}
+                      dir={sortDir}
+                      onSort={handleSort}
+                    />
+                    <ThSortable
+                      label="Deudores"
+                      sortKey="deudores"
+                      current={sortKey}
+                      dir={sortDir}
+                      onSort={handleSort}
+                      align="right"
+                    />
+                    <ThSortable
+                      label="Cartera"
+                      sortKey="deuda"
+                      current={sortKey}
+                      dir={sortDir}
+                      onSort={handleSort}
+                      align="right"
+                    />
+                    <ThSortable
+                      label="Recaudado"
+                      sortKey="recaudo"
+                      current={sortKey}
+                      dir={sortDir}
+                      onSort={handleSort}
+                      align="right"
+                    />
+                    <ThSortable
+                      label="% Recup."
+                      sortKey="recuperacion"
+                      current={sortKey}
+                      dir={sortDir}
+                      onSort={handleSort}
+                      align="right"
+                    />
+                    <ThSortable
+                      label="Honorarios"
+                      sortKey="honorario"
+                      current={sortKey}
+                      dir={sortDir}
+                      onSort={handleSort}
+                      align="right"
+                    />
+                    <th className="py-3 px-4" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {filasOrdenadas.map((fila) => (
+                    <tr
+                      key={fila.clienteUID}
+                      className="border-t hover:bg-slate-50/70 transition-colors"
+                    >
+                      <td className="py-3 px-4 font-medium max-w-[200px] truncate">
+                        {fila.clienteNombre}
+                      </td>
+                      <td className="py-3 px-4 text-right tabular-nums text-muted-foreground">
+                        {fila.deudores}
+                      </td>
+                      <td className="py-3 px-4 text-right tabular-nums text-amber-700 font-medium">
+                        {currency(fila.deuda)}
+                      </td>
+                      <td className="py-3 px-4 text-right tabular-nums text-green-700 font-medium">
+                        {currency(fila.recaudo)}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <RecupBadge value={fila.recuperacion} />
+                      </td>
+                      <td className="py-3 px-4 text-right tabular-nums text-indigo-700">
+                        {currency(fila.honorario)}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs gap-1"
+                          onClick={() => navigate(`/clientes/${fila.clienteUID}`)}
+                        >
+                          Ver <ExternalLink className="h-3 w-3" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-slate-50 border-t-2 border-slate-200">
+                  <tr className="font-semibold">
+                    <td className="py-3 px-4 text-sm">
+                      Totales ({filasOrdenadas.length} conjuntos)
+                    </td>
+                    <td className="py-3 px-4 text-right tabular-nums text-muted-foreground">
+                      {totalDeudores}
+                    </td>
+                    <td className="py-3 px-4 text-right tabular-nums text-amber-700">
+                      {currency(totales?.totalDeuda ?? 0)}
+                    </td>
+                    <td className="py-3 px-4 text-right tabular-nums text-green-700">
+                      {currency(totales?.totalRecaudo ?? 0)}
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <RecupBadge value={pctRecuperacion} />
+                    </td>
+                    <td className="py-3 px-4 text-right tabular-nums text-indigo-700">
+                      {currency(totales?.totalHonorario ?? 0)}
+                    </td>
+                    <td />
+                  </tr>
+                </tfoot>
+              </table>
+            )}
           </div>
         </section>
 
-        {/* DASHBOARD SEGUIMIENTOS */}
-        <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
-          <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5 border-b border-brand-secondary/10">
+        {/* ── SEGUIMIENTOS ── */}
+        <section className="rounded-2xl border bg-white shadow-sm overflow-hidden">
+          <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 px-5 py-4 border-b">
             <div className="flex items-center gap-2">
               <Activity className="h-5 w-5 text-brand-primary" />
               <Typography variant="h3" className="!text-brand-secondary font-semibold">
-                Dashboard de Seguimientos
+                Actividad de cobranza
               </Typography>
             </div>
-            <Typography variant="small" className="text-muted-foreground mt-1">
-              Análisis detallado por ejecutivo y cliente
+            <Typography variant="small" className="text-muted-foreground">
+              Seguimientos realizados por ejecutivo · Filtro por rango de fechas
             </Typography>
           </div>
-
           <div className="p-4 md:p-5">
             <SeguimientoDashboardAdmin />
           </div>
         </section>
 
-        {/* DASHBOARD RECAUDO */}
-        <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
-          <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5 border-b border-brand-secondary/10">
-            <div className="flex items-center gap-2">
-              <CalendarIcon className="h-5 w-5 text-brand-primary" />
-              <Typography variant="h3" className="!text-brand-secondary font-semibold">
-                Reporte de Recaudo Mensual
-              </Typography>
-            </div>
-            <Typography variant="small" className="text-muted-foreground mt-1">
-              Consolidado por mes de todos los conjuntos residenciales
-            </Typography>
-          </div>
-
-          <div className="p-4 md:p-5">
-            <RecaudoDashboardAdmin />
-          </div>
-        </section>
       </div>
     </div>
   );
