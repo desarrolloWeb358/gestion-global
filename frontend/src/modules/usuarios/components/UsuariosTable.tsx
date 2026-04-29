@@ -145,12 +145,11 @@ export default function UsuariosCrud() {
         label: `Rol: ${rolFilter}`,
         onClear: () => setRolFilter(ALL),
       });
-    if (activoFilter !== ALL_BOOL) {
+    if (activoFilter !== ALL_BOOL)
       arr.push({
         label: `Activo: ${activoFilter === "true" ? "Sí" : "No"}`,
         onClear: () => setActivoFilter(ALL_BOOL),
       });
-    }
     if (desde)
       arr.push({ label: `Desde: ${fmt(desde)}`, onClear: () => setDesde(undefined) });
     if (hasta)
@@ -467,7 +466,7 @@ export default function UsuariosCrud() {
                 </Select>
               </div>
 
-              {/* Activo */}
+              {/* Estado */}
               <div>
                 <Label className="mb-2 block text-brand-secondary font-medium">
                   Estado

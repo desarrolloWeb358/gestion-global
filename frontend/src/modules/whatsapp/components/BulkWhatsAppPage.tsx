@@ -24,6 +24,9 @@ import { listenTemplates } from "../services/templatesService";
 import type { WaTemplate } from "../models/waTemplate.model";
 import { obtenerDeudorPorCliente } from "@/modules/cobranza/services/deudorService";
 import type { Deudor } from "@/modules/cobranza/models/deudores.model";
+import { obtenerEstadosMensuales } from "@/modules/cobranza/services/estadoMensualService";
+import { getClienteById } from "@/modules/clientes/services/clienteService";
+import { getUsuarioByUid } from "@/modules/usuarios/services/usuarioService";
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -45,10 +48,13 @@ interface SendResult {
 // ── Constantes ───────────────────────────────────────────────────────────────
 
 const DEUDOR_FIELD_OPTIONS = [
-  { key: "nombre",    label: "Nombre" },
-  { key: "cedula",    label: "Documento / Cédula" },
-  { key: "ubicacion", label: "Ubicación (Apto/Unidad)" },
-  { key: "direccion", label: "Dirección" },
+  { key: "nombre",      label: "Nombre" },
+  { key: "cedula",      label: "Documento / Cédula" },
+  { key: "ubicacion",   label: "Ubicación (Apto/Unidad)" },
+  { key: "direccion",   label: "Dirección" },
+  { key: "deuda",       label: "Deuda (último mes)" },
+  { key: "asesor",      label: "Asesor" },
+  { key: "copropiedad", label: "Copropiedad" },
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -59,7 +65,16 @@ function normalizePhone(raw: string): string {
   return `57${digits}`;
 }
 
-function getDeudorField(deudor: Deudor, field: string): string {
+interface ExtraContext {
+  deuda?: string;
+  asesor?: string;
+  copropiedad?: string;
+}
+
+function getDeudorField(deudor: Deudor, field: string, extra?: ExtraContext): string {
+  if (field === "deuda") return extra?.deuda ?? "";
+  if (field === "asesor") return extra?.asesor ?? "";
+  if (field === "copropiedad") return extra?.copropiedad ?? "";
   const val = (deudor as Record<string, any>)[field];
   if (Array.isArray(val)) return String(val[0] ?? "");
   return String(val ?? "");
@@ -69,13 +84,14 @@ function resolveVarValue(
   varName: string,
   source: VarSource | undefined,
   deudor: Deudor,
-  phone: string
+  phone: string,
+  extra?: ExtraContext
 ): string {
   if (!source || source.mode === "auto") {
     return varName === "telefono" ? phone : "";
   }
   if (source.mode === "deudor" && source.field) {
-    return getDeudorField(deudor, source.field);
+    return getDeudorField(deudor, source.field, extra);
   }
   if (source.mode === "static") return source.value ?? "";
   return "";
@@ -86,13 +102,14 @@ function resolveMessage(
   template: WaTemplate,
   deudor: Deudor,
   phone: string,
-  sources: Record<string, VarSource>
+  sources: Record<string, VarSource>,
+  extra?: ExtraContext
 ): string {
   return template.variables.reduce(
     (text, v) =>
       text.replace(
         new RegExp(`\\{\\{${v.name}\\}\\}`, "g"),
-        resolveVarValue(v.name, sources[v.name], deudor, phone)
+        resolveVarValue(v.name, sources[v.name], deudor, phone, extra)
       ),
     bodyText
   );
@@ -115,7 +132,7 @@ export default function BulkWhatsAppPage() {
   const [allDeudores, setAllDeudores] = useState<Deudor[]>([]);
   const [loadingDeudores, setLoadingDeudores] = useState(true);
 
-  const [selectedTips, setSelectedTips] = useState<string[]>([]);
+  const [selectedTip, setSelectedTip] = useState<string>("");
 
   type Step = "config" | "sending" | "done";
   const [step, setStep] = useState<Step>("config");
@@ -126,6 +143,12 @@ export default function BulkWhatsAppPage() {
   // ID del job de Firestore que está corriendo
   const [jobId, setJobId] = useState<string | null>(null);
 
+  // Datos extra del cliente (se cargan una vez)
+  const [asesor, setAsesor] = useState("");
+  const [copropiedad, setCopropiedad] = useState("");
+  // Mapa deudorId → deuda del último mes (se carga al cambiar tipificación)
+  const [deudaMap, setDeudaMap] = useState<Record<string, string>>({});
+
   // ── Carga inicial ──────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -135,6 +158,37 @@ export default function BulkWhatsAppPage() {
       .then(setAllDeudores)
       .finally(() => setLoadingDeudores(false));
   }, [clienteId]);
+
+  // Cargar asesor y copropiedad desde el documento del cliente
+  useEffect(() => {
+    if (!clienteId) return;
+    getClienteById(clienteId).then((cliente) => {
+      if (!cliente) return;
+      setCopropiedad(cliente.nombre ?? "");
+      if (cliente.ejecutivoPrejuridicoId) {
+        getUsuarioByUid(cliente.ejecutivoPrejuridicoId).then((u) => {
+          setAsesor(u?.nombre ?? "");
+        });
+      }
+    });
+  }, [clienteId]);
+
+  // Cargar deuda del último mes para cada deudor filtrado
+  useEffect(() => {
+    if (!clienteId || !selectedTip || allDeudores.length === 0) {
+      setDeudaMap({});
+      return;
+    }
+    const deudoresFiltrados = allDeudores.filter((d) => d.tipificacion === selectedTip);
+    if (deudoresFiltrados.length === 0) { setDeudaMap({}); return; }
+    Promise.all(
+      deudoresFiltrados.map(async (d) => {
+        const estados = await obtenerEstadosMensuales(clienteId, d.id!);
+        const ultimo = estados[0];
+        return [d.id!, ultimo?.deuda != null ? String(ultimo.deuda) : ""] as [string, string];
+      })
+    ).then((entries) => setDeudaMap(Object.fromEntries(entries)));
+  }, [clienteId, selectedTip, allDeudores]);
 
   useEffect(() => {
     if (numbers.length === 1) setNumberId(numbers[0].id);
@@ -182,9 +236,9 @@ export default function BulkWhatsAppPage() {
 
   // ── Deudores filtrados ─────────────────────────────────────────────────────
 
-  const filteredDeudores = allDeudores.filter((d) =>
-    selectedTips.length === 0 || selectedTips.includes(d.tipificacion as string)
-  );
+  const filteredDeudores = selectedTip
+    ? allDeudores.filter((d) => d.tipificacion === selectedTip)
+    : [];
 
   const tipificacionesEnCliente = [
     ...new Set(allDeudores.map((d) => d.tipificacion as string).filter(Boolean)),
@@ -203,14 +257,12 @@ export default function BulkWhatsAppPage() {
     : false;
 
   const canSend =
-    !!numberId && !!selectedTemplateId && allStaticFilled && filteredDeudores.length > 0;
+    !!numberId && !!selectedTemplateId && allStaticFilled && !!selectedTip && filteredDeudores.length > 0;
 
-  // ── Toggle tipificación ────────────────────────────────────────────────────
+  // ── Selección única de tipificación ───────────────────────────────────────
 
-  const toggleTip = useCallback((tip: string) => {
-    setSelectedTips((prev) =>
-      prev.includes(tip) ? prev.filter((t) => t !== tip) : [...prev, tip]
-    );
+  const selectTip = useCallback((tip: string) => {
+    setSelectedTip((prev) => (prev === tip ? "" : tip));
   }, []);
 
   // ── Crear job en Firestore (el backend hace el envío) ──────────────────────
@@ -222,6 +274,7 @@ export default function BulkWhatsAppPage() {
     const items: Array<{
       deudorId: string;
       deudorNombre: string;
+      tipificacion: string;
       phone: string;
       parameters: Array<{ parameterName: string; value: string }>;
       messageText: string;
@@ -235,20 +288,27 @@ export default function BulkWhatsAppPage() {
       } else {
         for (const raw of phones) {
           const phone = normalizePhone(raw);
+          const extra: ExtraContext = {
+            deuda: deudaMap[deudor.id!],
+            asesor,
+            copropiedad,
+          };
           const parameters = selectedTemplate.variables.map((v) => ({
             parameterName: v.name,
-            value: resolveVarValue(v.name, varSources[v.name], deudor, phone),
+            value: resolveVarValue(v.name, varSources[v.name], deudor, phone, extra),
           }));
           const messageText = resolveMessage(
             selectedTemplate.bodyText,
             selectedTemplate,
             deudor,
             phone,
-            varSources
+            varSources,
+            extra
           );
           items.push({
             deudorId: deudor.id!,
             deudorNombre: deudor.nombre,
+            tipificacion: deudor.tipificacion ?? "",
             phone,
             parameters,
             messageText,
@@ -578,7 +638,7 @@ export default function BulkWhatsAppPage() {
               3. Filtra por tipificación
             </Typography>
             <p className="text-xs text-gray-500 -mt-2">
-              Sin selección = se envía a todos los deudores del cliente.
+              Selecciona una tipificación. Solo se enviará a los deudores de esa tipificación.
             </p>
 
             {loadingDeudores ? (
@@ -587,11 +647,11 @@ export default function BulkWhatsAppPage() {
               <>
                 <div className="flex flex-wrap gap-2">
                   {tipificacionesEnCliente.map((tip) => {
-                    const active = selectedTips.includes(tip);
+                    const active = selectedTip === tip;
                     return (
                       <button
                         key={tip}
-                        onClick={() => toggleTip(tip)}
+                        onClick={() => selectTip(tip)}
                         className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
                           active
                             ? "bg-brand-primary text-white border-brand-primary"
@@ -605,13 +665,17 @@ export default function BulkWhatsAppPage() {
                 </div>
 
                 <div className={`flex items-center gap-2 p-3 rounded-lg text-sm font-medium ${
-                  filteredDeudores.length > 0
+                  !selectedTip
+                    ? "bg-gray-50 text-gray-500 border border-gray-200"
+                    : filteredDeudores.length > 0
                     ? "bg-brand-primary/5 text-brand-secondary border border-brand-primary/20"
                     : "bg-amber-50 text-amber-700 border border-amber-200"
                 }`}>
-                  {filteredDeudores.length > 0
+                  {!selectedTip
+                    ? "0 deudores — selecciona una tipificación para continuar"
+                    : filteredDeudores.length > 0
                     ? `${filteredDeudores.length} deudor${filteredDeudores.length !== 1 ? "es" : ""} recibirán el mensaje`
-                    : "Ningún deudor coincide con el filtro seleccionado"
+                    : "Ningún deudor tiene esa tipificación"
                   }
                 </div>
               </>
@@ -626,7 +690,10 @@ export default function BulkWhatsAppPage() {
             size="lg"
           >
             <Send className="h-4 w-4" />
-            Enviar a {filteredDeudores.length} deudor{filteredDeudores.length !== 1 ? "es" : ""}
+            {selectedTip && filteredDeudores.length > 0
+              ? `Enviar a ${filteredDeudores.length} deudor${filteredDeudores.length !== 1 ? "es" : ""} · ${selectedTip}`
+              : "Selecciona una tipificación para enviar"
+            }
           </Button>
         </div>
       )}

@@ -11,7 +11,7 @@ import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/firebase";
 import { useConversation } from "../hooks/useConversation";
 import { linkDeudorToConversation, getDeudorDoc, unlinkDeudorFromConversation } from "../services/conversationsService";
-import { listarClientesBasico, type ClienteOption } from "@/modules/clientes/services/clienteService";
+import { listarClientesBasico, getClienteById, type ClienteOption } from "@/modules/clientes/services/clienteService";
 import { escucharUltimoEstadoMensual } from "@/modules/cobranza/services/estadoMensualService";
 import { obtenerAcuerdoActual } from "@/modules/cobranza/services/acuerdoPagoService";
 import { ACUERDO_ESTADO } from "@/shared/constants/acuerdoEstado";
@@ -66,12 +66,14 @@ function LinkedView({
   onNavigate: () => void;
 }) {
   const [deudor, setDeudor] = useState<Record<string, any> | null>(null);
+  const [clienteNombre, setClienteNombre] = useState("");
   const [estadoMes, setEstadoMes] = useState<EstadoMensual | null>(null);
   const [acuerdoActivo, setAcuerdoActivo] = useState<boolean | null>(null);
   const [unlinking, setUnlinking] = useState(false);
 
   useEffect(() => {
     getDeudorDoc(clienteId, deudorId).then(setDeudor);
+    getClienteById(clienteId).then((c) => setClienteNombre(c?.nombre ?? ""));
 
     const unsub = escucharUltimoEstadoMensual(clienteId, deudorId, setEstadoMes);
 
@@ -107,11 +109,23 @@ function LinkedView({
             <IconUnlink className="w-3.5 h-3.5" />
           </button>
         </div>
-        {deudor.tipificacion && (
-          <span className="inline-block mt-1.5 text-[10px] px-2 py-0.5 rounded-full bg-orange-50 border border-orange-100 text-orange-600 font-medium">
-            {deudor.tipificacion}
-          </span>
-        )}
+        <div className="flex flex-wrap gap-1.5 mt-1.5">
+          {deudor.tipificacion && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-50 border border-orange-100 text-orange-600 font-medium">
+              {deudor.tipificacion}
+            </span>
+          )}
+          {deudor.ubicacion && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 border border-blue-100 text-blue-600 font-medium">
+              {deudor.ubicacion}
+            </span>
+          )}
+          {clienteNombre && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 border border-gray-200 text-gray-500 font-medium">
+              {clienteNombre}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Cards de datos */}

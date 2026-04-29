@@ -74,6 +74,7 @@ export default function ClientesCrud() {
   const [ejecutivoPreSel, setEjecutivoPreSel] = useState<string>("");
   const [ejecutivoJurSel, setEjecutivoJurSel] = useState<string>("");
   const [activoSel, setActivoSel] = useState<boolean>(true);
+  const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const [q, setQ] = useState(() => sessionStorage.getItem(SESSION_KEY) ?? "");
 
   const [dependienteSel, setDependienteSel] = useState<string>("");
@@ -148,14 +149,17 @@ export default function ClientesCrud() {
   }
 
   const clientesFiltrados = useMemo(() => {
-    const qn = q.trim().toLowerCase();
-    if (!qn) return clientes;
+    let result = mostrarInactivos
+      ? clientes.filter((c) => c.activo === false)
+      : clientes.filter((c) => c.activo !== false);
 
-    return clientes.filter((c) => {
+    const qn = q.trim().toLowerCase();
+    if (!qn) return result;
+    return result.filter((c) => {
       const nombre = (c as any).nombre?.toLowerCase?.() ?? "";
       return nombre.includes(qn);
     });
-  }, [clientes, q]);
+  }, [clientes, q, mostrarInactivos]);
 
   // Guards UI
   if (userLoading || aclLoading) {
@@ -227,8 +231,8 @@ export default function ClientesCrud() {
           </div>
 
           <div className="p-4 md:p-5">
-            <div className="grid gap-4 md:grid-cols-4">
-              <div className="md:col-span-2">
+            <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-5">
+              <div className="md:col-span-2 lg:col-span-2">
                 <Label className="mb-2 block text-brand-secondary font-medium">
                   Búsqueda
                 </Label>
@@ -270,6 +274,22 @@ export default function ClientesCrud() {
                   Limpiar búsqueda
                 </Button>
               </div>
+
+              <div className="flex items-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={cn(
+                    "w-full border-brand-secondary/30 hover:bg-brand-primary/5",
+                    mostrarInactivos
+                      ? "text-amber-600 border-amber-300 bg-amber-50"
+                      : "text-brand-secondary"
+                  )}
+                  onClick={() => setMostrarInactivos((v) => !v)}
+                >
+                  {mostrarInactivos ? "Ocultar inactivos" : "Ver inactivos"}
+                </Button>
+              </div>
             </div>
           </div>
         </section>
@@ -295,7 +315,9 @@ export default function ClientesCrud() {
               <Typography variant="small" className=" max-w-md">
                 {q
                   ? "No se encontraron clientes que coincidan con tu búsqueda."
-                  : "Aún no hay clientes registrados."}
+                  : mostrarInactivos
+                  ? "No hay clientes inactivos."
+                  : "No hay clientes activos."}
               </Typography>
             </div>
           </div>

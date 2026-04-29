@@ -61,6 +61,98 @@ const ALL = "__ALL__";
 const ALL_ANIO = "__ALL_ANIO__";
 const CURRENT_YEAR = new Date().getFullYear();
 
+/* =========================
+   Utilidades de teléfonos
+========================= */
+
+function normalizarTelefono(raw: string): string {
+  let digits = raw.replace(/\D/g, "");
+  if (digits.length === 12 && digits.startsWith("57")) digits = digits.slice(2);
+  else if (digits.length === 13 && digits.startsWith("057")) digits = digits.slice(3);
+  return digits;
+}
+
+function PhoneTagInput({
+  value,
+  onChange,
+  readOnly,
+  disabled,
+}: {
+  value: string[];
+  onChange: (phones: string[]) => void;
+  readOnly?: boolean;
+  disabled?: boolean;
+}) {
+  const [input, setInput] = useState("");
+
+  const addPhone = (raw: string) => {
+    const normalized = normalizarTelefono(raw.trim());
+    if (!normalized || value.includes(normalized)) return;
+    onChange([...value, normalized]);
+  };
+
+  const removePhone = (idx: number) => {
+    onChange(value.filter((_, i) => i !== idx));
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" || e.key === "," || e.key === ";" || e.key === "Tab") {
+      e.preventDefault();
+      addPhone(input);
+      setInput("");
+    } else if (e.key === "Backspace" && input === "" && value.length > 0) {
+      removePhone(value.length - 1);
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData("text");
+    const newPhones = [...value];
+    for (const part of pasted.split(/[,;\s\n]+/)) {
+      const normalized = normalizarTelefono(part);
+      if (normalized && !newPhones.includes(normalized)) newPhones.push(normalized);
+    }
+    onChange(newPhones);
+    setInput("");
+  };
+
+  return (
+    <div className="mt-1.5 min-h-[42px] flex flex-wrap gap-1.5 rounded-md border border-brand-secondary/30 bg-white px-2 py-1.5 focus-within:border-brand-primary focus-within:ring-2 focus-within:ring-brand-primary/20 transition-colors">
+      {value.map((phone, idx) => (
+        <span
+          key={idx}
+          className="inline-flex items-center gap-1 rounded-full bg-brand-primary/10 px-2.5 py-0.5 text-sm font-medium text-brand-secondary"
+        >
+          {phone}
+          {!readOnly && !disabled && (
+            <button
+              type="button"
+              onClick={() => removePhone(idx)}
+              className="rounded-full hover:bg-brand-primary/20 p-0.5"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </span>
+      ))}
+      {!readOnly && !disabled && (
+        <input
+          type="text"
+          inputMode="numeric"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
+          onBlur={() => { if (input.trim()) { addPhone(input); setInput(""); } }}
+          placeholder={value.length === 0 ? "3001234567 — Enter o coma para agregar" : ""}
+          className="flex-1 min-w-[200px] bg-transparent outline-none text-sm placeholder:text-muted-foreground"
+        />
+      )}
+    </div>
+  );
+}
+
 /** Timestamp-like -> Date */
 const toDateSafe = (v: any): Date | undefined => {
   if (!v) return undefined;
@@ -921,19 +1013,15 @@ export default function DeudoresTable() {
 
                         <div>
                           <Label className="text-brand-secondary font-medium">Teléfonos</Label>
-                          <Input
-                            placeholder="3001234567, 3012345678"
-                            value={formData.telefonos?.join(", ") ?? ""}
-                            onChange={(e) =>
-                              setFormData((prev) => ({
-                                ...prev,
-                                telefonos: e.target.value.split(",").map((t) => t.trim()).filter(Boolean),
-                              }))
-                            }
-                            readOnly={readOnly || saving}
-                            className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
+                          <PhoneTagInput
+                            value={formData.telefonos ?? []}
+                            onChange={(phones) => setFormData((prev) => ({ ...prev, telefonos: phones }))}
+                            readOnly={readOnly}
+                            disabled={saving}
                           />
-                          <p className="text-xs mt-1">Separa múltiples teléfonos con comas</p>
+                          <p className="text-xs mt-1 text-muted-foreground">
+                            Escribe un número y presiona <kbd className="px-1 rounded bg-gray-100 text-xs">Enter</kbd>, coma o Tab para agregarlo. El prefijo +57 se elimina automáticamente.
+                          </p>
                         </div>
                       </div>
                     </div>

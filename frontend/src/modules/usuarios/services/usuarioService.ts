@@ -163,17 +163,15 @@ export const actualizarUsuario = async (usuario: UsuarioSistema): Promise<void> 
   // 1) actualiza usuarios/{uid}
   await updateDoc(usuarioRef, updateUsuario as any);
 
-  // 2) si es cliente, sincroniza clientes/{uid}.nombre
+  // 2) si es cliente, sincroniza clientes/{uid}.nombre y activo
   const roles = (usuario.roles ?? []) as string[];
   if (roles.includes("cliente")) {
     const clienteRef = doc(db, "clientes", usuario.uid);
-
-    // Si el doc de cliente no existe, updateDoc falla.
-    // Como tú lo creas en crearUsuario, debería existir. Igual lo hacemos robusto:
     await setDoc(
       clienteRef,
       {
         nombre: usuario.nombre ?? "",
+        activo: usuario.activo ?? true,
       },
       { merge: true }
     );

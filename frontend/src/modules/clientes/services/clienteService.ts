@@ -190,12 +190,20 @@ export const crearClienteConUid = async (uid: string, cliente: Omit<Cliente, "id
 // Actualizar cliente
 // ===============================
 export async function actualizarCliente(id: string, data: Partial<Cliente>) {
-  // Blindaje: jamás permitir 'nombre' en updates de clientes
   const { nombre, ...safe } = (data ?? {}) as any;
 
   const ref = doc(db, "clientes", id);
   const clean = sanitize(safe);
-  return updateDoc(ref, clean as any);
+  await updateDoc(ref, clean as any);
+
+  // Sincroniza activo → usuarios si cambia
+  if (typeof data.activo === "boolean") {
+    const usuarioRef = doc(db, "usuarios", id);
+    const usuarioSnap = await getDoc(usuarioRef);
+    if (usuarioSnap.exists()) {
+      await updateDoc(usuarioRef, { activo: data.activo });
+    }
+  }
 }
 
 // ===============================

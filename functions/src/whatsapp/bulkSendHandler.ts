@@ -6,9 +6,17 @@ import { getOrCreateConversation, appendMessage } from "./conversationService";
 const BATCH_SIZE = 10;
 const BATCH_DELAY_MS = 600;
 
+const TIPS_JURIDICO = new Set([
+  "Demanda",
+  "Demanda/Acuerdo",
+  "Demanda/Terminado",
+  "Demanda/Insolvencia",
+]);
+
 interface BulkItem {
   deudorId: string;
   deudorNombre: string;
+  tipificacion?: string;
   phone: string;
   parameters: Array<{ parameterName: string; value: string }>;
   messageText: string;
@@ -184,11 +192,11 @@ export const processBulkSendJob = onDocumentCreated(
               },
             });
 
-            // Registrar seguimiento prejurídico
-            // Colección: clientes/{clienteId}/deudores/{deudorId}/seguimiento
+            const esJuridico = TIPS_JURIDICO.has(item.tipificacion ?? "");
+            const seguimientoCol = esJuridico ? "seguimientoJuridico" : "seguimiento";
             await db
               .collection(
-                `clientes/${job.clienteId}/deudores/${item.deudorId}/seguimiento`
+                `clientes/${job.clienteId}/deudores/${item.deudorId}/${seguimientoCol}`
               )
               .add({
                 fecha: Timestamp.now(),
