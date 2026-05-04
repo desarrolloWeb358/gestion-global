@@ -99,7 +99,7 @@ function LinkedView({
             onClick={async () => {
               if (!confirm("¿Desasociar este deudor de la conversación?")) return;
               setUnlinking(true);
-              try { await unlinkDeudorFromConversation(numberId, convId); }
+              try { await unlinkDeudorFromConversation(numberId, convId, clienteId, deudorId, convId); }
               finally { setUnlinking(false); }
             }}
             disabled={unlinking}

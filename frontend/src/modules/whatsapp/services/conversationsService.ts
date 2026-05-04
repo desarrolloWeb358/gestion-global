@@ -11,6 +11,7 @@ import {
   updateDoc,
   where,
   arrayUnion,
+  arrayRemove,
 } from "firebase/firestore";
 import { db } from "@/firebase";
 import type { WaConversation } from "../models/waConversation.model";
@@ -165,16 +166,28 @@ export async function getConversationsByDeudorId(
   return snap.docs.map((d) => mapConversation(d.id, d.data() as Record<string, any>));
 }
 
-// Desvincula el deudor de la conversación (no toca telefonos del deudor)
+// Desvincula el deudor de la conversación y elimina el teléfono del array telefonos del deudor
 export async function unlinkDeudorFromConversation(
   numberId: string,
-  convId: string
+  convId: string,
+  clienteId: string,
+  deudorId: string,
+  phone: string
 ): Promise<void> {
-  await updateDoc(doc(db, `numbers/${numberId}/conversations/${convId}`), {
-    clienteId: null,
-    deudorId: null,
-    deudorNombre: null,
-  });
+  const localPhone = phone.startsWith("57") && phone.length === 12
+    ? phone.slice(2)
+    : phone;
+
+  await Promise.all([
+    updateDoc(doc(db, `numbers/${numberId}/conversations/${convId}`), {
+      clienteId: null,
+      deudorId: null,
+      deudorNombre: null,
+    }),
+    updateDoc(doc(db, `clientes/${clienteId}/deudores/${deudorId}`), {
+      telefonos: arrayRemove(localPhone),
+    }),
+  ]);
 }
 
 // Marca la conversación como leída (reset unreadCount)
