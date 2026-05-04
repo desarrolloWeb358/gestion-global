@@ -388,6 +388,14 @@ export async function marcarNotificacionComoVista(
   await updateDoc(ref, { visto: true });
 }
 
+export async function marcarNotificacionComoNoVista(
+  usuarioId: string,
+  notificacionId: string
+) {
+  const ref = doc(db, `usuarios/${usuarioId}/notificaciones/${notificacionId}`);
+  await updateDoc(ref, { visto: false });
+}
+
 /**
  * Busca la notificación más antigua (por fecha) del usuario para una ruta
  * de valor agregado que aún no esté resuelta, y la marca como resuelta.

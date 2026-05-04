@@ -66,18 +66,14 @@ function mapDocToValorAgregado(id: string, data: any): ValorAgregado {
 }
 
 function calcularFechaLimite(tipo: TipoValorAgregado, fechaBase: Date): Date {
+  const DIAS_POR_TIPO: Record<TipoValorAgregado, number> = {
+    [TipoValorAgregado.DERECHO_DE_PETICION]: 10,
+    [TipoValorAgregado.TUTELA]: 1,
+    [TipoValorAgregado.DESACATO]: 1,
+    [TipoValorAgregado.ESTUDIOS_CONTRATOS]: 3,
+  };
   const fecha = new Date(fechaBase);
-  if (tipo === TipoValorAgregado.TUTELA || tipo === TipoValorAgregado.DESACATO) {
-    fecha.setHours(fecha.getHours() + 24);
-    return fecha;
-  }
-  const diasHabiles = tipo === TipoValorAgregado.DERECHO_DE_PETICION ? 15 : 5;
-  let contador = 0;
-  while (contador < diasHabiles) {
-    fecha.setDate(fecha.getDate() + 1);
-    const dia = fecha.getDay();
-    if (dia !== 0 && dia !== 6) contador++;
-  }
+  fecha.setDate(fecha.getDate() + (DIAS_POR_TIPO[tipo] ?? 3));
   return fecha;
 }
 
@@ -538,7 +534,18 @@ export async function crearMensajeConversacionValorAgregado(
     await updateDoc(docRefConversacion(clienteId, valorId, msgId), updateData);
   }
 
-  // 3️⃣ Notificar a la contraparte (cliente ↔ abogado)
+  // 3️⃣ Actualizar completado según quién responde
+  try {
+    if (base.autorTipo === "cliente") {
+      await updateDoc(docRef(clienteId, valorId), { completado: false, fechaCompletado: null });
+    } else {
+      await updateDoc(docRef(clienteId, valorId), { completado: true, fechaCompletado: serverTimestamp() });
+    }
+  } catch (err) {
+    console.error("[crearMensajeConversacionValorAgregado] Error actualizando completado:", err);
+  }
+
+  // 4️⃣ Notificar a la contraparte (cliente ↔ abogado)
   try {
     // Info del cliente (nombre y abogadoId)
     const clienteInfo = await obtenerClienteInfoParaNotificacion(clienteId);

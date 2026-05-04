@@ -11,6 +11,7 @@ import {
   actualizarDeudorDatos,
   borrarDeudorCompleto,
   mergeContactosDeudor,
+  DeudorPatch,
 } from "../../services/deudorService";
 
 import { Cliente } from "@/modules/clientes/models/cliente.model";
@@ -505,6 +506,15 @@ interface ImportReport {
   rows: ImportRow[];
 }
 
+interface ImportPreview {
+  file: File;
+  totalRows: number;
+  hasInmueble: boolean;
+  hasContacto: boolean;
+  hasCorreo: boolean;
+  canImport: boolean;
+}
+
 const STATUS_LABEL: Record<ImportRow["status"], string> = {
   updated: "Actualizado",
   not_found: "No encontrado",
@@ -526,10 +536,88 @@ const STATUS_CLASS: Record<ImportRow["status"], string> = {
   error: "bg-red-50 text-red-700 border-red-200",
 };
 
+function ColStatus({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border ${ok ? "bg-green-50 border-green-200 text-green-700" : "bg-red-50 border-red-200 text-red-600"}`}>
+      {ok
+        ? <CheckCircle2 className="w-4 h-4 shrink-0" />
+        : <AlertCircle className="w-4 h-4 shrink-0" />}
+      <span className="font-medium">{label}</span>
+      <span className="ml-auto text-xs">{ok ? "Encontrada" : "No encontrada"}</span>
+    </div>
+  );
+}
+
+function ImportPreviewDialog({
+  preview,
+  open,
+  onCancel,
+  onImport,
+  importing,
+}: {
+  preview: ImportPreview;
+  open: boolean;
+  onCancel: () => void;
+  onImport: () => void;
+  importing: boolean;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v && !importing) onCancel(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-brand-primary text-xl font-bold">
+            Vista previa del archivo
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <p className="text-sm text-gray-500">Columnas detectadas en el archivo:</p>
+          <ColStatus ok={preview.hasInmueble} label="INMUEBLE" />
+          <ColStatus ok={preview.hasContacto} label="CONTACTO" />
+          <ColStatus ok={preview.hasCorreo} label="CORREO ELECTRÓNICO" />
+
+          <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 flex items-center justify-between">
+            <span className="text-sm text-gray-600">Registros en el archivo</span>
+            <span className="text-xl font-bold text-brand-primary">{preview.totalRows}</span>
+          </div>
+
+          {preview.canImport ? (
+            <div className="rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green-700 flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              El archivo está listo. Se procesarán <strong>{preview.totalRows}</strong> registros.
+              {(!preview.hasContacto || !preview.hasCorreo) && (
+                <span className="block text-xs text-green-600 mt-1">
+                  Las columnas faltantes no serán actualizadas.
+                </span>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              El archivo no se puede importar porque le falta la columna <strong>INMUEBLE</strong>, que es obligatoria.
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={onCancel} disabled={importing}>
+            Cancelar
+          </Button>
+          {preview.canImport && (
+            <Button variant="brand" onClick={onImport} disabled={importing}>
+              {importing ? "Importando..." : "Importar"}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function ImportReportDialog({ report, open, onClose }: { report: ImportReport; open: boolean; onClose: () => void }) {
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={() => {}}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto [&>button.absolute]:hidden">
         <DialogHeader>
           <DialogTitle className="text-brand-primary text-xl font-bold">
             Resultado de importación
@@ -615,6 +703,7 @@ export default function DeudoresTable() {
   const { can, roles, loading: aclLoading } = useAcl();
   const { usuarioSistema } = useUsuarioActual();
   const esDeudor = roles.includes("deudor");
+  const esEjecutivoAdmin = roles.includes("ejecutivoAdmin");
   const canView = esDeudor ? true : can(PERMS.Deudores_Read);
   const canEdit = !esDeudor && can(PERMS.Deudores_Edit);
   const readOnly = !canEdit && canView;
@@ -662,11 +751,10 @@ export default function DeudoresTable() {
   // ── Importación desde Excel ────────────────────────────────────────────
   const [importando, setImportando] = useState(false);
   const [importReport, setImportReport] = useState<ImportReport | null>(null);
+  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
-  const procesarExcel = async (file: File) => {
-    if (!clienteId) return;
-    setImportando(true);
+  const validarExcel = async (file: File) => {
     try {
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(buffer, { type: "array" });
@@ -675,25 +763,44 @@ export default function DeudoresTable() {
 
       if (rows.length === 0) { toast.error("El archivo no tiene datos"); return; }
 
-      const headers = Object.keys(rows[0]);
-      const nh = headers.map((h) => ({ original: h, n: normalizarEncabezado(h) }));
+      const nh = Object.keys(rows[0]).map((h) => ({ original: h, n: normalizarEncabezado(h) }));
+      const hasInmueble = !!nh.find((h) => h.n.includes("inmueble"));
+      const hasContacto = !!nh.find((h) => h.n.includes("contacto"));
+      const hasCorreo   = !!nh.find((h) => h.n.includes("correo"));
 
-      const colInmueble = nh.find((h) => h.n.includes("inmueble"))?.original;
+      setImportPreview({
+        file,
+        totalRows: rows.length,
+        hasInmueble,
+        hasContacto,
+        hasCorreo,
+        canImport: hasInmueble,
+      });
+    } catch (e: any) {
+      toast.error(e?.message ?? "Error al leer el archivo Excel");
+    } finally {
+      if (importInputRef.current) importInputRef.current.value = "";
+    }
+  };
+
+  const ejecutarImportacion = async () => {
+    if (!clienteId || !importPreview) return;
+    setImportando(true);
+    try {
+      const buffer = await importPreview.file.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
+
+      const nh = Object.keys(rows[0]).map((h) => ({ original: h, n: normalizarEncabezado(h) }));
+      const colInmueble = nh.find((h) => h.n.includes("inmueble"))?.original!;
       const colContacto = nh.find((h) => h.n.includes("contacto"))?.original;
       const colCorreo   = nh.find((h) => h.n.includes("correo"))?.original;
 
       const missingColumns: string[] = [];
-      if (!colInmueble) missingColumns.push("INMUEBLE");
       if (!colContacto) missingColumns.push("CONTACTO");
       if (!colCorreo)   missingColumns.push("CORREO ELECTRÓNICO");
 
-      if (!colInmueble) {
-        toast.error("No se encontró la columna INMUEBLE en el archivo");
-        setImportReport({ totalRows: rows.length, updated: 0, notFound: 0, errors: 0, missingColumns, rows: [] });
-        return;
-      }
-
-      // Mapa rápido ubicacion → deudor
       const deudorMap = new Map<string, Deudor>();
       for (const d of deudores) {
         const key = (d.ubicacion ?? "").trim().toLowerCase();
@@ -722,8 +829,22 @@ export default function DeudoresTable() {
           continue;
         }
 
+        // Normalizar los teléfonos/correos existentes para limpiar entradas malformadas
+        // (ej: "57 314 4574619; 57 305 8129657" almacenado como un solo elemento)
+        // y luego hacer merge con los nuevos sin duplicados.
+        const patch: DeudorPatch = {};
+        if (colContacto) {
+          const existentesNorm = (deudor.telefonos ?? [])
+            .flatMap(t => parsearTelefonosDeTexto(t))
+            .filter(Boolean);
+          patch.telefonos = [...new Set([...existentesNorm, ...telefonosNuevos])];
+        }
+        if (colCorreo) {
+          patch.correos = [...new Set([...(deudor.correos ?? []), ...correosNuevos])];
+        }
+
         try {
-          await mergeContactosDeudor(clienteId, deudor.id, telefonosNuevos, correosNuevos);
+          await actualizarDeudorDatos(clienteId, deudor.id!, patch);
           reportRows.push({ inmueble: inmuebleRaw, deudorNombre: deudor.nombre, status: "updated", phonesAdded: telefonosNuevos, emailsAdded: correosNuevos });
           updated++;
         } catch (e: any) {
@@ -732,6 +853,7 @@ export default function DeudoresTable() {
         }
       }
 
+      setImportPreview(null);
       setImportReport({ totalRows: rows.length, updated, notFound, errors, missingColumns, rows: reportRows });
       if (updated > 0) await fetchDeudores();
 
@@ -739,7 +861,6 @@ export default function DeudoresTable() {
       toast.error(e?.message ?? "Error al procesar el archivo Excel");
     } finally {
       setImportando(false);
-      if (importInputRef.current) importInputRef.current.value = "";
     }
   };
 
@@ -1118,7 +1239,7 @@ export default function DeudoresTable() {
               </div>
             </div>
 
-            {canEdit && (
+            {canEdit && esEjecutivoAdmin && (
               <div className="flex flex-wrap gap-2">
                 {/* ── Importar desde Excel ── */}
                 <input
@@ -1128,7 +1249,7 @@ export default function DeudoresTable() {
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) procesarExcel(file);
+                    if (file) validarExcel(file);
                   }}
                 />
                 <Button
@@ -1649,6 +1770,16 @@ export default function DeudoresTable() {
           </div>
         )}
       </div>
+
+      {importPreview && (
+        <ImportPreviewDialog
+          preview={importPreview}
+          open={!!importPreview}
+          onCancel={() => setImportPreview(null)}
+          onImport={ejecutarImportacion}
+          importing={importando}
+        />
+      )}
 
       {importReport && (
         <ImportReportDialog

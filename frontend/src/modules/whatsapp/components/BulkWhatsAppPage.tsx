@@ -132,7 +132,7 @@ export default function BulkWhatsAppPage() {
   const [allDeudores, setAllDeudores] = useState<Deudor[]>([]);
   const [loadingDeudores, setLoadingDeudores] = useState(true);
 
-  const [selectedTip, setSelectedTip] = useState<string>("");
+  const [selectedTips, setSelectedTips] = useState<string[]>([]);
 
   type Step = "config" | "sending" | "done";
   const [step, setStep] = useState<Step>("config");
@@ -175,11 +175,13 @@ export default function BulkWhatsAppPage() {
 
   // Cargar deuda del último mes para cada deudor filtrado
   useEffect(() => {
-    if (!clienteId || !selectedTip || allDeudores.length === 0) {
+    if (!clienteId || selectedTips.length === 0 || allDeudores.length === 0) {
       setDeudaMap({});
       return;
     }
-    const deudoresFiltrados = allDeudores.filter((d) => d.tipificacion === selectedTip);
+    const deudoresFiltrados = allDeudores.filter(
+      (d) => d.tipificacion && selectedTips.includes(d.tipificacion)
+    );
     if (deudoresFiltrados.length === 0) { setDeudaMap({}); return; }
     Promise.all(
       deudoresFiltrados.map(async (d) => {
@@ -188,7 +190,7 @@ export default function BulkWhatsAppPage() {
         return [d.id!, ultimo?.deuda != null ? String(ultimo.deuda) : ""] as [string, string];
       })
     ).then((entries) => setDeudaMap(Object.fromEntries(entries)));
-  }, [clienteId, selectedTip, allDeudores]);
+  }, [clienteId, selectedTips, allDeudores]);
 
   useEffect(() => {
     if (numbers.length === 1) setNumberId(numbers[0].id);
@@ -236,8 +238,8 @@ export default function BulkWhatsAppPage() {
 
   // ── Deudores filtrados ─────────────────────────────────────────────────────
 
-  const filteredDeudores = selectedTip
-    ? allDeudores.filter((d) => d.tipificacion === selectedTip)
+  const filteredDeudores = selectedTips.length > 0
+    ? allDeudores.filter((d) => d.tipificacion && selectedTips.includes(d.tipificacion))
     : [];
 
   const tipificacionesEnCliente = [
@@ -257,12 +259,14 @@ export default function BulkWhatsAppPage() {
     : false;
 
   const canSend =
-    !!numberId && !!selectedTemplateId && allStaticFilled && !!selectedTip && filteredDeudores.length > 0;
+    !!numberId && !!selectedTemplateId && allStaticFilled && selectedTips.length > 0 && filteredDeudores.length > 0;
 
-  // ── Selección única de tipificación ───────────────────────────────────────
+  // ── Selección múltiple de tipificaciones ──────────────────────────────────
 
-  const selectTip = useCallback((tip: string) => {
-    setSelectedTip((prev) => (prev === tip ? "" : tip));
+  const toggleTip = useCallback((tip: string) => {
+    setSelectedTips((prev) =>
+      prev.includes(tip) ? prev.filter((t) => t !== tip) : [...prev, tip]
+    );
   }, []);
 
   // ── Crear job en Firestore (el backend hace el envío) ──────────────────────
@@ -638,7 +642,7 @@ export default function BulkWhatsAppPage() {
               3. Filtra por tipificación
             </Typography>
             <p className="text-xs text-gray-500 -mt-2">
-              Selecciona una tipificación. Solo se enviará a los deudores de esa tipificación.
+              Selecciona una o varias tipificaciones. Se enviará a todos los deudores de las tipificaciones elegidas.
             </p>
 
             {loadingDeudores ? (
@@ -647,11 +651,11 @@ export default function BulkWhatsAppPage() {
               <>
                 <div className="flex flex-wrap gap-2">
                   {tipificacionesEnCliente.map((tip) => {
-                    const active = selectedTip === tip;
+                    const active = selectedTips.includes(tip);
                     return (
                       <button
                         key={tip}
-                        onClick={() => selectTip(tip)}
+                        onClick={() => toggleTip(tip)}
                         className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
                           active
                             ? "bg-brand-primary text-white border-brand-primary"
@@ -665,17 +669,17 @@ export default function BulkWhatsAppPage() {
                 </div>
 
                 <div className={`flex items-center gap-2 p-3 rounded-lg text-sm font-medium ${
-                  !selectedTip
+                  selectedTips.length === 0
                     ? "bg-gray-50 text-gray-500 border border-gray-200"
                     : filteredDeudores.length > 0
                     ? "bg-brand-primary/5 text-brand-secondary border border-brand-primary/20"
                     : "bg-amber-50 text-amber-700 border border-amber-200"
                 }`}>
-                  {!selectedTip
-                    ? "0 deudores — selecciona una tipificación para continuar"
+                  {selectedTips.length === 0
+                    ? "0 deudores — selecciona al menos una tipificación para continuar"
                     : filteredDeudores.length > 0
-                    ? `${filteredDeudores.length} deudor${filteredDeudores.length !== 1 ? "es" : ""} recibirán el mensaje`
-                    : "Ningún deudor tiene esa tipificación"
+                    ? `${filteredDeudores.length} deudor${filteredDeudores.length !== 1 ? "es" : ""} recibirán el mensaje (${selectedTips.length} tipificación${selectedTips.length !== 1 ? "es" : ""})`
+                    : "Ningún deudor tiene las tipificaciones seleccionadas"
                   }
                 </div>
               </>
@@ -690,9 +694,9 @@ export default function BulkWhatsAppPage() {
             size="lg"
           >
             <Send className="h-4 w-4" />
-            {selectedTip && filteredDeudores.length > 0
-              ? `Enviar a ${filteredDeudores.length} deudor${filteredDeudores.length !== 1 ? "es" : ""} · ${selectedTip}`
-              : "Selecciona una tipificación para enviar"
+            {selectedTips.length > 0 && filteredDeudores.length > 0
+              ? `Enviar a ${filteredDeudores.length} deudor${filteredDeudores.length !== 1 ? "es" : ""} · ${selectedTips.length} tipificación${selectedTips.length !== 1 ? "es" : ""}`
+              : "Selecciona al menos una tipificación para enviar"
             }
           </Button>
         </div>

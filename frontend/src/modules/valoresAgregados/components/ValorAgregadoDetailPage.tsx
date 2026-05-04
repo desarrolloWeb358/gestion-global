@@ -13,7 +13,6 @@ import {
   timestampToDateInput,
   listarConversacionValorAgregado,
   crearMensajeConversacionValorAgregado,
-  marcarValorAgregadoCompletado,
 } from "../services/valorAgregadoService";
 
 import { ValorAgregado } from "../models/valorAgregado.model";
@@ -59,7 +58,6 @@ export default function ValorAgregadoDetailPage() {
   const [mensajes, setMensajes] = React.useState<MensajeValorAgregado[]>([]);
   const [msgsLoading, setMsgsLoading] = React.useState(false);
   const [msgSaving, setMsgSaving] = React.useState(false);
-  const [marcandoCompletado, setMarcandoCompletado] = React.useState(false);
 
   // Nuevo mensaje
   const [texto, setTexto] = React.useState("");
@@ -132,6 +130,8 @@ export default function ValorAgregadoDetailPage() {
 
       setTexto("");
       setArchivoFiles([]);
+      // Reflejar el nuevo estado de completado localmente
+      setItem(prev => prev ? { ...prev, completado: autorTipo !== "cliente" } : prev);
       await fetchMensajes();
       toast.success("✓ Mensaje enviado correctamente");
     } catch (e) {
@@ -139,21 +139,6 @@ export default function ValorAgregadoDetailPage() {
       toast.error("⚠️ No se pudo guardar el mensaje");
     } finally {
       setMsgSaving(false);
-    }
-  }
-
-  async function onMarcarCompletado() {
-    if (!clienteId || !valorId) return;
-    setMarcandoCompletado(true);
-    try {
-      await marcarValorAgregadoCompletado(clienteId, valorId);
-      setItem(prev => prev ? { ...prev, completado: true } : prev);
-      toast.success("✓ Marcado como completado");
-    } catch (e) {
-      console.error(e);
-      toast.error("No se pudo marcar como completado");
-    } finally {
-      setMarcandoCompletado(false);
     }
   }
 
@@ -221,24 +206,11 @@ export default function ValorAgregadoDetailPage() {
                 </Typography>
               </div>
             </div>
-            {canEdit && !isCliente && (
-              item.completado ? (
-                <span className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5">
-                  <CheckCircle className="h-4 w-4" />
-                  Completado
-                </span>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onMarcarCompletado}
-                  disabled={marcandoCompletado}
-                  className="gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-                >
-                  <CheckCircle className="h-4 w-4" />
-                  {marcandoCompletado ? "Guardando..." : "Marcar como completado"}
-                </Button>
-              )
+            {item.completado && (
+              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5">
+                <CheckCircle className="h-4 w-4" />
+                Completado
+              </span>
             )}
           </div>
         </header>

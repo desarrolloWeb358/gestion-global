@@ -16,6 +16,7 @@ import {
 import { UsuarioSistema } from "../models/usuarioSistema.model";
 import { Cliente } from "@/modules/clientes/models/cliente.model";
 import { crearUsuarioDesdeAdmin } from "@/shared/services/crearUsuarioService";
+import { enviarEmail } from "@/modules/notificaciones/services/notificacionService";
 /* ============================================
    Utilidad: elimina claves con undefined
    ============================================ */
@@ -119,12 +120,12 @@ export const crearUsuario = async (
 
   await setDoc(doc(db, "usuarios", uid), usuarioFirestore, { merge: true });
 
-  // 3) Si también es cliente, creamos el doc en "clientes"
+  // 3) Si también es cliente, creamos el doc en "clientes" y enviamos bienvenida
   if (roles.includes("cliente" as any)) {
     const clienteData: Cliente = {
       id: uid,
       direccion: "",
-      formaPago: "",      
+      formaPago: "",
       nombre: usuario.nombre ?? "",
       ejecutivoPrejuridicoId: null as any,
       ejecutivoJuridicoId: null as any,
@@ -134,6 +135,43 @@ export const crearUsuario = async (
     };
 
     await setDoc(doc(db, "clientes", uid), clienteData, { merge: true });
+
+    // Correo de bienvenida con credenciales (no bloquea si falla)
+    enviarEmail({
+      nombreDestino: usuario.nombre ?? "Cliente",
+      correoDestino: usuario.email,
+      subject: "Bienvenido a GESGLO – Tus datos de acceso",
+      titulo: "¡Bienvenido a GESGLO!",
+      cuerpoHtml: `
+        <p>Nos complace contarte que tu cuenta en <strong>GESGLO</strong>, la plataforma de gestión de cartera de <strong>Gestión Global ACG SAS</strong>, ya está lista.</p>
+
+        <h3 style="margin-top:20px;margin-bottom:8px;font-size:15px;color:#111827;">🚀 ¿Qué puedes hacer en GESGLO?</h3>
+        <ul style="margin:0 0 16px;padding-left:18px;color:#374151;">
+          <li>Consultar el estado de tu cartera en tiempo real</li>
+          <li>Revisar acuerdos de pago y recaudos</li>
+          <li>Ver el seguimiento de las gestiones realizadas (llamadas, correos, visitas, procesos jurídicos)</li>
+          <li>Acceder a informes actualizados de tu conjunto</li>
+        </ul>
+
+        <h3 style="margin-top:20px;margin-bottom:8px;font-size:15px;color:#111827;">🔑 Tus datos de acceso</h3>
+        <p>Ingresa desde el siguiente enlace:</p>
+        <p>👉 <a href="https://www.gestionglobalacg.com" style="color:#2563eb;text-decoration:none;font-weight:600;" target="_blank">https://www.gestionglobalacg.com</a></p>
+
+        <table cellpadding="0" cellspacing="0" style="margin-top:8px;margin-bottom:16px;background:#f9fafb;padding:12px;border-radius:6px;width:100%;font-size:14px;color:#374151;">
+          <tr><td style="padding:4px 0;"><strong>Usuario:</strong></td><td style="padding:4px 0;">${usuario.email}</td></tr>
+          <tr><td style="padding:4px 0;"><strong>Contraseña:</strong></td><td style="padding:4px 0;">${usuario.password}</td></tr>
+        </table>
+
+        <p>Si tienes alguna duda o necesitas ayuda para ingresar, no dudes en contactarnos.</p>
+        <p style="margin-top:20px;">
+          Cordialmente,<br/>
+          <strong>Equipo Gestión Global A.C.G.</strong><br/>
+          Área de Tecnología y Transformación Digital<br/>
+          📧 gestionglobalacg@gestionglobalacg.com<br/>
+          📞 (601) 4631148 · 57 316 6936088
+        </p>
+      `,
+    }).catch((err) => console.error("[bienvenida cliente] Error enviando correo:", err));
   }
 
   return uid;

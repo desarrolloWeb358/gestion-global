@@ -19,7 +19,7 @@ import { Button } from "@/shared/ui/button";
 import { cn } from "@/shared/lib/cn";
 import { useNotificacionesUsuario } from "@/modules/notificaciones/hooks/useNotificacionesUsuario";
 import type { NotificacionAlerta } from "../models/notificacion.model";
-import { marcarNotificacionComoVista } from "../services/notificacionService";
+import { marcarNotificacionComoVista, marcarNotificacionComoNoVista } from "../services/notificacionService";
 
 const fmt = new Intl.DateTimeFormat("es-CO", {
   year: "numeric",
@@ -54,7 +54,7 @@ export default function NotificacionesPage() {
   const { todas, totalNoVistas, loading, error } = useNotificacionesUsuario(uid);
 
   const handleClickNotif = async (notif: NotificacionAlerta) => {
-    if (!uid) return; // ✅ no revienta si aún no hay user
+    if (!uid) return;
     if (!notif?.id) return;
 
     try {
@@ -67,6 +67,16 @@ export default function NotificacionesPage() {
 
     if (notif.ruta) {
       navigate(notif.ruta);
+    }
+  };
+
+  const handleMarcarNoLeida = async (e: React.MouseEvent, notif: NotificacionAlerta) => {
+    e.stopPropagation();
+    if (!uid || !notif?.id) return;
+    try {
+      await marcarNotificacionComoNoVista(uid, notif.id);
+    } catch (err) {
+      console.error("[NotificacionesPage] marcar no vista error:", err);
     }
   };
 
@@ -245,17 +255,26 @@ export default function NotificacionesPage() {
                     </div>
                   </div>
 
-                  {!!notif.ruta && (
-                    <div className="flex-shrink-0">
+                  <div className="flex-shrink-0 flex items-center gap-2">
+                    {notif.visto && (
+                      <button
+                        onClick={(e) => handleMarcarNoLeida(e, notif)}
+                        title="Marcar como no leída"
+                        className="text-xs text-gray-400 hover:text-brand-primary underline underline-offset-2 transition-colors"
+                      >
+                        No leída
+                      </button>
+                    )}
+                    {!!notif.ruta && (
                       <ChevronRight
                         className={cn(
                           "h-5 w-5 transition-all",
-                          " group-hover:text-brand-primary",
+                          "group-hover:text-brand-primary",
                           "group-hover:translate-x-0.5"
                         )}
                       />
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
             );

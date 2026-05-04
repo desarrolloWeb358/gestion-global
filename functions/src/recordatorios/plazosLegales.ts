@@ -9,13 +9,26 @@ import {
   sendEmail,
 } from "../notificaciones/sendEmail";
 
-// Tipos válidos de valores agregados que reciben recordatorio
-const TIPOS_VALIDOS = new Set(["Derechos de peticion", "Tutela", "Contratos"]);
+const APP_BASE_URL = "https://gestionglobal-9eac8.web.app";
 
-const MS_HORA = 60 * 60 * 1000;
-// Ventana fija: 1 día antes, el día que vence, y 1 día después
-const VENTANA_ANTES_MS = 48 * MS_HORA;  // hasta 48h adelante cubre "1 día antes"
-const VENTANA_DESPUES_MS = 24 * MS_HORA; // hasta 24h atrás cubre "1 día después"
+// Colombia = UTC-5 (no cambia por horario de verano)
+const COLOMBIA_OFFSET_MS = 5 * 60 * 60 * 1000;
+
+function toColombiaDate(utc: Date): Date {
+  return new Date(utc.getTime() - COLOMBIA_OFFSET_MS);
+}
+
+function startOfDayColombiaAsUTC(utc: Date): Date {
+  const col = toColombiaDate(utc);
+  col.setHours(0, 0, 0, 0);
+  return new Date(col.getTime() + COLOMBIA_OFFSET_MS);
+}
+
+function endOfDayColombiaAsUTC(utc: Date): Date {
+  const col = toColombiaDate(utc);
+  col.setHours(23, 59, 59, 999);
+  return new Date(col.getTime() + COLOMBIA_OFFSET_MS);
+}
 
 // Corre todos los días a las 7:00 AM hora Colombia
 export const recordatorioPlazosLegales = onSchedule(
@@ -32,40 +45,76 @@ export const recordatorioPlazosLegales = onSchedule(
       ahora: ahora.toISOString(),
     });
 
-    // Ventana exacta: ayer a esta hora → pasado mañana a esta hora
-    const hace1Dia = new Date(ahora.getTime() - VENTANA_DESPUES_MS);
-    const en2Dias = new Date(ahora.getTime() + VENTANA_ANTES_MS);
+    // Ventana: desde inicio de ayer (hora Colombia) hasta fin de mañana (hora Colombia)
+    const ayer = new Date(ahora.getTime() - 24 * 60 * 60 * 1000);
+    const manana = new Date(ahora.getTime() + 24 * 60 * 60 * 1000);
+
+    const inicioVentana = startOfDayColombiaAsUTC(ayer);
+    const finVentana = endOfDayColombiaAsUTC(manana);
 
     const snap = await db
       .collectionGroup("valoresAgregados")
       .where("completado", "==", false)
-      .where("fechaLimite", ">=", admin.firestore.Timestamp.fromDate(hace1Dia))
-      .where("fechaLimite", "<=", admin.firestore.Timestamp.fromDate(en2Dias))
+      .where("fechaLimite", ">=", admin.firestore.Timestamp.fromDate(inicioVentana))
+      .where("fechaLimite", "<=", admin.firestore.Timestamp.fromDate(finVentana))
       .get();
 
-    logger.info(`[recordatorioPlazosLegales] Encontrados ${snap.size} valores para evaluar`);
+    logger.info(`[recordatorioPlazosLegales] Encontrados ${snap.size} valores en ventana`, {
+      inicioVentana: inicioVentana.toISOString(),
+      finVentana: finVentana.toISOString(),
+    });
 
     if (snap.empty) return;
+
+    // Días Colombia para comparar por calendario
+    const ahoraColombia = toColombiaDate(ahora);
+    const ayerColombia = toColombiaDate(ayer);
+    const manianaColombia = toColombiaDate(manana);
+
+    function diaKey(d: Date) {
+      return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    }
+    const hoyKey = diaKey(ahoraColombia);
+    const ayerKey = diaKey(ayerColombia);
+    const manianaKey = diaKey(manianaColombia);
 
     for (const docSnap of snap.docs) {
       try {
         const data = docSnap.data() as any;
         const ref = docSnap.ref;
 
-        const tipo: string = data.tipo || "";
-
-        if (!TIPOS_VALIDOS.has(tipo)) {
-          logger.info(`[recordatorioPlazosLegales] Tipo "${tipo}" no configurado, omitiendo`);
-          continue;
-        }
-
-        const fechaLimiteDate: Date = (data.fechaLimite as admin.firestore.Timestamp).toDate();
-        const diferenciaMs = fechaLimiteDate.getTime() - ahora.getTime();
-
         // Ruta: clientes/{clienteId}/valoresAgregados/{valorId}
         const pathParts = ref.path.split("/");
         const clienteId = pathParts[1];
         const valorId = pathParts[3];
+
+        const tipo: string = data.tipo || "";
+
+        if (!tipo) {
+          logger.info(`[recordatorioPlazosLegales] Valor ${valorId} sin tipo definido, omitiendo`);
+          continue;
+        }
+
+        const fechaLimiteDate: Date = (data.fechaLimite as admin.firestore.Timestamp).toDate();
+        const fechaLimiteColombia = toColombiaDate(fechaLimiteDate);
+        const limiteKey = diaKey(fechaLimiteColombia);
+
+        let urgencia: string;
+        let colorUrgencia: string;
+
+        if (limiteKey === ayerKey) {
+          urgencia = "⛔ VENCIDO AYER";
+          colorUrgencia = "#dc2626";
+        } else if (limiteKey === hoyKey) {
+          urgencia = "🚨 VENCE HOY";
+          colorUrgencia = "#ea580c";
+        } else if (limiteKey === manianaKey) {
+          urgencia = "⚠️ VENCE MAÑANA";
+          colorUrgencia = "#d97706";
+        } else {
+          // Fuera de los 3 días — no debería llegar aquí dado el query, pero por seguridad
+          continue;
+        }
 
         const clienteSnap = await db.collection("clientes").doc(clienteId).get();
         if (!clienteSnap.exists) continue;
@@ -91,32 +140,18 @@ export const recordatorioPlazosLegales = onSchedule(
           continue;
         }
 
-        const diferenciaHoras = Math.round(diferenciaMs / (1000 * 60 * 60));
         const titulo: string = data.titulo || "Sin título";
 
-        let urgencia: string;
-        let colorUrgencia: string;
-
-        if (diferenciaMs < 0) {
-          urgencia = `⛔ VENCIDO hace ${Math.abs(diferenciaHoras)} horas`;
-          colorUrgencia = "#dc2626";
-        } else if (diferenciaHoras <= 24) {
-          urgencia = `🚨 VENCE HOY / en ${diferenciaHoras} horas`;
-          colorUrgencia = "#ea580c";
-        } else {
-          urgencia = `⚠️ VENCE MAÑANA / en ${diferenciaHoras} horas`;
-          colorUrgencia = "#d97706";
-        }
-
+        // Fecha límite solo día, sin hora
         const fechaLimiteStr = fechaLimiteDate.toLocaleDateString("es-CO", {
+          timeZone: "America/Bogota",
           weekday: "long",
           year: "numeric",
           month: "long",
           day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
         });
 
+        const enlace = `${APP_BASE_URL}/clientes/${clienteId}/valores-agregados/${valorId}`;
         const subject = `[Recordatorio] Plazo legal: ${tipo} - ${nombreCliente}`;
 
         const cuerpoHtml = `
@@ -128,7 +163,12 @@ export const recordatorioPlazosLegales = onSchedule(
             <tr><td style="padding:6px;font-weight:bold;color:#374151;">Título:</td><td style="padding:6px;">${titulo}</td></tr>
             <tr style="background:#f9fafb;"><td style="padding:6px;font-weight:bold;color:#374151;">Fecha límite:</td><td style="padding:6px;color:${colorUrgencia};font-weight:bold;">${fechaLimiteStr}</td></tr>
           </table>
-          <p style="margin-top:16px;">Ingresa a la plataforma para revisar y marcar como completado cuando esté resuelto.</p>
+          <p style="margin-top:20px;">
+            <a href="${enlace}"
+               style="display:inline-block;background:#111827;color:#f9fafb;padding:10px 24px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:bold;">
+              Ver valor agregado →
+            </a>
+          </p>
         `;
 
         const htmlEmail = `
@@ -175,7 +215,7 @@ export const recordatorioPlazosLegales = onSchedule(
         await sendEmail({
           to: correoAbogado,
           subject,
-          text: `Recordatorio: ${urgencia} — ${tipo}: ${titulo} (${nombreCliente}). Fecha límite: ${fechaLimiteStr}`,
+          text: `Recordatorio: ${urgencia} — ${tipo}: ${titulo} (${nombreCliente}). Fecha límite: ${fechaLimiteStr}. Ver en: ${enlace}`,
           html: htmlEmail,
         });
 
