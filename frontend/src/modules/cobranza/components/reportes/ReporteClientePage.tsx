@@ -75,6 +75,7 @@ import {
 
 import { getClienteById } from "@/modules/clientes/services/clienteService";
 import { normalizeDemandados, demandadosToString } from "../../models/deudores.model";
+import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 
 import { obtenerRecaudosMensuales, MesTotal, existeEstadoMensualClienteEnPeriodo } from "../../services/reportes/recaudosService";
 
@@ -413,6 +414,9 @@ export default function ReporteClientePage() {
 
   const [hayDatosPeriodo, setHayDatosPeriodo] = useState(true);
 
+  const [gestionandoDetalle, setGestionandoDetalle] = useState<DeudorTipificacionDetalle[]>([]);
+  const [recomMin, setRecomMin] = useState<number>(2_000_000);
+  const [recomInputStr, setRecomInputStr] = useState<string>("2000000");
 
   // refs gráficos
   const pieChartRef = useRef<HTMLDivElement>(null);
@@ -446,6 +450,11 @@ export default function ReporteClientePage() {
     );
   }, [detalleTip]);
 
+  const recomRows = useMemo(
+    () => gestionandoDetalle.filter((d) => (d.porRecuperar ?? 0) >= recomMin),
+    [gestionandoDetalle, recomMin]
+  );
+
   useEffect(() => {
     if (!clienteId) return;
 
@@ -465,21 +474,29 @@ export default function ReporteClientePage() {
         setResumenTip([]);
         setDetalleTip([]);
         setTipSeleccionada("");
+        setGestionandoDetalle([]);
         setLoading(false);
         return;
       }
 
       setHayDatosPeriodo(true);
 
-      const [tip, recs, resumen] = await Promise.all([
+      const [tip, recs, resumen, gestionando] = await Promise.all([
         contarTipificacionPorCliente(clienteId, yearTabla, monthTabla),
         obtenerRecaudosMensuales(clienteId, yearTabla, monthTabla),
         obtenerResumenPorTipificacion(clienteId, yearTabla, monthTabla),
+        obtenerDetalleDeudoresPorTipificacion(
+          clienteId,
+          TipificacionDeuda.GESTIONANDO as TipificacionKey,
+          yearTabla,
+          monthTabla
+        ),
       ]);
 
       setPieData(tip);
       setBarsData(recs);
       setResumenTip(resumen);
+      setGestionandoDetalle(gestionando);
       setLoading(false);
     })();
   }, [clienteId, yearTabla, monthTabla]);
@@ -718,6 +735,8 @@ export default function ReporteClientePage() {
 
           demandas: demandasWord,
 
+          recomMin,
+
           pieChartPngDataUrl: piePng ?? undefined,
           barChartPngDataUrl: barPng ?? undefined,
 
@@ -858,6 +877,8 @@ export default function ReporteClientePage() {
         detallePorTipificacion,
 
         demandas: demandasWord,
+
+        recomMin,
 
         pieChartPngDataUrl: piePng ?? undefined,
         barChartPngDataUrl: barPng ?? undefined,
@@ -1462,6 +1483,103 @@ export default function ReporteClientePage() {
                   </Table>
                 </div>
               )}
+            </>
+          )}
+        </div>
+      </section>
+
+      {/* Recomendaciones */}
+      <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
+        <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5 border-b border-brand-secondary/10">
+          <div className="flex items-center gap-2">
+            <FileText className="h-5 w-5 text-brand-primary" />
+            <Typography variant="h3" className="!text-brand-secondary font-semibold">
+              Recomendaciones
+            </Typography>
+          </div>
+        </div>
+        <div className="p-4 md:p-5 space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <Typography variant="small" className="text-brand-secondary font-medium">
+              Umbral de obligaciones (mínimo para recomendar proceso ejecutivo):
+            </Typography>
+            <div className="flex items-center gap-2">
+              <span className="text-brand-secondary text-sm font-medium">$</span>
+              <input
+                type="text"
+                value={recomInputStr}
+                onChange={(e) => setRecomInputStr(e.target.value.replace(/[^0-9]/g, ""))}
+                onBlur={() => {
+                  const n = parseInt(recomInputStr, 10);
+                  if (!isNaN(n) && n >= 0) setRecomMin(n);
+                  else setRecomInputStr(String(recomMin));
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    const n = parseInt(recomInputStr, 10);
+                    if (!isNaN(n) && n >= 0) setRecomMin(n);
+                    else setRecomInputStr(String(recomMin));
+                    (e.target as HTMLInputElement).blur();
+                  }
+                }}
+                className="w-36 rounded-md border border-brand-secondary/30 bg-white px-3 py-1.5 text-sm text-brand-secondary focus:outline-none focus:ring-2 focus:ring-brand-primary/30"
+                placeholder="2000000"
+              />
+              <span className="text-xs text-muted-foreground">({formatCOP(recomMin)})</span>
+            </div>
+          </div>
+
+          {recomRows.length === 0 ? (
+            <div className="rounded-xl border border-brand-secondary/20 bg-white p-8 text-center">
+              <Typography variant="small" className="text-muted-foreground">
+                No hay deudores en GESTIONANDO con obligaciones superiores a {formatCOP(recomMin)}.
+              </Typography>
+            </div>
+          ) : (
+            <>
+              <p className="text-sm italic text-justify leading-relaxed text-gray-700">
+                Se recomienda a la copropiedad en cabeza del Administrador que, en consideración al
+                tiempo de mora, el monto adeudado y habiéndose agotado previamente la gestión
+                prejurídica respecto a los{" "}
+                <strong>{recomRows.length}</strong> deudores que presentan obligaciones superiores a los{" "}
+                <strong className="text-red-600">{formatCOP(recomMin)}</strong>,
+                se autorice dar inicio a los respectivos procesos ejecutivos en contra de cada uno
+                de ellos.
+              </p>
+
+              <div className="rounded-lg border border-brand-secondary/10 overflow-hidden">
+                <Table className="w-full">
+                  <TableHeader className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5">
+                    <TableRow className="border-brand-secondary/10 hover:bg-transparent">
+                      <TableHead className="text-brand-secondary font-semibold">Tipificación</TableHead>
+                      <TableHead className="text-brand-secondary font-semibold">Inmueble</TableHead>
+                      <TableHead className="text-brand-secondary font-semibold">Deudor</TableHead>
+                      <TableHead className="text-right text-brand-secondary font-semibold">
+                        Capital {new Date(yearTabla, monthTabla - 1, 1).toLocaleDateString("es-CO", { month: "long" }).replace(/^\w/, (c) => c.toUpperCase())}
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {recomRows.map((fila, index) => (
+                      <TableRow
+                        key={fila.deudorId}
+                        className={cn(
+                          "border-brand-secondary/5 transition-colors",
+                          index % 2 === 0 ? "bg-white" : "bg-brand-primary/[0.02]",
+                          "hover:bg-brand-primary/5"
+                        )}
+                      >
+                        <TableCell className="font-medium uppercase">{TipificacionDeuda.GESTIONANDO}</TableCell>
+                        <TableCell>{fila.ubicacion}</TableCell>
+                        <TableCell>{fila.nombre}</TableCell>
+                        <TableCell className="text-right font-semibold text-red-600">
+                          {formatCOP(fila.porRecuperar)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </>
           )}
         </div>

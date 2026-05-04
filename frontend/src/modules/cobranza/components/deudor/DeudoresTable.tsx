@@ -75,7 +75,7 @@ function normalizarTelefono(raw: string): string {
   return digits;
 }
 
-// Parsea uno o varios teléfonos desde un texto libre (separadores: coma, punto y coma, salto de línea, o espacio cuando hay múltiples)
+// Parsea uno o varios teléfonos desde un texto libre (separadores: coma, punto y coma, barra, salto de línea, o espacio cuando hay múltiples)
 function parsearTelefonosDeTexto(texto: string): string[] {
   const phones: string[] = [];
   const tryAdd = (raw: string) => {
@@ -95,7 +95,7 @@ function parsearTelefonosDeTexto(texto: string): string[] {
     }
     if (acc) tryAdd(acc);
   };
-  for (const segment of texto.split(/[,;\n]+/)) {
+  for (const segment of texto.split(/[,;\/\n]+/)) {
     const digits = segment.replace(/\D/g, "");
     if (digits.length > 13) assembleAndAdd(segment);
     else tryAdd(segment);

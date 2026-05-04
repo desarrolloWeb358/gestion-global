@@ -13,11 +13,18 @@ import {
   ChevronDown,
   Loader2,
   RefreshCw,
-  Activity,
   ExternalLink,
+  Handshake,
+  UserCog,
 } from "lucide-react";
 import { db } from "@/firebase";
-import { collection, collectionGroup, getDocs, query, where } from "firebase/firestore";
+import {
+  collection,
+  collectionGroup,
+  getDocs,
+  query,
+  where,
+} from "firebase/firestore";
 import { Typography } from "@/shared/design-system/components/Typography";
 import { Button } from "@/shared/ui/button";
 import {
@@ -28,11 +35,7 @@ import {
   SelectValue,
 } from "@/shared/ui/select";
 import { Label } from "@/shared/ui/label";
-import SeguimientoDashboardAdmin from "@/modules/reportes/components/SeguimientoDashboardAdmin";
-import {
-  obtenerResumenMesConNombres,
-  obtenerDeudoresActivosPorCliente,
-} from "@/modules/reportes/services/recaudoMensualService";
+import { obtenerResumenMesConNombres } from "@/modules/reportes/services/recaudoMensualService";
 import {
   ResumenMesSeleccionado,
   ResumenPorCliente,
@@ -89,6 +92,21 @@ type SortDir = "asc" | "desc";
 interface FilaCliente extends ResumenPorCliente {
   deudores: number;
   recuperacion: number;
+}
+
+interface ClienteInfo {
+  id: string;
+  nombre: string;
+  ejecutivoPrejuridicoId: string | null;
+}
+
+interface EjecutivoStat {
+  ejecutivoId: string;
+  ejecutivoNombre: string;
+  totalConjuntos: number;
+  totalDeudores: number;
+  totalAcuerdosEnFirme: number;
+  pctAcuerdos: number;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -188,6 +206,22 @@ function RecupBadge({ value }: { value: number }) {
   );
 }
 
+function AcuerdoBadge({ value }: { value: number }) {
+  const color =
+    value >= 50
+      ? "bg-green-100 text-green-700"
+      : value >= 25
+      ? "bg-amber-100 text-amber-700"
+      : "bg-red-100 text-red-700";
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${color}`}
+    >
+      {value}%
+    </span>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AdminDashboardPage() {
@@ -202,16 +236,21 @@ export default function AdminDashboardPage() {
 
   // ── Data
   const [clientesActivos, setClientesActivos] = useState<number | null>(null);
+  const [clientesList, setClientesList] = useState<ClienteInfo[]>([]);
   const [deudoresPorCliente, setDeudoresPorCliente] = useState<Map<string, number>>(
     new Map()
   );
   const [resumen, setResumen] = useState<ResumenMesSeleccionado | null>(null);
+  const [usuariosMap, setUsuariosMap] = useState<Map<string, string>>(new Map());
+  const [acuerdosEnFirmeMap, setAcuerdosEnFirmeMap] = useState<Map<string, number>>(
+    new Map()
+  );
 
   // ── Loading
   const [loadingKpis, setLoadingKpis] = useState(true);
   const [loadingMes, setLoadingMes] = useState(false);
 
-  // ── Sort
+  // ── Sort (tabla conjuntos)
   const [sortKey, setSortKey] = useState<SortKey>("recaudo");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
@@ -222,16 +261,64 @@ export default function AdminDashboardPage() {
     return arr.reverse();
   }, []);
 
-  // ── Fetch clientes activos + deudores por cliente (solo al montar)
+  // ── Fetch KPIs globales
   useEffect(() => {
     async function fetchKpis() {
       try {
-        const [clientesSnap, deudoresMap] = await Promise.all([
-          getDocs(query(collection(db, "clientes"), where("activo", "==", true))),
-          obtenerDeudoresActivosPorCliente(),
+        // Dos queries independientes que ya tienen índice COLLECTION_GROUP
+        const [deudoresSnap, acuerdosSnap] = await Promise.all([
+          getDocs(collectionGroup(db, "deudores")),
+          getDocs(
+            query(collectionGroup(db, "acuerdos"), where("estado", "==", "EN_FIRME"))
+          ),
         ]);
-        setClientesActivos(clientesSnap.size);
-        setDeudoresPorCliente(deudoresMap);
+
+        const deuMap = new Map<string, number>();
+        deudoresSnap.forEach((doc) => {
+          const data = doc.data();
+          if (data?.tipificacion === "Inactivo") return;
+          const clienteId = doc.ref.parent.parent?.id;
+          if (clienteId) deuMap.set(clienteId, (deuMap.get(clienteId) ?? 0) + 1);
+        });
+        setDeudoresPorCliente(deuMap);
+
+        // path: clientes/{clienteId}/deudores/{deudorId}/acuerdos/{acuerdoId}
+        const acuMap = new Map<string, number>();
+        acuerdosSnap.forEach((doc) => {
+          const clienteId = doc.ref.path.split("/")[1];
+          if (clienteId) acuMap.set(clienteId, (acuMap.get(clienteId) ?? 0) + 1);
+        });
+        setAcuerdosEnFirmeMap(acuMap);
+
+        // Clientes y usuarios son independientes — si uno falla el otro sigue cargando
+        const [clientesResult, usuariosResult] = await Promise.allSettled([
+          getDocs(query(collection(db, "clientes"), where("activo", "==", true))),
+          getDocs(collection(db, "usuarios")),
+        ]);
+
+        if (clientesResult.status === "fulfilled") {
+          setClientesActivos(clientesResult.value.size);
+          setClientesList(
+            clientesResult.value.docs.map((doc) => ({
+              id: doc.id,
+              nombre: (doc.data().nombre as string) ?? "",
+              ejecutivoPrejuridicoId:
+                (doc.data().ejecutivoPrejuridicoId as string) ?? null,
+            }))
+          );
+        }
+
+        if (usuariosResult.status === "fulfilled") {
+          const usersMap = new Map<string, string>();
+          usuariosResult.value.docs.forEach((doc) => {
+            const data = doc.data();
+            usersMap.set(
+              doc.id,
+              (data.nombre as string) ?? (data.email as string) ?? doc.id
+            );
+          });
+          setUsuariosMap(usersMap);
+        }
       } catch (err) {
         console.error("Error cargando KPIs globales:", err);
       } finally {
@@ -267,10 +354,16 @@ export default function AdminDashboardPage() {
     return total;
   }, [deudoresPorCliente]);
 
+  const totalAcuerdosEnFirme = useMemo(() => {
+    let total = 0;
+    acuerdosEnFirmeMap.forEach((v) => (total += v));
+    return total;
+  }, [acuerdosEnFirmeMap]);
+
   const totales = resumen?.totales;
   const pctRecuperacion = pct(totales?.totalRecaudo ?? 0, totales?.totalDeuda ?? 0);
 
-  // ── Tabla: combinar resumen + conteo deudores
+  // ── Tabla conjuntos: combinar resumen + conteo deudores
   const filas = useMemo<FilaCliente[]>(() => {
     if (!resumen) return [];
     return resumen.porCliente.map((r) => ({
@@ -280,7 +373,6 @@ export default function AdminDashboardPage() {
     }));
   }, [resumen, deudoresPorCliente]);
 
-  // ── Filas ordenadas
   const filasOrdenadas = useMemo(() => {
     return [...filas].sort((a, b) => {
       if (sortKey === "clienteNombre") {
@@ -294,7 +386,6 @@ export default function AdminDashboardPage() {
     });
   }, [filas, sortKey, sortDir]);
 
-
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -303,6 +394,60 @@ export default function AdminDashboardPage() {
       setSortDir("desc");
     }
   };
+
+  // ── Ejecutivos prejurídico: agrupar conjuntos y deudores
+  const ejecutivoStats = useMemo<EjecutivoStat[]>(() => {
+    const map = new Map<string, EjecutivoStat>();
+    const sinEjecutivo: EjecutivoStat = {
+      ejecutivoId: "__sin_ejecutivo__",
+      ejecutivoNombre: "— Sin ejecutivo asignado —",
+      totalConjuntos: 0,
+      totalDeudores: 0,
+      totalAcuerdosEnFirme: 0,
+      pctAcuerdos: 0,
+    };
+
+    for (const cliente of clientesList) {
+      const ejId = cliente.ejecutivoPrejuridicoId;
+
+      if (!ejId) {
+        sinEjecutivo.totalConjuntos++;
+        sinEjecutivo.totalDeudores += deudoresPorCliente.get(cliente.id) ?? 0;
+        sinEjecutivo.totalAcuerdosEnFirme += acuerdosEnFirmeMap.get(cliente.id) ?? 0;
+        continue;
+      }
+
+      if (!map.has(ejId)) {
+        map.set(ejId, {
+          ejecutivoId: ejId,
+          ejecutivoNombre: usuariosMap.get(ejId) ?? "Sin nombre",
+          totalConjuntos: 0,
+          totalDeudores: 0,
+          totalAcuerdosEnFirme: 0,
+          pctAcuerdos: 0,
+        });
+      }
+
+      const ej = map.get(ejId)!;
+      ej.totalConjuntos++;
+      ej.totalDeudores += deudoresPorCliente.get(cliente.id) ?? 0;
+      ej.totalAcuerdosEnFirme += acuerdosEnFirmeMap.get(cliente.id) ?? 0;
+    }
+
+    const resultado = Array.from(map.values())
+      .map((ej) => ({
+        ...ej,
+        pctAcuerdos: pct(ej.totalAcuerdosEnFirme, ej.totalDeudores),
+      }))
+      .sort((a, b) => b.totalDeudores - a.totalDeudores);
+
+    if (sinEjecutivo.totalConjuntos > 0) {
+      sinEjecutivo.pctAcuerdos = pct(sinEjecutivo.totalAcuerdosEnFirme, sinEjecutivo.totalDeudores);
+      resultado.push(sinEjecutivo);
+    }
+
+    return resultado;
+  }, [clientesList, usuariosMap, deudoresPorCliente, acuerdosEnFirmeMap]);
 
   const mesLabel = MONTH_LABELS.find((mm) => mm.v === month)?.l ?? month;
 
@@ -383,8 +528,8 @@ export default function AdminDashboardPage() {
           </div>
         </header>
 
-        {/* ── KPI CARDS ── */}
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {/* ── KPI FILA 1: conteos ── */}
+        <section className="grid gap-4 grid-cols-1 sm:grid-cols-3">
           <KpiCard
             icon={<Building2 className="h-5 w-5 text-blue-600" />}
             iconBg="bg-blue-100"
@@ -401,6 +546,22 @@ export default function AdminDashboardPage() {
             subtitle="Excluye inactivos"
           />
           <KpiCard
+            icon={<Handshake className="h-5 w-5 text-teal-600" />}
+            iconBg="bg-teal-100"
+            label="Acuerdos de pago EN FIRME"
+            value={loadingKpis ? "…" : String(totalAcuerdosEnFirme)}
+            valueColor="text-teal-700"
+            subtitle={
+              totalDeudores > 0
+                ? `${pct(totalAcuerdosEnFirme, totalDeudores)}% de deudores activos`
+                : undefined
+            }
+          />
+        </section>
+
+        {/* ── KPI FILA 2: valores del mes ── */}
+        <section className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+          <KpiCard
             icon={<Wallet className="h-5 w-5 text-amber-600" />}
             iconBg="bg-amber-100"
             label={`Cartera ${mesLabel} ${year}`}
@@ -416,28 +577,113 @@ export default function AdminDashboardPage() {
             small
             valueColor="text-green-700"
           />
-          <KpiCard
-            icon={<BarChart3 className="h-5 w-5 text-purple-600" />}
-            iconBg="bg-purple-100"
-            label="% Recuperación"
-            value={loadingMes ? "…" : `${pctRecuperacion}%`}
-            valueColor={
-              pctRecuperacion >= 70
-                ? "text-green-600"
-                : pctRecuperacion >= 40
-                ? "text-amber-600"
-                : "text-red-600"
-            }
-            subtitle={`Recaudo / Cartera ${mesLabel}`}
-          />
-          <KpiCard
-            icon={<BarChart3 className="h-5 w-5 text-indigo-600" />}
-            iconBg="bg-indigo-100"
-            label={`Honorarios ${mesLabel} ${year}`}
-            value={loadingMes ? "…" : currency(totales?.totalHonorario ?? 0)}
-            small
-            valueColor="text-indigo-700"
-          />
+        </section>
+
+        {/* ── TABLA POR EJECUTIVO PREJURÍDICO ── */}
+        <section className="rounded-2xl border bg-white shadow-sm overflow-hidden">
+          <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 px-5 py-4 border-b">
+            <div className="flex items-center gap-2">
+              <UserCog className="h-5 w-5 text-brand-primary" />
+              <Typography variant="h3" className="!text-brand-secondary font-semibold">
+                Reporte por Ejecutivo Prejurídico
+              </Typography>
+            </div>
+            <Typography variant="small" className="text-muted-foreground">
+              Conjuntos y deudores asignados · Acuerdos EN FIRME activos
+            </Typography>
+          </div>
+
+          <div className="overflow-x-auto">
+            {loadingKpis ? (
+              <div className="h-48 flex items-center justify-center">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : ejecutivoStats.length === 0 ? (
+              <div className="h-48 flex items-center justify-center">
+                <p className="text-sm text-muted-foreground">
+                  Sin ejecutivos prejurídicos asignados.
+                </p>
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 border-b">
+                  <tr>
+                    <th className="py-3 px-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      Ejecutivo
+                    </th>
+                    <th className="py-3 px-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">
+                      Conjuntos
+                    </th>
+                    <th className="py-3 px-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">
+                      Deudores
+                    </th>
+                    <th className="py-3 px-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">
+                      Con Acuerdo
+                    </th>
+                    <th className="py-3 px-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">
+                      % Acuerdo
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ejecutivoStats.map((ej) => {
+                    const esSinEjecutivo = ej.ejecutivoId === "__sin_ejecutivo__";
+                    return (
+                      <tr
+                        key={ej.ejecutivoId}
+                        className={`border-t transition-colors ${
+                          esSinEjecutivo
+                            ? "bg-slate-50/50"
+                            : "hover:bg-slate-50/70"
+                        }`}
+                      >
+                        <td
+                          className={`py-3 px-4 ${
+                            esSinEjecutivo
+                              ? "text-muted-foreground italic text-xs"
+                              : "font-medium"
+                          }`}
+                        >
+                          {ej.ejecutivoNombre}
+                        </td>
+                        <td className="py-3 px-4 text-right tabular-nums text-muted-foreground">
+                          {ej.totalConjuntos}
+                        </td>
+                        <td className="py-3 px-4 text-right tabular-nums font-medium">
+                          {ej.totalDeudores}
+                        </td>
+                        <td className="py-3 px-4 text-right tabular-nums text-teal-700 font-medium">
+                          {ej.totalAcuerdosEnFirme}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <AcuerdoBadge value={ej.pctAcuerdos} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot className="bg-slate-50 border-t-2 border-slate-200">
+                  <tr className="font-semibold">
+                    <td className="py-3 px-4 text-sm">
+                      Totales ({ejecutivoStats.filter(e => e.ejecutivoId !== "__sin_ejecutivo__").length} ejecutivos)
+                    </td>
+                    <td className="py-3 px-4 text-right tabular-nums text-muted-foreground">
+                      {ejecutivoStats.reduce((s, e) => s + e.totalConjuntos, 0)}
+                    </td>
+                    <td className="py-3 px-4 text-right tabular-nums">
+                      {totalDeudores}
+                    </td>
+                    <td className="py-3 px-4 text-right tabular-nums text-teal-700">
+                      {totalAcuerdosEnFirme}
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <AcuerdoBadge value={pct(totalAcuerdosEnFirme, totalDeudores)} />
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            )}
+          </div>
         </section>
 
         {/* ── TABLA POR CLIENTE ── */}
@@ -592,24 +838,6 @@ export default function AdminDashboardPage() {
                 </tfoot>
               </table>
             )}
-          </div>
-        </section>
-
-        {/* ── SEGUIMIENTOS ── */}
-        <section className="rounded-2xl border bg-white shadow-sm overflow-hidden">
-          <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 px-5 py-4 border-b">
-            <div className="flex items-center gap-2">
-              <Activity className="h-5 w-5 text-brand-primary" />
-              <Typography variant="h3" className="!text-brand-secondary font-semibold">
-                Actividad de cobranza
-              </Typography>
-            </div>
-            <Typography variant="small" className="text-muted-foreground">
-              Seguimientos realizados por ejecutivo · Filtro por rango de fechas
-            </Typography>
-          </div>
-          <div className="p-4 md:p-5">
-            <SeguimientoDashboardAdmin />
           </div>
         </section>
 
