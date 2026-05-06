@@ -66,6 +66,7 @@ import { cn } from "@/shared/lib/cn";
 import { Rol, ROLES } from "@/shared/constants/acl";
 import { Typography } from "@/shared/design-system/components/Typography";
 import { BackButton } from "@/shared/design-system/components/BackButton";
+import { enviarEmail } from "@/modules/notificaciones/services/notificacionService";
 
 // Sentinelas para selects (evitar value="")
 const ALL = "__ALL__";
