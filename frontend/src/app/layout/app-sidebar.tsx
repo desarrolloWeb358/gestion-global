@@ -34,16 +34,18 @@ import { useNotificacionesUsuario } from "@/modules/notificaciones/hooks/useNoti
 import { useWaUnreadCount } from "@/modules/whatsapp/hooks/useWaUnreadCount";
 
 function useFilteredNav(items: NavItem[]) {
-  const { roles, can, loading } = useAcl();
+  const { roles, can, loading, canConsultarPersonas } = useAcl();
 
   const filtered = useMemo(() => {
+    const flags: Record<string, boolean> = { canConsultarPersonas };
     const allow = (it: NavItem) => {
       const okRole = !it.roles || it.roles.some(r => roles.includes(r));
       const okPerm = !it.perm || can(it.perm);
-      return okRole && okPerm;
+      const okFlag = !it.requireFlag || flags[it.requireFlag] === true;
+      return okRole && okPerm && okFlag;
     };
     return items.filter(allow);
-  }, [items, roles, can]);
+  }, [items, roles, can, canConsultarPersonas]);
 
   return { items: filtered, loading };
 }
