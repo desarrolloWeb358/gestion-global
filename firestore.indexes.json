@@ -60,6 +60,21 @@
   "fieldOverrides": [
     {
       "collectionGroup": "deudores",
+      "fieldPath": "tipificacion",
+      "ttl": false,
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "deudores",
       "fieldPath": "telefonos",
       "ttl": false,
       "indexes": [

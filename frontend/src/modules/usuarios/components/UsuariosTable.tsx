@@ -2,6 +2,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { crearUsuarioDesdeAdmin } from "@/shared/services/crearUsuarioService";
+import { getAuth } from "firebase/auth";
 import {
   Check,
   ChevronDown,
@@ -654,15 +655,28 @@ export default function UsuariosCrud() {
                             checked={!!usuario.activo}
                             onCheckedChange={async (checked) => {
                               try {
-                                const actualizado = { ...usuario, activo: checked };
-                                await actualizarUsuario(actualizado);
+                                const token = await getAuth().currentUser?.getIdToken();
+                                const res = await fetch(
+                                  "https://us-central1-gestionglobal-9eac8.cloudfunctions.net/crearUsuarioDesdeAdmin",
+                                  {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                                    body: JSON.stringify({ action: "toggleActivo", uid: usuario.uid, activo: checked }),
+                                  }
+                                );
+                                if (!res.ok) {
+                                  const d = await res.json();
+                                  throw new Error(d.error ?? `Error ${res.status}`);
+                                }
                                 setUsuarios((prev) =>
-                                  prev.map((u) => (u.uid === actualizado.uid ? actualizado : u))
+                                  prev.map((u) =>
+                                    u.uid === usuario.uid ? { ...u, activo: checked } : u
+                                  )
                                 );
                                 toast.success(checked ? "✓ Usuario activado" : "✗ Usuario desactivado");
-                              } catch (e) {
+                              } catch (e: any) {
                                 console.error(e);
-                                toast.error("No se pudo actualizar el estado");
+                                toast.error(e?.message ?? "No se pudo actualizar el estado");
                               }
                             }}
                             className="data-[state=checked]:bg-brand-primary hover:data-[state=checked]:bg-brand-primary/90 data-[state=unchecked]:bg-gray-300 focus-visible:ring-2 focus-visible:ring-brand-primary/30"

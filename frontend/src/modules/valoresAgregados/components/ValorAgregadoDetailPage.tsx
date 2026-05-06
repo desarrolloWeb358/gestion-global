@@ -399,8 +399,8 @@ export default function ValorAgregadoDetailPage() {
               </div>
             )}
 
-            {/* Nuevo mensaje */}
-            <div className="pt-4 border-t border-gray-200">
+            {/* Nuevo mensaje — solo abogado, admin, ejecutivoAdmin y cliente */}
+            {canEdit && <div className="pt-4 border-t border-gray-200">
               <Typography variant="body" className="font-semibold text-brand-secondary mb-3">
                 Agregar mensaje
               </Typography>
@@ -503,7 +503,7 @@ export default function ValorAgregadoDetailPage() {
                   </Button>
                 </div>
               </div>
-            </div>
+            </div>}
           </div>
         </section>
       </div>

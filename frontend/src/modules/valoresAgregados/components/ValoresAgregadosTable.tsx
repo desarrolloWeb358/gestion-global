@@ -446,7 +446,7 @@ const canEdit = canView && isCliente;
                       disabled={saving}
                       placeholder="Anota contexto, acuerdos, radicados, notas internas…"
                       className="min-h-40 border-brand-secondary/30"
-                      maxLength={1000}
+                      maxLength={3000}
                     />
                   </div>
 

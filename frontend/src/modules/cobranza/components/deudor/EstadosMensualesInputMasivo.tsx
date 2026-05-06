@@ -70,9 +70,8 @@ export default function EstadosMensualesInputMasivo() {
   const [saving, setSaving] = useState(false);
   const [cargandoExistentes, setCargandoExistentes] = useState(false);
 
-  // Estructura base de deudores (sin estados) para reutilizar al cambiar el mes
+  // Estructura base de deudores (sin estados) para reutilizar al cargar mes
   const filasBaseRef = useRef<FilaEstadoBase[]>([]);
-  const esPrimerRenderMes = useRef(true);
 
   // Traer nombre del cliente
   useEffect(() => {
@@ -208,14 +207,8 @@ export default function EstadosMensualesInputMasivo() {
     cargar();
   }, [clienteId]);
 
-  // Recargar estados cuando cambia el mes
-  useEffect(() => {
-    if (esPrimerRenderMes.current) {
-      esPrimerRenderMes.current = false;
-      return;
-    }
-    aplicarEstadosMes(mesGlobal, filasBaseRef.current);
-  }, [mesGlobal]);
+  // El cambio de mes solo actualiza el destino del guardado.
+  // Para cargar datos existentes del mes nuevo, el usuario usa el botón "Cargar mes".
 
 
 
@@ -413,13 +406,28 @@ export default function EstadosMensualesInputMasivo() {
                 <Calendar className="h-4 w-4" />
                 Mes *
               </Label>
-              <Input
-                type="month"
-                value={mesGlobal ?? ""}
-                onChange={(e) => setMesGlobal(e.target.value.slice(0, 7))}
-                disabled={saving}
-                className="border-brand-secondary/30"
-              />
+              <div className="flex items-center gap-2">
+                <Input
+                  type="month"
+                  value={mesGlobal ?? ""}
+                  onChange={(e) => setMesGlobal(e.target.value.slice(0, 7))}
+                  disabled={saving}
+                  className="border-brand-secondary/30"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={saving || cargandoExistentes || !mesGlobal}
+                  onClick={() => aplicarEstadosMes(mesGlobal, filasBaseRef.current)}
+                  className="whitespace-nowrap"
+                >
+                  Cargar mes
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Cambia el mes sin perder los datos ingresados. Usa "Cargar mes" para traer datos guardados de ese mes.
+              </p>
             </div>
           </div>
         </section>
