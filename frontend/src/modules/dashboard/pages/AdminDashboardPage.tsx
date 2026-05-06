@@ -242,6 +242,7 @@ export default function AdminDashboardPage() {
   );
   const [resumen, setResumen] = useState<ResumenMesSeleccionado | null>(null);
   const [usuariosMap, setUsuariosMap] = useState<Map<string, string>>(new Map());
+  const [excludedEjecutivoIds, setExcludedEjecutivoIds] = useState<Set<string>>(new Set());
   const [acuerdosEnFirmeMap, setAcuerdosEnFirmeMap] = useState<Map<string, number>>(
     new Map()
   );
@@ -265,41 +266,66 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     async function fetchKpis() {
       try {
-        // Dos queries independientes que ya tienen índice COLLECTION_GROUP
-        const [deudoresSnap, acuerdosSnap] = await Promise.all([
-          getDocs(collectionGroup(db, "deudores")),
-          getDocs(
-            query(collectionGroup(db, "acuerdos"), where("estado", "==", "EN_FIRME"))
-          ),
-        ]);
+        const deudoresSnap = await getDocs(collectionGroup(db, "deudores"));
+
+        const EXCLUIR = new Set(["Inactivo", "Terminado", "Demanda/Terminado", "Devuelto"]);
 
         const deuMap = new Map<string, number>();
+        const acuMap = new Map<string, number>();
         deudoresSnap.forEach((doc) => {
           const data = doc.data();
-          if (data?.tipificacion === "Inactivo") return;
+          if (EXCLUIR.has(data?.tipificacion)) return;
           const clienteId = doc.ref.parent.parent?.id;
-          if (clienteId) deuMap.set(clienteId, (deuMap.get(clienteId) ?? 0) + 1);
+          if (clienteId) {
+            deuMap.set(clienteId, (deuMap.get(clienteId) ?? 0) + 1);
+            if (data?.tipificacion === "Acuerdo") {
+              acuMap.set(clienteId, (acuMap.get(clienteId) ?? 0) + 1);
+            }
+          }
         });
-        setDeudoresPorCliente(deuMap);
 
-        // path: clientes/{clienteId}/deudores/{deudorId}/acuerdos/{acuerdoId}
-        const acuMap = new Map<string, number>();
-        acuerdosSnap.forEach((doc) => {
-          const clienteId = doc.ref.path.split("/")[1];
-          if (clienteId) acuMap.set(clienteId, (acuMap.get(clienteId) ?? 0) + 1);
-        });
-        setAcuerdosEnFirmeMap(acuMap);
-
-        // Clientes y usuarios son independientes — si uno falla el otro sigue cargando
         const [clientesResult, usuariosResult] = await Promise.allSettled([
           getDocs(query(collection(db, "clientes"), where("activo", "==", true))),
           getDocs(collection(db, "usuarios")),
         ]);
 
+        // 1. Resolver ejecutivos excluidos (usuarios de prueba)
+        const excluded = new Set<string>();
+        if (usuariosResult.status === "fulfilled") {
+          const TEST_EMAILS = new Set(["juanpabloduque@gmail.com"]);
+          const usersMap = new Map<string, string>();
+          usuariosResult.value.docs.forEach((doc) => {
+            const data = doc.data();
+            if (TEST_EMAILS.has(data.email as string)) excluded.add(doc.id);
+            usersMap.set(
+              doc.id,
+              (data.nombre as string) ?? (data.email as string) ?? doc.id
+            );
+          });
+          setUsuariosMap(usersMap);
+          setExcludedEjecutivoIds(excluded);
+        }
+
+        // 2. Resolver clientes excluyendo los que pertenecen a ejecutivos de prueba
         if (clientesResult.status === "fulfilled") {
-          setClientesActivos(clientesResult.value.size);
+          const excludedClienteIds = new Set<string>();
+          clientesResult.value.docs.forEach((doc) => {
+            const ejId = doc.data().ejecutivoPrejuridicoId as string | undefined;
+            if (ejId && excluded.has(ejId)) excludedClienteIds.add(doc.id);
+          });
+
+          // Eliminar esos clientes de los mapas de deudores y acuerdos
+          excludedClienteIds.forEach((id) => {
+            deuMap.delete(id);
+            acuMap.delete(id);
+          });
+
+          const filteredDocs = clientesResult.value.docs.filter(
+            (doc) => !excludedClienteIds.has(doc.id)
+          );
+          setClientesActivos(filteredDocs.length);
           setClientesList(
-            clientesResult.value.docs.map((doc) => ({
+            filteredDocs.map((doc) => ({
               id: doc.id,
               nombre: (doc.data().nombre as string) ?? "",
               ejecutivoPrejuridicoId:
@@ -308,17 +334,10 @@ export default function AdminDashboardPage() {
           );
         }
 
-        if (usuariosResult.status === "fulfilled") {
-          const usersMap = new Map<string, string>();
-          usuariosResult.value.docs.forEach((doc) => {
-            const data = doc.data();
-            usersMap.set(
-              doc.id,
-              (data.nombre as string) ?? (data.email as string) ?? doc.id
-            );
-          });
-          setUsuariosMap(usersMap);
-        }
+        // 3. Persistir mapas ya filtrados
+        setDeudoresPorCliente(deuMap);
+        setAcuerdosEnFirmeMap(acuMap);
+
       } catch (err) {
         console.error("Error cargando KPIs globales:", err);
       } finally {
@@ -410,7 +429,7 @@ export default function AdminDashboardPage() {
     for (const cliente of clientesList) {
       const ejId = cliente.ejecutivoPrejuridicoId;
 
-      if (!ejId) {
+      if (!ejId || excludedEjecutivoIds.has(ejId)) {
         sinEjecutivo.totalConjuntos++;
         sinEjecutivo.totalDeudores += deudoresPorCliente.get(cliente.id) ?? 0;
         sinEjecutivo.totalAcuerdosEnFirme += acuerdosEnFirmeMap.get(cliente.id) ?? 0;
@@ -447,7 +466,7 @@ export default function AdminDashboardPage() {
     }
 
     return resultado;
-  }, [clientesList, usuariosMap, deudoresPorCliente, acuerdosEnFirmeMap]);
+  }, [clientesList, usuariosMap, deudoresPorCliente, acuerdosEnFirmeMap, excludedEjecutivoIds]);
 
   const mesLabel = MONTH_LABELS.find((mm) => mm.v === month)?.l ?? month;
 
@@ -548,7 +567,7 @@ export default function AdminDashboardPage() {
           <KpiCard
             icon={<Handshake className="h-5 w-5 text-teal-600" />}
             iconBg="bg-teal-100"
-            label="Acuerdos de pago EN FIRME"
+            label="Deudores con acuerdo activo"
             value={loadingKpis ? "…" : String(totalAcuerdosEnFirme)}
             valueColor="text-teal-700"
             subtitle={
@@ -589,7 +608,7 @@ export default function AdminDashboardPage() {
               </Typography>
             </div>
             <Typography variant="small" className="text-muted-foreground">
-              Conjuntos y deudores asignados · Acuerdos EN FIRME activos
+              Conjuntos y deudores asignados · Deudores con tipificación Acuerdo
             </Typography>
           </div>
 
@@ -631,17 +650,22 @@ export default function AdminDashboardPage() {
                     return (
                       <tr
                         key={ej.ejecutivoId}
+                        onClick={
+                          !esSinEjecutivo
+                            ? () => navigate(`/dashboard/ejecutivo?uid=${ej.ejecutivoId}`)
+                            : undefined
+                        }
                         className={`border-t transition-colors ${
                           esSinEjecutivo
                             ? "bg-slate-50/50"
-                            : "hover:bg-slate-50/70"
+                            : "hover:bg-slate-50/70 cursor-pointer"
                         }`}
                       >
                         <td
                           className={`py-3 px-4 ${
                             esSinEjecutivo
                               ? "text-muted-foreground italic text-xs"
-                              : "font-medium"
+                              : "font-medium text-brand-primary hover:underline"
                           }`}
                         >
                           {ej.ejecutivoNombre}
