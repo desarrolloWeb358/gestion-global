@@ -50,6 +50,7 @@ import ClienteSeguimiento from "./modules/cobranza/components/observaciones/Clie
 import ObservacionesDeudorPage from "./modules/cobranza/components/observaciones/ObservacionesDeudorPage";
 import RegistrosEliminadosPage from "./modules/registrosEliminados/components/RegistrosEliminadosPage";
 import InformacionDemandaPage from "./modules/cobranza/components/seguimiento/InformacionDemandaPage";
+import AjustesPage from "./modules/ajustes/components/AjustesPage";
 
 
 export default function App() {
@@ -101,6 +102,7 @@ export default function App() {
             <Route path="/clientes/:clienteId/valores-agregados/:valorId" element={<ValorAgregadoDetailPage />} />
             <Route path="/clientes/:clienteId/deudores/:deudorId/AcuerdoPago" element={<AcuerdoPagoPage />} />
             <Route path="/clientes/:clienteId/deudores/:deudorId/informacion-demanda" element={<InformacionDemandaPage />} />
+            <Route path="/ajustes" element={<AjustesPage />} />
 
             {/* WhatsApp */}
             <Route path="/whatsapp" element={<NumberSelectPage />} />

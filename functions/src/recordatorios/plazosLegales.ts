@@ -121,6 +121,7 @@ export const recordatorioPlazosLegales = onSchedule(
 
         const clienteData = clienteSnap.data() as any;
         const abogadoId: string | undefined = clienteData?.abogadoId;
+        const dependienteAbogadoId: string | undefined = clienteData?.dependienteAbogadoId;
         const nombreCliente: string = clienteData?.nombre || clienteId;
 
         if (!abogadoId) {
@@ -211,7 +212,7 @@ export const recordatorioPlazosLegales = onSchedule(
         //   fecha: admin.firestore.FieldValue.serverTimestamp(),
         // });
 
-        // 2) Correo
+        // 2) Correo al abogado
         await sendEmail({
           to: correoAbogado,
           subject,
@@ -220,6 +221,32 @@ export const recordatorioPlazosLegales = onSchedule(
         });
 
         logger.info(`[recordatorioPlazosLegales] Notificado abogado ${abogadoId} para valor ${valorId}`);
+
+        // 3) Correo al dependiente abogado
+        if (dependienteAbogadoId) {
+          const depSnap = await db.collection("usuarios").doc(dependienteAbogadoId).get();
+          if (depSnap.exists) {
+            const depData = depSnap.data() as any;
+            const correoDepAbogado: string | undefined = depData?.email;
+            const nombreDepAbogado: string = depData?.nombre || "Asistente Jurídico";
+
+            if (correoDepAbogado) {
+              const htmlEmailDep = htmlEmail.replace(
+                `Hola <strong>${nombreAbogado}</strong>`,
+                `Hola <strong>${nombreDepAbogado}</strong>`
+              );
+              await sendEmail({
+                to: correoDepAbogado,
+                subject,
+                text: `Recordatorio: ${urgencia} — ${tipo}: ${titulo} (${nombreCliente}). Fecha límite: ${fechaLimiteStr}. Ver en: ${enlace}`,
+                html: htmlEmailDep,
+              });
+              logger.info(`[recordatorioPlazosLegales] Notificado dependiente ${dependienteAbogadoId} para valor ${valorId}`);
+            } else {
+              logger.warn(`[recordatorioPlazosLegales] Dependiente ${dependienteAbogadoId} sin correo, omitiendo`);
+            }
+          }
+        }
       } catch (err) {
         logger.error("[recordatorioPlazosLegales] Error procesando valor:", err);
       }

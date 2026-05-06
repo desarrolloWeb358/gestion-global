@@ -75,6 +75,26 @@ function normalizarTelefono(raw: string): string {
   return digits;
 }
 
+// Divide una cadena de dígitos larga en chunks válidos (057+10, 57+10, o 10 dígitos).
+// Cada chunk luego pasa por normalizarTelefono que elimina el prefijo, quedando siempre en 10 dígitos.
+function splitarNumerosLargos(digits: string): string[] {
+  const result: string[] = [];
+  let i = 0;
+  while (i < digits.length) {
+    const rem = digits.length - i;
+    if (digits.startsWith("057", i) && rem >= 13) {
+      result.push(digits.slice(i, i + 13)); i += 13;
+    } else if (digits.startsWith("57", i) && rem >= 12) {
+      result.push(digits.slice(i, i + 12)); i += 12;
+    } else if (rem >= 10) {
+      result.push(digits.slice(i, i + 10)); i += 10;
+    } else {
+      result.push(digits.slice(i)); break;
+    }
+  }
+  return result;
+}
+
 // Parsea uno o varios teléfonos desde un texto libre (separadores: coma, punto y coma, barra, salto de línea, o espacio cuando hay múltiples)
 function parsearTelefonosDeTexto(texto: string): string[] {
   const phones: string[] = [];
@@ -93,7 +113,10 @@ function parsearTelefonosDeTexto(texto: string): string[] {
         (acc.length === 13 && acc.startsWith("057"))
       ) { tryAdd(acc); acc = ""; }
     }
-    if (acc) tryAdd(acc);
+    if (acc) {
+      if (acc.length > 13) splitarNumerosLargos(acc).forEach(tryAdd);
+      else tryAdd(acc);
+    }
   };
   for (const segment of texto.split(/[,;\/\n]+/)) {
     const digits = segment.replace(/\D/g, "");

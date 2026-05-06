@@ -242,7 +242,7 @@ const canEdit = canView && isCliente;
     setEditando(null);
     setFormData({ tipo: TipoValorAgregado.DERECHO_DE_PETICION, titulo: "", descripcion: "" });
     setArchivoFiles([]);
-    setFecha(undefined);
+    setFecha(new Date());
     setOpen(true);
   };
 
@@ -406,24 +406,10 @@ const canEdit = canView && isCliente;
                         <CalendarIcon className="h-4 w-4" />
                         Fecha
                       </Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              "w-full justify-start text-left font-normal border-brand-secondary/30",
-                              !fecha && "text-muted-foreground"
-                            )}
-                            disabled={saving}
-                          >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {fecha ? fecha.toLocaleDateString("es-CO") : "Selecciona una fecha"}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar mode="single" selected={fecha} onSelect={setFecha} initialFocus />
-                        </PopoverContent>
-                      </Popover>
+                      <div className="flex items-center gap-2 h-10 px-3 rounded-md border border-brand-secondary/30 bg-muted text-sm text-muted-foreground">
+                        <CalendarIcon className="h-4 w-4 shrink-0" />
+                        {fecha ? fecha.toLocaleDateString("es-CO") : new Date().toLocaleDateString("es-CO")}
+                      </div>
                     </div>
                   </div>
 
