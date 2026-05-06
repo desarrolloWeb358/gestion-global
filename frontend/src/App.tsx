@@ -50,6 +50,10 @@ import ClienteSeguimiento from "./modules/cobranza/components/observaciones/Clie
 import ObservacionesDeudorPage from "./modules/cobranza/components/observaciones/ObservacionesDeudorPage";
 import RegistrosEliminadosPage from "./modules/registrosEliminados/components/RegistrosEliminadosPage";
 import InformacionDemandaPage from "./modules/cobranza/components/seguimiento/InformacionDemandaPage";
+import ConsultarRadicadoPage from "./modules/cobranza/components/ConsultarRadicadoPage";
+import RadicadosPage from "./modules/cobranza/components/RadicadosPage";
+import MonitoreoRadicadosPage from "./modules/cobranza/components/MonitoreoRadicadosPage";
+import DetalleProcesoJudicialPage from "./modules/cobranza/components/DetalleProcesoJudicialPage";
 import AjustesPage from "./modules/ajustes/components/AjustesPage";
 
 
@@ -90,6 +94,10 @@ export default function App() {
             <Route path="/registros-eliminados" element={<RegistrosEliminadosPage />} />
             <Route path="/deudores/:clienteId" element={<DeudoresTable />} />
             <Route path="/consulta-personas" element={<ConsultaPersonasPage />} />
+            <Route path="/consulta-radicado" element={<ConsultarRadicadoPage />} />
+            <Route path="/procesos-judiciales" element={<RadicadosPage />} />
+            <Route path="/monitoreo-radicados" element={<MonitoreoRadicadosPage />} />
+            <Route path="/proceso-judicial/:clienteId/:deudorId" element={<DetalleProcesoJudicialPage />} />
             <Route path="/probar-notificaciones" element={<ProbarNotificacionesPage />} />
             <Route path="/clientes/:clienteId/reporte" element={<ReporteClientePage />} />
             <Route path="/clientes/:clienteId/deudores/:deudorId/observacionesDeudor" element={<ObservacionesDeudorPage />} />
