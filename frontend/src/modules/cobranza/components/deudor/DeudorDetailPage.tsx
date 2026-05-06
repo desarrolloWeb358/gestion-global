@@ -44,6 +44,8 @@ import type { Cliente } from "@/modules/clientes/models/cliente.model";
 import { Deudor } from "../../models/deudores.model";
 import { crearUsuarioParaDeudor } from "../../services/deudorUserService";
 import { useUsuarioActual } from "@/modules/auth/hooks/useUsuarioActual";
+import { useAcl } from "@/modules/auth/hooks/useAcl";
+import { PERMS } from "@/shared/constants/acl";
 import { escucharUltimoEstadoMensual } from "../../services/estadoMensualService";
 
 
@@ -78,8 +80,8 @@ export default function DeudorDetailPage() {
   const { clienteId, deudorId } = useParams<{ clienteId: string; deudorId: string }>();
   const navigate = useNavigate();
 
-  // 👇 nuevo: saber qué rol tiene el usuario logueado
   const { roles, usuarioSistema } = useUsuarioActual();
+  const { can } = useAcl();
   const userRoles = roles && roles.length ? roles : usuarioSistema?.roles ?? [];
   const esDeudor = userRoles.includes("deudor");
   const esCliente = userRoles.includes("cliente");
@@ -440,22 +442,28 @@ export default function DeudorDetailPage() {
                 </div>
               </div>
 
-              {/* Teléfono */}
+              {/* Teléfonos */}
               <div className="flex items-start gap-3 p-4 rounded-lg bg-green-50 border border-green-100">
                 <div className="p-2 rounded-lg bg-white shadow-sm">
                   <Phone className="h-5 w-5 text-green-600" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs mb-1">
-                    Teléfono
+                    {(deudor.telefonos?.length ?? 0) > 1 ? "Teléfonos" : "Teléfono"}
                   </p>
                   {loadingUsuario ? (
                     <div className="h-4 w-24 bg-gray-200 animate-pulse rounded" />
+                  ) : deudor.telefonos && deudor.telefonos.length > 0 ? (
+                    <div className="flex flex-col gap-0.5">
+                      {deudor.telefonos.map((tel, i) => (
+                        <p key={i} className="text-sm font-semibold text-gray-700">
+                          {tel}
+                        </p>
+                      ))}
+                    </div>
                   ) : (
-                    <p className="text-sm font-semibold text-gray-700 truncate">
-                      {usuario?.telefonoUsuario ||
-                        deudor.telefonos?.[0] ||
-                        "No registrado"}
+                    <p className="text-sm font-semibold text-gray-700">
+                      {usuario?.telefonoUsuario || "No registrado"}
                     </p>
                   )}
                 </div>
@@ -781,8 +789,8 @@ export default function DeudorDetailPage() {
                 </button>
               )}
 
-              {/* Enviar mensaje WhatsApp — solo admin */}
-              {esAdmin && (
+              {/* Enviar mensaje WhatsApp */}
+              {can(PERMS.Whatsapp_Write) && (
                 <button
                   onClick={() =>
                     navigate(`/clientes/${clienteId}/deudores/${deudor.id}/enviar-whatsapp`)

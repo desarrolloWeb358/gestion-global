@@ -1,5 +1,4 @@
 import { onRequest } from "firebase-functions/v2/https";
-import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
 
 import { sendSMS } from './twilio/sendSMS';
@@ -341,7 +340,6 @@ export const crearUsuarioDesdeAdmin = onRequest(
 
 // =====================================================
 // ⏰ RECORDATORIO DIARIO DE PLAZOS LEGALES
-// Corre todos los días a las 7:00 AM hora Colombia
 // =====================================================
 export const recordatorioPlazosLegales = onSchedule(
   {
@@ -633,7 +631,8 @@ export const cambiarCorreoUsuarioDesdeAdmin = onCall(async (request) => {
 // =====================================================
 export { waWebhook }              from "./whatsapp/webhookController";
 export { sendWhatsAppMessage }    from "./whatsapp/sendMessageHandler";
-export { sendMetaTemplate } from "./whatsapp/sendTemplateHandler";
+export { sendMetaTemplate }       from "./whatsapp/sendTemplateHandler";
+export { processBulkSendJob }     from "./whatsapp/bulkSendHandler";
 
 /*
 export const pruebaCorreo = onRequest({ secrets: [SENDGRID_API_KEY, SENDGRID_SENDER_EMAIL] }, async (req, res) => {

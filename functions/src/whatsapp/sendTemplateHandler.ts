@@ -13,13 +13,14 @@ function normalizePhone(raw: string): string {
   return raw.replace(/[^\d]/g, "");
 }
 
+// Retorna el wamid asignado por Meta ("wamid.xxx...") o "" si no viene
 async function callMetaTemplateApi(
   phoneNumberId: string,
   token: string,
   to: string,
   templateName: string,
   parameters: TemplateParameter[]
-): Promise<void> {
+): Promise<string> {
   const url = `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`;
 
   const components =
@@ -62,6 +63,9 @@ async function callMetaTemplateApi(
       `META_TEMPLATE_SEND_FAILED status=${resp.status} body=${JSON.stringify(error)}`
     );
   }
+
+  const data = await resp.json().catch(() => ({}));
+  return (data as any)?.messages?.[0]?.id ?? "";
 }
 
 export const sendMetaTemplate = onCall(
@@ -127,7 +131,7 @@ export const sendMetaTemplate = onCall(
 
     const params = parameters ?? [];
 
-    await callMetaTemplateApi(
+    const wamid = await callMetaTemplateApi(
       numberData.phoneNumberId,
       numberData.metaToken,
       userAddress,
@@ -149,6 +153,8 @@ export const sendMetaTemplate = onCall(
         text: messageText,
         source: "AGENT",
         timestampMs: Date.now(),
+        providerMessageId: wamid || undefined,
+        deliveryStatus: "pending",
       },
     });
 

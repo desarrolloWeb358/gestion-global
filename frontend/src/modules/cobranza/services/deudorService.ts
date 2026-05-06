@@ -442,3 +442,17 @@ export async function vincularDeudorConUsuario(
   const ref = doc(db, `clientes/${clienteId}/deudores/${deudorId}`);
   await updateDoc(ref, { uidUsuario });
 }
+
+// Agrega teléfonos y correos a un deudor sin borrar los existentes (arrayUnion)
+export async function mergeContactosDeudor(
+  clienteId: string,
+  deudorId: string,
+  telefonos: string[],
+  correos: string[]
+): Promise<void> {
+  const ref = doc(db, `clientes/${clienteId}/deudores/${deudorId}`);
+  const updates: Record<string, any> = {};
+  if (telefonos.length > 0) updates.telefonos = arrayUnion(...telefonos);
+  if (correos.length > 0) updates.correos = arrayUnion(...correos);
+  if (Object.keys(updates).length > 0) await updateDoc(ref, updates);
+}

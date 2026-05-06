@@ -32,6 +32,7 @@ import NumberSelectPage from "./modules/whatsapp/components/NumberSelectPage";
 import WhatsAppLayout from "./modules/whatsapp/components/WhatsAppLayout";
 import TemplatesPage from "./modules/whatsapp/components/TemplatesPage";
 import SendWhatsAppPage from "./modules/whatsapp/components/SendWhatsAppPage";
+import BulkWhatsAppPage from "./modules/whatsapp/components/BulkWhatsAppPage";
 
 // Dashboards
 import AdminDashboardPage from "@/modules/dashboard/pages/AdminDashboardPage";
@@ -53,6 +54,7 @@ import ConsultarRadicadoPage from "./modules/cobranza/components/ConsultarRadica
 import RadicadosPage from "./modules/cobranza/components/RadicadosPage";
 import MonitoreoRadicadosPage from "./modules/cobranza/components/MonitoreoRadicadosPage";
 import DetalleProcesoJudicialPage from "./modules/cobranza/components/DetalleProcesoJudicialPage";
+import AjustesPage from "./modules/ajustes/components/AjustesPage";
 
 
 export default function App() {
@@ -108,6 +110,7 @@ export default function App() {
             <Route path="/clientes/:clienteId/valores-agregados/:valorId" element={<ValorAgregadoDetailPage />} />
             <Route path="/clientes/:clienteId/deudores/:deudorId/AcuerdoPago" element={<AcuerdoPagoPage />} />
             <Route path="/clientes/:clienteId/deudores/:deudorId/informacion-demanda" element={<InformacionDemandaPage />} />
+            <Route path="/ajustes" element={<AjustesPage />} />
 
             {/* WhatsApp */}
             <Route path="/whatsapp" element={<NumberSelectPage />} />
@@ -115,6 +118,7 @@ export default function App() {
             <Route path="/whatsapp/:numberId/:convId" element={<WhatsAppLayout />} />
             <Route path="/whatsapp/:numberId/templates" element={<TemplatesPage />} />
             <Route path="/clientes/:clienteId/deudores/:deudorId/enviar-whatsapp" element={<SendWhatsAppPage />} />
+            <Route path="/clientes/:clienteId/enviar-whatsapp-masivo" element={<BulkWhatsAppPage />} />
 
             {/* Dashboards por rol */}
             <Route path="/dashboard/admin" element={<AdminDashboardPage />} />

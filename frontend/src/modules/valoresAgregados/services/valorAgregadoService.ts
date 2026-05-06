@@ -21,10 +21,6 @@ import { MensajeValorAgregado } from "../models/mensajeValorAgregado.model";
 import { notificarUsuarioConAlertaYCorreo, notificarUsuarioConAlerta, resolverNotificacionMasAntigua, enviarEmail } from "@/modules/notificaciones/services/notificacionService";
 
 
-const nombreDestinatarioAbogado = "Abogado";
-const correoDestinatarioAbogado = "comercial@gestionglobalacg.com";
-const correoAsistenteJuridico = "asistentejuridico@gestionglobalacg.com";
-const nombreAsistenteJuridico = "Asistente Jurídico";
 
 
 // =====================================================
@@ -66,18 +62,14 @@ function mapDocToValorAgregado(id: string, data: any): ValorAgregado {
 }
 
 function calcularFechaLimite(tipo: TipoValorAgregado, fechaBase: Date): Date {
+  const DIAS_POR_TIPO: Record<TipoValorAgregado, number> = {
+    [TipoValorAgregado.DERECHO_DE_PETICION]: 10,
+    [TipoValorAgregado.TUTELA]: 1,
+    [TipoValorAgregado.DESACATO]: 1,
+    [TipoValorAgregado.ESTUDIOS_CONTRATOS]: 3,
+  };
   const fecha = new Date(fechaBase);
-  if (tipo === TipoValorAgregado.TUTELA || tipo === TipoValorAgregado.DESACATO) {
-    fecha.setHours(fecha.getHours() + 24);
-    return fecha;
-  }
-  const diasHabiles = tipo === TipoValorAgregado.DERECHO_DE_PETICION ? 15 : 5;
-  let contador = 0;
-  while (contador < diasHabiles) {
-    fecha.setDate(fecha.getDate() + 1);
-    const dia = fecha.getDay();
-    if (dia !== 0 && dia !== 6) contador++;
-  }
+  fecha.setDate(fecha.getDate() + (DIAS_POR_TIPO[tipo] ?? 3));
   return fecha;
 }
 
@@ -229,31 +221,27 @@ export async function crearValorAgregado(
         modulo: "valor agregado",
         ruta,
         descripcionAlerta,
-        nombreDestino: nombreDestinatarioAbogado,
-        correoDestino: correoDestinatarioAbogado,
+        nombreDestino: clienteInfo.nombreAbogado ?? "Abogado",
+        correoDestino: clienteInfo.correoAbogado ?? "",
         subject: `Nuevo valor agregado: ${tipoLabel}`,
         tituloCorreo: "Se ha registrado un nuevo valor agregado",
         cuerpoHtmlCorreo,
       });
-      await enviarEmail({
-        nombreDestino: nombreAsistenteJuridico,
-        correoDestino: correoAsistenteJuridico,
-        subject: `Nuevo valor agregado: ${tipoLabel}`,
-        titulo: "Se ha registrado un nuevo valor agregado",
-        cuerpoHtml: cuerpoHtmlCorreo,
-      });
     } else {
-      console.warn(
-        `[crearValorAgregado] Cliente ${clienteId} sin abogadoId; no se notifica al abogado.`
-      );
+      console.warn(`[crearValorAgregado] Cliente ${clienteId} sin abogadoId; no se notifica al abogado.`);
     }
 
     if (dependienteAbogadoId) {
-      await notificarUsuarioConAlerta({
+      await notificarUsuarioConAlertaYCorreo({
         usuarioId: dependienteAbogadoId,
         modulo: "valor agregado",
         ruta,
-        descripcion: descripcionAlerta,
+        descripcionAlerta,
+        nombreDestino: clienteInfo.nombreDepAbogado ?? "Asistente Jurídico",
+        correoDestino: clienteInfo.correoDepAbogado ?? "",
+        subject: `Nuevo valor agregado: ${tipoLabel}`,
+        tituloCorreo: "Se ha registrado un nuevo valor agregado",
+        cuerpoHtmlCorreo,
       });
     }
   } catch (err) {
@@ -265,7 +253,11 @@ export async function crearValorAgregado(
 
 type ClienteInfoParaNotificacion = {
   abogadoId?: string;
+  correoAbogado?: string;
+  nombreAbogado?: string;
   dependienteAbogadoId?: string;
+  correoDepAbogado?: string;
+  nombreDepAbogado?: string;
   nombreCliente?: string;
 };
 
@@ -275,25 +267,44 @@ async function obtenerClienteInfoParaNotificacion(
   const cSnap = await getDoc(doc(db, `clientes/${clienteId}`));
 
   if (!cSnap.exists()) {
-    console.warn(
-      `[obtenerClienteInfoParaNotificacion] Cliente ${clienteId} no existe`
-    );
+    console.warn(`[obtenerClienteInfoParaNotificacion] Cliente ${clienteId} no existe`);
     return {};
   }
 
   const cData: any = cSnap.data() || {};
-
   const abogadoId: string | undefined = cData.abogadoId;
   const dependienteAbogadoId: string | undefined = cData.dependienteAbogadoId;
   const nombreCliente: string | undefined = cData.nombre;
 
-  if (!abogadoId) {
-    console.warn(
-      `[obtenerClienteInfoParaNotificacion] Cliente ${clienteId} no tiene abogadoId definido`
-    );
+  let correoAbogado: string | undefined;
+  let nombreAbogado = "Abogado";
+  if (abogadoId) {
+    const abSnap = await getDoc(doc(db, `usuarios/${abogadoId}`));
+    if (abSnap.exists()) {
+      const abData: any = abSnap.data();
+      correoAbogado = abData?.email;
+      nombreAbogado = abData?.nombre || "Abogado";
+    } else {
+      console.warn(`[obtenerClienteInfoParaNotificacion] Usuario abogado ${abogadoId} no existe`);
+    }
+  } else {
+    console.warn(`[obtenerClienteInfoParaNotificacion] Cliente ${clienteId} no tiene abogadoId definido`);
   }
 
-  return { abogadoId, dependienteAbogadoId, nombreCliente };
+  let correoDepAbogado: string | undefined;
+  let nombreDepAbogado = "Asistente Jurídico";
+  if (dependienteAbogadoId) {
+    const depSnap = await getDoc(doc(db, `usuarios/${dependienteAbogadoId}`));
+    if (depSnap.exists()) {
+      const depData: any = depSnap.data();
+      correoDepAbogado = depData?.email;
+      nombreDepAbogado = depData?.nombre || "Asistente Jurídico";
+    } else {
+      console.warn(`[obtenerClienteInfoParaNotificacion] Usuario dependiente ${dependienteAbogadoId} no existe`);
+    }
+  }
+
+  return { abogadoId, correoAbogado, nombreAbogado, dependienteAbogadoId, correoDepAbogado, nombreDepAbogado, nombreCliente };
 }
 
 
@@ -333,14 +344,12 @@ export async function actualizarValorAgregado(
 
   // 3️⃣ Enviar notificación de "valor agregado modificado"
   try {
-    // Info del cliente (abogadoId + nombreCliente) en una sola consulta
     const clienteInfo = await obtenerClienteInfoParaNotificacion(clienteId);
     const abogadoId = clienteInfo.abogadoId;
+    const dependienteAbogadoId = clienteInfo.dependienteAbogadoId;
 
     if (!abogadoId) {
-      console.warn(
-        `[actualizarValorAgregado] Cliente ${clienteId} sin abogadoId; no se notifica.`
-      );
+      console.warn(`[actualizarValorAgregado] Cliente ${clienteId} sin abogadoId; no se notifica.`);
       return;
     }
 
@@ -375,25 +384,31 @@ export async function actualizarValorAgregado(
       }
     `;
 
-    console.log("Notificando al abogado2222");
     await notificarUsuarioConAlertaYCorreo({
       usuarioId: abogadoId,
       modulo: "valor agregado",
       ruta,
       descripcionAlerta,
-      nombreDestino: nombreDestinatarioAbogado,
-      correoDestino: correoDestinatarioAbogado,
+      nombreDestino: clienteInfo.nombreAbogado ?? "Abogado",
+      correoDestino: clienteInfo.correoAbogado ?? "",
       subject: `Valor agregado modificado: ${tipoLabel} - ${nombreCliente}`,
       tituloCorreo: "Se ha modificado un valor agregado",
       cuerpoHtmlCorreo,
     });
-    await enviarEmail({
-      nombreDestino: nombreAsistenteJuridico,
-      correoDestino: correoAsistenteJuridico,
-      subject: `Valor agregado modificado: ${tipoLabel} - ${nombreCliente}`,
-      titulo: "Se ha modificado un valor agregado",
-      cuerpoHtml: cuerpoHtmlCorreo,
-    });
+
+    if (dependienteAbogadoId) {
+      await notificarUsuarioConAlertaYCorreo({
+        usuarioId: dependienteAbogadoId,
+        modulo: "valor agregado",
+        ruta,
+        descripcionAlerta,
+        nombreDestino: clienteInfo.nombreDepAbogado ?? "Asistente Jurídico",
+        correoDestino: clienteInfo.correoDepAbogado ?? "",
+        subject: `Valor agregado modificado: ${tipoLabel} - ${nombreCliente}`,
+        tituloCorreo: "Se ha modificado un valor agregado",
+        cuerpoHtmlCorreo,
+      });
+    }
   } catch (err) {
     console.error("[actualizarValorAgregado] Error al notificar:", err);
   }
@@ -538,7 +553,18 @@ export async function crearMensajeConversacionValorAgregado(
     await updateDoc(docRefConversacion(clienteId, valorId, msgId), updateData);
   }
 
-  // 3️⃣ Notificar a la contraparte (cliente ↔ abogado)
+  // 3️⃣ Actualizar completado según quién responde
+  try {
+    if (base.autorTipo === "cliente") {
+      await updateDoc(docRef(clienteId, valorId), { completado: false, fechaCompletado: null });
+    } else {
+      await updateDoc(docRef(clienteId, valorId), { completado: true, fechaCompletado: serverTimestamp() });
+    }
+  } catch (err) {
+    console.error("[crearMensajeConversacionValorAgregado] Error actualizando completado:", err);
+  }
+
+  // 4️⃣ Notificar a la contraparte (cliente ↔ abogado)
   try {
     // Info del cliente (nombre y abogadoId)
     const clienteInfo = await obtenerClienteInfoParaNotificacion(clienteId);
@@ -572,8 +598,8 @@ export async function crearMensajeConversacionValorAgregado(
     var nombreDestinatario = "";
     var correoDestinatario = "";
     if (base.autorTipo === "cliente") {
-      nombreDestinatario = nombreDestinatarioAbogado;
-      correoDestinatario = correoDestinatarioAbogado;
+      nombreDestinatario = clienteInfo.nombreAbogado ?? "Abogado";
+      correoDestinatario = clienteInfo.correoAbogado ?? "";
       // 👉 Mensaje creado por el CLIENTE → se notifica al ABOGADO
       const abogadoId = clienteInfo.abogadoId;
       if (!abogadoId) {
@@ -634,10 +660,10 @@ export async function crearMensajeConversacionValorAgregado(
       cuerpoHtmlCorreo,
     });
 
-    if (base.autorTipo === "cliente") {
+    if (base.autorTipo === "cliente" && clienteInfo.correoDepAbogado) {
       await enviarEmail({
-        nombreDestino: nombreAsistenteJuridico,
-        correoDestino: correoAsistenteJuridico,
+        nombreDestino: clienteInfo.nombreDepAbogado ?? "Asistente Jurídico",
+        correoDestino: clienteInfo.correoDepAbogado,
         subject,
         titulo: tituloCorreo,
         cuerpoHtml: cuerpoHtmlCorreo,

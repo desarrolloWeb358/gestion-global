@@ -52,7 +52,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { usuario, roles } = useAcl();
   const { usuarioSistema } = useUsuarioActual();
   const { totalNoVistas } = useNotificacionesUsuario(usuario?.uid);
-  const waUnread = useWaUnreadCount();
+  const waUnread = useWaUnreadCount(usuario?.uid, roles);
   const navigate = useNavigate();
   const { items, loading } = useFilteredNav(NAV_ITEMS);
   const { state } = useSidebar();

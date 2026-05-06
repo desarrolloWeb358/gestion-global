@@ -1215,6 +1215,8 @@ export type ReporteClienteWordInput = {
 
   demandas?: DemandaWordItem[];
 
+  recomMin?: number;
+
   pieChartPngDataUrl?: string;
   barChartPngDataUrl?: string;
 
@@ -1515,8 +1517,9 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
     (x) => normalizeTip(x.tipificacion) === "GESTIONANDO"
   );
 
+  const recomMinVal = input.recomMin ?? RECOM_MIN;
   const recomRowsRaw = (gestionandoBlock?.detalle || []).filter(
-    (d) => (d.porRecuperar ?? 0) >= RECOM_MIN
+    (d) => (d.porRecuperar ?? 0) >= recomMinVal
   );
 
   if (recomRowsRaw.length) {
@@ -1530,7 +1533,7 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
       pRecomendacionesWord({
         clienteNombre: nombreCliente,
         cantidad: recomRowsRaw.length,
-        monto: RECOM_MIN, // fijo 2.000.000
+        monto: recomMinVal,
       })
     );
 

@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import * as XLSX from "xlsx";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { Eye, Pencil, Search, X, Users, UserPlus, Filter, FileText, Trash2, CalendarIcon } from "lucide-react";
+import { Eye, Pencil, Search, X, Users, UserPlus, Filter, FileText, Trash2, CalendarIcon, Upload, CheckCircle2, AlertCircle, AlertTriangle, MinusCircle } from "lucide-react";
 import { createPortal } from "react-dom";
 
 import { Deudor } from "../../models/deudores.model";
@@ -8,7 +9,9 @@ import {
   obtenerDeudorPorCliente,
   crearDeudor,
   actualizarDeudorDatos,
-  borrarDeudorCompleto
+  borrarDeudorCompleto,
+  mergeContactosDeudor,
+  DeudorPatch,
 } from "../../services/deudorService";
 
 import { Cliente } from "@/modules/clientes/models/cliente.model";
@@ -60,6 +63,157 @@ import {
 const ALL = "__ALL__";
 const ALL_ANIO = "__ALL_ANIO__";
 const CURRENT_YEAR = new Date().getFullYear();
+
+/* =========================
+   Utilidades de teléfonos
+========================= */
+
+function normalizarTelefono(raw: string): string {
+  let digits = raw.replace(/\D/g, "");
+  if (digits.length === 12 && digits.startsWith("57")) digits = digits.slice(2);
+  else if (digits.length === 13 && digits.startsWith("057")) digits = digits.slice(3);
+  return digits;
+}
+
+// Divide una cadena de dígitos larga en chunks válidos (057+10, 57+10, o 10 dígitos).
+// Cada chunk luego pasa por normalizarTelefono que elimina el prefijo, quedando siempre en 10 dígitos.
+function splitarNumerosLargos(digits: string): string[] {
+  const result: string[] = [];
+  let i = 0;
+  while (i < digits.length) {
+    const rem = digits.length - i;
+    if (digits.startsWith("057", i) && rem >= 13) {
+      result.push(digits.slice(i, i + 13)); i += 13;
+    } else if (digits.startsWith("57", i) && rem >= 12) {
+      result.push(digits.slice(i, i + 12)); i += 12;
+    } else if (rem >= 10) {
+      result.push(digits.slice(i, i + 10)); i += 10;
+    } else {
+      result.push(digits.slice(i)); break;
+    }
+  }
+  return result;
+}
+
+// Parsea uno o varios teléfonos desde un texto libre (separadores: coma, punto y coma, barra, salto de línea, o espacio cuando hay múltiples)
+function parsearTelefonosDeTexto(texto: string): string[] {
+  const phones: string[] = [];
+  const tryAdd = (raw: string) => {
+    const n = normalizarTelefono(raw);
+    if (n && !phones.includes(n)) phones.push(n);
+  };
+  const assembleAndAdd = (segment: string) => {
+    const tokens = segment.trim().split(/\s+/);
+    let acc = "";
+    for (const token of tokens) {
+      acc += token.replace(/\D/g, "");
+      if (
+        acc.length === 10 ||
+        (acc.length === 12 && acc.startsWith("57")) ||
+        (acc.length === 13 && acc.startsWith("057"))
+      ) { tryAdd(acc); acc = ""; }
+    }
+    if (acc) {
+      if (acc.length > 13) splitarNumerosLargos(acc).forEach(tryAdd);
+      else tryAdd(acc);
+    }
+  };
+  for (const segment of texto.split(/[,;\/\n]+/)) {
+    const digits = segment.replace(/\D/g, "");
+    if (digits.length > 13) assembleAndAdd(segment);
+    else tryAdd(segment);
+  }
+  return phones;
+}
+
+function parsearCorreosDeTexto(texto: string): string[] {
+  return texto
+    .split(/[,;\s\n]+/)
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+}
+
+function normalizarEncabezado(s: string): string {
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+}
+
+function PhoneTagInput({
+  value,
+  onChange,
+  readOnly,
+  disabled,
+}: {
+  value: string[];
+  onChange: (phones: string[]) => void;
+  readOnly?: boolean;
+  disabled?: boolean;
+}) {
+  const [input, setInput] = useState("");
+
+  const addPhone = (raw: string) => {
+    const normalized = normalizarTelefono(raw.trim());
+    if (!normalized || value.includes(normalized)) return;
+    onChange([...value, normalized]);
+  };
+
+  const removePhone = (idx: number) => {
+    onChange(value.filter((_, i) => i !== idx));
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" || e.key === "," || e.key === ";" || e.key === "Tab") {
+      e.preventDefault();
+      addPhone(input);
+      setInput("");
+    } else if (e.key === "Backspace" && input === "" && value.length > 0) {
+      removePhone(value.length - 1);
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData("text");
+    const parsed = parsearTelefonosDeTexto(pasted);
+    const toAdd = parsed.filter((p) => !value.includes(p));
+    onChange([...value, ...toAdd]);
+    setInput("");
+  };
+
+  return (
+    <div className="mt-1.5 min-h-[42px] flex flex-wrap gap-1.5 rounded-md border border-brand-secondary/30 bg-white px-2 py-1.5 focus-within:border-brand-primary focus-within:ring-2 focus-within:ring-brand-primary/20 transition-colors">
+      {value.map((phone, idx) => (
+        <span
+          key={idx}
+          className="inline-flex items-center gap-1 rounded-full bg-brand-primary/10 px-2.5 py-0.5 text-sm font-medium text-brand-secondary"
+        >
+          {phone}
+          {!readOnly && !disabled && (
+            <button
+              type="button"
+              onClick={() => removePhone(idx)}
+              className="rounded-full hover:bg-brand-primary/20 p-0.5"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </span>
+      ))}
+      {!readOnly && !disabled && (
+        <input
+          type="text"
+          inputMode="numeric"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
+          onBlur={() => { if (input.trim()) { addPhone(input); setInput(""); } }}
+          placeholder={value.length === 0 ? "3001234567 — Enter o coma para agregar" : ""}
+          className="flex-1 min-w-[200px] bg-transparent outline-none text-sm placeholder:text-muted-foreground"
+        />
+      )}
+    </div>
+  );
+}
 
 /** Timestamp-like -> Date */
 const toDateSafe = (v: any): Date | undefined => {
@@ -354,6 +508,213 @@ function HistorialTipificacionesDialog(props: {
 }
 
 /* =========================
+   Importación desde Excel
+========================= */
+
+interface ImportRow {
+  inmueble: string;
+  deudorNombre?: string;
+  status: "updated" | "not_found" | "no_data" | "error";
+  phonesAdded: string[];
+  emailsAdded: string[];
+  message?: string;
+}
+
+interface ImportReport {
+  totalRows: number;
+  updated: number;
+  notFound: number;
+  errors: number;
+  missingColumns: string[];
+  rows: ImportRow[];
+}
+
+interface ImportPreview {
+  file: File;
+  totalRows: number;
+  hasInmueble: boolean;
+  hasContacto: boolean;
+  hasCorreo: boolean;
+  canImport: boolean;
+}
+
+const STATUS_LABEL: Record<ImportRow["status"], string> = {
+  updated: "Actualizado",
+  not_found: "No encontrado",
+  no_data: "Sin datos",
+  error: "Error",
+};
+
+const STATUS_ICON: Record<ImportRow["status"], React.ReactNode> = {
+  updated: <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />,
+  not_found: <AlertTriangle className="w-3.5 h-3.5 text-yellow-600" />,
+  no_data: <MinusCircle className="w-3.5 h-3.5 text-gray-400" />,
+  error: <AlertCircle className="w-3.5 h-3.5 text-red-600" />,
+};
+
+const STATUS_CLASS: Record<ImportRow["status"], string> = {
+  updated: "bg-green-50 text-green-700 border-green-200",
+  not_found: "bg-yellow-50 text-yellow-700 border-yellow-200",
+  no_data: "bg-gray-50 text-gray-500 border-gray-200",
+  error: "bg-red-50 text-red-700 border-red-200",
+};
+
+function ColStatus({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border ${ok ? "bg-green-50 border-green-200 text-green-700" : "bg-red-50 border-red-200 text-red-600"}`}>
+      {ok
+        ? <CheckCircle2 className="w-4 h-4 shrink-0" />
+        : <AlertCircle className="w-4 h-4 shrink-0" />}
+      <span className="font-medium">{label}</span>
+      <span className="ml-auto text-xs">{ok ? "Encontrada" : "No encontrada"}</span>
+    </div>
+  );
+}
+
+function ImportPreviewDialog({
+  preview,
+  open,
+  onCancel,
+  onImport,
+  importing,
+}: {
+  preview: ImportPreview;
+  open: boolean;
+  onCancel: () => void;
+  onImport: () => void;
+  importing: boolean;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v && !importing) onCancel(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-brand-primary text-xl font-bold">
+            Vista previa del archivo
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <p className="text-sm text-gray-500">Columnas detectadas en el archivo:</p>
+          <ColStatus ok={preview.hasInmueble} label="INMUEBLE" />
+          <ColStatus ok={preview.hasContacto} label="CONTACTO" />
+          <ColStatus ok={preview.hasCorreo} label="CORREO ELECTRÓNICO" />
+
+          <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 flex items-center justify-between">
+            <span className="text-sm text-gray-600">Registros en el archivo</span>
+            <span className="text-xl font-bold text-brand-primary">{preview.totalRows}</span>
+          </div>
+
+          {preview.canImport ? (
+            <div className="rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green-700 flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              El archivo está listo. Se procesarán <strong>{preview.totalRows}</strong> registros.
+              {(!preview.hasContacto || !preview.hasCorreo) && (
+                <span className="block text-xs text-green-600 mt-1">
+                  Las columnas faltantes no serán actualizadas.
+                </span>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              El archivo no se puede importar porque le falta la columna <strong>INMUEBLE</strong>, que es obligatoria.
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={onCancel} disabled={importing}>
+            Cancelar
+          </Button>
+          {preview.canImport && (
+            <Button variant="brand" onClick={onImport} disabled={importing}>
+              {importing ? "Importando..." : "Importar"}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ImportReportDialog({ report, open, onClose }: { report: ImportReport; open: boolean; onClose: () => void }) {
+  return (
+    <Dialog open={open} onOpenChange={() => {}}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto [&>button.absolute]:hidden">
+        <DialogHeader>
+          <DialogTitle className="text-brand-primary text-xl font-bold">
+            Resultado de importación
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: "Actualizados", value: report.updated, cls: "bg-green-50 border-green-200 text-green-700" },
+            { label: "No encontrados", value: report.notFound, cls: "bg-yellow-50 border-yellow-200 text-yellow-700" },
+            { label: "Errores", value: report.errors, cls: "bg-red-50 border-red-200 text-red-700" },
+            { label: "Total filas", value: report.totalRows, cls: "bg-gray-50 border-gray-200 text-gray-700" },
+          ].map(({ label, value, cls }) => (
+            <div key={label} className={`rounded-lg border p-3 text-center ${cls}`}>
+              <p className="text-2xl font-bold">{value}</p>
+              <p className="text-xs mt-0.5">{label}</p>
+            </div>
+          ))}
+        </div>
+
+        {report.missingColumns.length > 0 && (
+          <div className="rounded-lg bg-orange-50 border border-orange-200 p-3 text-sm text-orange-700">
+            <span className="font-semibold">Columnas no encontradas en el archivo: </span>
+            {report.missingColumns.join(", ")} — esos datos no fueron actualizados.
+          </div>
+        )}
+
+        {report.rows.length > 0 && (
+          <div className="overflow-x-auto rounded-lg border border-brand-secondary/10">
+            <Table>
+              <TableHeader className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5">
+                <TableRow className="border-brand-secondary/10 hover:bg-transparent">
+                  <TableHead className="text-brand-secondary font-semibold">Inmueble</TableHead>
+                  <TableHead className="text-brand-secondary font-semibold">Deudor</TableHead>
+                  <TableHead className="text-brand-secondary font-semibold">Estado</TableHead>
+                  <TableHead className="text-brand-secondary font-semibold">Datos agregados</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {report.rows.map((row, i) => (
+                  <TableRow key={i} className="border-brand-secondary/5">
+                    <TableCell className="text-sm font-medium">{row.inmueble}</TableCell>
+                    <TableCell className="text-sm text-gray-600">{row.deudorNombre ?? "—"}</TableCell>
+                    <TableCell>
+                      <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-medium ${STATUS_CLASS[row.status]}`}>
+                        {STATUS_ICON[row.status]}
+                        {STATUS_LABEL[row.status]}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-xs text-gray-500 space-y-0.5">
+                      {row.status === "updated" && (
+                        <>
+                          {row.phonesAdded.length > 0 && <p>Tel: {row.phonesAdded.join(", ")}</p>}
+                          {row.emailsAdded.length > 0 && <p>Correo: {row.emailsAdded.join(", ")}</p>}
+                        </>
+                      )}
+                      {row.status === "error" && <p className="text-red-600">{row.message}</p>}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cerrar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* =========================
    Página principal
 ========================= */
 
@@ -365,6 +726,7 @@ export default function DeudoresTable() {
   const { can, roles, loading: aclLoading } = useAcl();
   const { usuarioSistema } = useUsuarioActual();
   const esDeudor = roles.includes("deudor");
+  const esEjecutivoAdmin = roles.includes("ejecutivoAdmin");
   const canView = esDeudor ? true : can(PERMS.Deudores_Read);
   const canEdit = !esDeudor && can(PERMS.Deudores_Edit);
   const readOnly = !canEdit && canView;
@@ -408,6 +770,122 @@ export default function DeudoresTable() {
   // ✅ Popup historial tipificaciones
   const [histOpen, setHistOpen] = useState(false);
   const [deudorHistId, setDeudorHistId] = useState<string | null>(null);
+
+  // ── Importación desde Excel ────────────────────────────────────────────
+  const [importando, setImportando] = useState(false);
+  const [importReport, setImportReport] = useState<ImportReport | null>(null);
+  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  const validarExcel = async (file: File) => {
+    try {
+      const buffer = await file.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
+
+      if (rows.length === 0) { toast.error("El archivo no tiene datos"); return; }
+
+      const nh = Object.keys(rows[0]).map((h) => ({ original: h, n: normalizarEncabezado(h) }));
+      const hasInmueble = !!nh.find((h) => h.n.includes("inmueble"));
+      const hasContacto = !!nh.find((h) => h.n.includes("contacto"));
+      const hasCorreo   = !!nh.find((h) => h.n.includes("correo"));
+
+      setImportPreview({
+        file,
+        totalRows: rows.length,
+        hasInmueble,
+        hasContacto,
+        hasCorreo,
+        canImport: hasInmueble,
+      });
+    } catch (e: any) {
+      toast.error(e?.message ?? "Error al leer el archivo Excel");
+    } finally {
+      if (importInputRef.current) importInputRef.current.value = "";
+    }
+  };
+
+  const ejecutarImportacion = async () => {
+    if (!clienteId || !importPreview) return;
+    setImportando(true);
+    try {
+      const buffer = await importPreview.file.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
+
+      const nh = Object.keys(rows[0]).map((h) => ({ original: h, n: normalizarEncabezado(h) }));
+      const colInmueble = nh.find((h) => h.n.includes("inmueble"))?.original!;
+      const colContacto = nh.find((h) => h.n.includes("contacto"))?.original;
+      const colCorreo   = nh.find((h) => h.n.includes("correo"))?.original;
+
+      const missingColumns: string[] = [];
+      if (!colContacto) missingColumns.push("CONTACTO");
+      if (!colCorreo)   missingColumns.push("CORREO ELECTRÓNICO");
+
+      const deudorMap = new Map<string, Deudor>();
+      for (const d of deudores) {
+        const key = (d.ubicacion ?? "").trim().toLowerCase();
+        if (key) deudorMap.set(key, d);
+      }
+
+      const reportRows: ImportRow[] = [];
+      let updated = 0, notFound = 0, errors = 0;
+
+      for (const row of rows) {
+        const inmuebleRaw = String(row[colInmueble] ?? "").trim();
+        if (!inmuebleRaw) continue;
+
+        const deudor = deudorMap.get(inmuebleRaw.toLowerCase());
+        if (!deudor?.id) {
+          reportRows.push({ inmueble: inmuebleRaw, status: "not_found", phonesAdded: [], emailsAdded: [] });
+          notFound++;
+          continue;
+        }
+
+        const telefonosNuevos = colContacto ? parsearTelefonosDeTexto(String(row[colContacto] ?? "")) : [];
+        const correosNuevos   = colCorreo   ? parsearCorreosDeTexto(String(row[colCorreo]   ?? "")) : [];
+
+        if (telefonosNuevos.length === 0 && correosNuevos.length === 0) {
+          reportRows.push({ inmueble: inmuebleRaw, deudorNombre: deudor.nombre, status: "no_data", phonesAdded: [], emailsAdded: [] });
+          continue;
+        }
+
+        // Normalizar los teléfonos/correos existentes para limpiar entradas malformadas
+        // (ej: "57 314 4574619; 57 305 8129657" almacenado como un solo elemento)
+        // y luego hacer merge con los nuevos sin duplicados.
+        const patch: DeudorPatch = {};
+        if (colContacto) {
+          const existentesNorm = (deudor.telefonos ?? [])
+            .flatMap(t => parsearTelefonosDeTexto(t))
+            .filter(Boolean);
+          patch.telefonos = [...new Set([...existentesNorm, ...telefonosNuevos])];
+        }
+        if (colCorreo) {
+          patch.correos = [...new Set([...(deudor.correos ?? []), ...correosNuevos])];
+        }
+
+        try {
+          await actualizarDeudorDatos(clienteId, deudor.id!, patch);
+          reportRows.push({ inmueble: inmuebleRaw, deudorNombre: deudor.nombre, status: "updated", phonesAdded: telefonosNuevos, emailsAdded: correosNuevos });
+          updated++;
+        } catch (e: any) {
+          reportRows.push({ inmueble: inmuebleRaw, deudorNombre: deudor.nombre, status: "error", phonesAdded: [], emailsAdded: [], message: e?.message });
+          errors++;
+        }
+      }
+
+      setImportPreview(null);
+      setImportReport({ totalRows: rows.length, updated, notFound, errors, missingColumns, rows: reportRows });
+      if (updated > 0) await fetchDeudores();
+
+    } catch (e: any) {
+      toast.error(e?.message ?? "Error al procesar el archivo Excel");
+    } finally {
+      setImportando(false);
+    }
+  };
 
   const fetchDeudores = async () => {
     if (!clienteId) return;
@@ -784,6 +1262,31 @@ export default function DeudoresTable() {
               </div>
             </div>
 
+            {canEdit && esEjecutivoAdmin && (
+              <div className="flex flex-wrap gap-2">
+                {/* ── Importar desde Excel ── */}
+                <input
+                  ref={importInputRef}
+                  type="file"
+                  accept=".xlsx,.xls"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) validarExcel(file);
+                  }}
+                />
+                <Button
+                  variant="outline"
+                  onClick={() => importInputRef.current?.click()}
+                  className="gap-2 border-brand-secondary/30 shadow-sm"
+                  disabled={saving || importando}
+                >
+                  <Upload className="h-4 w-4" />
+                  {importando ? "Importando..." : "Actualizar desde Excel"}
+                </Button>
+              </div>
+            )}
+
             {canEdit && (
               <Dialog open={open} onOpenChange={(v) => !saving && setOpen(v)}>
                 <DialogTrigger asChild>
@@ -921,19 +1424,15 @@ export default function DeudoresTable() {
 
                         <div>
                           <Label className="text-brand-secondary font-medium">Teléfonos</Label>
-                          <Input
-                            placeholder="3001234567, 3012345678"
-                            value={formData.telefonos?.join(", ") ?? ""}
-                            onChange={(e) =>
-                              setFormData((prev) => ({
-                                ...prev,
-                                telefonos: e.target.value.split(",").map((t) => t.trim()).filter(Boolean),
-                              }))
-                            }
-                            readOnly={readOnly || saving}
-                            className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
+                          <PhoneTagInput
+                            value={formData.telefonos ?? []}
+                            onChange={(phones) => setFormData((prev) => ({ ...prev, telefonos: phones }))}
+                            readOnly={readOnly}
+                            disabled={saving}
                           />
-                          <p className="text-xs mt-1">Separa múltiples teléfonos con comas</p>
+                          <p className="text-xs mt-1 text-muted-foreground">
+                            Escribe un número y presiona <kbd className="px-1 rounded bg-gray-100 text-xs">Enter</kbd>, coma o Tab para agregarlo. El prefijo +57 se elimina automáticamente.
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -1294,6 +1793,24 @@ export default function DeudoresTable() {
           </div>
         )}
       </div>
+
+      {importPreview && (
+        <ImportPreviewDialog
+          preview={importPreview}
+          open={!!importPreview}
+          onCancel={() => setImportPreview(null)}
+          onImport={ejecutarImportacion}
+          importing={importando}
+        />
+      )}
+
+      {importReport && (
+        <ImportReportDialog
+          report={importReport}
+          open={!!importReport}
+          onClose={() => setImportReport(null)}
+        />
+      )}
     </div>
   );
 }

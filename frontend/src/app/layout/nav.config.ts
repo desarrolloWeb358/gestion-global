@@ -13,6 +13,7 @@ import {
   IconBriefcase,
   IconTrash,
   IconBrandWhatsapp,
+  IconSettings,
 } from "@tabler/icons-react";
 
 export type NavItem = {
@@ -95,17 +96,27 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/whatsapp",
     label: "WhatsApp",
     icon: IconBrandWhatsapp,
-    roles: ["admin"],
+    roles: ["admin", "ejecutivo", "ejecutivoAdmin"],
   },
 
   // ========================================
   // NOTIFICACIONES
   // ========================================
-  { 
-    to: "/notificaciones", 
-    label: "Notificaciones", 
-    icon: IconBell, 
-    roles: ["admin", "ejecutivo", "ejecutivoAdmin", "dependiente", "abogado", "cliente", "deudor"] 
+  {
+    to: "/notificaciones",
+    label: "Notificaciones",
+    icon: IconBell,
+    roles: ["admin", "ejecutivo", "ejecutivoAdmin", "dependiente", "abogado", "cliente", "deudor"]
+  },
+
+  // ========================================
+  // AJUSTES (solo ejecutivoAdmin)
+  // ========================================
+  {
+    to: "/ajustes",
+    label: "Ajustes",
+    icon: IconSettings,
+    roles: ["ejecutivoAdmin"],
   },
 
   // ========================================

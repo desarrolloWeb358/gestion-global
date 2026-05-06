@@ -3,8 +3,12 @@ import { useParams, useNavigate } from "react-router-dom";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/firebase";
 import { toast } from "sonner";
+import { useAuth } from "@/app/providers/AuthContext";
+import { addSeguimiento, addSeguimientoJuridico } from "@/modules/cobranza/services/seguimientoService";
+import { Timestamp } from "firebase/firestore";
+import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 import {
-  Phone, User, IdCard, DollarSign, Tag, FileCheck, ArrowLeft, Send,
+  Phone, IdCard, DollarSign, Tag, FileCheck, ArrowLeft, Send,
 } from "lucide-react";
 import { IconVariable } from "@tabler/icons-react";
 import { Button } from "@/shared/ui/button";
@@ -25,6 +29,29 @@ import { listenTemplates } from "../services/templatesService";
 import type { WaTemplate } from "../models/waTemplate.model";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString("es-CO")}`;
+
+const TIPS_JURIDICO = new Set([
+  TipificacionDeuda.DEMANDA,
+  TipificacionDeuda.DEMANDA_ACUERDO,
+  TipificacionDeuda.DEMANDA_TERMINADO,
+  TipificacionDeuda.DEMANDA_INSOLVENCIA,
+]);
+
+function saveSeguimientoWhatsApp(
+  esJuridico: boolean,
+  uid: string,
+  clienteId: string,
+  deudorId: string,
+  mensaje: string,
+  phone: string
+) {
+  const fn = esJuridico ? addSeguimientoJuridico : addSeguimiento;
+  return fn(uid, clienteId, deudorId, {
+    fecha: Timestamp.fromDate(new Date()),
+    tipoSeguimiento: "whatsapp",
+    descripcion: `Se envió el mensaje:\n${mensaje}\n\nNúmero: ${phone}`,
+  });
+}
 
 function InfoCard({
   bg, border, iconColor, icon, label, value, sub,
@@ -49,6 +76,7 @@ function InfoCard({
 export default function SendWhatsAppPage() {
   const { clienteId, deudorId } = useParams<{ clienteId: string; deudorId: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   // Deudor data
   const [deudor, setDeudor] = useState<Deudor | null>(null);
@@ -91,15 +119,22 @@ export default function SendWhatsAppPage() {
     setVarValues({});
   }, []);
 
-  // Phone from deudor (normalized to international format)
-  const rawPhone = deudor?.telefonos?.[0] ?? "";
-  const intlPhone = rawPhone
-    ? rawPhone.startsWith("57") && rawPhone.length >= 12
-      ? rawPhone
-      : `57${rawPhone}`
-    : "";
+  // Phones from deudor
+  const phones = deudor?.telefonos ?? [];
+  const [selectedPhone, setSelectedPhone] = useState<string>("");
 
-  const hasPhone = !!intlPhone;
+  useEffect(() => {
+    if (phones.length > 0 && !selectedPhone) setSelectedPhone(phones[0]);
+  }, [phones]);
+
+  const toIntl = (raw: string) =>
+    raw.startsWith("57") && raw.length >= 12 ? raw : `57${raw}`;
+
+  const targetPhones = selectedPhone === "all"
+    ? phones.map(toIntl)
+    : selectedPhone ? [toIntl(selectedPhone)] : [];
+
+  const hasPhone = targetPhones.length > 0;
 
   const allVarsFilled =
     !selectedTemplate ||
@@ -107,32 +142,60 @@ export default function SendWhatsAppPage() {
 
   const canSend = hasPhone && numberId && selectedId && allVarsFilled && !sending;
 
+  const buildMensaje = (phone: string) =>
+    selectedTemplate
+      ? selectedTemplate.variables.reduce(
+          (text, v) =>
+            text.replace(
+              new RegExp(`\\{\\{${v.name}\\}\\}`, "g"),
+              v.name === "telefono" ? phone : (varValues[v.name]?.trim() ?? "")
+            ),
+          selectedTemplate.bodyText
+        )
+      : selectedId;
+
   const handleSend = async () => {
     if (!canSend) return;
     setSending(true);
     try {
-      const parameters = selectedTemplate
-        ? selectedTemplate.variables.map((v) => ({
-            parameterName: v.name,
-            value: v.name === "telefono" ? intlPhone : (varValues[v.name]?.trim() ?? ""),
-          }))
-        : [];
-
       const fn = httpsCallable<unknown, { ok: boolean; conversationId: string }>(
         functions,
         "sendMetaTemplate"
       );
-      const result = await fn({
-        numberId,
-        to: intlPhone,
-        templateId: selectedId,
-        parameters,
-        clienteId,
-        deudorId,
-        deudorNombre: deudor?.nombre,
-      });
-      toast.success("Mensaje enviado correctamente");
-      navigate(`/whatsapp/${numberId}/${result.data.conversationId}`);
+
+      let lastConversationId = "";
+      for (const phone of targetPhones) {
+        const parameters = selectedTemplate
+          ? selectedTemplate.variables.map((v) => ({
+              parameterName: v.name,
+              value: v.name === "telefono" ? phone : (varValues[v.name]?.trim() ?? ""),
+            }))
+          : [];
+
+        const result = await fn({
+          numberId,
+          to: phone,
+          templateId: selectedId,
+          parameters,
+          clienteId,
+          deudorId,
+          deudorNombre: deudor?.nombre,
+        });
+        lastConversationId = result.data.conversationId;
+
+        if (user && clienteId && deudorId) {
+          const esJuridico = TIPS_JURIDICO.has(deudor?.tipificacion as TipificacionDeuda);
+          await saveSeguimientoWhatsApp(esJuridico, user.uid, clienteId, deudorId, buildMensaje(phone), phone);
+        }
+      }
+
+      if (targetPhones.length === 1) {
+        toast.success("Mensaje enviado correctamente");
+        navigate(`/whatsapp/${numberId}/${lastConversationId}`);
+      } else {
+        toast.success(`Mensaje enviado a ${targetPhones.length} números`);
+        navigate(-1);
+      }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "No se pudo enviar el mensaje");
     } finally {
@@ -204,22 +267,45 @@ export default function SendWhatsAppPage() {
               </div>
             )}
 
-            {/* Teléfono destino (bloqueado) */}
+            {/* Teléfono destino */}
             <div className="space-y-1.5">
               <Label>Teléfono destino</Label>
-              <div className="relative">
-                <Input
-                  value={intlPhone || "Sin teléfono registrado"}
-                  readOnly
-                  className="font-mono bg-gray-50 text-gray-500 cursor-not-allowed pr-16"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded">
-                  fijo
-                </span>
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                El número se toma del deudor y no puede modificarse.
-              </p>
+              {phones.length === 0 ? (
+                <p className="text-sm text-gray-400">Sin teléfono registrado</p>
+              ) : (
+                <div className="space-y-2 rounded-lg border border-brand-secondary/20 bg-gray-50 p-3">
+                  {phones.map((phone) => (
+                    <label key={phone} className="flex items-center gap-2.5 cursor-pointer group">
+                      <input
+                        type="radio"
+                        name="phoneDestino"
+                        value={phone}
+                        checked={selectedPhone === phone}
+                        onChange={() => setSelectedPhone(phone)}
+                        className="accent-brand-primary"
+                      />
+                      <span className="font-mono text-sm text-gray-700 group-hover:text-brand-primary transition-colors">
+                        {phone}
+                      </span>
+                    </label>
+                  ))}
+                  {phones.length > 1 && (
+                    <label className="flex items-center gap-2.5 cursor-pointer group pt-1.5 border-t border-brand-secondary/10">
+                      <input
+                        type="radio"
+                        name="phoneDestino"
+                        value="all"
+                        checked={selectedPhone === "all"}
+                        onChange={() => setSelectedPhone("all")}
+                        className="accent-brand-primary"
+                      />
+                      <span className="text-sm font-medium text-brand-primary group-hover:text-brand-secondary transition-colors">
+                        Enviar a todos los números ({phones.length})
+                      </span>
+                    </label>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Selector de plantilla */}
@@ -278,7 +364,13 @@ export default function SendWhatsAppPage() {
                       </Label>
                       <Input
                         id={`var-${v.name}`}
-                        value={isPhone ? intlPhone : (varValues[v.name] ?? "")}
+                        value={
+                          isPhone
+                            ? selectedPhone === "all"
+                              ? "(se usa el número de cada destinatario)"
+                              : selectedPhone ? toIntl(selectedPhone) : ""
+                            : (varValues[v.name] ?? "")
+                        }
                         readOnly={isPhone}
                         onChange={(e) =>
                           !isPhone &&
@@ -329,13 +421,31 @@ export default function SendWhatsAppPage() {
                 )}
               </div>
 
-              {/* Teléfono */}
-              <InfoCard
-                bg="bg-green-50" border="border-green-100" iconColor="text-green-600"
-                icon={<Phone className="h-4 w-4" />}
-                label="Teléfono"
-                value={rawPhone || "Sin teléfono"}
-              />
+              {/* Teléfonos */}
+              {phones.length === 0 ? (
+                <InfoCard
+                  bg="bg-green-50" border="border-green-100" iconColor="text-green-600"
+                  icon={<Phone className="h-4 w-4" />}
+                  label="Teléfono"
+                  value="Sin teléfono"
+                />
+              ) : (
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-green-50 border border-green-100">
+                  <div className="p-1.5 rounded-lg bg-white shadow-sm flex-shrink-0">
+                    <span className="text-green-600"><Phone className="h-4 w-4" /></span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] text-gray-500 mb-1 uppercase tracking-wide">
+                      {phones.length > 1 ? "Teléfonos" : "Teléfono"}
+                    </p>
+                    {phones.map((phone) => (
+                      <p key={phone} className="text-sm font-semibold text-gray-700 font-mono">
+                        {phone}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Documento */}
               {deudor.cedula && (

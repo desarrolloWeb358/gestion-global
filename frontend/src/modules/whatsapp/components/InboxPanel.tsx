@@ -4,6 +4,7 @@ import { IconMessage, IconTemplate, IconEdit } from "@tabler/icons-react";
 import { useInboxConversations } from "../hooks/useInboxConversations";
 import { isMetaWindowOpen } from "../services/conversationsService";
 import { NewMessageDialog } from "./NewMessageDialog";
+import { useUsuarioActual } from "@/modules/auth/hooks/useUsuarioActual";
 
 interface Props {
   numberId: string;
@@ -27,7 +28,8 @@ function formatTime(ts: { toDate?: () => Date } | undefined): string {
 
 
 export function InboxPanel({ numberId, activeConvId }: Props) {
-  const { conversations, loading } = useInboxConversations(numberId);
+  const { usuario, roles } = useUsuarioActual();
+  const { conversations, loading } = useInboxConversations(numberId, usuario?.uid ?? "", roles);
   const navigate = useNavigate();
   const [newMsgOpen, setNewMsgOpen] = useState(false);
 

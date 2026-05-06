@@ -131,6 +131,8 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Valores_agregados_Edit,
     PERMS.ReporteCliente_Download_Word,
     PERMS.RegistrosEliminados_Read,
+    PERMS.Whatsapp_Read,
+    PERMS.Whatsapp_Write,
   ],
 
   ejecutivo: [
@@ -147,6 +149,8 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Recaudos_Read,
     PERMS.Valores_agregados_Read,
     PERMS.ReporteCliente_Download_Word,
+    PERMS.Whatsapp_Read,
+    PERMS.Whatsapp_Write,
   ],
 
   dependiente: [

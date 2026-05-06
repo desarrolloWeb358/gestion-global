@@ -2,7 +2,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { getFirestore } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
-import { getOrCreateConversation, appendMessage } from "./conversationService";
+import { getOrCreateConversation, appendMessage, updateMessageDeliveryStatus } from "./conversationService";
 
 export const META_VERIFY_TOKEN = defineSecret("META_VERIFY_TOKEN");
 
@@ -78,8 +78,9 @@ export const waWebhook = onRequest(
     const value         = entry?.changes?.[0]?.value;
     const phoneNumberId = String(value?.metadata?.phone_number_id || "");
     const messages: unknown[] = value?.messages ?? [];
+    const statuses: unknown[] = value?.statuses ?? [];
 
-    if (!messages.length || !phoneNumberId) {
+    if (!messages.length && !statuses.length || !phoneNumberId) {
       res.status(200).json({ ok: true, noMessages: true });
       return;
     }
@@ -98,6 +99,7 @@ export const waWebhook = onRequest(
 
     const numberId = numbersSnap.docs[0].id;
 
+    // ── Mensajes entrantes ────────────────────────────────────────────
     for (const msg of messages as any[]) {
       const from: string  = String(msg?.from || "");
       const wamid: string = String(msg?.id   || "");
@@ -144,6 +146,33 @@ export const waWebhook = onRequest(
           continue;
         }
         logger.error("Error procesando mensaje entrante", err);
+      }
+    }
+
+    // ── Status updates de entrega (sent / delivered / read / failed) ──
+    // Meta envía esto cuando el mensaje sale de sus servidores, llega al dispositivo
+    // o falla. recipient_id es el número destino → coincide con el conversationId.
+    const validDeliveryStatuses = new Set(["sent", "delivered", "read", "failed"]);
+
+    for (const statusUpdate of statuses as any[]) {
+      const wamid       = String(statusUpdate?.id            || "");
+      const status      = String(statusUpdate?.status        || "");
+      const recipientId = String(statusUpdate?.recipient_id  || "");
+
+      if (!wamid || !validDeliveryStatuses.has(status) || !recipientId) continue;
+
+      try {
+        const errorEntry = statusUpdate?.errors?.[0];
+        await updateMessageDeliveryStatus(
+          numberId,
+          recipientId,
+          wamid,
+          status as "sent" | "delivered" | "read" | "failed",
+          errorEntry ? { code: errorEntry.code, title: errorEntry.title } : undefined
+        );
+        logger.info("Estado de entrega actualizado", { wamid, status, recipientId, numberId });
+      } catch (err) {
+        logger.error("Error actualizando estado de entrega", { wamid, err });
       }
     }
 
