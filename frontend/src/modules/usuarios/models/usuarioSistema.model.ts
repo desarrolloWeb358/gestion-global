@@ -11,6 +11,7 @@ export interface UsuarioSistema {
   numeroDocumento: string;
   fecha_registro?: Timestamp | { seconds: number; nanoseconds: number } | FieldValue;
   activo?: boolean;
-  clienteIdAsociado?: string; // ID del cliente al que pertenece este deudor
-  deudorIdAsociado?: string;  // ID del deudor dentro de clientes/{clienteId}/deudores
+  clienteIdAsociado?: string;
+  deudorIdAsociado?: string;
+  canConsultarPersonas?: boolean;
 }

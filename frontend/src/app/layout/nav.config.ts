@@ -14,6 +14,7 @@ import {
   IconTrash,
   IconBrandWhatsapp,
   IconSettings,
+  IconSearch,
 } from "@tabler/icons-react";
 
 export type NavItem = {
@@ -22,6 +23,7 @@ export type NavItem = {
   icon?: SidebarIcon;
   roles?: Rol[];
   perm?: Perm | Perm[];
+  requireFlag?: "canConsultarPersonas";
 };
 
 export const NAV_ITEMS: NavItem[] = [
@@ -122,12 +124,12 @@ export const NAV_ITEMS: NavItem[] = [
   // ========================================
   // MÓDULOS ADICIONALES (Descomentados)
   // ========================================
-  /*{ 
-    to: "/consulta-personas", 
-    label: "Consulta Personas", 
-    icon: IconSearch, 
-    roles: ["admin", "cliente"] 
-  },*/
+  {
+    to: "/consulta-personas",
+    label: "Consulta Personas",
+    icon: IconSearch,
+    requireFlag: "canConsultarPersonas",
+  },
 
   // ========================================
   // REPORTES Y ANÁLISIS
