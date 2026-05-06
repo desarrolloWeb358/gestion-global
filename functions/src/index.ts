@@ -6,47 +6,10 @@ import { sendWhatsAppTemplate } from './twilio/sendWhatsApp';
 import { GMAIL_USER, GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN } from "./notificaciones/sendEmail";
 import { sendEmail } from "./notificaciones/sendEmail";
 import { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN } from "./twilio/client";
-import { consultarPersonasService } from "./consultas/consultarPersonas";
 import * as admin from "firebase-admin";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 
 admin.initializeApp();
-
-
-export const consultarPersonas = onRequest(async (req, res) => {
-
-  // Habilitar CORS manualmente
-  res.set('Access-Control-Allow-Origin', '*');
-  res.set('Access-Control-Allow-Headers', 'Content-Type');
-
-  // Si es una solicitud preflight OPTIONS, respondemos y terminamos
-  if (req.method === 'OPTIONS') {
-    res.status(204).send('');
-    return;
-  }
-  try {
-    const { uid, ...formData } = req.body;
-    console.log("Datos recibidos:", formData);
-    console.log("UID del usuario:", uid);
-
-    // UIDs autorizados (puedes añadir más)
-    const UID_AUTORIZADOS = ['jqONlD5XRaWIfheDDunWRvuLdDc2'];
-
-    if (!UID_AUTORIZADOS.includes(uid)) {
-      console.log("UID no autorizado:", uid);
-      res.status(200).send("SIN_AUTORIZACION");
-      return;
-    }
-
-    const resultado = await consultarPersonasService(formData);
-    console.log("Resultado de la consulta:", resultado);
-
-    res.status(200).send(resultado);
-  } catch (error) {
-    console.error("Error en consulta de personas:", error);
-    res.status(500).send("Error consultando datos");
-  }
-});
 
 export const enviarNotificacion = onRequest(
   {
