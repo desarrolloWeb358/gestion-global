@@ -12,6 +12,7 @@ import {
   RefreshCw,
   TrendingUp,
 } from "lucide-react";
+import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 import { db } from "@/firebase";
 import {
   collection,
@@ -140,7 +141,12 @@ export default function EjecutivoDashboardPage() {
       // 2. Todos los deudores → filtrar en memoria por los conjuntos del ejecutivo
       const deudoresSnap = await getDocs(collectionGroup(db, "deudores"));
 
-      const EXCLUIR = new Set(["Inactivo", "Terminado", "Demanda/Terminado", "Devuelto"]);
+      const EXCLUIR = new Set<string>([
+          TipificacionDeuda.INACTIVO,
+          TipificacionDeuda.TERMINADO,
+          TipificacionDeuda.DEMANDA_TERMINADO,
+          TipificacionDeuda.DEVUELTO,
+        ]);
 
       const deuMap = new Map<string, number>();
       const acuMap = new Map<string, number>();
@@ -153,7 +159,7 @@ export default function EjecutivoDashboardPage() {
         if (EXCLUIR.has(data?.tipificacion)) return;
 
         deuMap.set(clienteId, (deuMap.get(clienteId) ?? 0) + 1);
-        if (data?.tipificacion === "Acuerdo") {
+        if (data?.tipificacion === TipificacionDeuda.ACUERDO || data?.tipificacion === TipificacionDeuda.DEMANDA_ACUERDO) {
           acuMap.set(clienteId, (acuMap.get(clienteId) ?? 0) + 1);
         }
       });
