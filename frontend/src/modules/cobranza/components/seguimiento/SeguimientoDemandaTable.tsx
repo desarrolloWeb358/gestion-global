@@ -164,6 +164,7 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
 
   // Estado para información de la demanda
   const [demandados, setDemandados] = React.useState<DemandadoItem[]>([]);
+  const [demandaSustituto, setDemandaSustituto] = React.useState<boolean>(false);
   const [infoDemanda, setInfoDemanda] = React.useState({
     juzgado: "",
     numeroRadicado: "",
@@ -215,6 +216,7 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
       setObsCliente((data as any).observacionesDemandaCliente ?? "");
       setFechaUltimaRevision(toDateInputValue((data as any).fechaUltimaRevision));
       setDemandados(normalizeDemandados((data as any)?.demandados));
+      setDemandaSustituto((data as any)?.demandaSustituto ?? false);
       setInfoDemanda({
         juzgado: (data as any)?.juzgado ?? "",
         numeroRadicado: (data as any)?.numeroRadicado ?? "",
@@ -373,6 +375,7 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
         juzgado: infoDemanda.juzgado || "",
         numeroRadicado: infoDemanda.numeroRadicado || "",
         localidad: infoDemanda.localidad || "",
+        demandaSustituto,
         fechaActualizacion: serverTimestamp(),
       };
       if (fechaUltimaRevision) {
@@ -525,6 +528,25 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
                   onChange={(e) => setInfoDemanda((s) => ({ ...s, localidad: e.target.value }))}
                   className="border-brand-secondary/30"
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-brand-secondary font-medium flex items-center gap-2">
+                  <Gavel className="h-4 w-4" />
+                  Demanda sustituto
+                </Label>
+                <Select
+                  value={demandaSustituto ? "si" : "no"}
+                  onValueChange={(v) => setDemandaSustituto(v === "si")}
+                >
+                  <SelectTrigger className="w-full border-brand-secondary/30">
+                    <SelectValue placeholder="Selecciona" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="no">No</SelectItem>
+                    <SelectItem value="si">Sí</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">

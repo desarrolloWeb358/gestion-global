@@ -28,15 +28,14 @@ import {
   SelectContent,
   SelectItem,
 } from "@/shared/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover";
+import { Calendar } from "@/shared/ui/calendar";
 import { Separator } from "@/shared/ui/separator";
 import { Loader2, Calendar as CalendarIcon } from "lucide-react";
 
 import { Seguimiento } from "../../models/seguimiento.model";
-// imports nuevos:
-import { TIPO_SEGUIMIENTO, TipoSeguimientoCode, codeToLabel } from "@/shared/constants/tipoSeguimiento";
+import { TIPO_SEGUIMIENTO, TipoSeguimientoCode } from "@/shared/constants/tipoSeguimiento";
 import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
-
-// ⬇️ NUEVO: portal para overlay global
 import { createPortal } from "react-dom";
 
 export type DestinoColeccion = "seguimiento" | "seguimientoJuridico";
@@ -59,12 +58,10 @@ type Props = {
 // === Helpers & Consts ===
 const TIPO_OPTIONS = TIPO_SEGUIMIENTO;
 
-function humanize(val?: string) {
-  if (!val) return "—";
-  return val
-    .replace(/[_\-]/g, " ")
-    .toLowerCase()
-    .replace(/^\w|\s\w/g, (m) => m.toUpperCase());
+function toDate(v: { toDate?: () => Date } | Date | undefined): Date {
+  if (!v) return new Date();
+  if (v instanceof Date) return v;
+  return typeof (v as any).toDate === "function" ? (v as any).toDate() : new Date();
 }
 
 function defaultDestinoFromTipificacion(t?: TipificacionDeuda): DestinoColeccion {
@@ -74,13 +71,11 @@ function defaultDestinoFromTipificacion(t?: TipificacionDeuda): DestinoColeccion
   return "seguimiento";
 }
 
-// === NUEVO: Overlay global bloqueante con portal ===
+// === Overlay global bloqueante con portal ===
 function GlobalSavingOverlay() {
   React.useEffect(() => {
-    // bloquear scroll y mostrar cursor de espera
     document.body.classList.add("overflow-hidden");
     document.body.style.cursor = "wait";
-    // opcional: marcar toda la app como "ocupada"
     document.documentElement.setAttribute("aria-busy", "true");
     return () => {
       document.body.classList.remove("overflow-hidden");
@@ -92,7 +87,6 @@ function GlobalSavingOverlay() {
   return createPortal(
     <div
       className="fixed inset-0 z-[2000] bg-black/30 backdrop-blur-sm"
-      // asegurar que captura todos los eventos
       style={{ pointerEvents: "auto" }}
       aria-live="polite"
       aria-label="Guardando, por favor espera"
@@ -122,6 +116,7 @@ export default function SeguimientoForm({
     destinoInicial ?? defaultDestinoFromTipificacion(tipificacionDeuda)
   );
 
+  const [fecha, setFecha] = React.useState<Date>(() => toDate(seguimiento?.fecha));
 
   const [tipoSeguimiento, setTipoSeguimiento] = React.useState<TipoSeguimientoCode>(
     seguimiento?.tipoSeguimiento ?? "otro"
@@ -146,6 +141,7 @@ export default function SeguimientoForm({
   }
 
   React.useEffect(() => {
+    setFecha(toDate(seguimiento?.fecha));
     setTipoSeguimiento(seguimiento?.tipoSeguimiento ?? "otro");
     setDescripcion(seguimiento?.descripcion ?? "");
     setArchivo(undefined);
@@ -159,6 +155,7 @@ export default function SeguimientoForm({
     setSaving(true);
     try {
       const data: Omit<Seguimiento, "id"> = {
+        fecha,
         tipoSeguimiento,
         descripcion,
         archivoUrl: seguimiento?.archivoUrl,
@@ -177,7 +174,6 @@ export default function SeguimientoForm({
 
   return (
     <>
-      {/* ⬇️ Overlay global a pantalla completa cuando saving = true */}
       {saving && <GlobalSavingOverlay />}
 
       <AlertDialog open={showExitConfirm}>
@@ -208,7 +204,6 @@ export default function SeguimientoForm({
           onInteractOutside={(e) => { e.preventDefault(); setShowExitConfirm(true); }}
           onEscapeKeyDown={(e) => { e.preventDefault(); tryClose(); }}
         >
-          {/* Wrapper principal */}
           <div className="flex h-full min-h-0 flex-col overflow-hidden">
             {/* Header */}
             <DialogHeader className="sticky top-0 z-10 p-4 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -224,24 +219,43 @@ export default function SeguimientoForm({
                 id="seguimiento-form"
                 className="px-6 py-5 space-y-6"
                 onSubmit={handleSubmit}
-                // mientras guarda, ignora cualquier interacción dentro del form
                 style={saving ? { pointerEvents: "none" } : undefined}
               >
                 {/* Datos básicos */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 items-start">
-                  {/* Fecha — solo lectura; creación = hoy, edición = fecha original del registro */}
+
+                  {/* Fecha */}
                   <div className="space-y-2">
                     <Label className="text-sm">Fecha</Label>
-                    <div className="flex h-10 w-full items-center gap-2 rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground cursor-not-allowed select-none">
-                      <CalendarIcon className="h-4 w-4 shrink-0" />
-                      <span>
-                        {(seguimiento?.fecha?.toDate?.() ?? new Date()).toLocaleDateString("es-CO", {
-                          day: "2-digit",
-                          month: "2-digit",
-                          year: "numeric",
-                        })}
-                      </span>
-                    </div>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={saving}
+                          className="w-full justify-start font-normal h-10"
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {fecha.toLocaleDateString("es-CO", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                          })}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={fecha}
+                          defaultMonth={fecha}
+                          onSelect={(d) => d && setFecha(d)}
+                          initialFocus
+                          captionLayout="dropdown"
+                          fromYear={new Date().getFullYear() - 10}
+                          toYear={new Date().getFullYear() + 1}
+                        />
+                      </PopoverContent>
+                    </Popover>
                   </div>
 
                   {/* Destino */}

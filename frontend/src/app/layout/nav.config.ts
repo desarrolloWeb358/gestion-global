@@ -32,11 +32,11 @@ export const NAV_ITEMS: NavItem[] = [
   // ========================================
   // DASHBOARDS POR ROL
   // ========================================
-  { 
-    to: "/dashboard/admin", 
-    label: "Administrador", 
+  {
+    to: "/dashboard/admin",
+    label: "Administrador",
     icon: IconHome,
-    roles: ["admin"] 
+    roles: ["admin", "ejecutivoAdmin"]
   },  
   {
     to: "/dashboard/ejecutivo",

@@ -1652,7 +1652,15 @@ export default function DeudoresTable() {
                         {deudor.ubicacion || "—"}
                       </TableCell>
                       <TableCell>
-                        <BadgeTipificacion value={deudor.tipificacion} />
+                        <BadgeTipificacion
+                          value={deudor.tipificacion}
+                          suffix={
+                            deudor.demandaSustituto === true &&
+                            String(deudor.tipificacion).toLowerCase().includes("demanda")
+                              ? "sust"
+                              : undefined
+                          }
+                        />
                       </TableCell>
                       <TableCell>
                         <div className="flex justify-center gap-2">

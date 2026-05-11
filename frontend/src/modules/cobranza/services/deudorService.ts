@@ -212,6 +212,7 @@ export function mapDocToDeudor(id: string, data: DocumentData): Deudor {
     numeroProceso: data.numeroProceso,
     anoProceso: data.anoProceso,
     tipificacion: normalizeTipificacion(data.tipificacion),
+    demandaSustituto: data.demandaSustituto === true,
   };
 }
 

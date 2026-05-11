@@ -331,13 +331,6 @@ export default function AdminDashboardPage() {
             if (ejId && excluded.has(ejId)) excludedClienteIds.add(doc.id);
           });
 
-          // Eliminar esos clientes de los mapas de deudores y acuerdos
-          excludedClienteIds.forEach((id) => {
-            deuMap.delete(id);
-            acuMap.delete(id);
-            sinGestMap.delete(id);
-          });
-
           const filteredDocs = clientesResult.value.docs.filter(
             (doc) => !excludedClienteIds.has(doc.id)
           );
@@ -350,6 +343,20 @@ export default function AdminDashboardPage() {
                 (doc.data().ejecutivoPrejuridicoId as string) ?? null,
             }))
           );
+
+          // Limpiar los mapas: conservar SOLO los clientes activos y no excluidos.
+          // collectionGroup trae deudores de TODOS los clientes (activos e inactivos);
+          // hay que descartar los que no pertenecen al conjunto válido.
+          const validClienteIds = new Set(filteredDocs.map((d) => d.id));
+          for (const id of [...deuMap.keys()]) {
+            if (!validClienteIds.has(id)) deuMap.delete(id);
+          }
+          for (const id of [...acuMap.keys()]) {
+            if (!validClienteIds.has(id)) acuMap.delete(id);
+          }
+          for (const id of [...sinGestMap.keys()]) {
+            if (!validClienteIds.has(id)) sinGestMap.delete(id);
+          }
         }
 
         // 3. Persistir mapas ya filtrados
