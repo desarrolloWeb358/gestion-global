@@ -108,6 +108,7 @@ interface EjecutivoStat {
   totalDeudores: number;
   totalAcuerdosEnFirme: number;
   pctAcuerdos: number;
+  sinGestion15d: number;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -247,6 +248,7 @@ export default function AdminDashboardPage() {
   const [acuerdosEnFirmeMap, setAcuerdosEnFirmeMap] = useState<Map<string, number>>(
     new Map()
   );
+  const [sinGestion15dMap, setSinGestion15dMap] = useState<Map<string, number>>(new Map());
 
   // ── Loading
   const [loadingKpis, setLoadingKpis] = useState(true);
@@ -276,8 +278,10 @@ export default function AdminDashboardPage() {
           TipificacionDeuda.DEVUELTO,
         ]);
 
+        const hace15dias = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000);
         const deuMap = new Map<string, number>();
         const acuMap = new Map<string, number>();
+        const sinGestMap = new Map<string, number>();
         deudoresSnap.forEach((doc) => {
           const data = doc.data();
           if (EXCLUIR.has(data?.tipificacion)) return;
@@ -286,6 +290,13 @@ export default function AdminDashboardPage() {
             deuMap.set(clienteId, (deuMap.get(clienteId) ?? 0) + 1);
             if (data?.tipificacion === TipificacionDeuda.ACUERDO || data?.tipificacion === TipificacionDeuda.DEMANDA_ACUERDO) {
               acuMap.set(clienteId, (acuMap.get(clienteId) ?? 0) + 1);
+            }
+            if (data?.tipificacion === TipificacionDeuda.GESTIONANDO) {
+              const seg = data.fechaUltimoSeguimiento;
+              const tieneReciente = seg && typeof seg.toDate === 'function' && seg.toDate() >= hace15dias;
+              if (!tieneReciente) {
+                sinGestMap.set(clienteId, (sinGestMap.get(clienteId) ?? 0) + 1);
+              }
             }
           }
         });
@@ -324,6 +335,7 @@ export default function AdminDashboardPage() {
           excludedClienteIds.forEach((id) => {
             deuMap.delete(id);
             acuMap.delete(id);
+            sinGestMap.delete(id);
           });
 
           const filteredDocs = clientesResult.value.docs.filter(
@@ -343,6 +355,7 @@ export default function AdminDashboardPage() {
         // 3. Persistir mapas ya filtrados
         setDeudoresPorCliente(deuMap);
         setAcuerdosEnFirmeMap(acuMap);
+        setSinGestion15dMap(sinGestMap);
 
       } catch (err) {
         console.error("Error cargando KPIs globales:", err);
@@ -430,6 +443,7 @@ export default function AdminDashboardPage() {
       totalDeudores: 0,
       totalAcuerdosEnFirme: 0,
       pctAcuerdos: 0,
+      sinGestion15d: 0,
     };
 
     for (const cliente of clientesList) {
@@ -439,6 +453,7 @@ export default function AdminDashboardPage() {
         sinEjecutivo.totalConjuntos++;
         sinEjecutivo.totalDeudores += deudoresPorCliente.get(cliente.id) ?? 0;
         sinEjecutivo.totalAcuerdosEnFirme += acuerdosEnFirmeMap.get(cliente.id) ?? 0;
+        sinEjecutivo.sinGestion15d += sinGestion15dMap.get(cliente.id) ?? 0;
         continue;
       }
 
@@ -450,6 +465,7 @@ export default function AdminDashboardPage() {
           totalDeudores: 0,
           totalAcuerdosEnFirme: 0,
           pctAcuerdos: 0,
+          sinGestion15d: 0,
         });
       }
 
@@ -457,6 +473,7 @@ export default function AdminDashboardPage() {
       ej.totalConjuntos++;
       ej.totalDeudores += deudoresPorCliente.get(cliente.id) ?? 0;
       ej.totalAcuerdosEnFirme += acuerdosEnFirmeMap.get(cliente.id) ?? 0;
+      ej.sinGestion15d += sinGestion15dMap.get(cliente.id) ?? 0;
     }
 
     const resultado = Array.from(map.values())
@@ -472,7 +489,7 @@ export default function AdminDashboardPage() {
     }
 
     return resultado;
-  }, [clientesList, usuariosMap, deudoresPorCliente, acuerdosEnFirmeMap, excludedEjecutivoIds]);
+  }, [clientesList, usuariosMap, deudoresPorCliente, acuerdosEnFirmeMap, excludedEjecutivoIds, sinGestion15dMap]);
 
   const mesLabel = MONTH_LABELS.find((mm) => mm.v === month)?.l ?? month;
 
@@ -614,7 +631,7 @@ export default function AdminDashboardPage() {
               </Typography>
             </div>
             <Typography variant="small" className="text-muted-foreground">
-              Conjuntos y deudores asignados · Deudores con tipificación Acuerdo
+              Conjuntos y deudores asignados · Acuerdos · Gestionando sin seguimiento en +15 días
             </Typography>
           </div>
 
@@ -647,6 +664,9 @@ export default function AdminDashboardPage() {
                     </th>
                     <th className="py-3 px-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">
                       % Acuerdo
+                    </th>
+                    <th className="py-3 px-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">
+                      Sin gest. +15d
                     </th>
                   </tr>
                 </thead>
@@ -688,6 +708,15 @@ export default function AdminDashboardPage() {
                         <td className="py-3 px-4 text-right">
                           <AcuerdoBadge value={ej.pctAcuerdos} />
                         </td>
+                        <td className="py-3 px-4 text-right">
+                          {ej.sinGestion15d > 0 ? (
+                            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-700">
+                              {ej.sinGestion15d}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
@@ -708,6 +737,9 @@ export default function AdminDashboardPage() {
                     </td>
                     <td className="py-3 px-4 text-right">
                       <AcuerdoBadge value={pct(totalAcuerdosEnFirme, totalDeudores)} />
+                    </td>
+                    <td className="py-3 px-4 text-right tabular-nums text-red-700 font-semibold">
+                      {ejecutivoStats.reduce((s, e) => s + e.sinGestion15d, 0) || "—"}
                     </td>
                   </tr>
                 </tfoot>

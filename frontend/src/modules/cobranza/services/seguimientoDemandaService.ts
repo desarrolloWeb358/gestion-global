@@ -104,19 +104,25 @@ export async function addSeguimientoDemanda(
     `clientes/${clienteId}/deudores/${deudorId}/seguimientoDemanda`
   );
 
-  // se modifica para que reciba la fecha de creacion, ejecutivoUID y clienteUID
+  const ahora = Timestamp.fromDate(new Date());
+
   const payload = stripUndefined({
-    fechaCreacion: Timestamp.fromDate(new Date()),
+    fecha: ahora,
     ejecutivoUID: ejecutivoUID,
     clienteUID: clienteId,
-    fecha: (data.fecha as any) ?? Timestamp.fromDate(new Date()),
     descripcion: data.descripcion,
     esInterno: !!data.esInterno,
     ...(archivoPath ? { archivoPath } : {}),
     ...(archivoUrl ? { archivoUrl } : {}),
   });
 
-  return addDoc(refCol, payload);
+  const docRef = await addDoc(refCol, payload);
+
+  // Siempre actualizar fechaUltimaRevision con la fecha real de creación (independiente de esInterno)
+  const deudorRef = doc(db, `clientes/${clienteId}/deudores/${deudorId}`);
+  await updateDoc(deudorRef, { fechaUltimaRevision: ahora });
+
+  return docRef;
 }
 
 export async function updateSeguimientoDemanda(
@@ -146,7 +152,6 @@ export async function updateSeguimientoDemanda(
   }
 
   const payloadBase = stripUndefined({
-    fecha: data.fecha,
     descripcion: data.descripcion,
     esInterno: !!data.esInterno,
   });

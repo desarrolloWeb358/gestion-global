@@ -145,7 +145,7 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
 
   const [open, setOpen] = React.useState(false);
   const [edit, setEdit] = React.useState<SeguimientoDemanda | null>(null);
-  const [fecha, setFecha] = React.useState<Date | undefined>(undefined);
+  const [fecha, setFecha] = React.useState<Date>(() => new Date());
   const [descripcion, setDescripcion] = React.useState("");
   const [archivo, setArchivo] = React.useState<File | undefined>(undefined);
   const [saving, setSaving] = React.useState(false);
@@ -176,7 +176,7 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
 
   const resetForm = () => {
     setEdit(null);
-    setFecha(undefined);
+    setFecha(new Date()); // siempre hoy en creación
     setDescripcion("");
     setArchivo(undefined);
     setEsInterno(false);
@@ -256,7 +256,7 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
       return;
     }
     setEdit(row);
-    setFecha(toDate(row.fecha));
+    setFecha(toDate(row.fecha) ?? new Date());
     setDescripcion(row.descripcion ?? "");
     setEsInterno(!!(row as any).esInterno);
     setArchivo(undefined);
@@ -294,16 +294,8 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
         }
         await addSeguimientoDemanda(uidUsuario, clienteId, deudorId, payload, archivo);
 
-        if (!esInterno && fecha) {
-          const newDateStr = toDateInputValue(fecha);
-          if (!fechaUltimaRevision || newDateStr > fechaUltimaRevision) {
-            const deudorRef = doc(db, `clientes/${clienteId}/deudores/${deudorId}`);
-            await updateDoc(deudorRef, {
-              fechaUltimaRevision: parseLocalYmd(newDateStr) ?? fecha,
-            });
-            setFechaUltimaRevision(newDateStr);
-          }
-        }
+        // fechaUltimaRevision se actualiza en el servicio con fechaCreacion real (siempre)
+        if (fecha) setFechaUltimaRevision(toDateInputValue(fecha));
 
         toast.success("✓ Seguimiento creado correctamente");
       }
@@ -813,29 +805,12 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="text-brand-secondary font-medium">Fecha *</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal border-brand-secondary/30",
-                        !fecha && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {fecha ? formatEs(fecha.toISOString().slice(0, 10)) : "Seleccionar fecha"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={fecha}
-                      onSelect={setFecha}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
+                <Label className="text-brand-secondary font-medium">Fecha</Label>
+                {/* Fecha de solo lectura: hoy en creación, fecha original en edición */}
+                <div className="flex h-10 w-full items-center gap-2 rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground cursor-not-allowed select-none">
+                  <CalendarIcon className="h-4 w-4 shrink-0" />
+                  <span>{fecha ? formatEs(fecha.toISOString().slice(0, 10)) : "—"}</span>
+                </div>
               </div>
             </div>
 

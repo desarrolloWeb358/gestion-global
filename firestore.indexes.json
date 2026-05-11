@@ -1,6 +1,14 @@
 {
   "indexes": [
     {
+      "collectionGroup": "deudores",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "tipificacion", "order": "ASCENDING" },
+        { "fieldPath": "fechaUltimoSeguimiento", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "acuerdos",
       "queryScope": "COLLECTION",
       "fields": [

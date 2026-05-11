@@ -66,4 +66,6 @@ export interface Deudor {
     anoProceso?: number;
 
     fechaUltimaRevision?: Timestamp | { seconds: number; nanoseconds: number } | Date | FieldValue | null;
+    // Timestamp real (fechaCreacion) del último seguimiento registrado en cualquier subcollección
+    fechaUltimoSeguimiento?: Timestamp | { seconds: number; nanoseconds: number } | FieldValue | null;
 }

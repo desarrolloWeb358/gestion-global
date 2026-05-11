@@ -1,6 +1,5 @@
 // src/modules/cobranza/components/SeguimientoForm.tsx
 import * as React from "react";
-import { Timestamp } from "firebase/firestore";
 
 import {
   Dialog,
@@ -31,16 +30,11 @@ import {
 } from "@/shared/ui/select";
 import { Separator } from "@/shared/ui/separator";
 import { Loader2, Calendar as CalendarIcon } from "lucide-react";
-import { Calendar } from "@/shared/ui/calendar";
-import { Popover, PopoverTrigger, PopoverContent } from "@/shared/ui/popover";
 
 import { Seguimiento } from "../../models/seguimiento.model";
 // imports nuevos:
 import { TIPO_SEGUIMIENTO, TipoSeguimientoCode, codeToLabel } from "@/shared/constants/tipoSeguimiento";
 import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
-
-// locale español para el calendario (react-day-picker via date-fns)
-import { es } from "date-fns/locale";
 
 // ⬇️ NUEVO: portal para overlay global
 import { createPortal } from "react-dom";
@@ -80,24 +74,6 @@ function defaultDestinoFromTipificacion(t?: TipificacionDeuda): DestinoColeccion
   return "seguimiento";
 }
 
-function toLocalISODateString(d: Date) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-// ✅ Parsear "YYYY-MM-DD" a Date EN LOCAL (no uses new Date("YYYY-MM-DD"))
-function parseLocalDateString(s?: string) {
-  if (!s) return undefined as unknown as Date | undefined;
-  const [y, m, d] = s.split("-").map(Number);
-  return new Date(y, (m || 1) - 1, d || 1); // Date local
-}
-
-function toISO(d?: Date) {
-  return d ? toLocalISODateString(d) : "";
-}
-
 // === NUEVO: Overlay global bloqueante con portal ===
 function GlobalSavingOverlay() {
   React.useEffect(() => {
@@ -133,47 +109,6 @@ function GlobalSavingOverlay() {
   );
 }
 
-// === DatePicker (popover) ===
-function FechaPicker({
-  value,
-  onChange,
-  disabled,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  disabled?: boolean;
-}) {
-  const date = value ? parseLocalDateString(value) : undefined;
-
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full justify-start text-left font-normal"
-          disabled={disabled}
-        >
-          <CalendarIcon className="mr-2 h-4 w-4" />
-          {date
-            ? date.toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })
-            : "Fecha"}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="p-0" align="start">
-        <Calendar
-          mode="single"
-          selected={date}
-          onSelect={(d) => onChange(d ? toLocalISODateString(d) : "")}
-          locale={es}
-          initialFocus
-          disabled={disabled}
-        />
-      </PopoverContent>
-    </Popover>
-  );
-}
-
 export default function SeguimientoForm({
   open,
   onClose,
@@ -183,11 +118,6 @@ export default function SeguimientoForm({
   destinoInicial,
   extraHeader,
 }: Props) {
-  const [fecha, setFecha] = React.useState<string>(() => {
-    const d = seguimiento?.fecha?.toDate?.() ?? new Date();
-    return toLocalISODateString(d);
-  });
-
   const [destino, setDestino] = React.useState<DestinoColeccion>(
     destinoInicial ?? defaultDestinoFromTipificacion(tipificacionDeuda)
   );
@@ -216,8 +146,6 @@ export default function SeguimientoForm({
   }
 
   React.useEffect(() => {
-    const d = seguimiento?.fecha?.toDate?.() ?? new Date();
-    setFecha(toLocalISODateString(d));
     setTipoSeguimiento(seguimiento?.tipoSeguimiento ?? "otro");
     setDescripcion(seguimiento?.descripcion ?? "");
     setArchivo(undefined);
@@ -230,9 +158,7 @@ export default function SeguimientoForm({
     if (saving) return;
     setSaving(true);
     try {
-      const fechaTs = Timestamp.fromDate(new Date(`${fecha}T00:00:00`));
       const data: Omit<Seguimiento, "id"> = {
-        fecha: fechaTs,
         tipoSeguimiento,
         descripcion,
         archivoUrl: seguimiento?.archivoUrl,
@@ -303,11 +229,19 @@ export default function SeguimientoForm({
               >
                 {/* Datos básicos */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 items-start">
-                  {/* Fecha */}
+                  {/* Fecha — solo lectura; creación = hoy, edición = fecha original del registro */}
                   <div className="space-y-2">
                     <Label className="text-sm">Fecha</Label>
-                    <FechaPicker value={fecha} onChange={setFecha} disabled={saving} />
-                    <input type="hidden" name="fecha" value={fecha} />
+                    <div className="flex h-10 w-full items-center gap-2 rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground cursor-not-allowed select-none">
+                      <CalendarIcon className="h-4 w-4 shrink-0" />
+                      <span>
+                        {(seguimiento?.fecha?.toDate?.() ?? new Date()).toLocaleDateString("es-CO", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                        })}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Destino */}

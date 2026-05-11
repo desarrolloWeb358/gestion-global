@@ -85,9 +85,9 @@ export async function addSeguimiento(
   const refCol = collection(db, `clientes/${clienteId}/deudores/${deudorId}/seguimiento`);
   console.log("se adiciona seguimiento con data:", data);
 
+  const ahora = Timestamp.fromDate(new Date());
   const payload = stripUndefined({
-    fecha: data.fecha ?? Timestamp.fromDate(new Date()),
-    fechaCreacion: Timestamp.fromDate(new Date()),
+    fecha: ahora,
     clienteUID: clienteId,
     ejecutivoUID: ejecutivoUID,
     tipoSeguimiento: data.tipoSeguimiento,
@@ -95,7 +95,12 @@ export async function addSeguimiento(
     ...(archivoUrl ? { archivoUrl } : {}),
   });
 
-  return addDoc(refCol, payload);
+  const docRef = await addDoc(refCol, payload);
+
+  const deudorRef = doc(db, `clientes/${clienteId}/deudores/${deudorId}`);
+  await updateDoc(deudorRef, { fechaUltimoSeguimiento: ahora });
+
+  return docRef;
 }
 
 export async function updateSeguimiento(
@@ -191,9 +196,9 @@ export async function addSeguimientoJuridico(
 
   const refCol = collection(db, `clientes/${clienteId}/deudores/${deudorId}/seguimientoJuridico`);
 
+  const ahora = Timestamp.fromDate(new Date());
   const payload = stripUndefined({
-    fecha: data.fecha ?? Timestamp.fromDate(new Date()),
-    fechaCreacion: Timestamp.fromDate(new Date()),
+    fecha: ahora,
     ejecutivoUID: ejecutivoUID,
     clienteUID: clienteId,
     tipoSeguimiento: data.tipoSeguimiento,
@@ -201,7 +206,12 @@ export async function addSeguimientoJuridico(
     ...(archivoUrl ? { archivoUrl } : {}),
   });
 
-  return addDoc(refCol, payload);
+  const docRef = await addDoc(refCol, payload);
+
+  const deudorRef = doc(db, `clientes/${clienteId}/deudores/${deudorId}`);
+  await updateDoc(deudorRef, { fechaUltimoSeguimiento: ahora });
+
+  return docRef;
 }
 
 export async function updateSeguimientoJuridico(
