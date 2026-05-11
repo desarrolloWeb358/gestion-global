@@ -1301,7 +1301,10 @@ export default function DeudoresTable() {
                   </Button>
                 </DialogTrigger>
 
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogContent
+                  className="max-w-2xl max-h-[90vh] overflow-y-auto"
+                  onOpenAutoFocus={(e) => e.preventDefault()}
+                >
                   <DialogHeader>
                     <DialogTitle className="text-brand-primary text-xl font-bold flex items-center gap-2">
                       <Users className="h-5 w-5" />
