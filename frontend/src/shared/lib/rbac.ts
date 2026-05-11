@@ -17,7 +17,7 @@ export function roleHome(roles?: Rol[]): string {
 // Conjunto de permisos que surgen de los roles
 export function permsFromRoles(roles?: Rol[]): Set<Perm> {
   const set = new Set<Perm>();
-  roles?.forEach(r => ROLE_PERMISSIONS[r].forEach(p => set.add(p)));
+  roles?.forEach(r => (ROLE_PERMISSIONS[r] ?? []).forEach(p => set.add(p)));
   return set;
 }
 
