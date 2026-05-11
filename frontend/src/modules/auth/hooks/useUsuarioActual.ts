@@ -4,7 +4,7 @@ import { onAuthStateChanged, User } from "firebase/auth";
 import { auth, db } from "@/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import type { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
-import type { Rol } from "@/shared/constants/acl";
+import { sanitizeRoles, type Rol } from "@/shared/constants/acl";
 
 export function useUsuarioActual() {
   const [usuario, setUsuario] = useState<User | null>(null);
@@ -27,7 +27,7 @@ export function useUsuarioActual() {
         if (snap.exists()) {
           const data = snap.data() as UsuarioSistema;
           setUsuarioSistema(data);
-          setRoles(data.roles ?? []);
+          setRoles(sanitizeRoles(data.roles));
         } else {
           setUsuarioSistema(null);
           setRoles([]);
