@@ -6,8 +6,10 @@ import { Button } from "@/shared/ui/button";
 import { Label } from "@/shared/ui/label";
 import { Input } from "@/shared/ui/input";
 import { toast } from "sonner";
-import { Upload, FileText, User as UserIcon, Calendar, Tag, MessageSquare, Send, CheckCircle } from "lucide-react";
+import { Upload, FileText, User as UserIcon, Calendar, Tag, MessageSquare, Send, CheckCircle, Eye, Download } from "lucide-react";
 
+import { ref as storageRef, getBlob } from "firebase/storage";
+import { storage } from "@/firebase";
 import {
   obtenerValorAgregado,
   timestampToDateInput,
@@ -39,6 +41,31 @@ function formatMsgDate(input: any): string {
       return input.toLocaleString("es-CO", { hour12: false });
   } catch { }
   return "—";
+}
+
+async function descargarArchivo(url: string, nombre: string) {
+  try {
+    // Extraer la ruta del archivo desde la URL de Firebase Storage
+    const match = url.match(/\/o\/(.+?)(?:\?|$)/);
+    if (!match) throw new Error("URL inválida");
+    const path = decodeURIComponent(match[1]);
+
+    const blob = await getBlob(storageRef(storage, path));
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = nombre || "archivo";
+    a.click();
+    URL.revokeObjectURL(blobUrl);
+  } catch {
+    toast.error("No se pudo descargar el archivo.");
+  }
+}
+
+async function descargarTodos(archivos: { url: string; nombre: string }[]) {
+  for (const archivo of archivos) {
+    await descargarArchivo(archivo.url, archivo.nombre);
+  }
 }
 
 export default function ValorAgregadoDetailPage() {
@@ -259,21 +286,46 @@ export default function ValorAgregadoDetailPage() {
 
             {item.archivos && item.archivos.length > 0 && (
               <div className="rounded-lg border border-brand-secondary/20 bg-gray-50 p-4">
-                <div className="text-sm text-gray-600 mb-2">
-                  Archivos adjuntos ({item.archivos.length})
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-sm text-gray-600">
+                    Archivos adjuntos ({item.archivos.length})
+                  </div>
+                  {item.archivos.length > 1 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 text-xs"
+                      onClick={() => descargarTodos(item.archivos!)}
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      Descargar todos
+                    </Button>
+                  )}
                 </div>
                 <div className="flex flex-col gap-2">
                   {item.archivos.map((a, i) => (
-                    <a
-                      key={i}
-                      href={a.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-2 text-brand-primary hover:text-brand-secondary transition-colors font-medium"
-                    >
-                      <FileText className="h-4 w-4 shrink-0" />
-                      {a.nombre || "Ver archivo"}
-                    </a>
+                    <div key={i} className="flex items-center gap-2 flex-wrap">
+                      <FileText className="h-4 w-4 shrink-0 text-brand-primary" />
+                      <span className="text-sm font-medium text-gray-800 flex-1 min-w-0 truncate">
+                        {a.nombre || "Archivo"}
+                      </span>
+                      <a
+                        href={a.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-brand-primary hover:text-brand-secondary font-medium border border-brand-primary/30 rounded px-2 py-1 transition-colors"
+                      >
+                        <Eye className="h-3 w-3" />
+                        Ver
+                      </a>
+                      <button
+                        onClick={() => descargarArchivo(a.url, a.nombre)}
+                        className="inline-flex items-center gap-1 text-xs text-white bg-brand-primary hover:bg-brand-secondary rounded px-2 py-1 transition-colors font-medium"
+                      >
+                        <Download className="h-3 w-3" />
+                        Descargar
+                      </button>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -350,18 +402,41 @@ export default function ValorAgregadoDetailPage() {
                       )}
 
                       {m.archivos && m.archivos.length > 0 && (
-                        <div className="mt-3 pt-3 border-t border-gray-200 flex flex-col gap-1.5">
+                        <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
+                          {m.archivos.length > 1 && (
+                            <div className="flex justify-end">
+                              <button
+                                onClick={() => descargarTodos(m.archivos!)}
+                                className="inline-flex items-center gap-1 text-xs text-brand-primary hover:text-brand-secondary font-medium border border-brand-primary/30 rounded px-2 py-1 transition-colors"
+                              >
+                                <Download className="h-3 w-3" />
+                                Descargar todos
+                              </button>
+                            </div>
+                          )}
                           {m.archivos.map((a, i) => (
-                            <a
-                              key={i}
-                              href={a.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-2 text-sm text-brand-primary hover:text-brand-secondary transition-colors font-medium"
-                            >
-                              <FileText className="h-4 w-4 shrink-0" />
-                              {a.nombre || "Ver archivo adjunto"}
-                            </a>
+                            <div key={i} className="flex items-center gap-2 flex-wrap">
+                              <FileText className="h-4 w-4 shrink-0 text-brand-primary" />
+                              <span className="text-sm font-medium text-gray-800 flex-1 min-w-0 truncate">
+                                {a.nombre || "Archivo"}
+                              </span>
+                              <a
+                                href={a.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 text-xs text-brand-primary hover:text-brand-secondary font-medium border border-brand-primary/30 rounded px-2 py-1 transition-colors"
+                              >
+                                <Eye className="h-3 w-3" />
+                                Ver
+                              </a>
+                              <button
+                                onClick={() => descargarArchivo(a.url, a.nombre)}
+                                className="inline-flex items-center gap-1 text-xs text-white bg-brand-primary hover:bg-brand-secondary rounded px-2 py-1 transition-colors font-medium"
+                              >
+                                <Download className="h-3 w-3" />
+                                Descargar
+                              </button>
+                            </div>
                           ))}
                         </div>
                       )}

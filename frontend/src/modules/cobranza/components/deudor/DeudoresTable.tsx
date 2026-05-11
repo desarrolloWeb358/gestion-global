@@ -127,10 +127,13 @@ function parsearTelefonosDeTexto(texto: string): string[] {
 }
 
 function parsearCorreosDeTexto(texto: string): string[] {
-  return texto
-    .split(/[,;\s\n]+/)
-    .map((e) => e.trim().toLowerCase())
-    .filter((e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+  const correos: string[] = [];
+  for (const raw of texto.split(/[,;\/\n\s]+/)) {
+    const e = raw.trim().toLowerCase();
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) && !correos.includes(e))
+      correos.push(e);
+  }
+  return correos;
 }
 
 function normalizarEncabezado(s: string): string {
@@ -863,7 +866,10 @@ export default function DeudoresTable() {
           patch.telefonos = [...new Set([...existentesNorm, ...telefonosNuevos])];
         }
         if (colCorreo) {
-          patch.correos = [...new Set([...(deudor.correos ?? []), ...correosNuevos])];
+          const correosExistNorm = (deudor.correos ?? [])
+            .flatMap(c => parsearCorreosDeTexto(c))
+            .filter(Boolean);
+          patch.correos = [...new Set([...correosExistNorm, ...correosNuevos])];
         }
 
         try {

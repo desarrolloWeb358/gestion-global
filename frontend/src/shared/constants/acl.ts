@@ -27,8 +27,8 @@ export const DEFAULT_HOME = "/dashboard/cliente" as const;
 
 export const ROLE_HOME: Record<Rol, string> = {
   admin: "/dashboard/admin",
-  ejecutivoAdmin: "/clientes-tables",     
-  ejecutivo: "/clientes-tables",      
+  ejecutivoAdmin: "/dashboard/ejecutivo",
+  ejecutivo: "/dashboard/ejecutivo",
   dependiente: "/clientes-tables", 
   abogado: "/dashboard/abogado",
   cliente: "/dashboard/cliente",

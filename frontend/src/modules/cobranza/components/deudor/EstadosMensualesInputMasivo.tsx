@@ -66,9 +66,14 @@ export default function EstadosMensualesInputMasivo() {
     new Date().toISOString().slice(0, 7)
   );
   const [filas, setFilas] = useState<FilaEstadoBase[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [cargandoExistentes, setCargandoExistentes] = useState(false);
+  const [deudoresCargados, setDeudoresCargados] = useState(false);
+  const [modalAbierto, setModalAbierto] = useState(true);
+  const [mesModalTemp, setMesModalTemp] = useState<string>(() =>
+    new Date().toISOString().slice(0, 7)
+  );
 
   // Estructura base de deudores (sin estados) para reutilizar al cargar mes
   const filasBaseRef = useRef<FilaEstadoBase[]>([]);
@@ -155,9 +160,15 @@ export default function EstadosMensualesInputMasivo() {
     }
   };
 
-  // Cargar deudores (solo al montar)
+  const confirmarModal = () => {
+    if (!mesModalTemp) return;
+    setMesGlobal(mesModalTemp);
+    setModalAbierto(false);
+  };
+
+  // Cargar deudores solo después de confirmar el mes en el modal
   useEffect(() => {
-    if (!clienteId) return;
+    if (!clienteId || modalAbierto) return;
 
     const cargar = async () => {
       setLoading(true);
@@ -194,7 +205,7 @@ export default function EstadosMensualesInputMasivo() {
         });
 
         filasBaseRef.current = nuevasFilas;
-        await aplicarEstadosMes(mesGlobal, nuevasFilas);
+        setDeudoresCargados(true);
       } catch (error) {
         console.error(error);
         toast.error("No se pudieron cargar los deudores");
@@ -205,10 +216,13 @@ export default function EstadosMensualesInputMasivo() {
     };
 
     cargar();
-  }, [clienteId]);
+  }, [clienteId, modalAbierto]);
 
-  // El cambio de mes solo actualiza el destino del guardado.
-  // Para cargar datos existentes del mes nuevo, el usuario usa el botón "Cargar mes".
+  // Carga automática al cambiar el mes (o al terminar de cargar deudores)
+  useEffect(() => {
+    if (!deudoresCargados || !mesGlobal) return;
+    aplicarEstadosMes(mesGlobal, filasBaseRef.current);
+  }, [mesGlobal, deudoresCargados]);
 
 
 
@@ -330,20 +344,65 @@ export default function EstadosMensualesInputMasivo() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30 flex items-center justify-center">
-        <div className="text-center">
-          <div className="h-12 w-12 mx-auto animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary mb-4" />
-          <Typography variant="body">Cargando deudores...</Typography>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30">
+
+      {/* Modal selección de mes */}
+      {modalAbierto && (
+        <div className="fixed inset-0 z-[1000] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-5">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-gradient-to-br from-brand-primary to-brand-secondary shadow">
+                <Calendar className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <Typography variant="h3" className="!text-brand-secondary font-bold">
+                  Seleccionar mes
+                </Typography>
+                <Typography variant="small" className="text-muted-foreground">
+                  Elige el mes para el ingreso masivo de estados
+                </Typography>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-brand-secondary font-medium flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Mes *
+              </Label>
+              <Input
+                type="month"
+                value={mesModalTemp}
+                onChange={(e) => setMesModalTemp(e.target.value.slice(0, 7))}
+                className="border-brand-secondary/30"
+                autoFocus
+                onKeyDown={(e) => { if (e.key === "Enter") confirmarModal(); }}
+              />
+            </div>
+
+            <Button
+              type="button"
+              variant="brand"
+              className="w-full gap-2"
+              disabled={!mesModalTemp}
+              onClick={confirmarModal}
+            >
+              <Calendar className="h-4 w-4" />
+              Continuar
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
+        {loading && (
+          <div className="fixed inset-0 z-[900] bg-black/30 backdrop-blur-sm flex items-center justify-center">
+            <div className="bg-white rounded-xl shadow-lg px-6 py-5 text-center">
+              <div className="h-10 w-10 mx-auto animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary mb-3" />
+              <Typography variant="body">Cargando deudores...</Typography>
+            </div>
+          </div>
+        )}
         {saving && (
           <div className="fixed inset-0 z-[1000] bg-black/40 backdrop-blur-sm flex items-center justify-center">
             <div className="rounded-xl bg-white shadow-lg px-6 py-5 flex items-center gap-3">
@@ -411,22 +470,12 @@ export default function EstadosMensualesInputMasivo() {
                   type="month"
                   value={mesGlobal ?? ""}
                   onChange={(e) => setMesGlobal(e.target.value.slice(0, 7))}
-                  disabled={saving}
+                  disabled={saving || cargandoExistentes}
                   className="border-brand-secondary/30"
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={saving || cargandoExistentes || !mesGlobal}
-                  onClick={() => aplicarEstadosMes(mesGlobal, filasBaseRef.current)}
-                  className="whitespace-nowrap"
-                >
-                  Cargar mes
-                </Button>
               </div>
               <p className="text-xs text-muted-foreground mt-1.5">
-                Cambia el mes sin perder los datos ingresados. Usa "Cargar mes" para traer datos guardados de ese mes.
+                Al cambiar el mes se cargan automáticamente los datos guardados de ese mes.
               </p>
             </div>
           </div>

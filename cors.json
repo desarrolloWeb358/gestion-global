@@ -1,0 +1,12 @@
+[
+  {
+    "origin": [
+      "http://localhost:5173",
+      "https://gestionglobal-9eac8.web.app",
+      "https://gestionglobal-9eac8.firebaseapp.com"
+    ],
+    "method": ["GET"],
+    "responseHeader": ["Content-Type", "Content-Disposition"],
+    "maxAgeSeconds": 3600
+  }
+]
