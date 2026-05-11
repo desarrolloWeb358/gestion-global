@@ -15,6 +15,8 @@ import {
   IconBrandWhatsapp,
   IconSettings,
   IconSearch,
+  IconScale,
+  IconEye,
 } from "@tabler/icons-react";
 
 export type NavItem = {
@@ -82,6 +84,22 @@ export const NAV_ITEMS: NavItem[] = [
   },
 
     // ========================================
+  // PROCESOS JUDICIALES
+  // ========================================
+  {
+    to: "/procesos-judiciales",
+    label: "Procesos Judiciales",
+    icon: IconScale,
+    roles: ["admin", "ejecutivoAdmin", "abogado"],
+  },
+  {
+    to: "/monitoreo-radicados",
+    label: "Monitoreo Radicados",
+    icon: IconEye,
+    roles: ["admin", "ejecutivoAdmin", "abogado"],
+  },
+
+  // ========================================
   // WHATSAPP
   // ========================================
   {
