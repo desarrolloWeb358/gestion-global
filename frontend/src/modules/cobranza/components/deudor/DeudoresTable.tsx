@@ -517,7 +517,7 @@ function HistorialTipificacionesDialog(props: {
 interface ImportRow {
   inmueble: string;
   deudorNombre?: string;
-  status: "updated" | "not_found" | "no_data" | "error";
+  status: "updated" | "created" | "not_found" | "no_data" | "no_nombre" | "error";
   phonesAdded: string[];
   emailsAdded: string[];
   message?: string;
@@ -526,50 +526,61 @@ interface ImportRow {
 interface ImportReport {
   totalRows: number;
   updated: number;
+  created: number;
   notFound: number;
   errors: number;
   missingColumns: string[];
   rows: ImportRow[];
+  mode: "actualizar" | "crear";
 }
 
 interface ImportPreview {
   file: File;
   totalRows: number;
   hasInmueble: boolean;
+  hasNombre: boolean;
+  hasCedula: boolean;
   hasContacto: boolean;
   hasCorreo: boolean;
   canImport: boolean;
+  mode: "actualizar" | "crear";
 }
 
 const STATUS_LABEL: Record<ImportRow["status"], string> = {
   updated: "Actualizado",
+  created: "Creado",
   not_found: "No encontrado",
   no_data: "Sin datos",
+  no_nombre: "Sin nombre",
   error: "Error",
 };
 
 const STATUS_ICON: Record<ImportRow["status"], React.ReactNode> = {
   updated: <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />,
+  created: <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />,
   not_found: <AlertTriangle className="w-3.5 h-3.5 text-yellow-600" />,
   no_data: <MinusCircle className="w-3.5 h-3.5 text-gray-400" />,
+  no_nombre: <AlertCircle className="w-3.5 h-3.5 text-orange-500" />,
   error: <AlertCircle className="w-3.5 h-3.5 text-red-600" />,
 };
 
 const STATUS_CLASS: Record<ImportRow["status"], string> = {
   updated: "bg-green-50 text-green-700 border-green-200",
+  created: "bg-blue-50 text-blue-700 border-blue-200",
   not_found: "bg-yellow-50 text-yellow-700 border-yellow-200",
   no_data: "bg-gray-50 text-gray-500 border-gray-200",
+  no_nombre: "bg-orange-50 text-orange-700 border-orange-200",
   error: "bg-red-50 text-red-700 border-red-200",
 };
 
-function ColStatus({ ok, label }: { ok: boolean; label: string }) {
+function ColStatus({ ok, label, required = true }: { ok: boolean; label: string; required?: boolean }) {
   return (
-    <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border ${ok ? "bg-green-50 border-green-200 text-green-700" : "bg-red-50 border-red-200 text-red-600"}`}>
+    <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border ${ok ? "bg-green-50 border-green-200 text-green-700" : required ? "bg-red-50 border-red-200 text-red-600" : "bg-gray-50 border-gray-200 text-gray-500"}`}>
       {ok
         ? <CheckCircle2 className="w-4 h-4 shrink-0" />
-        : <AlertCircle className="w-4 h-4 shrink-0" />}
+        : required ? <AlertCircle className="w-4 h-4 shrink-0" /> : <MinusCircle className="w-4 h-4 shrink-0" />}
       <span className="font-medium">{label}</span>
-      <span className="ml-auto text-xs">{ok ? "Encontrada" : "No encontrada"}</span>
+      <span className="ml-auto text-xs">{ok ? "Encontrada" : required ? "No encontrada" : "No se importará"}</span>
     </div>
   );
 }
@@ -587,6 +598,12 @@ function ImportPreviewDialog({
   onImport: () => void;
   importing: boolean;
 }) {
+  const esCrear = preview.mode === "crear";
+
+  const missingRequired = esCrear
+    ? [!preview.hasInmueble && "INMUEBLE", !preview.hasNombre && "NOMBRE"].filter(Boolean) as string[]
+    : [];
+
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v && !importing) onCancel(); }}>
       <DialogContent className="max-w-md">
@@ -598,9 +615,11 @@ function ImportPreviewDialog({
 
         <div className="space-y-3">
           <p className="text-sm text-gray-500">Columnas detectadas en el archivo:</p>
-          <ColStatus ok={preview.hasInmueble} label="INMUEBLE" />
-          <ColStatus ok={preview.hasContacto} label="CONTACTO" />
-          <ColStatus ok={preview.hasCorreo} label="CORREO ELECTRÓNICO" />
+          <ColStatus ok={preview.hasInmueble} label="INMUEBLE" required />
+          {esCrear && <ColStatus ok={preview.hasNombre} label="NOMBRE" required />}
+          {esCrear && <ColStatus ok={preview.hasCedula} label="CÉDULA" required={false} />}
+          <ColStatus ok={preview.hasContacto} label={esCrear ? "CONTACTO / TELÉFONO" : "CONTACTO"} required={false} />
+          <ColStatus ok={preview.hasCorreo} label="CORREO ELECTRÓNICO" required={false} />
 
           <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 flex items-center justify-between">
             <span className="text-sm text-gray-600">Registros en el archivo</span>
@@ -608,19 +627,29 @@ function ImportPreviewDialog({
           </div>
 
           {preview.canImport ? (
-            <div className="rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green-700 flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              El archivo está listo. Se procesarán <strong>{preview.totalRows}</strong> registros.
-              {(!preview.hasContacto || !preview.hasCorreo) && (
-                <span className="block text-xs text-green-600 mt-1">
-                  Las columnas faltantes no serán actualizadas.
-                </span>
-              )}
+            <div className="rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green-700 flex items-start gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>
+                El archivo está listo. Se procesarán <strong>{preview.totalRows}</strong> registros.
+                {(!preview.hasContacto || !preview.hasCorreo) && (
+                  <span className="block text-xs text-green-600 mt-1">
+                    Las columnas faltantes no serán procesadas.
+                  </span>
+                )}
+              </span>
             </div>
           ) : (
-            <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700 flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              El archivo no se puede importar porque le falta la columna <strong>INMUEBLE</strong>, que es obligatoria.
+            <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700 flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>
+                {esCrear ? (
+                  missingRequired.length === 1
+                    ? <>Falta la columna obligatoria <strong>{missingRequired[0]}</strong>.</>
+                    : <>Faltan las columnas obligatorias <strong>{missingRequired.join(" y ")}</strong>.</>
+                ) : (
+                  <>Falta la columna obligatoria <strong>INMUEBLE</strong>.</>
+                )}
+              </span>
             </div>
           )}
         </div>
@@ -631,7 +660,7 @@ function ImportPreviewDialog({
           </Button>
           {preview.canImport && (
             <Button variant="brand" onClick={onImport} disabled={importing}>
-              {importing ? "Importando..." : "Importar"}
+              {importing ? "Procesando..." : esCrear ? "Crear deudores" : "Importar"}
             </Button>
           )}
         </DialogFooter>
@@ -641,22 +670,33 @@ function ImportPreviewDialog({
 }
 
 function ImportReportDialog({ report, open, onClose }: { report: ImportReport; open: boolean; onClose: () => void }) {
+  const esCrear = report.mode === "crear";
+
+  const stats = esCrear
+    ? [
+        { label: "Creados", value: report.created, cls: "bg-blue-50 border-blue-200 text-blue-700" },
+        { label: "Actualizados", value: report.updated, cls: "bg-green-50 border-green-200 text-green-700" },
+        { label: "Errores", value: report.errors, cls: "bg-red-50 border-red-200 text-red-700" },
+        { label: "Total filas", value: report.totalRows, cls: "bg-gray-50 border-gray-200 text-gray-700" },
+      ]
+    : [
+        { label: "Actualizados", value: report.updated, cls: "bg-green-50 border-green-200 text-green-700" },
+        { label: "No encontrados", value: report.notFound, cls: "bg-yellow-50 border-yellow-200 text-yellow-700" },
+        { label: "Errores", value: report.errors, cls: "bg-red-50 border-red-200 text-red-700" },
+        { label: "Total filas", value: report.totalRows, cls: "bg-gray-50 border-gray-200 text-gray-700" },
+      ];
+
   return (
     <Dialog open={open} onOpenChange={() => {}}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto [&>button.absolute]:hidden">
         <DialogHeader>
           <DialogTitle className="text-brand-primary text-xl font-bold">
-            Resultado de importación
+            {esCrear ? "Resultado de creación de deudores" : "Resultado de importación"}
           </DialogTitle>
         </DialogHeader>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: "Actualizados", value: report.updated, cls: "bg-green-50 border-green-200 text-green-700" },
-            { label: "No encontrados", value: report.notFound, cls: "bg-yellow-50 border-yellow-200 text-yellow-700" },
-            { label: "Errores", value: report.errors, cls: "bg-red-50 border-red-200 text-red-700" },
-            { label: "Total filas", value: report.totalRows, cls: "bg-gray-50 border-gray-200 text-gray-700" },
-          ].map(({ label, value, cls }) => (
+          {stats.map(({ label, value, cls }) => (
             <div key={label} className={`rounded-lg border p-3 text-center ${cls}`}>
               <p className="text-2xl font-bold">{value}</p>
               <p className="text-xs mt-0.5">{label}</p>
@@ -667,7 +707,7 @@ function ImportReportDialog({ report, open, onClose }: { report: ImportReport; o
         {report.missingColumns.length > 0 && (
           <div className="rounded-lg bg-orange-50 border border-orange-200 p-3 text-sm text-orange-700">
             <span className="font-semibold">Columnas no encontradas en el archivo: </span>
-            {report.missingColumns.join(", ")} — esos datos no fueron actualizados.
+            {report.missingColumns.join(", ")} — esos datos no fueron procesados.
           </div>
         )}
 
@@ -679,7 +719,7 @@ function ImportReportDialog({ report, open, onClose }: { report: ImportReport; o
                   <TableHead className="text-brand-secondary font-semibold">Inmueble</TableHead>
                   <TableHead className="text-brand-secondary font-semibold">Deudor</TableHead>
                   <TableHead className="text-brand-secondary font-semibold">Estado</TableHead>
-                  <TableHead className="text-brand-secondary font-semibold">Datos agregados</TableHead>
+                  <TableHead className="text-brand-secondary font-semibold">Datos</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -694,13 +734,14 @@ function ImportReportDialog({ report, open, onClose }: { report: ImportReport; o
                       </span>
                     </TableCell>
                     <TableCell className="text-xs text-gray-500 space-y-0.5">
-                      {row.status === "updated" && (
+                      {(row.status === "updated" || row.status === "created") && (
                         <>
                           {row.phonesAdded.length > 0 && <p>Tel: {row.phonesAdded.join(", ")}</p>}
                           {row.emailsAdded.length > 0 && <p>Correo: {row.emailsAdded.join(", ")}</p>}
                         </>
                       )}
                       {row.status === "error" && <p className="text-red-600">{row.message}</p>}
+                      {row.status === "no_nombre" && <p className="text-orange-600">Falta el nombre para crear el deudor</p>}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -778,9 +819,10 @@ export default function DeudoresTable() {
   const [importando, setImportando] = useState(false);
   const [importReport, setImportReport] = useState<ImportReport | null>(null);
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
-  const importInputRef = useRef<HTMLInputElement>(null);
+  const actualizarInputRef = useRef<HTMLInputElement>(null);
+  const crearInputRef = useRef<HTMLInputElement>(null);
 
-  const validarExcel = async (file: File) => {
+  const validarExcel = async (file: File, mode: "actualizar" | "crear") => {
     try {
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(buffer, { type: "array" });
@@ -791,21 +833,27 @@ export default function DeudoresTable() {
 
       const nh = Object.keys(rows[0]).map((h) => ({ original: h, n: normalizarEncabezado(h) }));
       const hasInmueble = !!nh.find((h) => h.n.includes("inmueble"));
-      const hasContacto = !!nh.find((h) => h.n.includes("contacto"));
+      const hasNombre   = !!nh.find((h) => h.n.includes("nombre"));
+      const hasCedula   = !!nh.find((h) => h.n.includes("cedula"));
+      const hasContacto = !!nh.find((h) => h.n.includes("contacto") || h.n.includes("telefono"));
       const hasCorreo   = !!nh.find((h) => h.n.includes("correo"));
 
       setImportPreview({
         file,
         totalRows: rows.length,
         hasInmueble,
+        hasNombre,
+        hasCedula,
         hasContacto,
         hasCorreo,
-        canImport: hasInmueble,
+        canImport: mode === "actualizar" ? hasInmueble : (hasInmueble && hasNombre),
+        mode,
       });
     } catch (e: any) {
       toast.error(e?.message ?? "Error al leer el archivo Excel");
     } finally {
-      if (importInputRef.current) importInputRef.current.value = "";
+      if (actualizarInputRef.current) actualizarInputRef.current.value = "";
+      if (crearInputRef.current) crearInputRef.current.value = "";
     }
   };
 
@@ -820,12 +868,10 @@ export default function DeudoresTable() {
 
       const nh = Object.keys(rows[0]).map((h) => ({ original: h, n: normalizarEncabezado(h) }));
       const colInmueble = nh.find((h) => h.n.includes("inmueble"))?.original!;
-      const colContacto = nh.find((h) => h.n.includes("contacto"))?.original;
+      const colNombre   = nh.find((h) => h.n.includes("nombre"))?.original;
+      const colCedula   = nh.find((h) => h.n.includes("cedula"))?.original;
+      const colContacto = nh.find((h) => h.n.includes("contacto") || h.n.includes("telefono"))?.original;
       const colCorreo   = nh.find((h) => h.n.includes("correo"))?.original;
-
-      const missingColumns: string[] = [];
-      if (!colContacto) missingColumns.push("CONTACTO");
-      if (!colCorreo)   missingColumns.push("CORREO ELECTRÓNICO");
 
       const deudorMap = new Map<string, Deudor>();
       for (const d of deudores) {
@@ -834,57 +880,141 @@ export default function DeudoresTable() {
       }
 
       const reportRows: ImportRow[] = [];
-      let updated = 0, notFound = 0, errors = 0;
+      let updated = 0, created = 0, notFound = 0, errors = 0;
+      const missingColumns: string[] = [];
 
-      for (const row of rows) {
-        const inmuebleRaw = String(row[colInmueble] ?? "").trim();
-        if (!inmuebleRaw) continue;
+      if (importPreview.mode === "actualizar") {
+        if (!colContacto) missingColumns.push("CONTACTO / TELÉFONO");
+        if (!colCorreo)   missingColumns.push("CORREO ELECTRÓNICO");
 
-        const deudor = deudorMap.get(inmuebleRaw.toLowerCase());
-        if (!deudor?.id) {
-          reportRows.push({ inmueble: inmuebleRaw, status: "not_found", phonesAdded: [], emailsAdded: [] });
-          notFound++;
-          continue;
+        for (const row of rows) {
+          const inmuebleRaw = String(row[colInmueble] ?? "").trim();
+          if (!inmuebleRaw) continue;
+
+          const deudor = deudorMap.get(inmuebleRaw.toLowerCase());
+          if (!deudor?.id) {
+            reportRows.push({ inmueble: inmuebleRaw, status: "not_found", phonesAdded: [], emailsAdded: [] });
+            notFound++;
+            continue;
+          }
+
+          const telefonosNuevos = colContacto ? parsearTelefonosDeTexto(String(row[colContacto] ?? "")) : [];
+          const correosNuevos   = colCorreo   ? parsearCorreosDeTexto(String(row[colCorreo]   ?? "")) : [];
+
+          if (telefonosNuevos.length === 0 && correosNuevos.length === 0) {
+            reportRows.push({ inmueble: inmuebleRaw, deudorNombre: deudor.nombre, status: "no_data", phonesAdded: [], emailsAdded: [] });
+            continue;
+          }
+
+          // Normalizar teléfonos/correos existentes para limpiar entradas malformadas
+          // y hacer merge con los nuevos sin duplicados.
+          const patch: DeudorPatch = {};
+          if (colContacto) {
+            const existentesNorm = (deudor.telefonos ?? [])
+              .flatMap(t => parsearTelefonosDeTexto(t))
+              .filter(Boolean);
+            patch.telefonos = [...new Set([...existentesNorm, ...telefonosNuevos])];
+          }
+          if (colCorreo) {
+            const correosExistNorm = (deudor.correos ?? [])
+              .flatMap(c => parsearCorreosDeTexto(c))
+              .filter(Boolean);
+            patch.correos = [...new Set([...correosExistNorm, ...correosNuevos])];
+          }
+
+          try {
+            await actualizarDeudorDatos(clienteId, deudor.id!, patch);
+            reportRows.push({ inmueble: inmuebleRaw, deudorNombre: deudor.nombre, status: "updated", phonesAdded: telefonosNuevos, emailsAdded: correosNuevos });
+            updated++;
+          } catch (e: any) {
+            reportRows.push({ inmueble: inmuebleRaw, deudorNombre: deudor.nombre, status: "error", phonesAdded: [], emailsAdded: [], message: e?.message });
+            errors++;
+          }
         }
+      } else {
+        if (!colContacto) missingColumns.push("CONTACTO / TELÉFONO");
+        if (!colCorreo)   missingColumns.push("CORREO ELECTRÓNICO");
 
-        const telefonosNuevos = colContacto ? parsearTelefonosDeTexto(String(row[colContacto] ?? "")) : [];
-        const correosNuevos   = colCorreo   ? parsearCorreosDeTexto(String(row[colCorreo]   ?? "")) : [];
+        const createdInBatch = new Set<string>();
 
-        if (telefonosNuevos.length === 0 && correosNuevos.length === 0) {
-          reportRows.push({ inmueble: inmuebleRaw, deudorNombre: deudor.nombre, status: "no_data", phonesAdded: [], emailsAdded: [] });
-          continue;
-        }
+        for (const row of rows) {
+          const inmuebleRaw = String(row[colInmueble] ?? "").trim();
+          if (!inmuebleRaw) continue;
 
-        // Normalizar los teléfonos/correos existentes para limpiar entradas malformadas
-        // (ej: "57 314 4574619; 57 305 8129657" almacenado como un solo elemento)
-        // y luego hacer merge con los nuevos sin duplicados.
-        const patch: DeudorPatch = {};
-        if (colContacto) {
-          const existentesNorm = (deudor.telefonos ?? [])
-            .flatMap(t => parsearTelefonosDeTexto(t))
-            .filter(Boolean);
-          patch.telefonos = [...new Set([...existentesNorm, ...telefonosNuevos])];
-        }
-        if (colCorreo) {
-          const correosExistNorm = (deudor.correos ?? [])
-            .flatMap(c => parsearCorreosDeTexto(c))
-            .filter(Boolean);
-          patch.correos = [...new Set([...correosExistNorm, ...correosNuevos])];
-        }
+          const keyLower = inmuebleRaw.toLowerCase();
+          const deudorExistente = deudorMap.get(keyLower);
 
-        try {
-          await actualizarDeudorDatos(clienteId, deudor.id!, patch);
-          reportRows.push({ inmueble: inmuebleRaw, deudorNombre: deudor.nombre, status: "updated", phonesAdded: telefonosNuevos, emailsAdded: correosNuevos });
-          updated++;
-        } catch (e: any) {
-          reportRows.push({ inmueble: inmuebleRaw, deudorNombre: deudor.nombre, status: "error", phonesAdded: [], emailsAdded: [], message: e?.message });
-          errors++;
+          if (deudorExistente) {
+            // Ya existe: solo merge de contactos, no tocar nombre ni cédula
+            const telefonosNuevos = colContacto ? parsearTelefonosDeTexto(String(row[colContacto] ?? "")) : [];
+            const correosNuevos   = colCorreo   ? parsearCorreosDeTexto(String(row[colCorreo]   ?? "")) : [];
+
+            if (telefonosNuevos.length === 0 && correosNuevos.length === 0) {
+              reportRows.push({ inmueble: inmuebleRaw, deudorNombre: deudorExistente.nombre, status: "no_data", phonesAdded: [], emailsAdded: [] });
+              continue;
+            }
+
+            const patch: DeudorPatch = {};
+            if (colContacto) {
+              const existentesNorm = (deudorExistente.telefonos ?? [])
+                .flatMap(t => parsearTelefonosDeTexto(t))
+                .filter(Boolean);
+              patch.telefonos = [...new Set([...existentesNorm, ...telefonosNuevos])];
+            }
+            if (colCorreo) {
+              const correosExistNorm = (deudorExistente.correos ?? [])
+                .flatMap(c => parsearCorreosDeTexto(c))
+                .filter(Boolean);
+              patch.correos = [...new Set([...correosExistNorm, ...correosNuevos])];
+            }
+
+            try {
+              await actualizarDeudorDatos(clienteId, deudorExistente.id!, patch);
+              reportRows.push({ inmueble: inmuebleRaw, deudorNombre: deudorExistente.nombre, status: "updated", phonesAdded: telefonosNuevos, emailsAdded: correosNuevos });
+              updated++;
+            } catch (e: any) {
+              reportRows.push({ inmueble: inmuebleRaw, deudorNombre: deudorExistente.nombre, status: "error", phonesAdded: [], emailsAdded: [], message: e?.message });
+              errors++;
+            }
+          } else if (createdInBatch.has(keyLower)) {
+            // Duplicado dentro del mismo archivo, ignorar
+            reportRows.push({ inmueble: inmuebleRaw, status: "no_data", phonesAdded: [], emailsAdded: [], message: "Duplicado en el archivo" });
+          } else {
+            // No existe: crear nuevo deudor
+            const nombreRaw = colNombre ? String(row[colNombre] ?? "").trim() : "";
+            if (!nombreRaw) {
+              reportRows.push({ inmueble: inmuebleRaw, status: "no_nombre", phonesAdded: [], emailsAdded: [] });
+              continue;
+            }
+
+            const cedulaRaw = colCedula ? String(row[colCedula] ?? "").trim() : "";
+            const telefonosNuevos = colContacto ? parsearTelefonosDeTexto(String(row[colContacto] ?? "")) : [];
+            const correosNuevos   = colCorreo   ? parsearCorreosDeTexto(String(row[colCorreo]   ?? "")) : [];
+
+            try {
+              await crearDeudor(clienteId, {
+                nombre: nombreRaw,
+                cedula: cedulaRaw || undefined,
+                ubicacion: inmuebleRaw,
+                correos: correosNuevos,
+                telefonos: telefonosNuevos,
+                tipificacion: TipificacionDeuda.GESTIONANDO,
+                porcentajeHonorarios: 15,
+              });
+              createdInBatch.add(keyLower);
+              reportRows.push({ inmueble: inmuebleRaw, deudorNombre: nombreRaw, status: "created", phonesAdded: telefonosNuevos, emailsAdded: correosNuevos });
+              created++;
+            } catch (e: any) {
+              reportRows.push({ inmueble: inmuebleRaw, deudorNombre: nombreRaw, status: "error", phonesAdded: [], emailsAdded: [], message: e?.message });
+              errors++;
+            }
+          }
         }
       }
 
       setImportPreview(null);
-      setImportReport({ totalRows: rows.length, updated, notFound, errors, missingColumns, rows: reportRows });
-      if (updated > 0) await fetchDeudores();
+      setImportReport({ totalRows: rows.length, updated, created, notFound, errors, missingColumns, rows: reportRows, mode: importPreview.mode });
+      if (updated > 0 || created > 0) await fetchDeudores();
 
     } catch (e: any) {
       toast.error(e?.message ?? "Error al procesar el archivo Excel");
@@ -1270,25 +1400,43 @@ export default function DeudoresTable() {
 
             {canEdit && esEjecutivoAdmin && (
               <div className="flex flex-wrap gap-2">
-                {/* ── Importar desde Excel ── */}
                 <input
-                  ref={importInputRef}
+                  ref={actualizarInputRef}
                   type="file"
                   accept=".xlsx,.xls"
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) validarExcel(file);
+                    if (file) validarExcel(file, "actualizar");
+                  }}
+                />
+                <input
+                  ref={crearInputRef}
+                  type="file"
+                  accept=".xlsx,.xls"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) validarExcel(file, "crear");
                   }}
                 />
                 <Button
                   variant="outline"
-                  onClick={() => importInputRef.current?.click()}
+                  onClick={() => actualizarInputRef.current?.click()}
                   className="gap-2 border-brand-secondary/30 shadow-sm"
                   disabled={saving || importando}
                 >
                   <Upload className="h-4 w-4" />
-                  {importando ? "Importando..." : "Actualizar desde Excel"}
+                  Actualizar datos deudor
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => crearInputRef.current?.click()}
+                  className="gap-2 border-brand-secondary/30 shadow-sm"
+                  disabled={saving || importando}
+                >
+                  <Upload className="h-4 w-4" />
+                  Crear deudores
                 </Button>
               </div>
             )}

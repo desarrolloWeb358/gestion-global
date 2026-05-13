@@ -37,6 +37,7 @@ import BulkWhatsAppPage from "./modules/whatsapp/components/BulkWhatsAppPage";
 // Dashboards
 import AdminDashboardPage from "@/modules/dashboard/pages/AdminDashboardPage";
 import EjecutivoDashboardPage from "@/modules/dashboard/pages/EjecutivoDashboardPage";
+import DependienteDashboardPage from "@/modules/dashboard/pages/DependienteDashboardPage";
 import AbogadoDashboardPage from "@/modules/dashboard/pages/AbogadoDashboardPage";
 import ClienteDashboardPage from "@/modules/dashboard/pages/ClienteDashboardPage";
 import DeudorDashboardPage from "@/modules/dashboard/pages/DeudorDashboardPage";
@@ -123,6 +124,7 @@ export default function App() {
             {/* Dashboards por rol */}
             <Route path="/dashboard/admin" element={<AdminDashboardPage />} />
             <Route path="/dashboard/ejecutivo" element={<EjecutivoDashboardPage />} />
+            <Route path="/dashboard/dependiente" element={<DependienteDashboardPage />} />
             <Route path="/dashboard/abogado" element={<AbogadoDashboardPage />} />
             <Route path="/dashboard/cliente" element={<ClienteDashboardPage />} />
             <Route path="/dashboard/deudor" element={<DeudorDashboardPage />} />

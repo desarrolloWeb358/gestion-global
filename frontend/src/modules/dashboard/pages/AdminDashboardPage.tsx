@@ -89,6 +89,7 @@ type SortKey =
   | "recuperacion"
   | "honorario";
 type SortDir = "asc" | "desc";
+type SinGestionThreshold = "1m" | "2m" | "3m" | "sin_gestion";
 
 interface FilaCliente extends ResumenPorCliente {
   deudores: number;
@@ -99,6 +100,7 @@ interface ClienteInfo {
   id: string;
   nombre: string;
   ejecutivoPrejuridicoId: string | null;
+  ejecutivoDependienteId: string | null;
 }
 
 interface EjecutivoStat {
@@ -109,6 +111,13 @@ interface EjecutivoStat {
   totalAcuerdosEnFirme: number;
   pctAcuerdos: number;
   sinGestion15d: number;
+}
+
+interface DependienteStat {
+  dependienteId: string;
+  dependienteNombre: string;
+  totalDeudoresEnDemanda: number;
+  sinGestion: number;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -249,6 +258,8 @@ export default function AdminDashboardPage() {
     new Map()
   );
   const [sinGestion15dMap, setSinGestion15dMap] = useState<Map<string, number>>(new Map());
+  const [demandaCountMap, setDemandaCountMap] = useState<Map<string, number>>(new Map());
+  const [demandaRevisionesMap, setDemandaRevisionesMap] = useState<Map<string, (Date | null)[]>>(new Map());
 
   // ── Loading
   const [loadingKpis, setLoadingKpis] = useState(true);
@@ -257,6 +268,14 @@ export default function AdminDashboardPage() {
   // ── Sort (tabla conjuntos)
   const [sortKey, setSortKey] = useState<SortKey>("recaudo");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  // ── Secciones colapsables (cerradas por defecto para reducir carga inicial)
+  const [ejecutivosExpanded, setEjecutivosExpanded] = useState(false);
+  const [dependientesExpanded, setDependientesExpanded] = useState(false);
+  const [conjuntosExpanded, setConjuntosExpanded] = useState(false);
+
+  // ── Filtro sin gestión dependientes
+  const [depSinGestionFilter, setDepSinGestionFilter] = useState<SinGestionThreshold>("1m");
 
   const years = useMemo(() => {
     const max = new Date().getFullYear();
@@ -282,6 +301,15 @@ export default function AdminDashboardPage() {
         const deuMap = new Map<string, number>();
         const acuMap = new Map<string, number>();
         const sinGestMap = new Map<string, number>();
+        const demandaCountMap = new Map<string, number>();
+        const demandaRevisionesMap = new Map<string, (Date | null)[]>();
+
+        const DEMANDA_TIPOS = new Set<string>([
+          TipificacionDeuda.DEMANDA,
+          TipificacionDeuda.DEMANDA_ACUERDO,
+          TipificacionDeuda.DEMANDA_INSOLVENCIA,
+        ]);
+
         deudoresSnap.forEach((doc) => {
           const data = doc.data();
           if (EXCLUIR.has(data?.tipificacion)) return;
@@ -297,6 +325,13 @@ export default function AdminDashboardPage() {
               if (!tieneReciente) {
                 sinGestMap.set(clienteId, (sinGestMap.get(clienteId) ?? 0) + 1);
               }
+            }
+            if (DEMANDA_TIPOS.has(data?.tipificacion)) {
+              demandaCountMap.set(clienteId, (demandaCountMap.get(clienteId) ?? 0) + 1);
+              const rev = data.fechaUltimaRevision;
+              const revDate = rev && typeof rev.toDate === "function" ? (rev.toDate() as Date) : null;
+              if (!demandaRevisionesMap.has(clienteId)) demandaRevisionesMap.set(clienteId, []);
+              demandaRevisionesMap.get(clienteId)!.push(revDate);
             }
           }
         });
@@ -341,6 +376,8 @@ export default function AdminDashboardPage() {
               nombre: (doc.data().nombre as string) ?? "",
               ejecutivoPrejuridicoId:
                 (doc.data().ejecutivoPrejuridicoId as string) ?? null,
+              ejecutivoDependienteId:
+                (doc.data().ejecutivoDependienteId as string) ?? null,
             }))
           );
 
@@ -357,12 +394,20 @@ export default function AdminDashboardPage() {
           for (const id of [...sinGestMap.keys()]) {
             if (!validClienteIds.has(id)) sinGestMap.delete(id);
           }
+          for (const id of [...demandaCountMap.keys()]) {
+            if (!validClienteIds.has(id)) demandaCountMap.delete(id);
+          }
+          for (const id of [...demandaRevisionesMap.keys()]) {
+            if (!validClienteIds.has(id)) demandaRevisionesMap.delete(id);
+          }
         }
 
         // 3. Persistir mapas ya filtrados
         setDeudoresPorCliente(deuMap);
         setAcuerdosEnFirmeMap(acuMap);
         setSinGestion15dMap(sinGestMap);
+        setDemandaCountMap(demandaCountMap);
+        setDemandaRevisionesMap(demandaRevisionesMap);
 
       } catch (err) {
         console.error("Error cargando KPIs globales:", err);
@@ -498,6 +543,73 @@ export default function AdminDashboardPage() {
     return resultado;
   }, [clientesList, usuariosMap, deudoresPorCliente, acuerdosEnFirmeMap, excludedEjecutivoIds, sinGestion15dMap]);
 
+  // ── Sin gestión dependientes: recalcula según el filtro seleccionado
+  const sinGestionDemandaMap = useMemo(() => {
+    const now = Date.now();
+    const msMap: Record<SinGestionThreshold, number | null> = {
+      "1m": 30 * 24 * 60 * 60 * 1000,
+      "2m": 60 * 24 * 60 * 60 * 1000,
+      "3m": 90 * 24 * 60 * 60 * 1000,
+      "sin_gestion": null,
+    };
+    const limitMs = msMap[depSinGestionFilter];
+    const result = new Map<string, number>();
+    demandaRevisionesMap.forEach((fechas, clienteId) => {
+      const count = fechas.filter((f) => {
+        if (limitMs === null) return f === null;
+        return f === null || now - f.getTime() > limitMs;
+      }).length;
+      if (count > 0) result.set(clienteId, count);
+    });
+    return result;
+  }, [demandaRevisionesMap, depSinGestionFilter]);
+
+  // ── Dependientes: agrupa conjuntos y deudores en demanda por ejecutivoDependienteId
+  const dependienteStats = useMemo<DependienteStat[]>(() => {
+    const map = new Map<string, DependienteStat>();
+    const sinDependiente: DependienteStat = {
+      dependienteId: "__sin_dependiente__",
+      dependienteNombre: "— Sin dependiente asignado —",
+      totalDeudoresEnDemanda: 0,
+      sinGestion: 0,
+    };
+
+    for (const cliente of clientesList) {
+      const depId = cliente.ejecutivoDependienteId;
+      const deudoresDemanda = demandaCountMap.get(cliente.id) ?? 0;
+      const sinGest = sinGestionDemandaMap.get(cliente.id) ?? 0;
+
+      if (!depId || excludedEjecutivoIds.has(depId)) {
+        sinDependiente.totalDeudoresEnDemanda += deudoresDemanda;
+        sinDependiente.sinGestion += sinGest;
+        continue;
+      }
+
+      if (!map.has(depId)) {
+        map.set(depId, {
+          dependienteId: depId,
+          dependienteNombre: usuariosMap.get(depId) ?? "Sin nombre",
+          totalDeudoresEnDemanda: 0,
+          sinGestion: 0,
+        });
+      }
+
+      const dep = map.get(depId)!;
+      dep.totalDeudoresEnDemanda += deudoresDemanda;
+      dep.sinGestion += sinGest;
+    }
+
+    const resultado = Array.from(map.values()).sort(
+      (a, b) => b.totalDeudoresEnDemanda - a.totalDeudoresEnDemanda
+    );
+
+    if (sinDependiente.totalDeudoresEnDemanda > 0) {
+      resultado.push(sinDependiente);
+    }
+
+    return resultado;
+  }, [clientesList, usuariosMap, demandaCountMap, sinGestionDemandaMap, excludedEjecutivoIds]);
+
   const mesLabel = MONTH_LABELS.find((mm) => mm.v === month)?.l ?? month;
 
   const currentDate = new Date().toLocaleDateString("es-CO", {
@@ -630,18 +742,33 @@ export default function AdminDashboardPage() {
 
         {/* ── TABLA POR EJECUTIVO PREJURÍDICO ── */}
         <section className="rounded-2xl border bg-white shadow-sm overflow-hidden">
-          <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 px-5 py-4 border-b">
-            <div className="flex items-center gap-2">
-              <UserCog className="h-5 w-5 text-brand-primary" />
-              <Typography variant="h3" className="!text-brand-secondary font-semibold">
-                Reporte por Ejecutivo Prejurídico
-              </Typography>
+          <button
+            className="w-full text-left bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 px-5 py-4 border-b hover:bg-slate-50 transition-colors"
+            onClick={() => setEjecutivosExpanded((v) => !v)}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <UserCog className="h-5 w-5 text-brand-primary" />
+                <Typography variant="h3" className="!text-brand-secondary font-semibold">
+                  Reporte por Ejecutivo Prejurídico
+                </Typography>
+              </div>
+              {ejecutivosExpanded ? (
+                <ChevronUp className="h-5 w-5 text-muted-foreground shrink-0" />
+              ) : (
+                <ChevronDown className="h-5 w-5 text-muted-foreground shrink-0" />
+              )}
             </div>
             <Typography variant="small" className="text-muted-foreground">
-              Conjuntos y deudores asignados · Acuerdos · Gestionando sin seguimiento en +15 días
+              {ejecutivosExpanded
+                ? "Conjuntos y deudores asignados · Acuerdos · Gestionando sin seguimiento en +15 días"
+                : loadingKpis
+                ? "Cargando datos…"
+                : `${ejecutivoStats.filter((e) => e.ejecutivoId !== "__sin_ejecutivo__").length} ejecutivos · Clic para ver detalle`}
             </Typography>
-          </div>
+          </button>
 
+          {ejecutivosExpanded && (
           <div className="overflow-x-auto">
             {loadingKpis ? (
               <div className="h-48 flex items-center justify-center">
@@ -753,33 +880,190 @@ export default function AdminDashboardPage() {
               </table>
             )}
           </div>
+          )}
+        </section>
+
+        {/* ── TABLA POR DEPENDIENTE ── */}
+        <section className="rounded-2xl border bg-white shadow-sm overflow-hidden">
+          <button
+            className="w-full text-left bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 px-5 py-4 border-b hover:bg-slate-50 transition-colors"
+            onClick={() => setDependientesExpanded((v) => !v)}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <UserCog className="h-5 w-5 text-brand-primary" />
+                <Typography variant="h3" className="!text-brand-secondary font-semibold">
+                  Reporte por Dependiente
+                </Typography>
+              </div>
+              {dependientesExpanded ? (
+                <ChevronUp className="h-5 w-5 text-muted-foreground shrink-0" />
+              ) : (
+                <ChevronDown className="h-5 w-5 text-muted-foreground shrink-0" />
+              )}
+            </div>
+            <Typography variant="small" className="text-muted-foreground">
+              {dependientesExpanded
+                ? "Deudores en demanda asignados · Sin revisión según umbral seleccionado"
+                : loadingKpis
+                ? "Cargando datos…"
+                : `${dependienteStats.filter((d) => d.dependienteId !== "__sin_dependiente__").length} dependientes · Clic para ver detalle`}
+            </Typography>
+          </button>
+
+          {dependientesExpanded && (
+            <div>
+              {/* Selector de umbral sin gestión */}
+              <div className="px-5 py-3 border-b bg-slate-50/60 flex items-center gap-3 flex-wrap">
+                <span className="text-xs text-muted-foreground font-medium">Sin seguimiento en:</span>
+                {(
+                  [
+                    { v: "1m", l: "1 mes" },
+                    { v: "2m", l: "2 meses" },
+                    { v: "3m", l: "3 meses" },
+                    { v: "sin_gestion", l: "Sin gestión" },
+                  ] as { v: SinGestionThreshold; l: string }[]
+                ).map(({ v, l }) => (
+                  <button
+                    key={v}
+                    onClick={() => setDepSinGestionFilter(v)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                      depSinGestionFilter === v
+                        ? "bg-brand-primary text-white"
+                        : "bg-white border text-muted-foreground hover:border-brand-primary/50"
+                    }`}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+
+              <div className="overflow-x-auto">
+                {loadingKpis ? (
+                  <div className="h-48 flex items-center justify-center">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : dependienteStats.length === 0 ? (
+                  <div className="h-48 flex items-center justify-center">
+                    <p className="text-sm text-muted-foreground">
+                      Sin dependientes asignados o sin deudores en demanda.
+                    </p>
+                  </div>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 border-b">
+                      <tr>
+                        <th className="py-3 px-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                          Dependiente
+                        </th>
+                        <th className="py-3 px-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">
+                          Deudores en demanda
+                        </th>
+                        <th className="py-3 px-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">
+                          {depSinGestionFilter === "1m"
+                            ? "Sin rev. > 1 mes"
+                            : depSinGestionFilter === "2m"
+                            ? "Sin rev. > 2 meses"
+                            : depSinGestionFilter === "3m"
+                            ? "Sin rev. > 3 meses"
+                            : "Sin gestión"}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dependienteStats.filter((dep) => dep.totalDeudoresEnDemanda > 0).map((dep) => {
+                        const esSinDep = dep.dependienteId === "__sin_dependiente__";
+                        return (
+                          <tr
+                            key={dep.dependienteId}
+                            onClick={
+                              !esSinDep
+                                ? () => navigate(`/dashboard/dependiente?uid=${dep.dependienteId}`)
+                                : undefined
+                            }
+                            className={`border-t transition-colors ${
+                              esSinDep
+                                ? "bg-slate-50/50"
+                                : "hover:bg-slate-50/70 cursor-pointer"
+                            }`}
+                          >
+                            <td
+                              className={`py-3 px-4 ${
+                                esSinDep
+                                  ? "text-muted-foreground italic text-xs"
+                                  : "font-medium text-brand-primary hover:underline"
+                              }`}
+                            >
+                              {dep.dependienteNombre}
+                            </td>
+                            <td className="py-3 px-4 text-right tabular-nums font-medium">
+                              {dep.totalDeudoresEnDemanda}
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              {dep.sinGestion > 0 ? (
+                                <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-700">
+                                  {dep.sinGestion}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot className="bg-slate-50 border-t-2 border-slate-200">
+                      <tr className="font-semibold">
+                        <td className="py-3 px-4 text-sm">
+                          Totales ({dependienteStats.filter((d) => d.dependienteId !== "__sin_dependiente__").length} dependientes)
+                        </td>
+                        <td className="py-3 px-4 text-right tabular-nums">
+                          {dependienteStats.reduce((s, d) => s + d.totalDeudoresEnDemanda, 0)}
+                        </td>
+                        <td className="py-3 px-4 text-right tabular-nums text-red-700 font-semibold">
+                          {dependienteStats.reduce((s, d) => s + d.sinGestion, 0) || "—"}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                )}
+              </div>
+            </div>
+          )}
         </section>
 
         {/* ── TABLA POR CLIENTE ── */}
         <section className="rounded-2xl border bg-white shadow-sm overflow-hidden">
           <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 px-5 py-4 border-b flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <div>
-              <div className="flex items-center gap-2">
-                <Building2 className="h-5 w-5 text-brand-primary" />
-                <Typography variant="h3" className="!text-brand-secondary font-semibold">
-                  Cartera global por conjunto — {mesLabel} {year}
+            <button
+              className="flex-1 text-left flex items-center justify-between gap-2 hover:opacity-80 transition-opacity"
+              onClick={() => setConjuntosExpanded((v) => !v)}
+            >
+              <div>
+                <div className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-brand-primary" />
+                  <Typography variant="h3" className="!text-brand-secondary font-semibold">
+                    Cartera global por conjunto — {mesLabel} {year}
+                  </Typography>
+                </div>
+                <Typography variant="small" className="text-muted-foreground">
+                  {conjuntosExpanded
+                    ? `${filasOrdenadas.length} conjuntos con movimiento · Clic en columna para ordenar`
+                    : loadingMes
+                    ? "Cargando datos…"
+                    : `${filasOrdenadas.length > 0 ? `${filasOrdenadas.length} conjuntos` : "Sin datos para este mes"} · Clic para ver detalle`}
                 </Typography>
               </div>
-              <Typography variant="small" className="text-muted-foreground">
-                {filasOrdenadas.length} conjuntos con movimiento · Clic en columna para ordenar
-              </Typography>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate("/clientes-tables")}
-              className="gap-1 self-start sm:self-auto"
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-              Gestionar conjuntos
-            </Button>
+              {conjuntosExpanded ? (
+                <ChevronUp className="h-5 w-5 text-muted-foreground shrink-0" />
+              ) : (
+                <ChevronDown className="h-5 w-5 text-muted-foreground shrink-0" />
+              )}
+            </button>
+           
           </div>
 
+          {conjuntosExpanded && (
           <div className="overflow-x-auto">
             {loadingMes ? (
               <div className="h-48 flex items-center justify-center">
@@ -908,6 +1192,7 @@ export default function AdminDashboardPage() {
               </table>
             )}
           </div>
+          )}
         </section>
 
       </div>
