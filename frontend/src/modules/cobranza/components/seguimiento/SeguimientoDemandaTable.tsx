@@ -828,11 +828,33 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-brand-secondary font-medium">Fecha</Label>
-                {/* Fecha de solo lectura: hoy en creación, fecha original en edición */}
-                <div className="flex h-10 w-full items-center gap-2 rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground cursor-not-allowed select-none">
-                  <CalendarIcon className="h-4 w-4 shrink-0" />
-                  <span>{fecha ? formatEs(fecha.toISOString().slice(0, 10)) : "—"}</span>
-                </div>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={saving}
+                      className="w-full justify-start font-normal h-10"
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {fecha
+                        ? fecha.toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" })
+                        : "Seleccionar fecha"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={fecha}
+                      defaultMonth={fecha}
+                      onSelect={(d) => d && setFecha(d)}
+                      initialFocus
+                      captionLayout="dropdown"
+                      fromYear={new Date().getFullYear() - 10}
+                      toYear={new Date().getFullYear() + 1}
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
 

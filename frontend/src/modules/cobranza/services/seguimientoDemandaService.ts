@@ -105,9 +105,12 @@ export async function addSeguimientoDemanda(
   );
 
   const ahora = Timestamp.fromDate(new Date());
+  const fechaSeleccionada = data.fecha instanceof Date
+    ? Timestamp.fromDate(data.fecha)
+    : (data.fecha ?? ahora);
 
   const payload = stripUndefined({
-    fecha: ahora,
+    fecha: fechaSeleccionada,
     ejecutivoUID: ejecutivoUID,
     clienteUID: clienteId,
     descripcion: data.descripcion,
@@ -151,7 +154,12 @@ export async function updateSeguimientoDemanda(
     newUrl = up.url;
   }
 
+  const fechaEdit = data.fecha instanceof Date
+    ? Timestamp.fromDate(data.fecha)
+    : data.fecha ?? undefined;
+
   const payloadBase = stripUndefined({
+    fecha: fechaEdit,
     descripcion: data.descripcion,
     esInterno: !!data.esInterno,
   });
