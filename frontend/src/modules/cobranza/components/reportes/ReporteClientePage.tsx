@@ -55,6 +55,12 @@ import {
 import { getUsuarioByUid } from "@/modules/usuarios/services/usuarioService";
 
 import SeguimientoDemandasClienteSection from "../../components/reportes/SeguimientoDemandasClienteSection";
+import ValoresAgregadosReporteSection from "../../components/reportes/ValoresAgregadosReporteSection";
+import {
+  obtenerValoresAgregadosReporte,
+  type ValoresAgregadosPorTipo,
+  fmtDate,
+} from "../../services/reportes/valorAgregadoReporteService";
 
 import {
   Select,
@@ -413,6 +419,7 @@ export default function ReporteClientePage() {
   const [monthTabla, setMonthTabla] = useState<number>(hoy.getMonth() + 1); // 1..12
 
   const [hayDatosPeriodo, setHayDatosPeriodo] = useState(true);
+  const [valoresAgregadosGrupos, setValoresAgregadosGrupos] = useState<ValoresAgregadosPorTipo[]>([]);
 
   const [gestionandoDetalle, setGestionandoDetalle] = useState<DeudorTipificacionDetalle[]>([]);
   const [recomMin, setRecomMin] = useState<number>(2_000_000);
@@ -475,6 +482,7 @@ export default function ReporteClientePage() {
         setDetalleTip([]);
         setTipSeleccionada("");
         setGestionandoDetalle([]);
+        setValoresAgregadosGrupos([]);
         setLoading(false);
         return;
       }
@@ -493,10 +501,18 @@ export default function ReporteClientePage() {
         ),
       ]);
 
+      const valoresGrupos = await obtenerValoresAgregadosReporte(
+        clienteId,
+        yearTabla,
+        monthTabla,
+        false // mostrar todos (pendientes + entregados) en pantalla; el filtro lo hace el componente por rol
+      );
+
       setPieData(tip);
       setBarsData(recs);
       setResumenTip(resumen);
       setGestionandoDetalle(gestionando);
+      setValoresAgregadosGrupos(valoresGrupos);
       setLoading(false);
     })();
   }, [clienteId, yearTabla, monthTabla]);
@@ -706,6 +722,18 @@ export default function ReporteClientePage() {
           })
         );
 
+        // Valores agregados (solo entregados para el PDF)
+        const vaGruposPdf = await obtenerValoresAgregadosReporte(clienteId, yearTabla, monthTabla, true);
+        const valoresAgregadosPdf = vaGruposPdf.map((g) => ({
+          tipoLabel: g.tipoLabel,
+          items: g.items.map((item) => ({
+            titulo: item.titulo,
+            fechaSolicitado: fmtDate(item.fechaSolicitado),
+            fechaEntregado: fmtDate(item.fechaEntregado),
+            archivos: item.archivos.map((a) => a.nombre),
+          })),
+        }));
+
         // 4) Construir docx bonito (tipo INFORME)
         const blob = await buildReporteClienteDocx({
           ciudad: "Bogotá D.C.",
@@ -734,6 +762,8 @@ export default function ReporteClientePage() {
           detallePorTipificacion,
 
           demandas: demandasWord,
+
+          valoresAgregados: valoresAgregadosPdf,
 
           recomMin,
 
@@ -849,6 +879,18 @@ export default function ReporteClientePage() {
 
 
 
+      // Valores agregados (solo entregados para el Word)
+      const vaGruposWord = await obtenerValoresAgregadosReporte(clienteId, yearTabla, monthTabla, true);
+      const valoresAgregadosWord = vaGruposWord.map((g) => ({
+        tipoLabel: g.tipoLabel,
+        items: g.items.map((item) => ({
+          titulo: item.titulo,
+          fechaSolicitado: fmtDate(item.fechaSolicitado),
+          fechaEntregado: fmtDate(item.fechaEntregado),
+          archivos: item.archivos.map((a) => a.nombre),
+        })),
+      }));
+
       // 4) Construir docx bonito (tipo INFORME)
       const blob = await buildReporteClienteDocx({
         ciudad: "Bogotá D.C.",
@@ -877,6 +919,8 @@ export default function ReporteClientePage() {
         detallePorTipificacion,
 
         demandas: demandasWord,
+
+        valoresAgregados: valoresAgregadosWord,
 
         recomMin,
 
@@ -1592,6 +1636,11 @@ export default function ReporteClientePage() {
           month={monthTabla}
         />
       )}
+
+      <ValoresAgregadosReporteSection
+        grupos={valoresAgregadosGrupos}
+        mostrarPendientes={canDownloadWord}
+      />
 
     </div>
   );

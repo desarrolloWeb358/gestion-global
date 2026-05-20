@@ -903,6 +903,55 @@ function pJustItalic(text: string, after = 140) {
   });
 }
 
+function buildValoresAgregadosWord(grupos: ValorAgregadoWordGrupo[]) {
+  const out: any[] = [];
+
+  out.push(pCenterTitleCompact("ASESORÍA JURÍDICA"));
+
+  grupos.forEach((grupo) => {
+    out.push(
+      new Paragraph({
+        spacing: { before: 160, after: 100 },
+        children: [
+          new TextRun({ text: grupo.tipoLabel.toUpperCase(), bold: true, size: 22, color: PURPLE }),
+        ],
+      })
+    );
+
+    const header = new TableRow({
+      children: [
+        cellWrap({ text: "TÍTULO", bold: true, fill: HEADER_FILL, align: AlignmentType.LEFT, widthPct: 30 }),
+        cellWrap({ text: "FECHA SOLICITADO", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, widthPct: 18 }),
+        cellWrap({ text: "FECHA ENTREGADO", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, widthPct: 18 }),
+        cellWrap({ text: "ARCHIVO(S)", bold: true, fill: HEADER_FILL, align: AlignmentType.LEFT, widthPct: 34 }),
+      ],
+    });
+
+    const rows = grupo.items.map((item) =>
+      new TableRow({
+        children: [
+          cellWrap({ text: item.titulo || "—", align: AlignmentType.LEFT, widthPct: 30, size: 20 }),
+          cellWrap({ text: item.fechaSolicitado, align: AlignmentType.CENTER, widthPct: 18, size: 20 }),
+          cellWrap({ text: item.fechaEntregado, align: AlignmentType.CENTER, widthPct: 18, size: 20 }),
+          cellWrap({ text: item.archivos.join("\n") || "—", align: AlignmentType.LEFT, widthPct: 34, size: 20 }),
+        ],
+      })
+    );
+
+    out.push(
+      new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        layout: TableLayoutType.FIXED,
+        rows: [header, ...rows],
+      })
+    );
+
+    out.push(spacer(120));
+  });
+
+  return out;
+}
+
 function buildBloqueGestionInformativa() {
   return [
     pCenterTitleCompact(
@@ -1191,6 +1240,18 @@ export type DetallePorTipificacionWord = {
 };
 
 
+export type ValorAgregadoWordItem = {
+  titulo: string;
+  fechaSolicitado: string;
+  fechaEntregado: string;
+  archivos: string[];
+};
+
+export type ValorAgregadoWordGrupo = {
+  tipoLabel: string;
+  items: ValorAgregadoWordItem[];
+};
+
 export type ReporteClienteWordInput = {
   ciudad?: string;
   fechaGeneracion?: Date;
@@ -1214,6 +1275,8 @@ export type ReporteClienteWordInput = {
   detallePorTipificacion?: DetallePorTipificacionWord[];
 
   demandas?: DemandaWordItem[];
+
+  valoresAgregados?: ValorAgregadoWordGrupo[];
 
   recomMin?: number;
 
@@ -1508,6 +1571,14 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
       // espacio entre “tarjetas”
       children.push(spacer(180));
     });
+  }
+
+  // ===============================
+  // VALORES AGREGADOS
+  // ===============================
+  const vaGrupos = (input.valoresAgregados || []).filter((g) => g.items.length > 0);
+  if (vaGrupos.length > 0) {
+    children.push(...buildValoresAgregadosWord(vaGrupos));
   }
 
   // ===============================
