@@ -722,8 +722,8 @@ export default function ReporteClientePage() {
           })
         );
 
-        // Valores agregados (solo entregados para el PDF)
-        const vaGruposPdf = await obtenerValoresAgregadosReporte(clienteId, yearTabla, monthTabla, true);
+        // Valores agregados (todos: pendientes + entregados)
+        const vaGruposPdf = await obtenerValoresAgregadosReporte(clienteId, yearTabla, monthTabla, false);
         const valoresAgregadosPdf = vaGruposPdf.map((g) => ({
           tipoLabel: g.tipoLabel,
           items: g.items.map((item) => ({
@@ -879,8 +879,8 @@ export default function ReporteClientePage() {
 
 
 
-      // Valores agregados (solo entregados para el Word)
-      const vaGruposWord = await obtenerValoresAgregadosReporte(clienteId, yearTabla, monthTabla, true);
+      // Valores agregados (todos: pendientes + entregados)
+      const vaGruposWord = await obtenerValoresAgregadosReporte(clienteId, yearTabla, monthTabla, false);
       const valoresAgregadosWord = vaGruposWord.map((g) => ({
         tipoLabel: g.tipoLabel,
         items: g.items.map((item) => ({
