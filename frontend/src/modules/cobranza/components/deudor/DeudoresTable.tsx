@@ -1442,19 +1442,18 @@ export default function DeudoresTable() {
             )}
 
             {canEdit && (
-              <Dialog open={open} onOpenChange={(v) => !saving && setOpen(v)}>
-                <DialogTrigger asChild>
-                  <Button
-                    variant="brand"
-                    onClick={iniciarCrear}
-                    className="gap-2 shadow-md hover:shadow-lg transition-all"
-                    disabled={saving}
-                  >
-                    <UserPlus className="h-4 w-4" />
-                    Crear Deudor
-                  </Button>
-                </DialogTrigger>
+              <>
+                <Button
+                  variant="brand"
+                  onClick={iniciarCrear}
+                  className="gap-2 shadow-md hover:shadow-lg transition-all"
+                  disabled={saving}
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Crear Deudor
+                </Button>
 
+                <Dialog open={open} onOpenChange={(v) => !saving && setOpen(v)}>
                 <DialogContent
                   className="max-w-2xl max-h-[90vh] overflow-y-auto"
                   onOpenAutoFocus={(e) => e.preventDefault()}
@@ -1660,6 +1659,7 @@ export default function DeudoresTable() {
 
                 </DialogContent>
               </Dialog>
+              </>
             )}
           </div>
         </header>
