@@ -166,7 +166,7 @@ const canEdit = canView && isCliente;
   const [dateFrom, setDateFrom] = React.useState<Date | undefined>();
   const [dateTo, setDateTo] = React.useState<Date | undefined>();
 
-  const MAX_FILE_MB = 15;
+  const MAX_FILE_MB = 20;
 
   // =======================
   // Carga de datos
@@ -467,7 +467,7 @@ const canEdit = canView && isCliente;
                         type="file"
                         multiple
                         className="hidden"
-                        accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.mp4,.mov,.avi,.mkv,.webm"
                         disabled={saving}
                         onChange={(e) => {
                           const files = Array.from(e.target.files ?? []);
@@ -521,7 +521,7 @@ const canEdit = canView && isCliente;
                     )}
 
                     <p className="text-xs">
-                      Formatos permitidos: PDF, Word, Excel, JPG/PNG. Tamaño máximo: {MAX_FILE_MB} MB por archivo.
+                      Formatos permitidos: PDF, Word, Excel, JPG/PNG, Video (MP4, MOV, AVI, MKV, WEBM). Tamaño máximo: {MAX_FILE_MB} MB por archivo.
                     </p>
                   </div>
                 </form>
