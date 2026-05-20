@@ -819,7 +819,6 @@ export default function DeudoresTable() {
   const [importando, setImportando] = useState(false);
   const [importReport, setImportReport] = useState<ImportReport | null>(null);
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
-  const actualizarInputRef = useRef<HTMLInputElement>(null);
   const crearInputRef = useRef<HTMLInputElement>(null);
 
   const validarExcel = async (file: File, mode: "actualizar" | "crear") => {
@@ -852,7 +851,6 @@ export default function DeudoresTable() {
     } catch (e: any) {
       toast.error(e?.message ?? "Error al leer el archivo Excel");
     } finally {
-      if (actualizarInputRef.current) actualizarInputRef.current.value = "";
       if (crearInputRef.current) crearInputRef.current.value = "";
     }
   };
@@ -900,8 +898,9 @@ export default function DeudoresTable() {
 
           const telefonosNuevos = colContacto ? parsearTelefonosDeTexto(String(row[colContacto] ?? "")) : [];
           const correosNuevos   = colCorreo   ? parsearCorreosDeTexto(String(row[colCorreo]   ?? "")) : [];
+          const cedulaRaw       = colCedula   ? String(row[colCedula] ?? "").trim() : "";
 
-          if (telefonosNuevos.length === 0 && correosNuevos.length === 0) {
+          if (telefonosNuevos.length === 0 && correosNuevos.length === 0 && !cedulaRaw) {
             reportRows.push({ inmueble: inmuebleRaw, deudorNombre: deudor.nombre, status: "no_data", phonesAdded: [], emailsAdded: [] });
             continue;
           }
@@ -921,6 +920,7 @@ export default function DeudoresTable() {
               .filter(Boolean);
             patch.correos = [...new Set([...correosExistNorm, ...correosNuevos])];
           }
+          if (cedulaRaw) patch.cedula = cedulaRaw;
 
           try {
             await actualizarDeudorDatos(clienteId, deudor.id!, patch);
@@ -945,11 +945,13 @@ export default function DeudoresTable() {
           const deudorExistente = deudorMap.get(keyLower);
 
           if (deudorExistente) {
-            // Ya existe: solo merge de contactos, no tocar nombre ni cédula
+            // Ya existe: merge de contactos; actualizar nombre y cédula si vienen en el Excel
             const telefonosNuevos = colContacto ? parsearTelefonosDeTexto(String(row[colContacto] ?? "")) : [];
             const correosNuevos   = colCorreo   ? parsearCorreosDeTexto(String(row[colCorreo]   ?? "")) : [];
+            const cedulaRaw       = colCedula   ? String(row[colCedula] ?? "").trim() : "";
+            const nombreRaw       = colNombre   ? String(row[colNombre] ?? "").trim() : "";
 
-            if (telefonosNuevos.length === 0 && correosNuevos.length === 0) {
+            if (telefonosNuevos.length === 0 && correosNuevos.length === 0 && !cedulaRaw && !nombreRaw) {
               reportRows.push({ inmueble: inmuebleRaw, deudorNombre: deudorExistente.nombre, status: "no_data", phonesAdded: [], emailsAdded: [] });
               continue;
             }
@@ -967,6 +969,8 @@ export default function DeudoresTable() {
                 .filter(Boolean);
               patch.correos = [...new Set([...correosExistNorm, ...correosNuevos])];
             }
+            if (cedulaRaw) patch.cedula = cedulaRaw;
+            if (nombreRaw) patch.nombre = nombreRaw;
 
             try {
               await actualizarDeudorDatos(clienteId, deudorExistente.id!, patch);
@@ -1401,16 +1405,6 @@ export default function DeudoresTable() {
             {canEdit && esEjecutivoAdmin && (
               <div className="flex flex-wrap gap-2">
                 <input
-                  ref={actualizarInputRef}
-                  type="file"
-                  accept=".xlsx,.xls"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) validarExcel(file, "actualizar");
-                  }}
-                />
-                <input
                   ref={crearInputRef}
                   type="file"
                   accept=".xlsx,.xls"
@@ -1420,15 +1414,6 @@ export default function DeudoresTable() {
                     if (file) validarExcel(file, "crear");
                   }}
                 />
-                <Button
-                  variant="outline"
-                  onClick={() => actualizarInputRef.current?.click()}
-                  className="gap-2 border-brand-secondary/30 shadow-sm"
-                  disabled={saving || importando}
-                >
-                  <Upload className="h-4 w-4" />
-                  Actualizar datos deudor
-                </Button>
                 <Button
                   variant="outline"
                   onClick={() => crearInputRef.current?.click()}
