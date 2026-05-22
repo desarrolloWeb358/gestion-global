@@ -1,5 +1,6 @@
 export const ROLES = [
   "admin",
+  "supervisor",
   "ejecutivo",
   "ejecutivoAdmin",
   "dependiente",
@@ -12,6 +13,7 @@ export type Rol = (typeof ROLES)[number];
 // Prioridad cuando alguien tiene varios roles (elige su "home")
 export const ROL_PRIORITY: Rol[] = [
   "admin",
+  "supervisor",
   "ejecutivoAdmin",
   "ejecutivo",
   "dependiente",
@@ -25,9 +27,10 @@ export const DEFAULT_HOME = "/dashboard/cliente" as const;
 
 export const ROLE_HOME: Record<Rol, string> = {
   admin: "/dashboard/admin",
+  supervisor: "/dashboard/ejecutivo",
   ejecutivoAdmin: "/dashboard/ejecutivo",
   ejecutivo: "/dashboard/ejecutivo",
-  dependiente: "/clientes-tables", 
+  dependiente: "/clientes-tables",
   abogado: "/dashboard/abogado",
   cliente: "/dashboard/cliente",
   deudor: "/dashboard/deudor",
@@ -85,6 +88,9 @@ export const PERMS = {
   // WhatsApp
   Whatsapp_Read:  "whatsapp.read",
   Whatsapp_Write: "whatsapp.write",
+
+  // Seguimiento — edición de fecha (solo ejecutivoAdmin y admin)
+  Seguimientos_Fecha_Edit: "seguimientos.fecha.edit",
 } as const;
 export type Perm = (typeof PERMS)[keyof typeof PERMS];
 
@@ -103,6 +109,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Seguimientos_Ejecutivos_Edit,
     PERMS.Seguimientos_Dependientes_Read,
     PERMS.Seguimientos_Dependientes_Edit,
+    PERMS.Seguimientos_Fecha_Edit,
     PERMS.Abonos_Read,
     PERMS.Abonos_Edit,
     PERMS.Recaudos_Read,
@@ -116,7 +123,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Whatsapp_Write,
   ],
 
-  ejecutivoAdmin: [
+  supervisor: [
     PERMS.Usuarios_Read,
     PERMS.Usuarios_Create,
     PERMS.Clientes_Read,
@@ -127,6 +134,30 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Seguimientos_Ejecutivos_Edit,
     PERMS.Seguimientos_Dependientes_Read,
     PERMS.Seguimientos_Dependientes_Edit,
+    PERMS.Abonos_Read,
+    PERMS.Abonos_Edit,
+    PERMS.Valores_Read,
+    PERMS.Recaudos_Read,
+    PERMS.Valores_agregados_Read,
+    PERMS.Valores_agregados_Edit,
+    PERMS.Contratos_Read,
+    PERMS.Contratos_Edit,
+    PERMS.ReporteCliente_Download_Word,
+    PERMS.RegistrosEliminados_Read,
+    PERMS.Whatsapp_Read,
+    PERMS.Whatsapp_Write,
+  ],
+
+  ejecutivoAdmin: [    
+    PERMS.Clientes_Read,
+    PERMS.Clientes_Edit,
+    PERMS.Deudores_Read,
+    PERMS.Deudores_Edit,
+    PERMS.Seguimientos_Ejecutivos_Read,
+    PERMS.Seguimientos_Ejecutivos_Edit,
+    PERMS.Seguimientos_Dependientes_Read,
+    PERMS.Seguimientos_Dependientes_Edit,
+    PERMS.Seguimientos_Fecha_Edit,
     PERMS.Abonos_Read,
     PERMS.Abonos_Edit,
     PERMS.Valores_Read,

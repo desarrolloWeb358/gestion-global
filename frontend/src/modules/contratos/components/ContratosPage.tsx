@@ -24,7 +24,7 @@ import { PERMS } from "@/shared/constants/acl";
 import { getClienteById } from "@/modules/clientes/services/clienteService";
 
 import {
-  listarContratos, crearContrato, eliminarContrato, formatFechaContrato,
+  listarContratos, crearContrato, eliminarContrato,
 } from "../services/contratoService";
 import type { Contrato } from "../models/contrato.model";
 
@@ -40,7 +40,6 @@ export default function ContratosPage() {
   const [openForm, setOpenForm] = useState(false);
   const [titulo, setTitulo] = useState("");
   const [descripcion, setDescripcion] = useState("");
-  const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
   const [archivos, setArchivos] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -58,7 +57,6 @@ export default function ContratosPage() {
   const resetForm = () => {
     setTitulo("");
     setDescripcion("");
-    setFecha(new Date().toISOString().slice(0, 10));
     setArchivos([]);
   };
 
@@ -72,7 +70,7 @@ export default function ContratosPage() {
       const uid = getAuth().currentUser?.uid ?? "";
       await crearContrato(
         clienteId,
-        { titulo: titulo.trim(), descripcion: descripcion.trim(), fecha: new Date(fecha + "T12:00:00") },
+        { titulo: titulo.trim(), descripcion: descripcion.trim() },
         archivos,
         uid
       );
@@ -172,9 +170,6 @@ export default function ContratosPage() {
                     <Typography variant="h3" className="!text-brand-secondary font-semibold leading-snug">
                       {c.titulo}
                     </Typography>
-                    <Typography variant="small" className="text-muted-foreground">
-                      {formatFechaContrato(c.fecha)}
-                    </Typography>
                     {c.descripcion && (
                       <Typography variant="small" className="text-gray-600">
                         {c.descripcion}
@@ -244,17 +239,6 @@ export default function ContratosPage() {
                 onChange={(e) => setDescripcion(e.target.value)}
                 placeholder="Descripción breve"
                 disabled={saving}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Fecha</Label>
-              <Input
-                type="date"
-                value={fecha}
-                onChange={(e) => setFecha(e.target.value)}
-                disabled={saving}
-                className="w-full"
               />
             </div>
 

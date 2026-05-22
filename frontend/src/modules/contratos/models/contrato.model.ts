@@ -10,7 +10,6 @@ export interface Contrato {
   id?: string;
   titulo: string;
   descripcion?: string;
-  fecha: Timestamp | Date;
   archivos: ArchivoContrato[];
   creadoPor?: string;
   fechaCreacion?: Timestamp;

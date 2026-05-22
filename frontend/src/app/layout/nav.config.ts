@@ -36,13 +36,13 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/dashboard/admin",
     label: "Administrador",
     icon: IconHome,
-    roles: ["admin", "ejecutivoAdmin"]
+    roles: ["admin"]
   },  
   {
     to: "/dashboard/ejecutivo",
     label: "Ejecutivo",
     icon: IconHome,
-    roles: ["ejecutivo", "ejecutivoAdmin"]
+    roles: ["ejecutivo", "ejecutivoAdmin", "supervisor"]
   },
   {
     to: "/dashboard/dependiente",
@@ -70,23 +70,23 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/usuarios-tables",
     label: "Usuarios",
     icon: IconUsers,
-    roles: ["admin", "ejecutivoAdmin"]
+    roles: ["admin", "supervisor"]
   },
   {
     to: "/registros-eliminados",
     label: "Registros Eliminados",
     icon: IconTrash,
-    roles: ["admin", "ejecutivoAdmin"],
+    roles: ["admin", "supervisor"],
   },
 
   // ========================================
   // GESTIÓN DE COBRANZA
   // ========================================
-  { 
-    to: "/clientes-tables", 
-    label: "Clientes", 
-    icon: IconBriefcase, 
-    roles: ["admin", "ejecutivo", "ejecutivoAdmin", "dependiente", "abogado"] 
+  {
+    to: "/clientes-tables",
+    label: "Clientes",
+    icon: IconBriefcase,
+    roles: ["admin", "ejecutivo", "ejecutivoAdmin", "supervisor", "dependiente", "abogado"]
   },
 
     // ========================================
@@ -112,7 +112,7 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/whatsapp",
     label: "WhatsApp",
     icon: IconBrandWhatsapp,
-    roles: ["admin", "ejecutivo", "ejecutivoAdmin"],
+    roles: ["admin", "ejecutivo", "ejecutivoAdmin", "supervisor"],
   },
 
   // ========================================
@@ -122,7 +122,7 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/notificaciones",
     label: "Notificaciones",
     icon: IconBell,
-    roles: ["admin", "ejecutivo", "ejecutivoAdmin", "dependiente", "abogado", "cliente", "deudor"]
+    roles: ["admin", "ejecutivo", "ejecutivoAdmin", "supervisor", "dependiente", "abogado", "cliente", "deudor"]
   },
 
   // ========================================
@@ -132,7 +132,7 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/ajustes",
     label: "Ajustes",
     icon: IconSettings,
-    roles: ["ejecutivoAdmin"],
+    roles: ["supervisor"],
   },
 
   // ========================================

@@ -31,12 +31,14 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover";
 import { Calendar } from "@/shared/ui/calendar";
 import { Separator } from "@/shared/ui/separator";
-import { Loader2, Calendar as CalendarIcon } from "lucide-react";
+import { Loader2, Calendar as CalendarIcon, Lock } from "lucide-react";
 
 import { Seguimiento } from "../../models/seguimiento.model";
 import { TIPO_SEGUIMIENTO, TipoSeguimientoCode } from "@/shared/constants/tipoSeguimiento";
 import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 import { createPortal } from "react-dom";
+import { useAcl } from "@/modules/auth/hooks/useAcl";
+import { PERMS } from "@/shared/constants/acl";
 
 export type DestinoColeccion = "seguimiento" | "seguimientoJuridico";
 
@@ -112,6 +114,9 @@ export default function SeguimientoForm({
   destinoInicial,
   extraHeader,
 }: Props) {
+  const { can } = useAcl();
+  const canEditFecha = can(PERMS.Seguimientos_Fecha_Edit);
+
   const [destino, setDestino] = React.useState<DestinoColeccion>(
     destinoInicial ?? defaultDestinoFromTipificacion(tipificacionDeuda)
   );
@@ -226,14 +231,20 @@ export default function SeguimientoForm({
 
                   {/* Fecha */}
                   <div className="space-y-2">
-                    <Label className="text-sm">Fecha</Label>
+                    <Label className="text-sm flex items-center gap-1.5">
+                      Fecha
+                      {!canEditFecha && (
+                        <Lock className="h-3 w-3 text-muted-foreground" aria-label="Solo ejecutivoAdmin puede editar la fecha" />
+                      )}
+                    </Label>
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button
                           type="button"
                           variant="outline"
-                          disabled={saving}
+                          disabled={saving || !canEditFecha}
                           className="w-full justify-start font-normal h-10"
+                          title={!canEditFecha ? "Solo el ejecutivoAdmin puede editar la fecha" : undefined}
                         >
                           <CalendarIcon className="mr-2 h-4 w-4" />
                           {fecha.toLocaleDateString("es-CO", {

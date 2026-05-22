@@ -28,7 +28,7 @@ import { PERMS } from "@/shared/constants/acl";
 import { Deudor } from "@/modules/cobranza/models/deudores.model";
 import { obtenerDeudorPorCliente } from "@/modules/cobranza/services/deudorService";
 import { useUsuarioActual } from "@/modules/auth/hooks/useUsuarioActual";
-import { obtenerUltimoContrato, formatFechaContrato } from "@/modules/contratos/services/contratoService";
+import { obtenerUltimoContrato } from "@/modules/contratos/services/contratoService";
 import type { Contrato } from "@/modules/contratos/models/contrato.model";
 
 
@@ -225,7 +225,7 @@ export default function ClientePage() {
                                             <span className="text-sm font-semibold text-gray-800 truncate">
                                                 {ultimoContrato.titulo}
                                             </span>
-                                            <span className="text-sm text-gray-400"> · {formatFechaContrato(ultimoContrato.fecha)}</span>
+                                           
                                         </div>
                                     </div>
                                     <div className="flex flex-wrap gap-2">
