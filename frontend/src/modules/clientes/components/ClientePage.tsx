@@ -11,6 +11,8 @@ import {
     Building2,
     MessageSquare,
     MessageCircle,
+    ScrollText,
+    Download,
 } from "lucide-react";
 
 import { Cliente } from "@/modules/clientes/models/cliente.model";
@@ -26,6 +28,8 @@ import { PERMS } from "@/shared/constants/acl";
 import { Deudor } from "@/modules/cobranza/models/deudores.model";
 import { obtenerDeudorPorCliente } from "@/modules/cobranza/services/deudorService";
 import { useUsuarioActual } from "@/modules/auth/hooks/useUsuarioActual";
+import { obtenerUltimoContrato, formatFechaContrato } from "@/modules/contratos/services/contratoService";
+import type { Contrato } from "@/modules/contratos/models/contrato.model";
 
 
 export default function ClientePage() {
@@ -42,9 +46,11 @@ export default function ClientePage() {
     const [ejecutivos, setEjecutivos] = useState<UsuarioSistema[]>([]);
     const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([]);
     const [loading, setLoading] = useState(true);
+    const [ultimoContrato, setUltimoContrato] = useState<Contrato | null>(null);
     const { roles, loading: userLoading } = useUsuarioActual();
     const isCliente = roles?.includes("cliente");
     const canViewWhatsappMasivo = can(PERMS.Whatsapp_Write);
+    const canViewContratos = can(PERMS.Contratos_Read);
 
     // Obtener nombre del cliente desde usuarios
     const nombreCliente = useMemo(() => {
@@ -84,6 +90,9 @@ export default function ClientePage() {
                 // Cargar deudores
                 const deudoresData = await obtenerDeudorPorCliente(clienteId);
                 setDeudores(deudoresData);
+
+                // Cargar último contrato
+                obtenerUltimoContrato(clienteId).then(setUltimoContrato).catch(() => {});
 
                 const todosUsuarios = await obtenerUsuarios();
                 setUsuarios(todosUsuarios);
@@ -204,6 +213,47 @@ export default function ClientePage() {
                             usuarios={usuarios}
                             totalDeudores={deudoresActivos.length}
                         />
+
+                        {canViewContratos && ultimoContrato && (
+                            <>
+                                <div className="border-t border-gray-200 mt-6 mb-4" />
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        <ScrollText className="h-4 w-4 text-indigo-600 shrink-0" />
+                                        <div className="min-w-0">
+                                            <span className="text-sm text-gray-500">Último contrato · </span>
+                                            <span className="text-sm font-semibold text-gray-800 truncate">
+                                                {ultimoContrato.titulo}
+                                            </span>
+                                            <span className="text-sm text-gray-400"> · {formatFechaContrato(ultimoContrato.fecha)}</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {ultimoContrato.archivos.length > 0 ? (
+                                            ultimoContrato.archivos.map((a, i) => (
+                                                <a
+                                                    key={i}
+                                                    href={a.url}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1 text-sm text-indigo-700 hover:bg-indigo-100 transition-colors max-w-[180px]"
+                                                >
+                                                    <Download className="h-3.5 w-3.5 shrink-0" />
+                                                    <span className="truncate">{a.nombre}</span>
+                                                </a>
+                                            ))
+                                        ) : (
+                                            <button
+                                                onClick={() => navigate(`/clientes/${cliente.id}/contratos`)}
+                                                className="text-sm text-indigo-600 hover:underline"
+                                            >
+                                                Ver contrato
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </section>
 
@@ -339,9 +389,31 @@ export default function ClientePage() {
 
                                 </div>
                             </button>
+
+                            {/* Tarjeta: Contratos */}
+                            {canViewContratos && (
+                                <button
+                                    onClick={() => navigate(`/clientes/${cliente.id}/contratos`)}
+                                    className="group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-6 text-left transition-all hover:border-indigo-500 hover:shadow-lg hover:-translate-y-1"
+                                >
+                                    <div className="absolute top-0 right-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-indigo-500/5 transition-transform group-hover:scale-150" />
+                                    <div className="relative">
+                                        <div className="mb-4 inline-flex rounded-lg bg-indigo-500/10 p-3 transition-colors group-hover:bg-indigo-500/20">
+                                            <ScrollText className="h-6 w-6 text-indigo-600" />
+                                        </div>
+                                        <Typography variant="h3" className="!text-brand-secondary mb-2">
+                                            Contratos
+                                        </Typography>
+                                        <Typography variant="small">
+                                            Consulta y gestiona los contratos del cliente
+                                        </Typography>
+                                    </div>
+                                </button>
+                            )}
                         </div>
                     </div>
                 </section>
+
             </div>
         </div>
     );

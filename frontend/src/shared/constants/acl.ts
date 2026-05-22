@@ -78,6 +78,10 @@ export const PERMS = {
 
   RegistrosEliminados_Read: "registrosEliminados.read",
 
+  // Contratos
+  Contratos_Read: "contratos.read",
+  Contratos_Edit: "contratos.edit",
+
   // WhatsApp
   Whatsapp_Read:  "whatsapp.read",
   Whatsapp_Write: "whatsapp.write",
@@ -106,6 +110,8 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Valores_agregados_Edit,
     PERMS.ReporteCliente_Download_Word,
     PERMS.RegistrosEliminados_Read,
+    PERMS.Contratos_Read,
+    PERMS.Contratos_Edit,
     PERMS.Whatsapp_Read,
     PERMS.Whatsapp_Write,
   ],
@@ -127,6 +133,8 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Recaudos_Read,
     PERMS.Valores_agregados_Read,
     PERMS.Valores_agregados_Edit,
+    PERMS.Contratos_Read,
+    PERMS.Contratos_Edit,
     PERMS.ReporteCliente_Download_Word,
     PERMS.RegistrosEliminados_Read,
     PERMS.Whatsapp_Read,
@@ -145,6 +153,8 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Abonos_Edit,
     PERMS.Valores_Read,
     PERMS.Recaudos_Read,
+    PERMS.Contratos_Read,
+    PERMS.Contratos_Edit,
     PERMS.Valores_agregados_Read,
     PERMS.ReporteCliente_Download_Word,
     PERMS.Whatsapp_Read,
@@ -159,9 +169,10 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Seguimientos_Ejecutivos_Read,
     PERMS.Seguimientos_Dependientes_Read,
     PERMS.Seguimientos_Dependientes_Edit,
-    PERMS.Abonos_Read,    
-    PERMS.Valores_Read, 
+    PERMS.Abonos_Read,
+    PERMS.Valores_Read,
     PERMS.Recaudos_Read,
+    PERMS.Contratos_Read,
     PERMS.ReporteCliente_Download_Word,
   ],
 
@@ -175,7 +186,8 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Valores_Read,  
     PERMS.Valores_agregados_Read,
     PERMS.Valores_agregados_Edit,
-    PERMS.Valores_Obs_Create,   
+    PERMS.Valores_Obs_Create,
+    PERMS.Contratos_Read,
     PERMS.ReporteCliente_Download_Pdf,
   ],
 
@@ -187,7 +199,8 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Seguimientos_Dependientes_Read,
     PERMS.Abonos_Read,
     PERMS.Valores_agregados_Read,
-    PERMS.Valores_agregados_Edit, 
+    PERMS.Contratos_Read,
+    PERMS.Valores_agregados_Edit,
     PERMS.ReporteCliente_Download_Word,
   ],
 

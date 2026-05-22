@@ -56,6 +56,7 @@ import RadicadosPage from "./modules/cobranza/components/RadicadosPage";
 import MonitoreoRadicadosPage from "./modules/cobranza/components/MonitoreoRadicadosPage";
 import DetalleProcesoJudicialPage from "./modules/cobranza/components/DetalleProcesoJudicialPage";
 import AjustesPage from "./modules/ajustes/components/AjustesPage";
+import ContratosPage from "./modules/contratos/components/ContratosPage";
 
 
 export default function App() {
@@ -112,6 +113,7 @@ export default function App() {
             <Route path="/clientes/:clienteId/deudores/:deudorId/AcuerdoPago" element={<AcuerdoPagoPage />} />
             <Route path="/clientes/:clienteId/deudores/:deudorId/informacion-demanda" element={<InformacionDemandaPage />} />
             <Route path="/ajustes" element={<AjustesPage />} />
+            <Route path="/clientes/:clienteId/contratos" element={<ContratosPage />} />
 
             {/* WhatsApp */}
             <Route path="/whatsapp" element={<NumberSelectPage />} />
