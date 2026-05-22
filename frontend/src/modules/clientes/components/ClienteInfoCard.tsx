@@ -1,7 +1,10 @@
 // src/modules/clientes/components/ClienteInfoCard.tsx
 import * as React from "react";
+import { useNavigate } from "react-router-dom";
+import { ScrollText, Download } from "lucide-react";
 import type { Cliente } from "@/modules/clientes/models/cliente.model";
 import type { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
+import type { Contrato } from "@/modules/contratos/models/contrato.model";
 import { getUsuarioByUid } from "@/modules/usuarios/services/usuarioService";
 import { Typography } from "@/shared/design-system/components/Typography";
 
@@ -10,9 +13,12 @@ interface Props {
   ejecutivos?: UsuarioSistema[];
   usuarios?: UsuarioSistema[];
   totalDeudores?: number;
+  ultimoContrato?: Contrato | null;
+  canViewContratos?: boolean;
 }
 
-export function ClienteInfoCard({ cliente, ejecutivos = [], usuarios = [], totalDeudores = 0 }: Props) {
+export function ClienteInfoCard({ cliente, ejecutivos = [], usuarios = [], totalDeudores = 0, ultimoContrato, canViewContratos = false }: Props) {
+  const navigate = useNavigate();
   // Normaliza IDs: si vienen como "", null o solo espacios => null
   const ejecutivoPreId =
     typeof cliente.ejecutivoPrejuridicoId === "string" &&
@@ -189,6 +195,44 @@ export function ClienteInfoCard({ cliente, ejecutivos = [], usuarios = [], total
 
 
       </div>
+
+      {/* Último contrato — debajo de Forma de pago */}
+      {canViewContratos && ultimoContrato && (
+        <div className="flex flex-wrap items-center gap-3 pt-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <ScrollText className="h-4 w-4 text-indigo-600 shrink-0" />
+            <div className="min-w-0">
+              <span className="text-sm text-gray-500">Último contrato · </span>
+              <span className="text-sm font-semibold text-gray-800 truncate">
+                {ultimoContrato.titulo}
+              </span>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {ultimoContrato.archivos.length > 0 ? (
+              ultimoContrato.archivos.map((a, i) => (
+                <a
+                  key={i}
+                  href={a.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1 text-sm text-indigo-700 hover:bg-indigo-100 transition-colors max-w-[180px]"
+                >
+                  <Download className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{a.nombre}</span>
+                </a>
+              ))
+            ) : (
+              <button
+                onClick={() => navigate(`/clientes/${cliente.id}/contratos`)}
+                className="text-sm text-indigo-600 hover:underline"
+              >
+                Ver contrato
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Separador */}
       <div className="border-t border-gray-200" />

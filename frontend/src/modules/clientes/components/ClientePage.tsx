@@ -12,7 +12,6 @@ import {
     MessageSquare,
     MessageCircle,
     ScrollText,
-    Download,
 } from "lucide-react";
 
 import { Cliente } from "@/modules/clientes/models/cliente.model";
@@ -212,48 +211,9 @@ export default function ClientePage() {
                             ejecutivos={ejecutivos}
                             usuarios={usuarios}
                             totalDeudores={deudoresActivos.length}
+                            ultimoContrato={ultimoContrato}
+                            canViewContratos={canViewContratos}
                         />
-
-                        {canViewContratos && ultimoContrato && (
-                            <>
-                                <div className="border-t border-gray-200 mt-6 mb-4" />
-                                <div className="flex flex-wrap items-center gap-3">
-                                    <div className="flex items-center gap-2 min-w-0">
-                                        <ScrollText className="h-4 w-4 text-indigo-600 shrink-0" />
-                                        <div className="min-w-0">
-                                            <span className="text-sm text-gray-500">Último contrato · </span>
-                                            <span className="text-sm font-semibold text-gray-800 truncate">
-                                                {ultimoContrato.titulo}
-                                            </span>
-                                           
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-wrap gap-2">
-                                        {ultimoContrato.archivos.length > 0 ? (
-                                            ultimoContrato.archivos.map((a, i) => (
-                                                <a
-                                                    key={i}
-                                                    href={a.url}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                    className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1 text-sm text-indigo-700 hover:bg-indigo-100 transition-colors max-w-[180px]"
-                                                >
-                                                    <Download className="h-3.5 w-3.5 shrink-0" />
-                                                    <span className="truncate">{a.nombre}</span>
-                                                </a>
-                                            ))
-                                        ) : (
-                                            <button
-                                                onClick={() => navigate(`/clientes/${cliente.id}/contratos`)}
-                                                className="text-sm text-indigo-600 hover:underline"
-                                            >
-                                                Ver contrato
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            </>
-                        )}
                     </div>
                 </section>
 
