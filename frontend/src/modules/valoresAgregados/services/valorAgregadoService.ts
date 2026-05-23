@@ -556,7 +556,7 @@ export async function crearMensajeConversacionValorAgregado(
   // 3️⃣ Actualizar completado según quién responde
   try {
     if (base.autorTipo === "cliente") {
-      await updateDoc(docRef(clienteId, valorId), { completado: false, fechaCompletado: null });
+      await updateDoc(docRef(clienteId, valorId), { completado: false });
     } else {
       await updateDoc(docRef(clienteId, valorId), { completado: true, fechaCompletado: serverTimestamp() });
     }

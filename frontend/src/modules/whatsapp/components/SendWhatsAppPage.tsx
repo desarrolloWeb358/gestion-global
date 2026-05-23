@@ -24,6 +24,8 @@ import { escucharUltimoEstadoMensual } from "@/modules/cobranza/services/estadoM
 import { obtenerAcuerdoActual } from "@/modules/cobranza/services/acuerdoPagoService";
 import { ACUERDO_ESTADO } from "@/shared/constants/acuerdoEstado";
 import type { EstadoMensual } from "@/modules/cobranza/models/estadoMensual.model";
+import { getClienteById } from "@/modules/clientes/services/clienteService";
+import { getUsuarioByUid } from "@/modules/usuarios/services/usuarioService";
 import { useWaNumbers } from "../hooks/useWaNumbers";
 import { listenTemplates } from "../services/templatesService";
 import type { WaTemplate } from "../models/waTemplate.model";
@@ -82,6 +84,8 @@ export default function SendWhatsAppPage() {
   const [deudor, setDeudor] = useState<Deudor | null>(null);
   const [estadoMes, setEstadoMes] = useState<EstadoMensual | null>(null);
   const [acuerdoActivo, setAcuerdoActivo] = useState<boolean | null>(null);
+  const [asesor, setAsesor] = useState("");
+  const [copropiedad, setCopropiedad] = useState("");
 
   useEffect(() => {
     if (!clienteId || !deudorId) return;
@@ -89,6 +93,13 @@ export default function SendWhatsAppPage() {
     const unsub = escucharUltimoEstadoMensual(clienteId, deudorId, setEstadoMes);
     obtenerAcuerdoActual(clienteId, deudorId).then(({ acuerdo }) => {
       setAcuerdoActivo(acuerdo?.estado === ACUERDO_ESTADO.EN_FIRME);
+    });
+    getClienteById(clienteId).then((c) => {
+      if (!c) return;
+      setCopropiedad(c.nombre ?? "");
+      if (c.ejecutivoPrejuridicoId) {
+        getUsuarioByUid(c.ejecutivoPrejuridicoId).then((u) => setAsesor(u?.nombre ?? ""));
+      }
     });
     return unsub;
   }, [clienteId, deudorId]);
@@ -114,18 +125,60 @@ export default function SendWhatsAppPage() {
 
   const selectedTemplate = templates.find((t) => t.id === selectedId) ?? null;
 
-  const handleSelectTemplate = useCallback((id: string) => {
-    setSelectedId(id);
-    setVarValues({});
-  }, []);
-
   // Phones from deudor
   const phones = deudor?.telefonos ?? [];
   const [selectedPhone, setSelectedPhone] = useState<string>("");
 
+  const autoValue = useCallback((varName: string, phone: string): string => {
+    const fmt = (n: number) => `$${Math.round(n).toLocaleString("es-CO")}`;
+    switch (varName) {
+      case "telefono":   return phone;
+      case "nombre":     return deudor?.nombre ?? "";
+      case "cedula":     return deudor?.cedula ?? "";
+      case "ubicacion":  return deudor?.ubicacion ?? "";
+      case "direccion":  return (deudor as any)?.direccion ?? "";
+      case "deuda":      return estadoMes ? fmt(estadoMes.deuda + (estadoMes.honorariosDeuda ?? 0)) : "";
+      case "deudaTotal": return estadoMes ? fmt(estadoMes.deuda + (estadoMes.honorariosDeuda ?? 0)) : "";
+      case "asesor":     return asesor;
+      case "copropiedad":
+      case "conjunto":   return copropiedad;
+      default:           return "";
+    }
+  }, [deudor, estadoMes, asesor, copropiedad]);
+
+  const handleSelectTemplate = useCallback((id: string) => {
+    setSelectedId(id);
+    const tpl = templates.find((t) => t.id === id);
+    if (!tpl) { setVarValues({}); return; }
+    const phone = selectedPhone && selectedPhone !== "all" ? toIntl(selectedPhone) : "";
+    const prefilled: Record<string, string> = {};
+    tpl.variables.forEach((v) => {
+      const val = autoValue(v.name, phone);
+      if (val) prefilled[v.name] = val;
+    });
+    setVarValues(prefilled);
+  }, [templates, selectedPhone, autoValue]);
+
   useEffect(() => {
     if (phones.length > 0 && !selectedPhone) setSelectedPhone(phones[0]);
   }, [phones]);
+
+  // Re-rellenar variables cuando cambia el teléfono o llegan datos del deudor/cliente
+  useEffect(() => {
+    if (!selectedId) return;
+    const tpl = templates.find((t) => t.id === selectedId);
+    if (!tpl) return;
+    const phone = selectedPhone && selectedPhone !== "all" ? toIntl(selectedPhone) : "";
+    setVarValues((prev) => {
+      const next = { ...prev };
+      tpl.variables.forEach((v) => {
+        const val = autoValue(v.name, phone);
+        if (val && !prev[v.name]) next[v.name] = val;
+        if (v.name === "telefono") next[v.name] = val;
+      });
+      return next;
+    });
+  }, [selectedPhone, deudor, estadoMes, asesor, copropiedad]);
 
   const toIntl = (raw: string) =>
     raw.startsWith("57") && raw.length >= 12 ? raw : `57${raw}`;
@@ -352,13 +405,14 @@ export default function SendWhatsAppPage() {
                 </p>
                 {selectedTemplate.variables.map((v) => {
                   const isPhone = v.name === "telefono";
+                  const isAuto = isPhone || !!autoValue(v.name, "");
                   return (
                     <div key={v.name} className="space-y-1">
-                      <Label htmlFor={`var-${v.name}`} className="text-xs">
+                      <Label htmlFor={`var-${v.name}`} className="text-xs flex items-center gap-2">
                         <span className="font-mono text-brand-primary">{`{{${v.name}}}`}</span>
-                        {isPhone && (
-                          <span className="ml-2 text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded">
-                            automático
+                        {isAuto && (
+                          <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
+                            auto
                           </span>
                         )}
                       </Label>
@@ -458,13 +512,41 @@ export default function SendWhatsAppPage() {
               )}
 
               {/* Deuda */}
-              <InfoCard
-                bg="bg-blue-50" border="border-blue-100" iconColor="text-blue-600"
-                icon={<DollarSign className="h-4 w-4" />}
-                label="Deuda último mes"
-                value={estadoMes ? money(estadoMes.deuda) : "Sin estados mensuales"}
-                sub={estadoMes?.mes ? `Mes: ${estadoMes.mes}` : undefined}
-              />
+              <div className="rounded-lg border border-blue-100 bg-blue-50 overflow-hidden">
+                <div className="flex items-center gap-2 px-3 py-2 border-b border-blue-100">
+                  <div className="p-1 rounded-md bg-white shadow-sm">
+                    <DollarSign className="h-3.5 w-3.5 text-blue-600" />
+                  </div>
+                  <p className="text-[10px] font-semibold text-blue-700 uppercase tracking-wide">Deuda</p>
+                  {estadoMes?.mes && (
+                    <span className="ml-auto text-[10px] text-blue-400">Mes: {estadoMes.mes}</span>
+                  )}
+                </div>
+                {estadoMes ? (
+                  <div className="divide-y divide-blue-100">
+                    <div className="flex items-center justify-between px-3 py-2">
+                      <span className="text-xs text-gray-500">Capital</span>
+                      <span className="text-sm font-semibold text-gray-700">{money(estadoMes.deuda)}</span>
+                    </div>
+                    {(estadoMes.honorariosDeuda ?? 0) > 0 && (
+                      <div className="flex items-center justify-between px-3 py-2">
+                        <span className="text-xs text-gray-500">
+                          Honorarios{estadoMes.porcentajeHonorarios ? ` (${estadoMes.porcentajeHonorarios}%)` : ""}
+                        </span>
+                        <span className="text-sm font-semibold text-amber-600">{money(estadoMes.honorariosDeuda!)}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between px-3 py-2.5 bg-blue-100/60">
+                      <span className="text-xs font-semibold text-gray-600">Total</span>
+                      <span className="text-sm font-bold text-blue-700">
+                        {money(estadoMes.deuda + (estadoMes.honorariosDeuda ?? 0))}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="px-3 py-2.5 text-xs text-gray-400">Sin estados mensuales</p>
+                )}
+              </div>
 
               {/* Tipificación */}
               {deudor.tipificacion && (

@@ -16,9 +16,15 @@ export function useInboxConversations(numberId: string, uid: string, roles: Rol[
     setLoading(true);
     clienteCache.current = {};
 
-    const isEjecutivoAdmin = roles.includes("ejecutivoAdmin");
+    const isSuperAdmin = roles.includes("admin") || roles.includes("supervisor");
 
     const unsub = listenInbox(numberId, async (convs) => {
+      if (isSuperAdmin) {
+        setConversations(convs);
+        setLoading(false);
+        return;
+      }
+
       const uncachedIds = [
         ...new Set(
           convs
@@ -39,7 +45,7 @@ export function useInboxConversations(numberId: string, uid: string, roles: Rol[
       }
 
       const filtered = convs.filter((conv) => {
-        if (!conv.clienteId) return isEjecutivoAdmin;
+        if (!conv.clienteId) return false;
         return clienteCache.current[conv.clienteId] === uid;
       });
 

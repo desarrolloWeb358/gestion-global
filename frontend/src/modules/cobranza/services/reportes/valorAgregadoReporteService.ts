@@ -58,7 +58,7 @@ export async function obtenerValoresAgregadosReporte(
     )
       return;
 
-    const completado = !!data.completado;
+    const completado = !!data.completado || !!toDate(data.fechaCompletado);
     if (soloEntregados && !completado) return;
 
     const archivosRaw: any[] = data.archivos ?? [];

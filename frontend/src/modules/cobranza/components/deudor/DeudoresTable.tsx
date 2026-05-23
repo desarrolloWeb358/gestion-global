@@ -1274,11 +1274,13 @@ export default function DeudoresTable() {
     try {
       // ✅ tipificacion se guarda como la que esté actualmente en formData
       // (y el historial dialog se encarga de actualizarla al guardar historial)
+      const t = (v?: string) => v?.trim() ?? "";
+
       if (deudorEditando) {
         await actualizarDeudorDatos(clienteId, deudorEditando.id!, {
-          nombre: formData.nombre,
-          cedula: formData.cedula,
-          ubicacion: formData.ubicacion,
+          nombre: t(formData.nombre),
+          cedula: t(formData.cedula),
+          ubicacion: t(formData.ubicacion),
           correos: formData.correos ?? [],
           telefonos: formData.telefonos ?? [],
           tipificacion: formData.tipificacion as TipificacionDeuda,
@@ -1287,9 +1289,9 @@ export default function DeudoresTable() {
         toast.success("Deudor actualizado correctamente");
       } else {
         await crearDeudor(clienteId, {
-          nombre: formData.nombre ?? "",
-          cedula: formData.cedula,
-          ubicacion: formData.ubicacion,
+          nombre: t(formData.nombre),
+          cedula: t(formData.cedula),
+          ubicacion: t(formData.ubicacion),
           porcentajeHonorarios: porcentajeFinal,
           correos: formData.correos ?? [],
           telefonos: formData.telefonos ?? [],

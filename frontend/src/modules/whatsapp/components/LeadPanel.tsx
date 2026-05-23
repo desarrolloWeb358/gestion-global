@@ -148,13 +148,44 @@ function LinkedView({
           />
         )}
 
-        <DataCard
-          bg="bg-blue-50" border="border-blue-100" iconBg="" iconColor="text-blue-600"
-          icon={<DollarSign className="h-4 w-4" />}
-          label="Deuda último mes"
-          value={estadoMes ? money(estadoMes.deuda) : "Sin estados mensuales"}
-          sub={estadoMes?.mes ? `Mes: ${estadoMes.mes}` : undefined}
-        />
+        <div className="rounded-lg border border-blue-100 bg-blue-50 overflow-hidden">
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-blue-100">
+            <div className="p-1 rounded-md bg-white shadow-sm">
+              <DollarSign className="h-3.5 w-3.5 text-blue-600" />
+            </div>
+            <p className="text-[10px] font-semibold text-blue-700 uppercase tracking-wide">
+              Deuda
+            </p>
+            {estadoMes?.mes && (
+              <span className="ml-auto text-[10px] text-blue-400">Mes: {estadoMes.mes}</span>
+            )}
+          </div>
+
+          {estadoMes ? (
+            <div className="divide-y divide-blue-100">
+              <div className="flex items-center justify-between px-3 py-2">
+                <span className="text-xs text-gray-500">Deuda</span>
+                <span className="text-sm font-semibold text-gray-700">{money(estadoMes.deuda)}</span>
+              </div>
+              {(estadoMes.honorariosDeuda ?? 0) > 0 && (
+                <div className="flex items-center justify-between px-3 py-2">
+                  <span className="text-xs text-gray-500">
+                    Honorarios{estadoMes.porcentajeHonorarios ? ` (${estadoMes.porcentajeHonorarios}%)` : ""}
+                  </span>
+                  <span className="text-sm font-semibold text-amber-600">{money(estadoMes.honorariosDeuda!)}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between px-3 py-2.5 bg-blue-100/60">
+                <span className="text-xs font-semibold text-gray-600">Total</span>
+                <span className="text-sm font-bold text-blue-700">
+                  {money(estadoMes.deuda + (estadoMes.honorariosDeuda ?? 0))}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <p className="px-3 py-2.5 text-xs text-gray-400">Sin estados mensuales</p>
+          )}
+        </div>
 
         {acuerdoActivo !== null && (
           <div
