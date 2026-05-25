@@ -1,5 +1,5 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import { appendMessage, type MediaType } from "./conversationService";
 
@@ -123,7 +123,12 @@ export const sendWhatsAppMessage = onCall(
     if (!convSnap.exists)   throw new HttpsError("not-found", "Conversación no encontrada.");
 
     const { phoneNumberId, metaToken } = numberSnap.data() as { phoneNumberId: string; metaToken: string };
-    const { userAddress } = convSnap.data() as { userAddress: string };
+    const convData = convSnap.data() as {
+      userAddress: string;
+      clienteId?: string;
+      deudorId?: string;
+    };
+    const { userAddress, clienteId, deudorId } = convData;
 
     let wamid = "";
 
@@ -173,6 +178,24 @@ export const sendWhatsAppMessage = onCall(
       logger.info("Mensaje AGENT enviado por Meta", {
         numberId, conversationId, agentId: request.auth.uid, to: userAddress,
       });
+    }
+
+    // Actualizar fechaUltimoSeguimiento en el deudor si la conversación está vinculada
+    if (clienteId && deudorId) {
+      try {
+        const ahora = Timestamp.now();
+        const deudorRef = db.doc(`clientes/${clienteId}/deudores/${deudorId}`);
+        const deudorSnap = await deudorRef.get();
+        if (deudorSnap.exists) {
+          const fechaActual = deudorSnap.data()?.fechaUltimoSeguimiento as Timestamp | undefined;
+          if (!fechaActual || ahora.toMillis() > (fechaActual.toMillis?.() ?? 0)) {
+            await deudorRef.update({ fechaUltimoSeguimiento: ahora });
+          }
+        }
+      } catch (err) {
+        // No bloquear el envío si falla la actualización de fecha
+        logger.warn("No se pudo actualizar fechaUltimoSeguimiento", { clienteId, deudorId, err });
+      }
     }
 
     return { ok: true };

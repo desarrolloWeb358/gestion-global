@@ -66,13 +66,18 @@ function LinkedView({
   onNavigate: () => void;
 }) {
   const [deudor, setDeudor] = useState<Record<string, any> | null>(null);
+  const [loadingDeudor, setLoadingDeudor] = useState(true);
   const [clienteNombre, setClienteNombre] = useState("");
   const [estadoMes, setEstadoMes] = useState<EstadoMensual | null>(null);
   const [acuerdoActivo, setAcuerdoActivo] = useState<boolean | null>(null);
   const [unlinking, setUnlinking] = useState(false);
 
   useEffect(() => {
-    getDeudorDoc(clienteId, deudorId).then(setDeudor);
+    setLoadingDeudor(true);
+    setDeudor(null);
+    getDeudorDoc(clienteId, deudorId)
+      .then(setDeudor)
+      .finally(() => setLoadingDeudor(false));
     getClienteById(clienteId).then((c) => setClienteNombre(c?.nombre ?? ""));
 
     const unsub = escucharUltimoEstadoMensual(clienteId, deudorId, setEstadoMes);
@@ -84,7 +89,32 @@ function LinkedView({
     return unsub;
   }, [clienteId, deudorId]);
 
-  if (!deudor) return <p className="text-xs text-muted-foreground p-4">Cargando...</p>;
+  if (loadingDeudor) return <p className="text-xs text-muted-foreground p-4">Cargando...</p>;
+
+  // Referencia rota: el doc de la conversación apunta a un deudor que ya no existe
+  if (!deudor) return (
+    <div className="p-4 space-y-3">
+      <div className="flex items-center gap-2 text-amber-600 bg-amber-50 border border-amber-100 rounded-lg p-3">
+        <IconUnlink className="w-4 h-4 flex-shrink-0" />
+        <p className="text-xs font-medium">Deudor no encontrado.<br />La referencia está rota.</p>
+      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full gap-2 text-xs text-destructive border-destructive/30 hover:bg-destructive/5"
+        disabled={unlinking}
+        onClick={async () => {
+          if (!confirm("¿Limpiar la vinculación rota?")) return;
+          setUnlinking(true);
+          try { await unlinkDeudorFromConversation(numberId, convId, clienteId, deudorId, convId); }
+          finally { setUnlinking(false); }
+        }}
+      >
+        <IconUnlink className="w-3.5 h-3.5" />
+        {unlinking ? "Limpiando..." : "Limpiar vinculación"}
+      </Button>
+    </div>
+  );
 
   const correo = Array.isArray(deudor.correos) ? deudor.correos[0] : undefined;
   const documento = deudor.cedula;
@@ -393,6 +423,15 @@ export function LeadPanel({ numberId, convId }: Props) {
       <div className="h-full flex flex-col items-center justify-center p-4 text-muted-foreground">
         <IconUser className="w-8 h-8 opacity-20 mb-2" />
         <p className="text-xs text-center">Selecciona una conversación</p>
+      </div>
+    );
+  }
+
+  // undefined = snapshot aún no llegó; null = doc no existe en Firestore
+  if (conversation === undefined) {
+    return (
+      <div className="h-full flex items-center justify-center p-4">
+        <p className="text-xs text-muted-foreground">Cargando...</p>
       </div>
     );
   }

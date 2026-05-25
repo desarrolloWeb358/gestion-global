@@ -771,6 +771,7 @@ export default function DeudoresTable() {
   const { usuarioSistema } = useUsuarioActual();
   const esDeudor = roles.includes("deudor");
   const esEjecutivoAdmin = roles.includes("ejecutivoAdmin");
+  const esSupervisor = roles.includes("supervisor");
   const canView = esDeudor ? true : can(PERMS.Deudores_Read);
   const canEdit = !esDeudor && can(PERMS.Deudores_Edit);
   const readOnly = !canEdit && canView;
@@ -1404,7 +1405,7 @@ export default function DeudoresTable() {
               </div>
             </div>
 
-            {canEdit && esEjecutivoAdmin && (
+            {canEdit && (esEjecutivoAdmin || esSupervisor) && (
               <div className="flex flex-wrap gap-2">
                 <input
                   ref={crearInputRef}

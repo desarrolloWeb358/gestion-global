@@ -194,18 +194,27 @@ export const processBulkSendJob = onDocumentCreated(
 
             const esJuridico = TIPS_JURIDICO.has(item.tipificacion ?? "");
             const seguimientoCol = esJuridico ? "seguimientoJuridico" : "seguimiento";
+            const ahora = Timestamp.now();
             await db
               .collection(
                 `clientes/${job.clienteId}/deudores/${item.deudorId}/${seguimientoCol}`
               )
               .add({
-                fecha: Timestamp.now(),
-                fechaCreacion: Timestamp.now(),
+                fecha: ahora,
+                fechaCreacion: ahora,
                 clienteUID: job.clienteId,
                 ejecutivoUID: job.agentId,
                 tipoSeguimiento: "whatsapp",
                 descripcion: `Se envió mensaje masivo:\n${item.messageText}\n\nNúmero: ${item.phone}`,
               });
+
+            // Actualizar fechaUltimoSeguimiento en el deudor solo si la nueva fecha es mayor
+            const deudorRef = db.doc(`clientes/${job.clienteId}/deudores/${item.deudorId}`);
+            const deudorSnap = await deudorRef.get();
+            const fechaActual = deudorSnap.data()?.fechaUltimoSeguimiento as Timestamp | undefined;
+            if (!fechaActual || ahora.toMillis() > (fechaActual.toMillis?.() ?? 0)) {
+              await deudorRef.update({ fechaUltimoSeguimiento: ahora });
+            }
 
             allResults.push({ nombre: item.deudorNombre, phone: item.phone, status: "ok" });
           } catch (err) {
