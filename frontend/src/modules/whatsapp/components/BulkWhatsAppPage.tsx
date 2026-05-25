@@ -53,6 +53,7 @@ const DEUDOR_FIELD_OPTIONS = [
   { key: "ubicacion",   label: "Ubicación (Apto/Unidad)" },
   { key: "direccion",   label: "Dirección" },
   { key: "deuda",       label: "Deuda (último mes)" },
+  { key: "deudaTotal",  label: "Deuda total con honorarios" },
   { key: "asesor",      label: "Asesor" },
   { key: "copropiedad", label: "Copropiedad" },
 ];
@@ -67,12 +68,14 @@ function normalizePhone(raw: string): string {
 
 interface ExtraContext {
   deuda?: string;
+  deudaTotal?: string;
   asesor?: string;
   copropiedad?: string;
 }
 
 function getDeudorField(deudor: Deudor, field: string, extra?: ExtraContext): string {
   if (field === "deuda") return extra?.deuda ?? "";
+  if (field === "deudaTotal") return extra?.deudaTotal ?? "";
   if (field === "asesor") return extra?.asesor ?? "";
   if (field === "copropiedad") return extra?.copropiedad ?? "";
   const val = (deudor as Record<string, any>)[field];
@@ -148,6 +151,7 @@ export default function BulkWhatsAppPage() {
   const [copropiedad, setCopropiedad] = useState("");
   // Mapa deudorId → deuda del último mes (se carga al cambiar tipificación)
   const [deudaMap, setDeudaMap] = useState<Record<string, string>>({});
+  const [deudaTotalMap, setDeudaTotalMap] = useState<Record<string, string>>({});
 
   // ── Carga inicial ──────────────────────────────────────────────────────────
 
@@ -182,14 +186,25 @@ export default function BulkWhatsAppPage() {
     const deudoresFiltrados = allDeudores.filter(
       (d) => d.tipificacion && selectedTips.includes(d.tipificacion)
     );
-    if (deudoresFiltrados.length === 0) { setDeudaMap({}); return; }
+    if (deudoresFiltrados.length === 0) { setDeudaMap({}); setDeudaTotalMap({}); return; }
     Promise.all(
       deudoresFiltrados.map(async (d) => {
         const estados = await obtenerEstadosMensuales(clienteId, d.id!);
         const ultimo = estados[0];
-        return [d.id!, ultimo?.deuda != null ? String(ultimo.deuda) : ""] as [string, string];
+        const deuda = ultimo?.deuda ?? null;
+        const honorarios = ultimo?.honorariosDeuda ?? null;
+        const total = deuda != null ? deuda + (honorarios ?? 0) : null;
+        const fmt = (n: number) => `$${n.toLocaleString("es-CO")}`;
+        return {
+          id: d.id!,
+          deuda: deuda != null ? fmt(deuda) : "",
+          total: total != null ? fmt(total) : "",
+        };
       })
-    ).then((entries) => setDeudaMap(Object.fromEntries(entries)));
+    ).then((entries) => {
+      setDeudaMap(Object.fromEntries(entries.map((e) => [e.id, e.deuda])));
+      setDeudaTotalMap(Object.fromEntries(entries.map((e) => [e.id, e.total])));
+    });
   }, [clienteId, selectedTips, allDeudores]);
 
   useEffect(() => {
@@ -294,6 +309,7 @@ export default function BulkWhatsAppPage() {
           const phone = normalizePhone(raw);
           const extra: ExtraContext = {
             deuda: deudaMap[deudor.id!],
+            deudaTotal: deudaTotalMap[deudor.id!],
             asesor,
             copropiedad,
           };

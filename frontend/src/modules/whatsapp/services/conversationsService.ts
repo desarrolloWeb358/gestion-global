@@ -55,7 +55,7 @@ export function listenInbox(
   const q = query(
     collection(db, `numbers/${numberId}/conversations`),
     orderBy("lastMessageAt", "desc"),
-    limit(50)
+    limit(300)
   );
   return onSnapshot(q, (snap) => {
     callback(snap.docs.map((d) => mapConversation(d.id, d.data())));
