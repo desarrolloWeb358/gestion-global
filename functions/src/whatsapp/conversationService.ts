@@ -67,6 +67,8 @@ export async function getConversationById(
   return { id: snap.id, userAddress: data.userAddress };
 }
 
+export type MediaType = "image" | "video" | "document" | "audio";
+
 // ── appendMessage ──────────────────────────────────────────────────────
 export async function appendMessage(params: {
   numberId: string;
@@ -78,6 +80,9 @@ export async function appendMessage(params: {
     timestampMs: number;
     providerMessageId?: string;
     deliveryStatus?: "pending" | "sent" | "delivered" | "read" | "failed";
+    mediaUrl?: string;
+    mediaType?: MediaType;
+    mediaFilename?: string;
   };
 }): Promise<void> {
   const { numberId, conversationId, message } = params;
@@ -101,7 +106,10 @@ export async function appendMessage(params: {
       ts: Timestamp.fromMillis(message.timestampMs),
       source: message.source,
       ...(message.providerMessageId ? { providerMessageId: message.providerMessageId } : {}),
-      ...(message.deliveryStatus ? { deliveryStatus: message.deliveryStatus } : {}),
+      ...(message.deliveryStatus   ? { deliveryStatus: message.deliveryStatus }         : {}),
+      ...(message.mediaUrl         ? { mediaUrl: message.mediaUrl }                     : {}),
+      ...(message.mediaType        ? { mediaType: message.mediaType }                   : {}),
+      ...(message.mediaFilename    ? { mediaFilename: message.mediaFilename }           : {}),
     };
 
     const msgId = message.providerMessageId ?? ref.collection("messages").doc().id;

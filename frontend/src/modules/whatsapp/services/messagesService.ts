@@ -20,10 +20,13 @@ function mapMsg(d: QueryDocumentSnapshot): WaMessage {
   return {
     id: d.id,
     role: data.role,
-    text: data.text,
+    text: data.text ?? "",
     timestampMs: data.ts?.toMillis?.() ?? Date.now(),
     source: data.source,
     providerMessageId: data.providerMessageId,
+    ...(data.mediaUrl      ? { mediaUrl: data.mediaUrl }           : {}),
+    ...(data.mediaType     ? { mediaType: data.mediaType }         : {}),
+    ...(data.mediaFilename ? { mediaFilename: data.mediaFilename } : {}),
   };
 }
 

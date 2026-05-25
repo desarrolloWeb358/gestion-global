@@ -1,0 +1,24 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() { return request.auth != null; }
+
+    // Módulos del sistema bajo /clientes
+    match /clientes/{allPaths=**} {
+      allow read, write: if signedIn();
+    }
+
+    // Audios de notificaciones
+    match /audios/{fileName} {
+      allow read, write: if signedIn();
+    }
+
+    // Media enviada/recibida por WhatsApp (agentes y webhook backend)
+    // outgoing: subida por el asesor desde el panel
+    // incoming: subida por la Cloud Function al recibir media de un contacto
+    match /media/{allPaths=**} {
+      allow read: if true;           // Meta y VPS deben poder descargar sin auth
+      allow write: if signedIn();    // Solo usuarios autenticados pueden subir desde el frontend
+    }
+  }
+}
