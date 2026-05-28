@@ -7,6 +7,7 @@ import {
   Check,
   ChevronDown,
   Filter,
+  Loader2,
   Pencil,
   Search,
   X,
@@ -58,6 +59,7 @@ import {
   obtenerUsuarios,
   actualizarUsuario,
   eliminarUsuario,
+  toggleActivoUsuario,
 } from "../services/usuarioService";
 
 import { cambiarCorreoUsuarioDesdeAdmin } from "../services/actualizarEmailUsuarioService";
@@ -110,6 +112,7 @@ export default function UsuariosCrud() {
   const [mostrarDialogoCorreo, setMostrarDialogoCorreo] = useState(false);
   const [correoNuevo, setCorreoNuevo] = useState("");
   const [saving, setSaving] = useState(false);
+  const [togglingUid, setTogglingUid] = useState<string | null>(null);
 
   const [password, setPassword] = useState("");
   const [fecha, setFecha] = useState<Date | undefined>();
@@ -651,43 +654,60 @@ export default function UsuariosCrud() {
 
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Switch
-                            checked={!!usuario.activo}
-                            onCheckedChange={async (checked) => {
-                              try {
-                                const token = await getAuth().currentUser?.getIdToken();
-                                const res = await fetch(
-                                  "https://us-central1-gestionglobal-9eac8.cloudfunctions.net/crearUsuarioDesdeAdmin",
-                                  {
-                                    method: "POST",
-                                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                                    body: JSON.stringify({ action: "toggleActivo", uid: usuario.uid, activo: checked }),
+                          {togglingUid === usuario.uid ? (
+                            <Loader2 className="h-4 w-4 animate-spin text-brand-primary" />
+                          ) : (
+                            <Switch
+                              checked={!!usuario.activo}
+                              disabled={togglingUid !== null}
+                              onCheckedChange={async (checked) => {
+                                setTogglingUid(usuario.uid);
+                                try {
+                                  const token = await getAuth().currentUser?.getIdToken();
+                                  const res = await fetch(
+                                    "https://us-central1-gestionglobal-9eac8.cloudfunctions.net/crearUsuarioDesdeAdmin",
+                                    {
+                                      method: "POST",
+                                      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                                      body: JSON.stringify({ action: "toggleActivo", uid: usuario.uid, activo: checked }),
+                                    }
+                                  );
+                                  if (!res.ok) {
+                                    const d = await res.json();
+                                    throw new Error(d.error ?? `Error ${res.status}`);
                                   }
-                                );
-                                if (!res.ok) {
-                                  const d = await res.json();
-                                  throw new Error(d.error ?? `Error ${res.status}`);
+                                  await toggleActivoUsuario(
+                                    usuario.uid,
+                                    (usuario.roles ?? []) as string[],
+                                    checked
+                                  );
+                                  setUsuarios((prev) =>
+                                    prev.map((u) =>
+                                      u.uid === usuario.uid ? { ...u, activo: checked } : u
+                                    )
+                                  );
+                                  toast.success(checked ? "✓ Usuario activado" : "✗ Usuario desactivado");
+                                } catch (e: any) {
+                                  console.error(e);
+                                  toast.error(e?.message ?? "No se pudo actualizar el estado");
+                                } finally {
+                                  setTogglingUid(null);
                                 }
-                                setUsuarios((prev) =>
-                                  prev.map((u) =>
-                                    u.uid === usuario.uid ? { ...u, activo: checked } : u
-                                  )
-                                );
-                                toast.success(checked ? "✓ Usuario activado" : "✗ Usuario desactivado");
-                              } catch (e: any) {
-                                console.error(e);
-                                toast.error(e?.message ?? "No se pudo actualizar el estado");
-                              }
-                            }}
-                            className="data-[state=checked]:bg-brand-primary hover:data-[state=checked]:bg-brand-primary/90 data-[state=unchecked]:bg-gray-300 focus-visible:ring-2 focus-visible:ring-brand-primary/30"
-                          />
+                              }}
+                              className="data-[state=checked]:bg-brand-primary hover:data-[state=checked]:bg-brand-primary/90 data-[state=unchecked]:bg-gray-300 focus-visible:ring-2 focus-visible:ring-brand-primary/30"
+                            />
+                          )}
                           <span
                             className={cn(
                               "text-xs font-medium",
-                              usuario.activo ? "text-green-600" : "text-gray-400"
+                              togglingUid === usuario.uid
+                                ? "text-muted-foreground"
+                                : usuario.activo ? "text-green-600" : "text-gray-400"
                             )}
                           >
-                            {usuario.activo ? "Activo" : "Inactivo"}
+                            {togglingUid === usuario.uid
+                              ? "Actualizando..."
+                              : usuario.activo ? "Activo" : "Inactivo"}
                           </span>
                         </div>
                       </TableCell>

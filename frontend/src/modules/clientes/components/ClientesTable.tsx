@@ -1,13 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Eye, Pencil, User, Users, Search, X, Building2 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/shared/ui/dialog";
+import { Eye, Pencil, User, Users, Search, X } from "lucide-react";
 import {
   Table,
   TableHeader,
@@ -20,41 +13,21 @@ import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
 import { Button } from "@/shared/ui/button";
 import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/shared/ui/select";
-import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/shared/ui/tooltip";
-import { Switch } from "@/shared/ui/switch";
 
 import { Cliente } from "@/modules/clientes/models/cliente.model";
-import {
-  actualizarCliente,
-  obtenerClientesPorUsuario, // ✅ usamos este
-} from "@/modules/clientes/services/clienteService";
-
-import { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
-import {
-  obtenerEjecutivos,
-  obtenerAbogados,
-  obtenerDependientes,
-} from "@/modules/usuarios/services/usuarioService";
+import { obtenerClientesPorUsuario } from "@/modules/clientes/services/clienteService";
+import { ClienteEditDialog } from "./ClienteEditDialog";
 
 import { Typography } from "@/shared/design-system/components/Typography";
-import { BackButton } from "@/shared/design-system/components/BackButton";
 import { cn } from "@/shared/lib/cn";
-import { toast } from "sonner";
 import { useUsuarioActual } from "@/modules/auth/hooks/useUsuarioActual";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { PERMS } from "@/shared/constants/acl";
-import { Textarea } from "@/shared/ui/textarea";
 
 const SESSION_KEY = "clientesTable_q";
 
@@ -63,23 +36,10 @@ export default function ClientesCrud() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [ejecutivos, setEjecutivos] = useState<UsuarioSistema[]>([]);
-  const [abogados, setAbogados] = useState<UsuarioSistema[]>([]);
-  const [dependientes, setDependientes] = useState<UsuarioSistema[]>([]);
-
   const [clienteEditando, setClienteEditando] = useState<Cliente | null>(null);
   const [mostrarDialogo, setMostrarDialogo] = useState(false);
-
- 
-  const [ejecutivoPreSel, setEjecutivoPreSel] = useState<string>("");
-  const [ejecutivoJurSel, setEjecutivoJurSel] = useState<string>("");
-  const [activoSel, setActivoSel] = useState<boolean>(true);
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const [q, setQ] = useState(() => sessionStorage.getItem(SESSION_KEY) ?? "");
-
-  const [dependienteSel, setDependienteSel] = useState<string>("");
-  const [abogadoSel, setAbogadoSel] = useState<string>("");
-  const [dependienteAbogadoSel, setDependienteAbogadoSel] = useState<string>("");
 
   // Auth / Roles / ACL
   const { usuario, roles, loading: userLoading } = useUsuarioActual();
@@ -94,26 +54,7 @@ export default function ClientesCrud() {
   const canEdit = can(PERMS.Clientes_Edit);
 
   // ----------------------------
-  // 1) Catálogos (ejecutivos / abogados)
-  // ----------------------------
-  const fetchUsuarios = async () => {
-    const [execs, lawyers, deps] = await Promise.all([
-      obtenerEjecutivos(),
-      obtenerAbogados(),
-      obtenerDependientes(),
-    ]);
-    setEjecutivos(execs);
-    setAbogados(lawyers);
-    setDependientes(deps);
-  };
-
-  useEffect(() => {
-    // ✅ esto sí puede ir con []
-    fetchUsuarios();
-  }, []);
-
-  // ----------------------------
-  // 2) Clientes filtrados por usuario/roles (SERVER SIDE)
+  // Clientes filtrados por usuario/roles (SERVER SIDE)
   // ----------------------------
   const fetchClientes = async () => {
     // Asegura que haya contexto
@@ -176,13 +117,7 @@ export default function ClientesCrud() {
   // Edit dialog helpers
   // ----------------------------
   const abrirEditar = (cliente: Cliente) => {
-    setClienteEditando(cliente);    
-    setEjecutivoPreSel(cliente.ejecutivoPrejuridicoId ?? "");
-    setEjecutivoJurSel(cliente.ejecutivoJuridicoId ?? "");
-    setDependienteSel(cliente.ejecutivoDependienteId ?? "");
-    setAbogadoSel(cliente.abogadoId ?? "");
-    setDependienteAbogadoSel(cliente.dependienteAbogadoId ?? "");
-    setActivoSel(cliente.activo ?? true);
+    setClienteEditando(cliente);
     setMostrarDialogo(true);
   };
 
@@ -418,235 +353,12 @@ export default function ClientesCrud() {
           </div>
         )}
 
-        <Dialog open={mostrarDialogo} onOpenChange={setMostrarDialogo}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="text-brand-primary text-xl font-bold flex items-center gap-2">
-                <Building2 className="h-5 w-5" />
-                Editar Cliente
-              </DialogTitle>
-            </DialogHeader>
-
-            <form
-              className="space-y-6 py-4"
-              onSubmit={async (e) => {
-                e.preventDefault();
-                if (!clienteEditando?.id) {
-                  cerrarDialogo();
-                  return;
-                }
-
-                const form = e.currentTarget as HTMLFormElement;
-                const formData = new FormData(form);
-
-                const direccion = (formData.get("direccion") as string)?.trim();
-                const formaPago = (formData.get("formaPago") as string)?.trim();
-                
-                const administrador = (formData.get("administrador") as string)?.trim();
-                
-                const ejecutivoPrejuridicoId = ejecutivoPreSel || null;
-                const ejecutivoJuridicoId = ejecutivoJurSel || null;
-                const ejecutivoDependienteId = dependienteSel || null;
-                const abogadoId = abogadoSel || null;
-                const dependienteAbogadoId = dependienteAbogadoSel || null;
-                const activo = activoSel;
-
-                const payload: Partial<Cliente> = {
-                  direccion: direccion || "",
-                  administrador: administrador || "",
-                  formaPago: formaPago || "",
-                  ejecutivoPrejuridicoId,
-                  ejecutivoJuridicoId,
-                  ejecutivoDependienteId,
-                  abogadoId,
-                  dependienteAbogadoId,
-                  activo,
-                };
-
-                await actualizarCliente(clienteEditando.id, payload);
-                toast.success("✓ Cliente actualizado correctamente");
-                cerrarDialogo();
-                fetchClientes(); // ✅ recarga con filtro
-              }}
-            >
-              <div className="space-y-4">
-                <div className="p-4 rounded-lg bg-brand-primary/5 border border-brand-primary/20">
-                  <Label className="text-brand-secondary font-medium">
-                    Nombre del Cliente
-                  </Label>
-                  <Input
-                    value={clienteEditando?.nombre ?? ""}
-                    readOnly
-                    className="mt-1.5 bg-white/50 border-brand-secondary/30"
-                  />
-                  <p className="text-xs mt-1.5">
-                    Para editar el nombre, hazlo en el módulo{" "}
-                    <strong>Usuarios</strong>.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-brand-secondary font-medium">
-                      Ejecutivo Prejurídico
-                    </Label>
-                    <Select value={ejecutivoPreSel} onValueChange={setEjecutivoPreSel}>
-                      <SelectTrigger className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20">
-                        <SelectValue placeholder="Selecciona un ejecutivo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ejecutivos.map((e) => (
-                          <SelectItem key={e.uid} value={e.uid}>
-                            {e.nombre ?? (e as any).displayName ?? e.email}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label className="text-brand-secondary font-medium">
-                      Ejecutivo Jurídico
-                    </Label>
-                    <Select value={ejecutivoJurSel} onValueChange={setEjecutivoJurSel}>
-                      <SelectTrigger className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20">
-                        <SelectValue placeholder="Selecciona un ejecutivo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ejecutivos.map((e) => (
-                          <SelectItem key={e.uid} value={e.uid}>
-                            {e.nombre ?? (e as any).displayName ?? e.email}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label className="text-brand-secondary font-medium">
-                      Dependiente
-                    </Label>
-                    <Select value={dependienteSel} onValueChange={setDependienteSel}>
-                      <SelectTrigger className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20">
-                        <SelectValue placeholder="Selecciona un dependiente" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {dependientes.map((u) => (
-                          <SelectItem key={u.uid} value={u.uid}>
-                            {u.nombre ?? (u as any).displayName ?? u.email}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label className="text-brand-secondary font-medium">
-                      Abogado
-                    </Label>
-                    <Select value={abogadoSel} onValueChange={setAbogadoSel}>
-                      <SelectTrigger className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20">
-                        <SelectValue placeholder="Selecciona un abogado" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {abogados.map((u) => (
-                          <SelectItem key={u.uid} value={u.uid}>
-                            {u.nombre ?? (u as any).displayName ?? u.email}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label className="text-brand-secondary font-medium">
-                      Dependiente Abogado
-                    </Label>
-                    <Select value={dependienteAbogadoSel} onValueChange={setDependienteAbogadoSel}>
-                      <SelectTrigger className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20">
-                        <SelectValue placeholder="Selecciona un dependiente" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {dependientes.map((u) => (
-                          <SelectItem key={u.uid} value={u.uid}>
-                            {u.nombre ?? (u as any).displayName ?? u.email}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label className="text-brand-secondary font-medium">Administrador</Label>
-                    <Input
-                      name="administrador"
-                      defaultValue={clienteEditando?.administrador}
-                      className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
-                      placeholder="Ej: Juan Pérez"
-                    />
-                  </div>
-
-                  <div>
-                    <Label className="text-brand-secondary font-medium">
-                      Dirección
-                    </Label>
-                    <Input
-                      name="direccion"
-                      defaultValue={clienteEditando?.direccion}
-                      className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
-                      placeholder="Calle 123 #45-67"
-                    />
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <Label className="text-brand-secondary font-medium">Forma de pago</Label>
-                    <Textarea
-                      name="formaPago"
-                      defaultValue={clienteEditando?.formaPago}
-                      rows={2}
-                      className="mt-1.5 resize-none border-brand-secondary/30 bg-white focus:border-brand-primary focus:ring-brand-primary/20"
-                      placeholder="Ej: Consignar en la cuenta bancaria: ..."
-                    />
-                  </div>
-
-
-
-
-                </div>
-
-                <div className="flex items-center gap-3 p-3 rounded-lg border border-brand-secondary/20 bg-brand-primary/5">
-                  <Switch
-                    checked={activoSel}
-                    onCheckedChange={setActivoSel}
-                    className="data-[state=checked]:bg-brand-primary data-[state=unchecked]:bg-gray-300 focus-visible:ring-2 focus-visible:ring-brand-primary/30"
-                  />
-                  <div>
-                    <Label className="text-brand-secondary font-medium cursor-pointer">
-                      Cliente activo
-                    </Label>
-                    <p className="text-xs  mt-0.5">
-                      Los clientes inactivos no aparecerán en las búsquedas principales
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <DialogFooter className="gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={cerrarDialogo}
-                  className="border-brand-secondary/30"
-                >
-                  Cancelar
-                </Button>
-                <Button type="submit" variant="brand">
-                  Guardar cambios
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <ClienteEditDialog
+          cliente={clienteEditando}
+          open={mostrarDialogo}
+          onClose={cerrarDialogo}
+          onSaved={fetchClientes}
+        />
       </div>
     </div>
   );

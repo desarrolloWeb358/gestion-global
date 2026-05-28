@@ -12,10 +12,12 @@ import {
     MessageSquare,
     MessageCircle,
     ScrollText,
+    Pencil,
 } from "lucide-react";
 
 import { Cliente } from "@/modules/clientes/models/cliente.model";
 import { ClienteInfoCard } from "./ClienteInfoCard";
+import { ClienteEditDialog } from "./ClienteEditDialog";
 import { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 import { obtenerUsuarios } from "@/modules/usuarios/services/usuarioService";
 import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
@@ -37,8 +39,8 @@ export default function ClientePage() {
 
     const { can, loading: aclLoading } = useAcl();
 
-    // Permiso específico para ver el botón de "Recaudos y Deudas"
     const canViewRecaudos = can(PERMS.Recaudos_Read);
+    const canEdit = can(PERMS.Clientes_Edit);
 
     const [cliente, setCliente] = useState<Cliente | null>(null);
     const [deudores, setDeudores] = useState<Deudor[]>([]);
@@ -46,6 +48,7 @@ export default function ClientePage() {
     const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([]);
     const [loading, setLoading] = useState(true);
     const [ultimoContrato, setUltimoContrato] = useState<Contrato | null>(null);
+    const [editOpen, setEditOpen] = useState(false);
     const { roles, loading: userLoading } = useUsuarioActual();
     const isCliente = roles?.includes("cliente");
     const canViewWhatsappMasivo = can(PERMS.Whatsapp_Write);
@@ -74,6 +77,13 @@ export default function ClientePage() {
         });
     }, [deudores]);
 
+    const recargarCliente = async () => {
+        if (!clienteId) return;
+        const ref = doc(db, "clientes", clienteId);
+        const snap = await getDoc(ref);
+        if (snap.exists()) setCliente({ id: snap.id, ...snap.data() } as Cliente);
+    };
+
     useEffect(() => {
         const cargarDatos = async () => {
             if (!clienteId) return;
@@ -86,11 +96,9 @@ export default function ClientePage() {
                     setCliente({ id: snap.id, ...snap.data() } as Cliente);
                 }
 
-                // Cargar deudores
                 const deudoresData = await obtenerDeudorPorCliente(clienteId);
                 setDeudores(deudoresData);
 
-                // Cargar último contrato
                 obtenerUltimoContrato(clienteId).then(setUltimoContrato).catch(() => {});
 
                 const todosUsuarios = await obtenerUsuarios();
@@ -186,15 +194,28 @@ export default function ClientePage() {
                         />)}
                     </div>
 
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-brand-primary/10">
-                            <Building2 className="h-6 w-6 text-brand-primary" />
+                    <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-brand-primary/10">
+                                <Building2 className="h-6 w-6 text-brand-primary" />
+                            </div>
+                            <div>
+                                <Typography variant="h2" className="!text-brand-primary font-bold">
+                                    {nombreCliente}
+                                </Typography>
+                            </div>
                         </div>
-                        <div>
-                            <Typography variant="h2" className="!text-brand-primary font-bold">
-                                {nombreCliente}
-                            </Typography>
-                        </div>
+                        {canEdit && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setEditOpen(true)}
+                                className="flex items-center gap-2 border-brand-secondary/30 text-brand-secondary hover:text-brand-primary hover:border-brand-primary"
+                            >
+                                <Pencil className="h-4 w-4" />
+                                Editar
+                            </Button>
+                        )}
                     </div>
                 </header>
 
@@ -375,6 +396,13 @@ export default function ClientePage() {
                 </section>
 
             </div>
+
+            <ClienteEditDialog
+                cliente={cliente}
+                open={editOpen}
+                onClose={() => setEditOpen(false)}
+                onSaved={recargarCliente}
+            />
         </div>
     );
 }

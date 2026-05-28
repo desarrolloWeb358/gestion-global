@@ -116,6 +116,7 @@ interface EjecutivoStat {
 interface DependienteStat {
   dependienteId: string;
   dependienteNombre: string;
+  totalConjuntos: number;
   totalDeudoresEnDemanda: number;
   sinGestion: number;
 }
@@ -253,7 +254,8 @@ export default function AdminDashboardPage() {
   );
   const [resumen, setResumen] = useState<ResumenMesSeleccionado | null>(null);
   const [usuariosMap, setUsuariosMap] = useState<Map<string, string>>(new Map());
-  const [excludedEjecutivoIds, setExcludedEjecutivoIds] = useState<Set<string>>(new Set());
+  const [excludedEjecutivoIds] = useState<Set<string>>(new Set());
+  const [dependientesUsers, setDependientesUsers] = useState<Map<string, string>>(new Map());
   const [acuerdosEnFirmeMap, setAcuerdosEnFirmeMap] = useState<Map<string, number>>(
     new Map()
   );
@@ -341,34 +343,26 @@ export default function AdminDashboardPage() {
           getDocs(collection(db, "usuarios")),
         ]);
 
-        // 1. Resolver ejecutivos excluidos (usuarios de prueba)
-        const excluded = new Set<string>();
+        // 1. Resolver usuarios
         if (usuariosResult.status === "fulfilled") {
-          const TEST_EMAILS = new Set(["juanpabloduque@gmail.com"]);
           const usersMap = new Map<string, string>();
+          const depUsersMap = new Map<string, string>();
           usuariosResult.value.docs.forEach((doc) => {
             const data = doc.data();
-            if (TEST_EMAILS.has(data.email as string)) excluded.add(doc.id);
-            usersMap.set(
-              doc.id,
-              (data.nombre as string) ?? (data.email as string) ?? doc.id
-            );
+            const nombre = (data.nombre as string) ?? (data.email as string) ?? doc.id;
+            usersMap.set(doc.id, nombre);
+            const roles = Array.isArray(data.roles) ? (data.roles as string[]) : [];
+            if (roles.includes("dependiente") && data.activo !== false) {
+              depUsersMap.set(doc.id, nombre);
+            }
           });
           setUsuariosMap(usersMap);
-          setExcludedEjecutivoIds(excluded);
+          setDependientesUsers(depUsersMap);
         }
 
-        // 2. Resolver clientes excluyendo los que pertenecen a ejecutivos de prueba
+        // 2. Resolver clientes activos
         if (clientesResult.status === "fulfilled") {
-          const excludedClienteIds = new Set<string>();
-          clientesResult.value.docs.forEach((doc) => {
-            const ejId = doc.data().ejecutivoPrejuridicoId as string | undefined;
-            if (ejId && excluded.has(ejId)) excludedClienteIds.add(doc.id);
-          });
-
-          const filteredDocs = clientesResult.value.docs.filter(
-            (doc) => !excludedClienteIds.has(doc.id)
-          );
+          const filteredDocs = clientesResult.value.docs;
           setClientesActivos(filteredDocs.length);
           setClientesList(
             filteredDocs.map((doc) => ({
@@ -566,10 +560,22 @@ export default function AdminDashboardPage() {
 
   // ── Dependientes: agrupa conjuntos y deudores en demanda por ejecutivoDependienteId
   const dependienteStats = useMemo<DependienteStat[]>(() => {
+    // Pre-seed con TODOS los usuarios activos con rol "dependiente"
     const map = new Map<string, DependienteStat>();
+    for (const [id, nombre] of dependientesUsers) {
+      map.set(id, {
+        dependienteId: id,
+        dependienteNombre: nombre,
+        totalConjuntos: 0,
+        totalDeudoresEnDemanda: 0,
+        sinGestion: 0,
+      });
+    }
+
     const sinDependiente: DependienteStat = {
       dependienteId: "__sin_dependiente__",
       dependienteNombre: "— Sin dependiente asignado —",
+      totalConjuntos: 0,
       totalDeudoresEnDemanda: 0,
       sinGestion: 0,
     };
@@ -579,22 +585,16 @@ export default function AdminDashboardPage() {
       const deudoresDemanda = demandaCountMap.get(cliente.id) ?? 0;
       const sinGest = sinGestionDemandaMap.get(cliente.id) ?? 0;
 
-      if (!depId || excludedEjecutivoIds.has(depId)) {
+      if (!depId || !map.has(depId)) {
+        // Sin depId o depId no corresponde a un dependiente activo → sin asignar
+        sinDependiente.totalConjuntos++;
         sinDependiente.totalDeudoresEnDemanda += deudoresDemanda;
         sinDependiente.sinGestion += sinGest;
         continue;
       }
 
-      if (!map.has(depId)) {
-        map.set(depId, {
-          dependienteId: depId,
-          dependienteNombre: usuariosMap.get(depId) ?? "Sin nombre",
-          totalDeudoresEnDemanda: 0,
-          sinGestion: 0,
-        });
-      }
-
       const dep = map.get(depId)!;
+      dep.totalConjuntos++;
       dep.totalDeudoresEnDemanda += deudoresDemanda;
       dep.sinGestion += sinGest;
     }
@@ -603,12 +603,12 @@ export default function AdminDashboardPage() {
       (a, b) => b.totalDeudoresEnDemanda - a.totalDeudoresEnDemanda
     );
 
-    if (sinDependiente.totalDeudoresEnDemanda > 0) {
+    if (sinDependiente.totalConjuntos > 0) {
       resultado.push(sinDependiente);
     }
 
     return resultado;
-  }, [clientesList, usuariosMap, demandaCountMap, sinGestionDemandaMap, excludedEjecutivoIds]);
+  }, [clientesList, usuariosMap, demandaCountMap, sinGestionDemandaMap, dependientesUsers]);
 
   const mesLabel = MONTH_LABELS.find((mm) => mm.v === month)?.l ?? month;
 
@@ -957,6 +957,9 @@ export default function AdminDashboardPage() {
                           Dependiente
                         </th>
                         <th className="py-3 px-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">
+                          Conjuntos
+                        </th>
+                        <th className="py-3 px-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">
                           Deudores en demanda
                         </th>
                         <th className="py-3 px-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">
@@ -971,20 +974,14 @@ export default function AdminDashboardPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {dependienteStats.filter((dep) => dep.totalDeudoresEnDemanda > 0).map((dep) => {
+                      {dependienteStats.map((dep) => {
                         const esSinDep = dep.dependienteId === "__sin_dependiente__";
                         return (
                           <tr
                             key={dep.dependienteId}
-                            onClick={
-                              !esSinDep
-                                ? () => navigate(`/dashboard/dependiente?uid=${dep.dependienteId}`)
-                                : undefined
-                            }
-                            className={`border-t transition-colors ${
-                              esSinDep
-                                ? "bg-slate-50/50"
-                                : "hover:bg-slate-50/70 cursor-pointer"
+                            onClick={() => navigate(`/dashboard/dependiente?uid=${dep.dependienteId}`)}
+                            className={`border-t transition-colors hover:bg-slate-50/70 cursor-pointer ${
+                              esSinDep ? "bg-slate-50/50" : ""
                             }`}
                           >
                             <td
@@ -995,6 +992,9 @@ export default function AdminDashboardPage() {
                               }`}
                             >
                               {dep.dependienteNombre}
+                            </td>
+                            <td className="py-3 px-4 text-right tabular-nums text-muted-foreground">
+                              {dep.totalConjuntos}
                             </td>
                             <td className="py-3 px-4 text-right tabular-nums font-medium">
                               {dep.totalDeudoresEnDemanda}
@@ -1016,6 +1016,9 @@ export default function AdminDashboardPage() {
                       <tr className="font-semibold">
                         <td className="py-3 px-4 text-sm">
                           Totales ({dependienteStats.filter((d) => d.dependienteId !== "__sin_dependiente__").length} dependientes)
+                        </td>
+                        <td className="py-3 px-4 text-right tabular-nums">
+                          {dependienteStats.reduce((s, d) => s + d.totalConjuntos, 0)}
                         </td>
                         <td className="py-3 px-4 text-right tabular-nums">
                           {dependienteStats.reduce((s, d) => s + d.totalDeudoresEnDemanda, 0)}
