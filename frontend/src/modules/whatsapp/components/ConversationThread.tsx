@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import {
+  IconArrowLeft,
   IconChevronUp,
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
@@ -20,6 +22,7 @@ interface Props {
   showDetails: boolean;
   onToggleInbox: () => void;
   onToggleDetails: () => void;
+  isMobile?: boolean;
 }
 
 export function ConversationThread({
@@ -29,7 +32,9 @@ export function ConversationThread({
   showDetails,
   onToggleInbox,
   onToggleDetails,
+  isMobile = false,
 }: Props) {
+  const navigate = useNavigate();
   const { messages, hasMore, loadingMore, loadMore } = useConversationMessages(
     numberId,
     convId
@@ -59,6 +64,30 @@ export function ConversationThread({
 
       {/* Header */}
       <div className="flex-shrink-0 px-3 py-2 border-b border-border flex items-center gap-2">
+        {/* Botón izquierdo: volver (mobile) o toggle bandeja (desktop) */}
+        {isMobile ? (
+          <button
+            onClick={() => navigate(`/whatsapp/${numberId}`)}
+            className="p-1.5 rounded-md hover:bg-muted/60 transition-colors text-muted-foreground flex-shrink-0"
+            title="Volver al inbox"
+          >
+            <IconArrowLeft className="w-5 h-5" />
+          </button>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onToggleInbox}
+            className="gap-1.5 text-xs h-8 flex-shrink-0"
+            title={showInbox ? "Ocultar bandeja" : "Mostrar bandeja"}
+          >
+            {showInbox
+              ? <IconLayoutSidebarLeftCollapse className="w-4 h-4" />
+              : <IconLayoutSidebarLeftExpand className="w-4 h-4" />}
+            Bandeja
+          </Button>
+        )}
+
         {/* Info contacto */}
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-foreground truncate">
@@ -69,36 +98,19 @@ export function ConversationThread({
           )}
         </div>
 
-        {/* Botones acción */}
-        <div className="flex items-center gap-1 flex-shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onToggleInbox}
-            className="gap-1.5 text-xs h-8"
-            title={showInbox ? "Ocultar bandeja" : "Mostrar bandeja"}
-          >
-            {showInbox
-              ? <IconLayoutSidebarLeftCollapse className="w-4 h-4" />
-              : <IconLayoutSidebarLeftExpand className="w-4 h-4" />}
-            Bandeja
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onToggleDetails}
-            className="gap-1.5 text-xs h-8 hidden lg:flex"
-            title={showDetails ? "Ocultar detalles" : "Mostrar detalles"}
-          >
-            {showDetails
-              ? <IconLayoutSidebarRightCollapse className="w-4 h-4" />
-              : <IconLayoutSidebarRightExpand className="w-4 h-4" />}
-            Detalles
-          </Button>
-
-          
-        </div>
+        {/* Botón detalles: siempre visible en mobile, solo lg en desktop */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onToggleDetails}
+          className={`gap-1.5 text-xs h-8 flex-shrink-0 ${isMobile ? "flex" : "hidden lg:flex"}`}
+          title={isMobile ? "Ver detalles" : (showDetails ? "Ocultar detalles" : "Mostrar detalles")}
+        >
+          {!isMobile && showDetails
+            ? <IconLayoutSidebarRightCollapse className="w-4 h-4" />
+            : <IconLayoutSidebarRightExpand className="w-4 h-4" />}
+          Detalles
+        </Button>
       </div>
 
       {/* Mensajes */}

@@ -4,15 +4,49 @@ import { IconMessage } from "@tabler/icons-react";
 import { InboxPanel } from "./InboxPanel";
 import { ConversationThread } from "./ConversationThread";
 import { LeadPanel } from "./LeadPanel";
+import { useIsMobile } from "@/shared/hooks/use-mobile";
+import { Drawer, DrawerContent } from "@/shared/ui/drawer";
 
 export default function WhatsAppLayout() {
   const { numberId, convId } = useParams<{ numberId: string; convId?: string }>();
+  const isMobile = useIsMobile();
 
   const [showInbox, setShowInbox] = useState(true);
   const [showDetails, setShowDetails] = useState(true);
+  const [detailsDrawerOpen, setDetailsDrawerOpen] = useState(false);
 
   if (!numberId) return null;
 
+  // MOBILE: una sola vista a la vez
+  if (isMobile) {
+    return (
+      <div className="-m-4 flex flex-col h-[calc(100vh-74px)] overflow-hidden border-t border-border bg-background">
+        {!convId ? (
+          <InboxPanel numberId={numberId} activeConvId={convId} />
+        ) : (
+          <ConversationThread
+            numberId={numberId}
+            convId={convId}
+            showInbox={false}
+            showDetails={false}
+            onToggleInbox={() => {}}
+            onToggleDetails={() => setDetailsDrawerOpen(true)}
+            isMobile
+          />
+        )}
+
+        <Drawer direction="bottom" open={detailsDrawerOpen} onOpenChange={setDetailsDrawerOpen}>
+          <DrawerContent>
+            <div className="flex flex-col h-[70vh]">
+              <LeadPanel numberId={numberId} convId={convId} />
+            </div>
+          </DrawerContent>
+        </Drawer>
+      </div>
+    );
+  }
+
+  // DESKTOP: layout de 3 paneles (sin cambios)
   return (
     <div className="-m-4 md:-m-6 flex h-[calc(100vh-74px)] overflow-hidden border-t border-border">
 
