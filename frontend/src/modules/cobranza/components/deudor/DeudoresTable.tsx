@@ -45,6 +45,7 @@ import { PERMS } from "@/shared/constants/acl";
 
 // ✅ Historial tipificaciones
 import type { HistorialTipificacion } from "../../models/historialTipificacion.model";
+import { crearEstadoMensual } from "../../services/estadoMensualService";
 
 import { Timestamp } from "firebase/firestore";
 
@@ -542,8 +543,14 @@ interface ImportPreview {
   hasCedula: boolean;
   hasContacto: boolean;
   hasCorreo: boolean;
+  hasDeuda: boolean;
   canImport: boolean;
   mode: "actualizar" | "crear";
+}
+
+interface ImportOpts {
+  modo: "crear_y_actualizar" | "solo_actualizar";
+  mesDeuda?: string;
 }
 
 const STATUS_LABEL: Record<ImportRow["status"], string> = {
@@ -595,18 +602,24 @@ function ImportPreviewDialog({
   preview: ImportPreview;
   open: boolean;
   onCancel: () => void;
-  onImport: () => void;
+  onImport: (opts: ImportOpts) => void;
   importing: boolean;
 }) {
   const esCrear = preview.mode === "crear";
 
-  const missingRequired = esCrear
+  const [modo, setModo] = React.useState<"crear_y_actualizar" | "solo_actualizar">("crear_y_actualizar");
+  const [mesDeuda, setMesDeuda] = React.useState<string>(() => new Date().toISOString().slice(0, 7));
+
+  const missingRequired = esCrear && modo === "crear_y_actualizar"
     ? [!preview.hasInmueble && "INMUEBLE", !preview.hasNombre && "NOMBRE"].filter(Boolean) as string[]
-    : [];
+    : (!preview.hasInmueble ? ["INMUEBLE"] : []);
+
+  const canImport = preview.hasInmueble && (modo === "solo_actualizar" || preview.hasNombre);
+  const mostrarMes = esCrear && preview.hasDeuda && modo === "crear_y_actualizar";
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v && !importing) onCancel(); }}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-brand-primary text-xl font-bold">
             Vista previa del archivo
@@ -614,19 +627,69 @@ function ImportPreviewDialog({
         </DialogHeader>
 
         <div className="space-y-3">
+          {/* Selector de modo — solo en flujo "crear" */}
+          {esCrear && (
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-2">
+              <p className="text-sm font-medium text-gray-700">¿Qué hacer con los registros del archivo?</p>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="modoImport"
+                  value="crear_y_actualizar"
+                  checked={modo === "crear_y_actualizar"}
+                  onChange={() => setModo("crear_y_actualizar")}
+                  className="accent-brand-primary"
+                />
+                <span className="text-sm text-gray-700">
+                  <strong>Crear y actualizar</strong> — crea los nuevos y actualiza los existentes
+                </span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="modoImport"
+                  value="solo_actualizar"
+                  checked={modo === "solo_actualizar"}
+                  onChange={() => setModo("solo_actualizar")}
+                  className="accent-brand-primary"
+                />
+                <span className="text-sm text-gray-700">
+                  <strong>Solo actualizar</strong> — solo actualiza los que ya existen, ignora los nuevos
+                </span>
+              </label>
+            </div>
+          )}
+
           <p className="text-sm text-gray-500">Columnas detectadas en el archivo:</p>
           <ColStatus ok={preview.hasInmueble} label="INMUEBLE" required />
-          {esCrear && <ColStatus ok={preview.hasNombre} label="NOMBRE" required />}
+          {esCrear && modo === "crear_y_actualizar" && <ColStatus ok={preview.hasNombre} label="NOMBRE" required />}
           {esCrear && <ColStatus ok={preview.hasCedula} label="CÉDULA" required={false} />}
           <ColStatus ok={preview.hasContacto} label={esCrear ? "CONTACTO / TELÉFONO" : "CONTACTO"} required={false} />
           <ColStatus ok={preview.hasCorreo} label="CORREO ELECTRÓNICO" required={false} />
+          {esCrear && <ColStatus ok={preview.hasDeuda} label="DEUDA" required={false} />}
 
           <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 flex items-center justify-between">
             <span className="text-sm text-gray-600">Registros en el archivo</span>
             <span className="text-xl font-bold text-brand-primary">{preview.totalRows}</span>
           </div>
 
-          {preview.canImport ? (
+          {/* Selector de mes — solo si viene columna DEUDA y el modo crea deudores */}
+          {mostrarMes && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 space-y-2">
+              <p className="text-sm font-medium text-blue-800">
+                Se detectó la columna <strong>DEUDA</strong>. Selecciona el mes para registrar la deuda de los deudores nuevos:
+              </p>
+              <input
+                type="month"
+                value={mesDeuda}
+                onChange={(e) => setMesDeuda(e.target.value)}
+                className="w-full rounded-md border border-blue-300 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                disabled={importing}
+              />
+            </div>
+          )}
+
+          {canImport ? (
             <div className="rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green-700 flex items-start gap-2">
               <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
               <span>
@@ -642,13 +705,9 @@ function ImportPreviewDialog({
             <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700 flex items-start gap-2">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>
-                {esCrear ? (
-                  missingRequired.length === 1
-                    ? <>Falta la columna obligatoria <strong>{missingRequired[0]}</strong>.</>
-                    : <>Faltan las columnas obligatorias <strong>{missingRequired.join(" y ")}</strong>.</>
-                ) : (
-                  <>Falta la columna obligatoria <strong>INMUEBLE</strong>.</>
-                )}
+                {missingRequired.length === 1
+                  ? <>Falta la columna obligatoria <strong>{missingRequired[0]}</strong>.</>
+                  : <>Faltan las columnas obligatorias <strong>{missingRequired.join(" y ")}</strong>.</>}
               </span>
             </div>
           )}
@@ -658,9 +717,13 @@ function ImportPreviewDialog({
           <Button variant="outline" onClick={onCancel} disabled={importing}>
             Cancelar
           </Button>
-          {preview.canImport && (
-            <Button variant="brand" onClick={onImport} disabled={importing}>
-              {importing ? "Procesando..." : esCrear ? "Crear deudores" : "Importar"}
+          {canImport && (
+            <Button
+              variant="brand"
+              onClick={() => onImport({ modo, mesDeuda: mostrarMes ? mesDeuda : undefined })}
+              disabled={importing}
+            >
+              {importing ? "Procesando..." : esCrear ? "Procesar" : "Importar"}
             </Button>
           )}
         </DialogFooter>
@@ -771,6 +834,7 @@ export default function DeudoresTable() {
   const { usuarioSistema } = useUsuarioActual();
   const esDeudor = roles.includes("deudor");
   const esEjecutivoAdmin = roles.includes("ejecutivoAdmin");
+  const esSupervisor = roles.includes("supervisor");
   const canView = esDeudor ? true : can(PERMS.Deudores_Read);
   const canEdit = !esDeudor && can(PERMS.Deudores_Edit);
   const readOnly = !canEdit && canView;
@@ -836,6 +900,7 @@ export default function DeudoresTable() {
       const hasCedula   = !!nh.find((h) => h.n.includes("cedula"));
       const hasContacto = !!nh.find((h) => h.n.includes("contacto") || h.n.includes("telefono"));
       const hasCorreo   = !!nh.find((h) => h.n.includes("correo"));
+      const hasDeuda    = !!nh.find((h) => h.n.includes("deuda"));
 
       setImportPreview({
         file,
@@ -845,6 +910,7 @@ export default function DeudoresTable() {
         hasCedula,
         hasContacto,
         hasCorreo,
+        hasDeuda,
         canImport: mode === "actualizar" ? hasInmueble : (hasInmueble && hasNombre),
         mode,
       });
@@ -855,7 +921,7 @@ export default function DeudoresTable() {
     }
   };
 
-  const ejecutarImportacion = async () => {
+  const ejecutarImportacion = async (opts: ImportOpts) => {
     if (!clienteId || !importPreview) return;
     setImportando(true);
     try {
@@ -870,6 +936,7 @@ export default function DeudoresTable() {
       const colCedula   = nh.find((h) => h.n.includes("cedula"))?.original;
       const colContacto = nh.find((h) => h.n.includes("contacto") || h.n.includes("telefono"))?.original;
       const colCorreo   = nh.find((h) => h.n.includes("correo"))?.original;
+      const colDeuda    = nh.find((h) => h.n.includes("deuda"))?.original;
 
       const deudorMap = new Map<string, Deudor>();
       for (const d of deudores) {
@@ -905,8 +972,6 @@ export default function DeudoresTable() {
             continue;
           }
 
-          // Normalizar teléfonos/correos existentes para limpiar entradas malformadas
-          // y hacer merge con los nuevos sin duplicados.
           const patch: DeudorPatch = {};
           if (colContacto) {
             const existentesNorm = (deudor.telefonos ?? [])
@@ -945,7 +1010,7 @@ export default function DeudoresTable() {
           const deudorExistente = deudorMap.get(keyLower);
 
           if (deudorExistente) {
-            // Ya existe: merge de contactos; actualizar nombre y cédula si vienen en el Excel
+            // Ya existe: si el modo es "solo_actualizar" o "crear_y_actualizar", hacer merge
             const telefonosNuevos = colContacto ? parsearTelefonosDeTexto(String(row[colContacto] ?? "")) : [];
             const correosNuevos   = colCorreo   ? parsearCorreosDeTexto(String(row[colCorreo]   ?? "")) : [];
             const cedulaRaw       = colCedula   ? String(row[colCedula] ?? "").trim() : "";
@@ -980,6 +1045,10 @@ export default function DeudoresTable() {
               reportRows.push({ inmueble: inmuebleRaw, deudorNombre: deudorExistente.nombre, status: "error", phonesAdded: [], emailsAdded: [], message: e?.message });
               errors++;
             }
+          } else if (opts.modo === "solo_actualizar") {
+            // Solo actualizar: ignorar filas sin deudor existente
+            reportRows.push({ inmueble: inmuebleRaw, status: "not_found", phonesAdded: [], emailsAdded: [] });
+            notFound++;
           } else if (createdInBatch.has(keyLower)) {
             // Duplicado dentro del mismo archivo, ignorar
             reportRows.push({ inmueble: inmuebleRaw, status: "no_data", phonesAdded: [], emailsAdded: [], message: "Duplicado en el archivo" });
@@ -996,7 +1065,7 @@ export default function DeudoresTable() {
             const correosNuevos   = colCorreo   ? parsearCorreosDeTexto(String(row[colCorreo]   ?? "")) : [];
 
             try {
-              await crearDeudor(clienteId, {
+              const nuevoDeudorId = await crearDeudor(clienteId, {
                 nombre: nombreRaw,
                 cedula: cedulaRaw || undefined,
                 ubicacion: inmuebleRaw,
@@ -1006,6 +1075,24 @@ export default function DeudoresTable() {
                 porcentajeHonorarios: 15,
               });
               createdInBatch.add(keyLower);
+
+              // Si hay columna DEUDA y el usuario seleccionó un mes, crear estado mensual
+              if (colDeuda && opts.mesDeuda && nuevoDeudorId) {
+                const deudaRaw = String(row[colDeuda] ?? "").trim();
+                const deudaNum = Number(deudaRaw.replace(/[^0-9]/g, ""));
+                if (!isNaN(deudaNum) && deudaNum > 0) {
+                  await crearEstadoMensual(clienteId, nuevoDeudorId, {
+                    clienteUID: clienteId,
+                    mes: opts.mesDeuda,
+                    deuda: deudaNum,
+                    recaudo: 0,
+                    porcentajeHonorarios: 15,
+                    honorariosDeuda: Math.round(deudaNum * 0.15 * 100) / 100,
+                    honorariosRecaudo: 0,
+                  });
+                }
+              }
+
               reportRows.push({ inmueble: inmuebleRaw, deudorNombre: nombreRaw, status: "created", phonesAdded: telefonosNuevos, emailsAdded: correosNuevos });
               created++;
             } catch (e: any) {
@@ -1404,7 +1491,7 @@ export default function DeudoresTable() {
               </div>
             </div>
 
-            {canEdit && esEjecutivoAdmin && (
+            {canEdit && (esEjecutivoAdmin || esSupervisor) && (
               <div className="flex flex-wrap gap-2">
                 <input
                   ref={crearInputRef}

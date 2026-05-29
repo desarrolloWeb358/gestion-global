@@ -11,6 +11,8 @@ import {
   Package,
   ArrowLeft,
   AlertTriangle,
+  Search,
+  X,
 } from "lucide-react";
 
 import { auth } from "@/firebase";
@@ -33,6 +35,7 @@ const fmt = new Intl.DateTimeFormat("es-CO", {
 export default function NotificacionesPage() {
   const [user, setUser] = React.useState<User | null>(() => auth.currentUser);
   const [authLoading, setAuthLoading] = React.useState(true);
+  const [busqueda, setBusqueda] = React.useState("");
   const navigate = useNavigate();
 
   React.useEffect(() => {
@@ -52,6 +55,16 @@ export default function NotificacionesPage() {
   const uid = user?.uid;
 
   const { todas, totalNoVistas, loading, error } = useNotificacionesUsuario(uid);
+
+  const notificacionesFiltradas = React.useMemo(() => {
+    const texto = busqueda.trim().toLowerCase();
+    if (!texto) return todas;
+    return todas.filter((n) => {
+      const desc = (n.descripcion ?? "").toLowerCase();
+      const mod  = ((n as any).modulo ?? "").toLowerCase();
+      return desc.includes(texto) || mod.includes(texto);
+    });
+  }, [todas, busqueda]);
 
   const handleClickNotif = async (notif: NotificacionAlerta) => {
     if (!uid) return;
@@ -178,6 +191,32 @@ export default function NotificacionesPage() {
         </div>
       </section>
 
+      {/* Buscador */}
+      <div className="relative mb-4">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+        <input
+          type="text"
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          placeholder="Buscar notificaciones…"
+          className={cn(
+            "w-full rounded-xl border border-brand-secondary/20 bg-white py-2.5 pl-9 pr-10",
+            "text-sm text-gray-800 placeholder:text-gray-400",
+            "focus:outline-none focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary/40",
+            "transition-all duration-200 shadow-sm"
+          )}
+        />
+        {busqueda && (
+          <button
+            onClick={() => setBusqueda("")}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+            title="Limpiar búsqueda"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+
       {/* Lista */}
       {todas.length === 0 ? (
         <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
@@ -193,9 +232,29 @@ export default function NotificacionesPage() {
             </Typography>
           </div>
         </div>
+      ) : notificacionesFiltradas.length === 0 ? (
+        <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
+          <div className="flex flex-col items-center gap-3">
+            <div className="p-4 rounded-full bg-gray-100">
+              <Search className="h-8 w-8 text-gray-400" />
+            </div>
+            <Typography variant="h3" className="text-brand-secondary">
+              Sin resultados
+            </Typography>
+            <Typography variant="small" className="max-w-sm">
+              Ninguna notificación coincide con <span className="font-medium">"{busqueda}"</span>.
+            </Typography>
+            <button
+              onClick={() => setBusqueda("")}
+              className="mt-1 text-sm text-brand-primary underline underline-offset-2 hover:opacity-80 transition-opacity"
+            >
+              Limpiar búsqueda
+            </button>
+          </div>
+        </div>
       ) : (
         <div className="space-y-2">
-          {todas.map((notif) => {
+          {notificacionesFiltradas.map((notif) => {
             const ModuloIcon = getModuloIcon((notif as any).modulo);
             const fechaStr = formatFecha((notif as any).fecha);
 

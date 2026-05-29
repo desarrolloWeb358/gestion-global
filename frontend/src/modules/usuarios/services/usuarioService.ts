@@ -218,6 +218,21 @@ export const actualizarUsuario = async (usuario: UsuarioSistema): Promise<void> 
 
 
 /* ============================================
+   Toggle activo: sincroniza usuarios + clientes (si aplica)
+   ============================================ */
+export const toggleActivoUsuario = async (
+  uid: string,
+  roles: string[],
+  activo: boolean
+): Promise<void> => {
+  await updateDoc(doc(db, "usuarios", uid), { activo });
+
+  if (roles.includes("cliente")) {
+    await setDoc(doc(db, "clientes", uid), { activo }, { merge: true });
+  }
+};
+
+/* ============================================
    Eliminar usuario
    ============================================ */
 export const eliminarUsuario = async (uid: string): Promise<void> => {

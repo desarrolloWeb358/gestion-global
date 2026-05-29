@@ -35,7 +35,7 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/dashboard/admin",
     label: "Administrador",
     icon: IconHome,
-    roles: ["admin"]
+    roles: ["admin", "ejecutivoAdmin"]
   },  
   {
     to: "/dashboard/ejecutivo",

@@ -16,6 +16,7 @@ import {
 import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 import { db } from "@/firebase";
 import {
+  QueryDocumentSnapshot,
   collection,
   collectionGroup,
   doc,
@@ -126,27 +127,52 @@ export default function DependienteDashboardPage() {
   const fetchData = useCallback(async () => {
     if (!uid) return;
     setLoading(true);
+    const esSinDependiente = paramUid === "__sin_dependiente__";
     try {
-      if (paramUid) {
-        const depDoc = await getDoc(doc(db, "usuarios", paramUid));
-        if (depDoc.exists()) {
-          const d = depDoc.data();
-          setNombreParam((d.nombre as string) ?? (d.email as string) ?? paramUid);
+      // 1. Resolver qué clientes pertenecen a esta vista
+      let clienteDocs: QueryDocumentSnapshot[] = [];
+
+      if (esSinDependiente) {
+        setNombreParam("Sin dependiente asignado");
+
+        // Cargar todos los clientes activos y todos los usuarios en paralelo
+        const [todosClientesSnap, usuariosSnap] = await Promise.all([
+          getDocs(query(collection(db, "clientes"), where("activo", "==", true))),
+          getDocs(collection(db, "usuarios")),
+        ]);
+
+        // Construir el set de dependientes válidos (activos + rol "dependiente")
+        const validDepIds = new Set<string>();
+        usuariosSnap.docs.forEach((uDoc) => {
+          const data = uDoc.data();
+          const roles = Array.isArray(data.roles) ? (data.roles as string[]) : [];
+          if (roles.includes("dependiente") && data.activo !== false) {
+            validDepIds.add(uDoc.id);
+          }
+        });
+
+        // Misma lógica que AdminDashboardPage: sin depId o depId no válido → sin asignar
+        clienteDocs = todosClientesSnap.docs.filter((cDoc) => {
+          const depId = cDoc.data().ejecutivoDependienteId as string | null | undefined;
+          return !depId || !validDepIds.has(depId);
+        });
+      } else {
+        if (paramUid) {
+          const depDoc = await getDoc(doc(db, "usuarios", paramUid));
+          if (depDoc.exists()) {
+            const d = depDoc.data();
+            setNombreParam((d.nombre as string) ?? (d.email as string) ?? paramUid);
+          }
         }
+        const clientesSnap = await getDocs(
+          query(collection(db, "clientes"), where("ejecutivoDependienteId", "==", uid), where("activo", "==", true))
+        );
+        clienteDocs = clientesSnap.docs;
       }
 
-      // 1. Conjuntos asignados a este dependiente
-      const clientesSnap = await getDocs(
-        query(
-          collection(db, "clientes"),
-          where("ejecutivoDependienteId", "==", uid),
-          where("activo", "==", true)
-        )
-      );
-
-      const clienteIds = new Set(clientesSnap.docs.map((d) => d.id));
+      const clienteIds = new Set(clienteDocs.map((d) => d.id));
       const clienteNombres = new Map<string, string>();
-      clientesSnap.docs.forEach((d) => {
+      clienteDocs.forEach((d) => {
         clienteNombres.set(d.id, (d.data().nombre as string) ?? d.id);
       });
 
@@ -184,11 +210,11 @@ export default function DependienteDashboardPage() {
       demandaList.sort((a, b) => b.diasSinRevision - a.diasSinRevision);
       setTodosDemanda(demandaList);
 
-      const result: FilaConjunto[] = clientesSnap.docs
-        .map((doc) => ({
-          clienteId: doc.id,
-          clienteNombre: clienteNombres.get(doc.id) ?? doc.id,
-          totalDeudoresEnDemanda: demandaMap.get(doc.id) ?? 0,
+      const result: FilaConjunto[] = clienteDocs
+        .map((d) => ({
+          clienteId: d.id,
+          clienteNombre: clienteNombres.get(d.id) ?? d.id,
+          totalDeudoresEnDemanda: demandaMap.get(d.id) ?? 0,
         }))
         .sort((a, b) => b.totalDeudoresEnDemanda - a.totalDeudoresEnDemanda);
 
