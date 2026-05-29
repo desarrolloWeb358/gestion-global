@@ -34,10 +34,13 @@ export function NavMain({
             return (
               <SidebarMenuItem key={item.title}>
                 <Link to={item.path} className="w-full">
-                  <SidebarMenuButton tooltip={item.title}>
-                    {item.icon && <item.icon className="!size-5" />}
+                  <SidebarMenuButton
+                    tooltip={item.title}
+                    className="!text-white hover:!bg-white/10 hover:!text-white active:!bg-white/20 active:!text-white"
+                  >
+                    {item.icon && <item.icon className="!size-5 !text-white" />}
 
-                    <span className="flex-1">{item.title}</span>
+                    <span className="flex-1 !text-white">{item.title}</span>
 
                     {shouldShowBadge && (
                       <span className="ml-auto shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center">

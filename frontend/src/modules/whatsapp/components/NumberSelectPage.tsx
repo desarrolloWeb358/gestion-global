@@ -1,17 +1,16 @@
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import { IconBrandWhatsapp, IconChevronRight } from "@tabler/icons-react";
 import { useWaNumbers } from "../hooks/useWaNumbers";
+import { useNavigate } from "react-router-dom";
 
 export default function NumberSelectPage() {
   const { numbers, loading } = useWaNumbers();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!loading && numbers.length === 1) {
-      navigate(`/whatsapp/${numbers[0].id}`, { replace: true });
-    }
-  }, [loading, numbers, navigate]);
+  // Redirect inmediato en render (sin flash) cuando hay un solo número
+  if (!loading && numbers.length === 1) {
+    return <Navigate to={`/whatsapp/${numbers[0].id}`} replace />;
+  }
 
   return (
     <div className="max-w-xl mx-auto py-8">

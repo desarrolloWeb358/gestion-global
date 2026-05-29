@@ -3,13 +3,13 @@ import { useParams, useNavigate } from "react-router-dom";
 import { getAuth } from "firebase/auth";
 import { getDoc, doc } from "firebase/firestore";
 import { db } from "@/firebase";
-import { getSeguimientosDemanda } from "../services/seguimientoDemandaService";
+import { getSeguimientosDemanda, addSeguimientoDemanda } from "../services/seguimientoDemandaService";
 import { getObservacionesClienteGlobal } from "../services/observacionClienteGlobalService";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Spinner } from "@/shared/ui/spinner";
 import { toast } from "sonner";
-import { RefreshCw, ArrowLeft, Scale, MessageSquare, FileText } from "lucide-react";
+import { RefreshCw, ArrowLeft, Scale, MessageSquare, FileText, ArrowDownToLine } from "lucide-react";
 
 const FUNCTION_URL =
   "https://us-central1-gestionglobal-9eac8.cloudfunctions.net/helloWorld";
@@ -50,6 +50,7 @@ export default function DetalleProcesoJudicialPage() {
   const [fechaUltimaActuacion, setFechaUltimaActuacion] = useState<string | null>(null);
   const [cpnuConsultado, setCpnuConsultado] = useState(false);
   const [cpnuNoEncontrado, setCpnuNoEncontrado] = useState(false);
+  const [pasando, setPasando] = useState<Set<number>>(new Set());
 
   // Interno
   const [seguimientosDemanda, setSeguimientosDemanda] = useState<any[]>([]);
@@ -131,6 +132,26 @@ export default function DetalleProcesoJudicialPage() {
       toast.error(`Error de conexión: ${err.message}`);
     } finally {
       setLoadingCPNU(false);
+    }
+  }
+
+  // ── Pasar actuación a Seguimiento Demanda ───────────────
+  async function pasarASeguimiento(act: ActuacionCPNU) {
+    if (pasando.has(act.numero)) return;
+    setPasando((prev) => new Set(prev).add(act.numero));
+    try {
+      const uid = getAuth().currentUser?.uid ?? "";
+      const fecha = act.fecha ? new Date(act.fecha) : new Date();
+      const descripcion = [act.tipo, act.anotacion].filter(Boolean).join("\n");
+      await addSeguimientoDemanda(uid, clienteId!, deudorId!, { fecha, descripcion });
+      // Refrescar lista
+      const actualizado = await getSeguimientosDemanda(clienteId!, deudorId!);
+      setSeguimientosDemanda(actualizado);
+      toast.success("Actuación pasada a Seguimiento Demanda");
+    } catch {
+      toast.error("No se pudo guardar el seguimiento");
+    } finally {
+      setPasando((prev) => { const s = new Set(prev); s.delete(act.numero); return s; });
     }
   }
 
@@ -238,6 +259,7 @@ export default function DetalleProcesoJudicialPage() {
                     <th className="text-left px-3 py-2 font-medium w-36">Actuación</th>
                     <th className="text-left px-3 py-2 font-medium">Anotación</th>
                     <th className="text-center px-3 py-2 font-medium w-12">Docs</th>
+                    <th className="w-10 px-3 py-2" />
                   </tr>
                 </thead>
                 <tbody>
@@ -255,6 +277,16 @@ export default function DetalleProcesoJudicialPage() {
                         ) : (
                           <span className="text-muted-foreground text-xs">No</span>
                         )}
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <button
+                          onClick={() => pasarASeguimiento(act)}
+                          disabled={pasando.has(act.numero)}
+                          title="Pasar a Seguimiento Demanda"
+                          className="p-1 rounded hover:bg-muted transition-colors disabled:opacity-40"
+                        >
+                          <ArrowDownToLine className={`h-3.5 w-3.5 text-primary ${pasando.has(act.numero) ? "animate-pulse" : ""}`} />
+                        </button>
                       </td>
                     </tr>
                   ))}

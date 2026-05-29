@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
+  collection,
   collectionGroup,
   getDocs,
   getDoc,
@@ -64,6 +65,11 @@ export default function MonitoreoRadicadosPage() {
   useEffect(() => {
     async function cargar() {
       try {
+        const clientesSnap = await getDocs(
+          query(collection(db, "clientes"), where("activo", "==", true))
+        );
+        const clientesActivos = new Set(clientesSnap.docs.map((d) => d.id));
+
         const snap = await getDocs(
           query(
             collectionGroup(db, "deudores"),
@@ -71,9 +77,13 @@ export default function MonitoreoRadicadosPage() {
           )
         );
 
-        const docs = snap.docs.filter(
-          (d) => /^\d{23}$/.test((d.data().numeroRadicado ?? "").trim())
-        );
+        const docs = snap.docs.filter((d) => {
+          const clienteId = d.ref.parent.parent!.id;
+          return (
+            clientesActivos.has(clienteId) &&
+            /^\d{23}$/.test((d.data().numeroRadicado ?? "").trim())
+          );
+        });
 
         const clienteIds = [...new Set(docs.map((d) => d.ref.parent.parent!.id))];
         const clienteSnaps = await Promise.all(
@@ -463,21 +473,19 @@ export default function MonitoreoRadicadosPage() {
                             Actualizar
                           </Button>
                         )}
-                        {esPublico && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="gap-1 text-xs"
-                            onClick={() =>
-                              navigate(
-                                `/proceso-judicial/${f.clienteId}/${f.deudorId}`
-                              )
-                            }
-                          >
-                            <FileSearch className="h-3 w-3" />
-                            Ver
-                          </Button>
-                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="gap-1 text-xs"
+                          onClick={() =>
+                            navigate(
+                              `/proceso-judicial/${f.clienteId}/${f.deudorId}`
+                            )
+                          }
+                        >
+                          <FileSearch className="h-3 w-3" />
+                          Ver
+                        </Button>
                       </div>
                     </td>
                   </tr>

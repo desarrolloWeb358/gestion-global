@@ -28,8 +28,9 @@ function formatTime(ts: { toDate?: () => Date } | undefined): string {
 
 
 export function InboxPanel({ numberId, activeConvId }: Props) {
-  const { usuario, roles } = useUsuarioActual();
-  const { conversations, loading } = useInboxConversations(numberId, usuario?.uid ?? "", roles);
+  const { usuario, roles, loading: rolesLoading } = useUsuarioActual();
+  const uid = rolesLoading ? "" : (usuario?.uid ?? "");
+  const { conversations, loading } = useInboxConversations(numberId, uid, roles);
   const navigate = useNavigate();
   const [newMsgOpen, setNewMsgOpen] = useState(false);
 
