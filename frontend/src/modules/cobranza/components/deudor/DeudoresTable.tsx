@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import * as XLSX from "xlsx";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { Eye, Pencil, Search, X, Users, UserPlus, Filter, FileText, Trash2, CalendarIcon, Upload, CheckCircle2, AlertCircle, AlertTriangle, MinusCircle } from "lucide-react";
+import { Eye, Pencil, Search, X, Users, UserPlus, Filter, FileText, Trash2, CalendarIcon, Upload, Download, CheckCircle2, AlertCircle, AlertTriangle, MinusCircle } from "lucide-react";
 import { createPortal } from "react-dom";
 
 import { Deudor } from "../../models/deudores.model";
@@ -1454,6 +1454,23 @@ export default function DeudoresTable() {
     );
   }
 
+  function exportarExcel() {
+    const rows = filteredDeudores.map((d) => ({
+      Nombre: d.nombre ?? "",
+      Cédula: d.cedula ?? "",
+      Teléfonos: (d.telefonos ?? []).join(", "),
+      "Ubicación / Apto": d.ubicacion ?? "",
+      Dirección: (d as any).direccion ?? "",
+      Tipificación: d.tipificacion ?? "",
+      Radicado: d.numeroRadicado ?? "",
+      Juzgado: d.juzgado ?? "",
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Deudores");
+    XLSX.writeFile(wb, `Deudores_${nombreCliente || clienteId}_${new Date().toISOString().slice(0,10)}.xlsx`);
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30">
       {GlobalBlockingOverlay}
@@ -1514,6 +1531,16 @@ export default function DeudoresTable() {
                 </Button>
               </div>
             )}
+
+            <Button
+              variant="outline"
+              onClick={exportarExcel}
+              className="gap-2 border-brand-secondary/30 shadow-sm"
+              disabled={filteredDeudores.length === 0}
+            >
+              <Download className="h-4 w-4" />
+              Exportar Excel
+            </Button>
 
             {canEdit && (
               <>

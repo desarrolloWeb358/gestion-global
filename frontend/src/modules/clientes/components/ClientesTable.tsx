@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Eye, Pencil, User, Users, Search, X } from "lucide-react";
+import { Eye, Pencil, User, Users, Search, X, Download } from "lucide-react";
+import * as XLSX from "xlsx";
 import {
   Table,
   TableHeader,
@@ -126,6 +127,20 @@ export default function ClientesCrud() {
     setMostrarDialogo(false);
   };
 
+  function exportarExcel() {
+    const rows = clientesFiltrados.map((c) => ({
+      Nombre: (c as any).nombre ?? c.id ?? "",
+      Dirección: c.direccion ?? "",
+      Administrador: c.administrador ?? "",
+      "Forma de pago": c.formaPago ?? "",
+      Estado: c.activo === false ? "Inactivo" : "Activo",
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Clientes");
+    XLSX.writeFile(wb, `Clientes_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30">
       <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
@@ -152,6 +167,15 @@ export default function ClientesCrud() {
                 </div>
               </div>
             </div>
+            <Button
+              variant="outline"
+              onClick={exportarExcel}
+              disabled={clientesFiltrados.length === 0}
+              className="gap-2 border-brand-secondary/30 shadow-sm self-start md:self-auto"
+            >
+              <Download className="h-4 w-4" />
+              Exportar Excel
+            </Button>
           </div>
         </header>
 

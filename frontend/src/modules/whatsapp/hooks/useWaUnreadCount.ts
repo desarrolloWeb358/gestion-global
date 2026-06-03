@@ -13,7 +13,7 @@ export function useWaUnreadCount(uid: string | undefined, roles: Rol[]): number 
       return;
     }
 
-    const isAdmin = roles.includes("admin");
+    const isAdmin = roles.includes("admin") || roles.includes("supervisor");
     const isEjecutivoAdmin = roles.includes("ejecutivoAdmin");
 
     const q = query(

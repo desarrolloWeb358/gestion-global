@@ -19,6 +19,10 @@ import {
   Plus,
   ChevronDown,
   Lock,
+  Scale,
+  RefreshCw,
+  AlertCircle,
+  ShieldAlert,
 } from "lucide-react";
 
 import { Button } from "@/shared/ui/button";
@@ -163,6 +167,60 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
   const [fechaUltimaRevision, setFechaUltimaRevision] = React.useState("");
 
   const [esInterno, setEsInterno] = React.useState<boolean>(false);
+
+  // ── CPNU / Rama Judicial ──────────────────────────────────────────────────
+  interface ActuacionCPNU {
+    numero: number;
+    fecha: string;
+    tipo: string;
+    anotacion: string;
+    conDocumentos: boolean;
+  }
+  const CPNU_URL = "https://us-central1-gestionglobal-9eac8.cloudfunctions.net/helloWorld";
+  const [cpnuActuaciones, setCpnuActuaciones] = React.useState<ActuacionCPNU[]>([]);
+  const [cpnuTotal, setCpnuTotal] = React.useState(0);
+  const [cpnuUltimaActuacion, setCpnuUltimaActuacion] = React.useState<string | null>(null);
+  const [cpnuPrivado, setCpnuPrivado] = React.useState<boolean | null>(null);
+  const [cpnuConsultado, setCpnuConsultado] = React.useState(false);
+  const [cpnuError, setCpnuError] = React.useState<string | null>(null);
+  const [cpnuLoading, setCpnuLoading] = React.useState(false);
+  const [showComparativa, setShowComparativa] = React.useState(false);
+
+  const consultarCPNU = async () => {
+    const radicado = infoDemanda.numeroRadicado?.trim();
+    if (!radicado || radicado.length !== 23) {
+      setCpnuError("El radicado debe tener exactamente 23 dígitos.");
+      return;
+    }
+    setCpnuLoading(true);
+    setCpnuError(null);
+    try {
+      const token = await getAuth().currentUser?.getIdToken();
+      const res = await fetch(CPNU_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ radicado }),
+      });
+      const data = await res.json();
+      if (res.status === 404) {
+        setCpnuPrivado(null);
+        setCpnuActuaciones([]);
+        setCpnuError("Proceso no encontrado en CPNU. Puede ser un proceso de Juzgados de Pequeñas Causas (TYBA).");
+        setCpnuConsultado(true);
+        return;
+      }
+      if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
+      setCpnuActuaciones(data.actuaciones ?? []);
+      setCpnuTotal(data.totalActuaciones ?? 0);
+      setCpnuUltimaActuacion(data.fechaUltimaActuacion ?? null);
+      setCpnuPrivado(data.esPrivado ?? false);
+      setCpnuConsultado(true);
+    } catch (err: any) {
+      setCpnuError(err.message ?? "Error de conexión");
+    } finally {
+      setCpnuLoading(false);
+    }
+  };
 
   // Estado para información de la demanda
   const [demandados, setDemandados] = React.useState<DemandadoItem[]>([]);
@@ -751,6 +809,180 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
             </Table>
           </div>
         </div>
+      )}
+
+      {/* ── COMPARATIVA RAMA JUDICIAL ─────────────────────────────────────── */}
+      {infoDemanda.numeroRadicado && (
+        <section className="rounded-2xl border border-indigo-200 bg-white shadow-sm overflow-hidden">
+          {/* Header colapsable */}
+          <button
+            type="button"
+            onClick={() => setShowComparativa((v) => !v)}
+            className="w-full bg-gradient-to-r from-indigo-50 to-blue-50 px-5 py-4 border-b border-indigo-100 flex items-center justify-between hover:from-indigo-100/70 hover:to-blue-100/70 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <Scale className="h-5 w-5 text-indigo-600 shrink-0" />
+              <div className="text-left">
+                <p className="text-sm font-semibold text-indigo-800">Comparativa Rama Judicial vs Seguimiento</p>
+                <p className="text-xs text-indigo-500 mt-0.5">
+                  Radicado: <span className="font-mono">{infoDemanda.numeroRadicado}</span>
+                  {cpnuUltimaActuacion && (
+                    <> · Última actuación: <span className="font-medium">{cpnuUltimaActuacion}</span></>
+                  )}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {cpnuConsultado && !cpnuLoading && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); consultarCPNU(); }}
+                  className="p-1.5 rounded-lg hover:bg-white/60 text-indigo-500 hover:text-indigo-700 transition-colors"
+                  title="Actualizar"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </button>
+              )}
+              <ChevronDown className={cn("h-4 w-4 text-indigo-400 transition-transform duration-200", showComparativa && "rotate-180")} />
+            </div>
+          </button>
+
+          {showComparativa && (
+            <div className="p-4 md:p-5 space-y-4">
+
+              {/* Botón consultar (solo si no se ha consultado aún) */}
+              {!cpnuConsultado && (
+                <div className="flex flex-col items-center justify-center py-8 gap-4">
+                  <Scale className="h-10 w-10 text-indigo-300" />
+                  <p className="text-sm text-muted-foreground text-center">
+                    Consulta las actuaciones de este proceso en el sistema de la Rama Judicial (CPNU).
+                  </p>
+                  <button
+                    type="button"
+                    onClick={consultarCPNU}
+                    disabled={cpnuLoading}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors disabled:opacity-60"
+                  >
+                    {cpnuLoading
+                      ? <><RefreshCw className="h-4 w-4 animate-spin" /> Consultando...</>
+                      : <><Scale className="h-4 w-4" /> Consultar Rama Judicial</>
+                    }
+                  </button>
+                </div>
+              )}
+
+              {/* Loading */}
+              {cpnuConsultado && cpnuLoading && (
+                <div className="flex items-center justify-center py-8 gap-3 text-muted-foreground">
+                  <RefreshCw className="h-5 w-5 animate-spin" />
+                  <span className="text-sm">Actualizando actuaciones...</span>
+                </div>
+              )}
+
+              {/* Error */}
+              {cpnuError && (
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                  <span>{cpnuError}</span>
+                </div>
+              )}
+
+              {/* Privado */}
+              {cpnuConsultado && !cpnuLoading && cpnuPrivado === true && (
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+                  <ShieldAlert className="h-4 w-4 mt-0.5 shrink-0" />
+                  Proceso privado — las actuaciones no son públicas en CPNU.
+                </div>
+              )}
+
+              {/* Comparativa side-by-side */}
+              {cpnuConsultado && !cpnuLoading && cpnuPrivado === false && (
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+
+                  {/* ── Columna izquierda: CPNU ── */}
+                  <div className="rounded-xl border border-indigo-100 overflow-hidden">
+                    <div className="bg-indigo-50 px-4 py-2.5 border-b border-indigo-100 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Scale className="h-4 w-4 text-indigo-600" />
+                        <span className="text-sm font-semibold text-indigo-800">Rama Judicial (CPNU)</span>
+                      </div>
+                      <span className="text-xs text-indigo-500">{cpnuActuaciones.length} de {cpnuTotal} act.</span>
+                    </div>
+                    {cpnuActuaciones.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+                        Sin actuaciones registradas en CPNU.
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-indigo-50 max-h-[500px] overflow-y-auto">
+                        {cpnuActuaciones.map((act) => (
+                          <div key={act.numero} className="px-4 py-3 hover:bg-indigo-50/40 transition-colors">
+                            <div className="flex items-start justify-between gap-2 mb-1">
+                              <span className="text-xs font-semibold text-indigo-700 leading-tight">{act.tipo || "—"}</span>
+                              <div className="flex items-center gap-2 shrink-0">
+                                {act.conDocumentos && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600 border border-indigo-200">Docs</span>
+                                )}
+                                <span className="text-[10px] text-muted-foreground whitespace-nowrap">{act.fecha || "—"}</span>
+                              </div>
+                            </div>
+                            {act.anotacion && (
+                              <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-line">{act.anotacion}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── Columna derecha: Seguimiento Demanda ── */}
+                  <div className="rounded-xl border border-brand-secondary/20 overflow-hidden">
+                    <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 px-4 py-2.5 border-b border-brand-secondary/10 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Gavel className="h-4 w-4 text-brand-primary" />
+                        <span className="text-sm font-semibold text-brand-secondary">Seguimiento Demanda</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">{filteredSorted.filter(r => !(r as any).esInterno).length} registros</span>
+                    </div>
+                    {filteredSorted.filter(r => !(r as any).esInterno).length === 0 ? (
+                      <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+                        Sin registros de seguimiento aún.
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-brand-secondary/5 max-h-[500px] overflow-y-auto">
+                        {filteredSorted.filter(r => !(r as any).esInterno).map((row) => {
+                          const d = toDate(row.fecha);
+                          const fechaStr = d ? fmt.format(d) : "—";
+                          return (
+                            <div key={row.id} className="px-4 py-3 hover:bg-brand-primary/[0.02] transition-colors">
+                              <div className="flex items-start justify-between gap-2 mb-1">
+                                <span className="text-xs font-semibold text-brand-primary leading-tight">Seguimiento</span>
+                                <span className="text-[10px] text-muted-foreground shrink-0 whitespace-nowrap">{fechaStr}</span>
+                              </div>
+                              {row.descripcion && (
+                                <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-line">{row.descripcion}</p>
+                              )}
+                              {row.archivoUrl && (
+                                <a
+                                  href={row.archivoUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1 text-[10px] text-brand-primary hover:underline mt-1"
+                                >
+                                  <Download className="h-3 w-3" /> Ver archivo
+                                </a>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                </div>
+              )}
+            </div>
+          )}
+        </section>
       )}
 
       {/* Observaciones internas */}

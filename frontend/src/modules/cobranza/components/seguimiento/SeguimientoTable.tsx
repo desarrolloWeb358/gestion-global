@@ -482,41 +482,45 @@ export default function SeguimientoTable() {
 
         {/* TABS */}
         <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="w-full">
-          <TabsList className="grid grid-cols-6 h-auto w-full bg-white border border-brand-secondary/20 p-1.5 rounded-xl gap-1">
+          <TabsList className="flex overflow-x-auto h-auto w-full bg-white border border-brand-secondary/20 p-1.5 rounded-xl gap-1 scrollbar-hide">
             <TabsTrigger
               value="pre"
-              className="col-span-2 data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all py-2"
+              className="flex-shrink-0 flex items-center gap-1.5 data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all py-2 px-3"
             >
-              <History className="h-4 w-4 mr-2 flex-shrink-0" />
-              Ejecutiv@ Pre-jurídico
+              <History className="h-4 w-4 flex-shrink-0" />
+              <span className="hidden sm:inline whitespace-nowrap">Ejecutiv@ Pre-jurídico</span>
+              <span className="sm:hidden whitespace-nowrap text-xs">Pre-jur.</span>
             </TabsTrigger>
             <TabsTrigger
               value="juridico"
-              className="col-span-2 data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all py-2"
+              className="flex-shrink-0 flex items-center gap-1.5 data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all py-2 px-3"
             >
-              <Scale className="h-4 w-4 mr-2 flex-shrink-0" />
-              Ejecutiv@ Jurídico
+              <Scale className="h-4 w-4 flex-shrink-0" />
+              <span className="hidden sm:inline whitespace-nowrap">Ejecutiv@ Jurídico</span>
+              <span className="sm:hidden whitespace-nowrap text-xs">Jurídico</span>
             </TabsTrigger>
             <TabsTrigger
               value="demanda"
-              className="col-span-2 data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all py-2"
+              className="flex-shrink-0 flex items-center gap-1.5 data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all py-2 px-3"
             >
-              <Gavel className="h-4 w-4 mr-2 flex-shrink-0" />
-              Dependiente(Demanda)
+              <Gavel className="h-4 w-4 flex-shrink-0" />
+              <span className="hidden sm:inline whitespace-nowrap">Dependiente (Demanda)</span>
+              <span className="sm:hidden whitespace-nowrap text-xs">Demanda</span>
             </TabsTrigger>
             <TabsTrigger
               value="obs"
-              className="col-span-3 data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all py-2"
+              className="flex-shrink-0 flex items-center gap-1.5 data-[state=active]:bg-brand-primary data-[state=active]:text-white rounded-lg transition-all py-2 px-3"
             >
-              <MessageSquare className="h-4 w-4 mr-2 flex-shrink-0" />
-              Observaciones de cliente
+              <MessageSquare className="h-4 w-4 flex-shrink-0" />
+              <span className="hidden sm:inline whitespace-nowrap">Observaciones de cliente</span>
+              <span className="sm:hidden whitespace-nowrap text-xs">Observaciones</span>
             </TabsTrigger>
             <TabsTrigger
               value="whatsapp"
-              className="col-span-3 data-[state=active]:bg-green-600 data-[state=active]:text-white rounded-lg transition-all py-2"
+              className="flex-shrink-0 flex items-center gap-1.5 data-[state=active]:bg-green-600 data-[state=active]:text-white rounded-lg transition-all py-2 px-3"
             >
-              <MessageCircle className="h-4 w-4 mr-2 flex-shrink-0" />
-              WhatsApp
+              <MessageCircle className="h-4 w-4 flex-shrink-0" />
+              <span className="whitespace-nowrap text-xs sm:text-sm">WhatsApp</span>
             </TabsTrigger>
           </TabsList>
 

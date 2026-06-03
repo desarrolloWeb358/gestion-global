@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronUp,
+  Search,
 } from "lucide-react";
 import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 import { db } from "@/firebase";
@@ -130,6 +131,7 @@ export default function EjecutivoDashboardPage() {
   const [diasFiltro, setDiasFiltro] = useState<DiasFiltro>("15");
   const [showConjuntos, setShowConjuntos] = useState(false);
   const [showSinGestion, setShowSinGestion] = useState(false);
+  const [filtroConjunto, setFiltroConjunto] = useState("");
 
   // Si el admin navega con ?uid=xxx se usa ese UID; si no, el propio usuario
   const paramUid = searchParams.get("uid");
@@ -275,6 +277,12 @@ export default function EjecutivoDashboardPage() {
 
   const labelFiltro = DIAS_OPCIONES.find((o) => o.value === diasFiltro)?.label ?? diasFiltro;
 
+  const filasFiltradas = useMemo(() => {
+    if (!filtroConjunto.trim()) return filas;
+    const q = filtroConjunto.toLowerCase();
+    return filas.filter((f) => f.clienteNombre.toLowerCase().includes(q));
+  }, [filas, filtroConjunto]);
+
   if (loadingAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -359,10 +367,12 @@ export default function EjecutivoDashboardPage() {
 
         {/* ── TABLA POR CONJUNTO ── */}
         <section className="rounded-2xl border bg-white shadow-sm overflow-hidden">
-          <button
-            type="button"
-            className="w-full bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 px-5 py-4 border-b flex items-center justify-between gap-2 hover:bg-brand-primary/5 transition-colors"
+          <div
+            role="button"
+            tabIndex={0}
+            className="w-full bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 px-5 py-4 border-b flex items-center justify-between gap-2 hover:bg-brand-primary/5 transition-colors cursor-pointer"
             onClick={() => setShowConjuntos((v) => !v)}
+            onKeyDown={(e) => e.key === "Enter" && setShowConjuntos((v) => !v)}
           >
             <div className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-brand-primary shrink-0" />
@@ -389,18 +399,33 @@ export default function EjecutivoDashboardPage() {
                 ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
                 : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
             </div>
-          </button>
+          </div>
 
           {showConjuntos && (
+            <div>
+              {/* Filtro de búsqueda */}
+              <div className="px-4 py-3 border-b bg-white">
+                <div className="relative max-w-sm">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                  <input
+                    type="text"
+                    value={filtroConjunto}
+                    onChange={(e) => setFiltroConjunto(e.target.value)}
+                    placeholder="Buscar conjunto..."
+                    className="w-full pl-9 pr-3 py-1.5 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-brand-primary/30"
+                  />
+                </div>
+              </div>
+
             <div className="overflow-x-auto">
               {loading ? (
                 <div className="h-48 flex items-center justify-center">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
-              ) : filas.length === 0 ? (
+              ) : filasFiltradas.length === 0 ? (
                 <div className="h-48 flex items-center justify-center">
                   <p className="text-sm text-muted-foreground">
-                    No tienes conjuntos asignados actualmente.
+                    {filtroConjunto ? "No se encontraron conjuntos con esa búsqueda." : "No tienes conjuntos asignados actualmente."}
                   </p>
                 </div>
               ) : (
@@ -423,7 +448,7 @@ export default function EjecutivoDashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filas.map((fila) => (
+                    {filasFiltradas.map((fila) => (
                       <tr
                         key={fila.clienteId}
                         className="border-t hover:bg-slate-50/70 transition-colors"
@@ -472,6 +497,7 @@ export default function EjecutivoDashboardPage() {
                   </tfoot>
                 </table>
               )}
+            </div>
             </div>
           )}
         </section>
