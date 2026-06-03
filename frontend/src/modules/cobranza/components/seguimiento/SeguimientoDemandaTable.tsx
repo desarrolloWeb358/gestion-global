@@ -469,24 +469,23 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
       {/* Información de la demanda */}
       {!loadingObs && puedeEditar && (
         <section className="rounded-2xl border border-red-200 bg-white shadow-sm overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setInfoDemandaAbierta((v) => !v)}
-            className="w-full bg-gradient-to-r from-red-50 to-orange-50 p-4 md:p-5 flex items-center justify-between hover:from-red-100 hover:to-orange-100 transition-colors"
-          >
-            <div className="flex items-center gap-2">
+          <div className="w-full bg-gradient-to-r from-red-50 to-orange-50 p-4 md:p-5 flex items-center justify-between">
+            <div
+              className="flex items-center gap-2 flex-1 cursor-pointer select-none"
+              onClick={() => setInfoDemandaAbierta((v) => !v)}
+            >
               <Gavel className="h-5 w-5 text-red-600" />
               <Typography variant="h3" className="!text-red-700 font-semibold">
                 Datos de la demanda
               </Typography>
+              <ChevronDown
+                className={cn(
+                  "h-5 w-5 text-red-600 transition-transform duration-200 ml-auto",
+                  infoDemandaAbierta && "rotate-180"
+                )}
+              />
             </div>
-            <ChevronDown
-              className={cn(
-                "h-5 w-5 text-red-600 transition-transform duration-200",
-                infoDemandaAbierta && "rotate-180"
-              )}
-            />
-          </button>
+          </div>
 
           {infoDemandaAbierta && (
           <div className="p-4 md:p-5 space-y-6">
@@ -815,36 +814,31 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
       {infoDemanda.numeroRadicado && (
         <section className="rounded-2xl border border-indigo-200 bg-white shadow-sm overflow-hidden">
           {/* Header colapsable */}
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={() => setShowComparativa((v) => !v)}
-            onKeyDown={(e) => e.key === "Enter" && setShowComparativa((v) => !v)}
-            className="w-full bg-gradient-to-r from-indigo-50 to-blue-50 px-5 py-4 border-b border-indigo-100 flex items-center justify-between cursor-pointer hover:from-indigo-100/70 hover:to-blue-100/70 transition-colors"
-          >
-            <div className="flex items-center gap-3">
+          <div className="w-full bg-gradient-to-r from-indigo-50 to-blue-50 px-5 py-4 border-b border-indigo-100 flex items-center justify-between gap-3">
+            <div
+              className="flex items-center gap-3 flex-1 cursor-pointer select-none min-w-0"
+              onClick={() => setShowComparativa((v) => !v)}
+            >
               <Scale className="h-5 w-5 text-indigo-600 shrink-0" />
-              <div>
+              <div className="min-w-0">
                 <p className="text-sm font-semibold text-indigo-800">Rama Judicial (CPNU)</p>
-                <p className="text-xs text-indigo-500 mt-0.5 font-mono">{infoDemanda.numeroRadicado}</p>
+                <p className="text-xs text-indigo-500 mt-0.5 font-mono truncate">{infoDemanda.numeroRadicado}</p>
               </div>
+              <ChevronDown className={cn("h-4 w-4 text-indigo-400 transition-transform duration-200 shrink-0", showComparativa && "rotate-180")} />
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); consultarCPNU(); }}
-                disabled={cpnuLoading}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium transition-colors disabled:opacity-60"
-              >
-                {cpnuLoading
-                  ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Consultando...</>
-                  : cpnuConsultado
-                    ? <><RefreshCw className="h-3.5 w-3.5" /> Actualizar</>
-                    : <><Scale className="h-3.5 w-3.5" /> Consultar</>
-                }
-              </button>
-              <ChevronDown className={cn("h-4 w-4 text-indigo-400 transition-transform duration-200", showComparativa && "rotate-180")} />
-            </div>
+            <button
+              type="button"
+              onClick={consultarCPNU}
+              disabled={cpnuLoading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium transition-colors disabled:opacity-60 shrink-0"
+            >
+              {cpnuLoading
+                ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Consultando...</>
+                : cpnuConsultado
+                  ? <><RefreshCw className="h-3.5 w-3.5" /> Actualizar</>
+                  : <><Scale className="h-3.5 w-3.5" /> Consultar</>
+              }
+            </button>
           </div>
 
           {showComparativa && (
