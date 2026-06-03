@@ -108,6 +108,18 @@ export function HumanReplyBox({ numberId, convId, windowOpen }: Props) {
     }
   }
 
+  function handlePaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const imageItem = Array.from(e.clipboardData.items).find((item) =>
+      item.type.startsWith("image/")
+    );
+    if (!imageItem) return;
+    e.preventDefault();
+    const blob = imageItem.getAsFile();
+    if (!blob) return;
+    const ext = imageItem.type.split("/")[1] ?? "png";
+    setPendingFile(new File([blob], `imagen_${Date.now()}.${ext}`, { type: imageItem.type }));
+  }
+
   if (!windowOpen) {
     return (
       <div className="flex-shrink-0 border-t border-border bg-muted/30 px-4 py-3 flex items-center gap-3">
@@ -168,6 +180,7 @@ export function HumanReplyBox({ numberId, convId, windowOpen }: Props) {
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           placeholder={pendingFile ? "Pie de foto (opcional)…" : "Escribe un mensaje… (Enter para enviar)"}
           rows={2}
           className="flex-1 resize-none text-sm"

@@ -140,6 +140,31 @@ export async function obtenerClientesPorUsuario(params: {
   */
 }
 
+// Clientes accesibles según el rol — usado en búsquedas de WhatsApp
+export async function listarClientesWhatsapp(
+  uid: string,
+  roles: Rol[]
+): Promise<ClienteOption[]> {
+  const isFullAccess =
+    roles.includes("admin") ||
+    roles.includes("supervisor") ||
+    roles.includes("ejecutivoAdmin");
+
+  const q = isFullAccess
+    ? query(clientesRef, orderBy("nombre", "asc"))
+    : query(
+        clientesRef,
+        where("ejecutivoPrejuridicoId", "==", uid),
+        orderBy("nombre", "asc")
+      );
+
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({
+    id: d.id,
+    nombre: String((d.data() as any).nombre || d.id),
+  }));
+}
+
 export const listarClientesBasico = async (): Promise<ClienteOption[]> => {
   // Si todos los clientes tienen `nombre`, usamos orderBy directo
   const qy = query(clientesRef, orderBy("nombre", "asc"));

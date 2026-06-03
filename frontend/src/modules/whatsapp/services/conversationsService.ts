@@ -52,14 +52,44 @@ export function listenInbox(
   numberId: string,
   callback: (conversations: WaConversation[]) => void
 ): () => void {
-  const q = query(
+  const recentMap = new Map<string, WaConversation>();
+  const unreadMap = new Map<string, WaConversation>();
+
+  function emit() {
+    const merged = new Map<string, WaConversation>([...recentMap, ...unreadMap]);
+    const sorted = [...merged.values()].sort((a, b) => {
+      const aMs = (a.lastMessageAt as any)?.toMillis?.() ?? 0;
+      const bMs = (b.lastMessageAt as any)?.toMillis?.() ?? 0;
+      return bMs - aMs;
+    });
+    callback(sorted);
+  }
+
+  const qRecent = query(
     collection(db, `numbers/${numberId}/conversations`),
     orderBy("lastMessageAt", "desc"),
-    limit(300)
+    limit(50)
   );
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => mapConversation(d.id, d.data())));
+  const unsubRecent = onSnapshot(qRecent, (snap) => {
+    recentMap.clear();
+    snap.docs.forEach((d) => recentMap.set(d.id, mapConversation(d.id, d.data())));
+    emit();
   });
+
+  const qUnread = query(
+    collection(db, `numbers/${numberId}/conversations`),
+    where("unreadCount", ">", 0)
+  );
+  const unsubUnread = onSnapshot(qUnread, (snap) => {
+    unreadMap.clear();
+    snap.docs.forEach((d) => unreadMap.set(d.id, mapConversation(d.id, d.data())));
+    emit();
+  });
+
+  return () => {
+    unsubRecent();
+    unsubUnread();
+  };
 }
 
 export function listenConversation(
@@ -198,4 +228,65 @@ export async function markConversationRead(
   await updateDoc(doc(db, `numbers/${numberId}/conversations/${convId}`), {
     unreadCount: 0,
   });
+}
+
+// Busca todas las conversaciones de un cliente específico
+export async function searchConversationsByClienteId(
+  numberId: string,
+  clienteId: string
+): Promise<WaConversation[]> {
+  const snap = await getDocs(
+    query(
+      collection(db, `numbers/${numberId}/conversations`),
+      where("clienteId", "==", clienteId)
+    )
+  );
+  return snap.docs
+    .map((d) => mapConversation(d.id, d.data() as Record<string, any>))
+    .sort((a, b) => {
+      const aMs = (a.lastMessageAt as any)?.toMillis?.() ?? 0;
+      const bMs = (b.lastMessageAt as any)?.toMillis?.() ?? 0;
+      return bMs - aMs;
+    });
+}
+
+// Busca conversaciones por número de teléfono (prefix match, sin límite del inbox)
+// Prueba con y sin prefijo de país 57 para cubrir ambos formatos
+export async function searchConversationsByPhone(
+  numberId: string,
+  term: string
+): Promise<WaConversation[]> {
+  const normalized = term.replace(/[^\d]/g, "");
+  if (normalized.length < 3) return [];
+
+  const searchTerms = new Set([normalized]);
+  if (!normalized.startsWith("57")) {
+    searchTerms.add("57" + normalized);
+  }
+
+  const snaps = await Promise.all(
+    [...searchTerms].map((t) =>
+      getDocs(
+        query(
+          collection(db, `numbers/${numberId}/conversations`),
+          orderBy("userAddress"),
+          where("userAddress", ">=", t),
+          where("userAddress", "<=", t + ""),
+          limit(20)
+        )
+      )
+    )
+  );
+
+  const seen = new Set<string>();
+  const convs: WaConversation[] = [];
+  for (const snap of snaps) {
+    for (const d of snap.docs) {
+      if (!seen.has(d.id)) {
+        seen.add(d.id);
+        convs.push(mapConversation(d.id, d.data() as Record<string, any>));
+      }
+    }
+  }
+  return convs;
 }

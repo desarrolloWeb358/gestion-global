@@ -16,7 +16,10 @@ export function useInboxConversations(numberId: string, uid: string, roles: Rol[
     setLoading(true);
     clienteCache.current = {};
 
-    const isSuperAdmin = roles.includes("admin") || roles.includes("supervisor");
+    const isSuperAdmin =
+      roles.includes("admin") ||
+      roles.includes("supervisor") ||
+      roles.includes("ejecutivoAdmin");
 
     const unsub = listenInbox(numberId, async (convs) => {
       if (isSuperAdmin) {

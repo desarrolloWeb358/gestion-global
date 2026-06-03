@@ -6,6 +6,7 @@ import type { Rol } from "@/shared/constants/acl";
 export function useWaUnreadCount(uid: string | undefined, roles: Rol[]): number {
   const [count, setCount] = useState(0);
   const clienteCache = useRef<Record<string, string | null>>({});
+  const callIdRef = useRef(0);
 
   useEffect(() => {
     if (!uid) {
@@ -13,8 +14,10 @@ export function useWaUnreadCount(uid: string | undefined, roles: Rol[]): number 
       return;
     }
 
-    const isAdmin = roles.includes("admin") || roles.includes("supervisor");
-    const isEjecutivoAdmin = roles.includes("ejecutivoAdmin");
+    const isFullAccess =
+      roles.includes("admin") ||
+      roles.includes("supervisor") ||
+      roles.includes("ejecutivoAdmin");
 
     const q = query(
       collectionGroup(db, "conversations"),
@@ -22,7 +25,9 @@ export function useWaUnreadCount(uid: string | undefined, roles: Rol[]): number 
     );
 
     return onSnapshot(q, async (snap) => {
-      if (isAdmin) {
+      const callId = ++callIdRef.current;
+
+      if (isFullAccess) {
         setCount(snap.size);
         return;
       }
@@ -44,9 +49,11 @@ export function useWaUnreadCount(uid: string | undefined, roles: Rol[]): number 
         })
       );
 
+      if (callId !== callIdRef.current) return;
+
       const relevant = snap.docs.filter((d) => {
         const clienteId = d.data().clienteId as string | null | undefined;
-        if (!clienteId) return isEjecutivoAdmin;
+        if (!clienteId) return false;
         return clienteCache.current[clienteId] === uid;
       });
 
