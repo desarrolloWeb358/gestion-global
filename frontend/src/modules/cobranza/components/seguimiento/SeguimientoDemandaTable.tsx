@@ -811,83 +811,70 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
         </div>
       )}
 
-      {/* ── COMPARATIVA RAMA JUDICIAL ─────────────────────────────────────── */}
+      {/* ── RAMA JUDICIAL (CPNU) ─────────────────────────────────────────── */}
       {infoDemanda.numeroRadicado && (
         <section className="rounded-2xl border border-indigo-200 bg-white shadow-sm overflow-hidden">
           {/* Header colapsable */}
-          <button
-            type="button"
+          <div
+            role="button"
+            tabIndex={0}
             onClick={() => setShowComparativa((v) => !v)}
-            className="w-full bg-gradient-to-r from-indigo-50 to-blue-50 px-5 py-4 border-b border-indigo-100 flex items-center justify-between hover:from-indigo-100/70 hover:to-blue-100/70 transition-colors"
+            onKeyDown={(e) => e.key === "Enter" && setShowComparativa((v) => !v)}
+            className="w-full bg-gradient-to-r from-indigo-50 to-blue-50 px-5 py-4 border-b border-indigo-100 flex items-center justify-between cursor-pointer hover:from-indigo-100/70 hover:to-blue-100/70 transition-colors"
           >
             <div className="flex items-center gap-3">
               <Scale className="h-5 w-5 text-indigo-600 shrink-0" />
-              <div className="text-left">
-                <p className="text-sm font-semibold text-indigo-800">Comparativa Rama Judicial vs Seguimiento</p>
-                <p className="text-xs text-indigo-500 mt-0.5">
-                  Radicado: <span className="font-mono">{infoDemanda.numeroRadicado}</span>
-                  {cpnuUltimaActuacion && (
-                    <> · Última actuación: <span className="font-medium">{cpnuUltimaActuacion}</span></>
-                  )}
-                </p>
+              <div>
+                <p className="text-sm font-semibold text-indigo-800">Rama Judicial (CPNU)</p>
+                <p className="text-xs text-indigo-500 mt-0.5 font-mono">{infoDemanda.numeroRadicado}</p>
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {cpnuConsultado && !cpnuLoading && (
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); consultarCPNU(); }}
-                  className="p-1.5 rounded-lg hover:bg-white/60 text-indigo-500 hover:text-indigo-700 transition-colors"
-                  title="Actualizar"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); consultarCPNU(); }}
+                disabled={cpnuLoading}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium transition-colors disabled:opacity-60"
+              >
+                {cpnuLoading
+                  ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Consultando...</>
+                  : cpnuConsultado
+                    ? <><RefreshCw className="h-3.5 w-3.5" /> Actualizar</>
+                    : <><Scale className="h-3.5 w-3.5" /> Consultar</>
+                }
+              </button>
               <ChevronDown className={cn("h-4 w-4 text-indigo-400 transition-transform duration-200", showComparativa && "rotate-180")} />
             </div>
-          </button>
+          </div>
 
           {showComparativa && (
-            <div className="p-4 md:p-5 space-y-4">
+            <div className="p-4 md:p-5 space-y-3">
 
-              {/* Botón consultar (solo si no se ha consultado aún) */}
-              {!cpnuConsultado && (
-                <div className="flex flex-col items-center justify-center py-8 gap-4">
-                  <Scale className="h-10 w-10 text-indigo-300" />
-                  <p className="text-sm text-muted-foreground text-center">
-                    Consulta las actuaciones de este proceso en el sistema de la Rama Judicial (CPNU).
-                  </p>
-                  <button
-                    type="button"
-                    onClick={consultarCPNU}
-                    disabled={cpnuLoading}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors disabled:opacity-60"
-                  >
-                    {cpnuLoading
-                      ? <><RefreshCw className="h-4 w-4 animate-spin" /> Consultando...</>
-                      : <><Scale className="h-4 w-4" /> Consultar Rama Judicial</>
-                    }
-                  </button>
+              {/* Estado inicial sin consultar */}
+              {!cpnuConsultado && !cpnuLoading && !cpnuError && (
+                <div className="flex flex-col items-center justify-center py-10 gap-2 text-muted-foreground">
+                  <Scale className="h-8 w-8 opacity-20" />
+                  <p className="text-sm">Presiona "Consultar" para traer las actuaciones.</p>
                 </div>
               )}
 
               {/* Loading */}
-              {cpnuConsultado && cpnuLoading && (
-                <div className="flex items-center justify-center py-8 gap-3 text-muted-foreground">
+              {cpnuLoading && (
+                <div className="flex items-center justify-center py-10 gap-3 text-muted-foreground">
                   <RefreshCw className="h-5 w-5 animate-spin" />
-                  <span className="text-sm">Actualizando actuaciones...</span>
+                  <span className="text-sm">Consultando Rama Judicial...</span>
                 </div>
               )}
 
               {/* Error */}
-              {cpnuError && (
+              {cpnuError && !cpnuLoading && (
                 <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
                   <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
                   <span>{cpnuError}</span>
                 </div>
               )}
 
-              {/* Privado */}
+              {/* Proceso privado */}
               {cpnuConsultado && !cpnuLoading && cpnuPrivado === true && (
                 <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
                   <ShieldAlert className="h-4 w-4 mt-0.5 shrink-0" />
@@ -895,90 +882,52 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
                 </div>
               )}
 
-              {/* Comparativa side-by-side */}
+              {/* Actuaciones */}
               {cpnuConsultado && !cpnuLoading && cpnuPrivado === false && (
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-
-                  {/* ── Columna izquierda: CPNU ── */}
-                  <div className="rounded-xl border border-indigo-100 overflow-hidden">
-                    <div className="bg-indigo-50 px-4 py-2.5 border-b border-indigo-100 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Scale className="h-4 w-4 text-indigo-600" />
-                        <span className="text-sm font-semibold text-indigo-800">Rama Judicial (CPNU)</span>
-                      </div>
-                      <span className="text-xs text-indigo-500">{cpnuActuaciones.length} de {cpnuTotal} act.</span>
-                    </div>
-                    {cpnuActuaciones.length === 0 ? (
-                      <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-                        Sin actuaciones registradas en CPNU.
-                      </div>
-                    ) : (
-                      <div className="divide-y divide-indigo-50 max-h-[500px] overflow-y-auto">
-                        {cpnuActuaciones.map((act) => (
-                          <div key={act.numero} className="px-4 py-3 hover:bg-indigo-50/40 transition-colors">
-                            <div className="flex items-start justify-between gap-2 mb-1">
-                              <span className="text-xs font-semibold text-indigo-700 leading-tight">{act.tipo || "—"}</span>
-                              <div className="flex items-center gap-2 shrink-0">
-                                {act.conDocumentos && (
-                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600 border border-indigo-200">Docs</span>
-                                )}
-                                <span className="text-[10px] text-muted-foreground whitespace-nowrap">{act.fecha || "—"}</span>
-                              </div>
-                            </div>
-                            {act.anotacion && (
-                              <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-line">{act.anotacion}</p>
-                            )}
-                          </div>
-                        ))}
-                      </div>
+                <>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+                    <span>{cpnuActuaciones.length} de {cpnuTotal} actuaciones</span>
+                    {cpnuUltimaActuacion && (
+                      <span>Última: <span className="font-medium text-indigo-700">{cpnuUltimaActuacion}</span></span>
                     )}
                   </div>
 
-                  {/* ── Columna derecha: Seguimiento Demanda ── */}
-                  <div className="rounded-xl border border-brand-secondary/20 overflow-hidden">
-                    <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 px-4 py-2.5 border-b border-brand-secondary/10 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Gavel className="h-4 w-4 text-brand-primary" />
-                        <span className="text-sm font-semibold text-brand-secondary">Seguimiento Demanda</span>
-                      </div>
-                      <span className="text-xs text-muted-foreground">{filteredSorted.filter(r => !(r as any).esInterno).length} registros</span>
+                  {cpnuActuaciones.length === 0 ? (
+                    <div className="py-6 text-center text-sm text-muted-foreground">
+                      Sin actuaciones registradas en CPNU.
                     </div>
-                    {filteredSorted.filter(r => !(r as any).esInterno).length === 0 ? (
-                      <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-                        Sin registros de seguimiento aún.
-                      </div>
-                    ) : (
-                      <div className="divide-y divide-brand-secondary/5 max-h-[500px] overflow-y-auto">
-                        {filteredSorted.filter(r => !(r as any).esInterno).map((row) => {
-                          const d = toDate(row.fecha);
-                          const fechaStr = d ? fmt.format(d) : "—";
-                          return (
-                            <div key={row.id} className="px-4 py-3 hover:bg-brand-primary/[0.02] transition-colors">
-                              <div className="flex items-start justify-between gap-2 mb-1">
-                                <span className="text-xs font-semibold text-brand-primary leading-tight">Seguimiento</span>
-                                <span className="text-[10px] text-muted-foreground shrink-0 whitespace-nowrap">{fechaStr}</span>
-                              </div>
-                              {row.descripcion && (
-                                <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-line">{row.descripcion}</p>
-                              )}
-                              {row.archivoUrl && (
-                                <a
-                                  href={row.archivoUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex items-center gap-1 text-[10px] text-brand-primary hover:underline mt-1"
-                                >
-                                  <Download className="h-3 w-3" /> Ver archivo
-                                </a>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-
-                </div>
+                  ) : (
+                    <div className="rounded-xl border border-indigo-100 overflow-hidden">
+                      <table className="w-full text-xs">
+                        <thead className="bg-indigo-50 border-b border-indigo-100">
+                          <tr>
+                            <th className="px-3 py-2 text-left font-semibold text-indigo-700 w-8">#</th>
+                            <th className="px-3 py-2 text-left font-semibold text-indigo-700 w-24">Fecha</th>
+                            <th className="px-3 py-2 text-left font-semibold text-indigo-700 w-36">Actuación</th>
+                            <th className="px-3 py-2 text-left font-semibold text-indigo-700">Anotación</th>
+                            <th className="px-3 py-2 text-center font-semibold text-indigo-700 w-12">Docs</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-indigo-50">
+                          {cpnuActuaciones.map((act) => (
+                            <tr key={act.numero} className="hover:bg-indigo-50/40 transition-colors">
+                              <td className="px-3 py-2.5 text-muted-foreground text-center">{act.numero}</td>
+                              <td className="px-3 py-2.5 whitespace-nowrap text-gray-700">{act.fecha || "—"}</td>
+                              <td className="px-3 py-2.5 font-medium text-indigo-700">{act.tipo || "—"}</td>
+                              <td className="px-3 py-2.5 text-gray-600 leading-relaxed whitespace-pre-line">{act.anotacion || "—"}</td>
+                              <td className="px-3 py-2.5 text-center">
+                                {act.conDocumentos
+                                  ? <span className="inline-block px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600 border border-indigo-200 text-[10px]">Sí</span>
+                                  : <span className="text-muted-foreground">—</span>
+                                }
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
