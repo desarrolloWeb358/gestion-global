@@ -32,6 +32,7 @@ export interface SeguimientoDemanda {
   esInterno?: boolean;
   archivoPath?: string;
   archivoUrl?: string;
+  actualizadoEn?: Timestamp;
 }
 
 /* ====================== Helpers ====================== */
@@ -115,6 +116,7 @@ export async function addSeguimientoDemanda(
     clienteUID: clienteId,
     descripcion: data.descripcion,
     esInterno: !!data.esInterno,
+    actualizadoEn: ahora,
     ...(archivoPath ? { archivoPath } : {}),
     ...(archivoUrl ? { archivoUrl } : {}),
   });
@@ -162,6 +164,7 @@ export async function updateSeguimientoDemanda(
     fecha: fechaEdit,
     descripcion: data.descripcion,
     esInterno: !!data.esInterno,
+    actualizadoEn: Timestamp.fromDate(new Date()),
   });
 
   const payloadArchivo = archivo

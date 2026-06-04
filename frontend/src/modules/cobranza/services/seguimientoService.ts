@@ -55,26 +55,13 @@ function stripUndefined<T extends Record<string, any>>(obj: T): T {
   ) as T;
 }
 
-// Convierte Timestamp | Date | undefined → Timestamp
-function toTimestamp(v: Timestamp | Date | undefined): Timestamp | null {
-  if (!v) return null;
-  if (v instanceof Date) return Timestamp.fromDate(v);
-  return v as Timestamp;
-}
-
-// Solo actualiza fechaUltimoSeguimiento si la nueva fecha es mayor que la actual
-async function actualizarFechaUltimoSeguimientoSiMayor(
+async function actualizarFechaUltimoSeguimiento(
   clienteId: string,
   deudorId: string,
-  nuevaFecha: Timestamp
+  ahora: Timestamp
 ): Promise<void> {
   const deudorRef = doc(db, `clientes/${clienteId}/deudores/${deudorId}`);
-  const snap = await getDoc(deudorRef);
-  const fechaActual = snap.data()?.fechaUltimoSeguimiento as Timestamp | undefined;
-  const msActual = fechaActual?.toMillis?.() ?? 0;
-  if (nuevaFecha.toMillis() > msActual) {
-    await updateDoc(deudorRef, { fechaUltimoSeguimiento: nuevaFecha });
-  }
+  await updateDoc(deudorRef, { fechaUltimoSeguimiento: ahora });
 }
 
 /* ======================================================
@@ -105,22 +92,24 @@ export async function addSeguimiento(
   }
 
   const refCol = collection(db, `clientes/${clienteId}/deudores/${deudorId}/seguimiento`);
-  console.log("se adiciona seguimiento con data:", data);
 
   const fechaBase = data.fecha instanceof Date ? data.fecha : data.fecha?.toDate?.() ?? new Date();
-  const ahora = Timestamp.fromDate(fechaBase);
+  const fechaSeleccionada = Timestamp.fromDate(fechaBase);
+  const ahora = Timestamp.fromDate(new Date());
+
   const payload = stripUndefined({
-    fecha: ahora,
+    fecha: fechaSeleccionada,
     clienteUID: clienteId,
     ejecutivoUID: ejecutivoUID,
     tipoSeguimiento: data.tipoSeguimiento,
     descripcion: data.descripcion,
+    actualizadoEn: ahora,
     ...(archivoUrl ? { archivoUrl } : {}),
   });
 
   const docRef = await addDoc(refCol, payload);
 
-  await actualizarFechaUltimoSeguimientoSiMayor(clienteId, deudorId, ahora);
+  await actualizarFechaUltimoSeguimiento(clienteId, deudorId, ahora);
 
   return docRef;
 }
@@ -151,27 +140,27 @@ export async function updateSeguimiento(
     nuevoArchivoUrl = await uploadArchivo(clienteId, deudorId, archivo);
   }
 
+  const ahora = Timestamp.fromDate(new Date());
+
   const payloadBase = stripUndefined({
-    fecha: data.fecha, // si viene undefined, no se envía
+    fecha: data.fecha,
     tipoSeguimiento: data.tipoSeguimiento,
     descripcion: data.descripcion,
+    actualizadoEn: ahora,
   });
 
   const payloadArchivo =
     archivo
-      ? { archivoUrl: nuevoArchivoUrl } // se setea nuevo
+      ? { archivoUrl: nuevoArchivoUrl }
       : reemplazar
-        ? { archivoUrl: deleteField() } // se elimina explícitamente
-        : {}; // no se toca el campo
+        ? { archivoUrl: deleteField() }
+        : {};
 
   const payload = { ...payloadBase, ...payloadArchivo };
 
   await updateDoc(refDocu, payload);
 
-  const fechaTs = toTimestamp(data.fecha);
-  if (fechaTs) {
-    await actualizarFechaUltimoSeguimientoSiMayor(clienteId, deudorId, fechaTs);
-  }
+  await actualizarFechaUltimoSeguimiento(clienteId, deudorId, ahora);
 }
 
 export async function deleteSeguimiento(
@@ -224,19 +213,22 @@ export async function addSeguimientoJuridico(
   const refCol = collection(db, `clientes/${clienteId}/deudores/${deudorId}/seguimientoJuridico`);
 
   const fechaBase = data.fecha instanceof Date ? data.fecha : data.fecha?.toDate?.() ?? new Date();
-  const ahora = Timestamp.fromDate(fechaBase);
+  const fechaSeleccionada = Timestamp.fromDate(fechaBase);
+  const ahora = Timestamp.fromDate(new Date());
+
   const payload = stripUndefined({
-    fecha: ahora,
+    fecha: fechaSeleccionada,
     ejecutivoUID: ejecutivoUID,
     clienteUID: clienteId,
     tipoSeguimiento: data.tipoSeguimiento,
     descripcion: data.descripcion,
+    actualizadoEn: ahora,
     ...(archivoUrl ? { archivoUrl } : {}),
   });
 
   const docRef = await addDoc(refCol, payload);
 
-  await actualizarFechaUltimoSeguimientoSiMayor(clienteId, deudorId, ahora);
+  await actualizarFechaUltimoSeguimiento(clienteId, deudorId, ahora);
 
   return docRef;
 }
@@ -263,10 +255,13 @@ export async function updateSeguimientoJuridico(
     nuevoArchivoUrl = await uploadArchivo(clienteId, deudorId, archivo);
   }
 
+  const ahora = Timestamp.fromDate(new Date());
+
   const payloadBase = stripUndefined({
     fecha: data.fecha,
     tipoSeguimiento: data.tipoSeguimiento,
     descripcion: data.descripcion,
+    actualizadoEn: ahora,
   });
 
   const payloadArchivo =
@@ -280,10 +275,7 @@ export async function updateSeguimientoJuridico(
 
   await updateDoc(refDocu, payload);
 
-  const fechaTs = toTimestamp(data.fecha);
-  if (fechaTs) {
-    await actualizarFechaUltimoSeguimientoSiMayor(clienteId, deudorId, fechaTs);
-  }
+  await actualizarFechaUltimoSeguimiento(clienteId, deudorId, ahora);
 }
 
 export async function deleteSeguimientoJuridico(

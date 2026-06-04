@@ -18,7 +18,6 @@ import {
   Hash,
   Plus,
   ChevronDown,
-  Lock,
   Scale,
   RefreshCw,
   AlertCircle,
@@ -136,7 +135,6 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
   const isDeudor = roles.includes("deudor");
   const isExterno = isCliente || isDeudor;
   const puedeEditar = acl.can(PERMS.Seguimientos_Dependientes_Edit);
-  const canEditFecha = acl.can(PERMS.Seguimientos_Fecha_Edit);
 
   const [rows, setRows] = React.useState<SeguimientoDemanda[]>([]);
   const [loading, setLoading] = React.useState(false);
@@ -1006,18 +1004,14 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
               <div className="space-y-2">
                 <Label className="text-brand-secondary font-medium flex items-center gap-1.5">
                   Fecha
-                  {!canEditFecha && (
-                    <Lock className="h-3 w-3 text-muted-foreground" aria-label="Solo ejecutivoAdmin puede editar la fecha" />
-                  )}
                 </Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
                       type="button"
                       variant="outline"
-                      disabled={saving || !canEditFecha}
+                      disabled={saving}
                       className="w-full justify-start font-normal h-10"
-                      title={!canEditFecha ? "Solo el ejecutivoAdmin puede editar la fecha" : undefined}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {fecha
