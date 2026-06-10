@@ -209,7 +209,7 @@ export default function SeguimientoDemandasClienteSection({ clienteId, year, mon
                                                     </Typography>
                                                 </div>
                                                 <Typography variant="small" className="text-muted-foreground">
-                                                    Listado cronológico (primero: observación del conjunto)
+                                                    Listado cronológico
                                                 </Typography>
                                             </div>
 
@@ -220,10 +220,6 @@ export default function SeguimientoDemandasClienteSection({ clienteId, year, mon
                                                         ...[...d.seguimientos]
                                                             .sort((a, b) => (b.fecha?.getTime() ?? 0) - (a.fecha?.getTime() ?? 0))
                                                             .map((s) => ({ texto: s.descripcion || "Sin descripción", fecha: s.fecha ?? null })),
-
-                                                        ...(d.observacionCliente?.trim()
-                                                            ? [{ texto: d.observacionCliente.trim(), fecha: null }]
-                                                            : []),
                                                     ];
 
 

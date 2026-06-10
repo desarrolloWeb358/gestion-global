@@ -84,6 +84,7 @@ import { normalizeDemandados, demandadosToString } from "../../models/deudores.m
 import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 
 import { obtenerRecaudosMensuales, MesTotal, existeEstadoMensualClienteEnPeriodo } from "../../services/reportes/recaudosService";
+import { actualizarCliente } from "@/modules/clientes/services/clienteService";
 
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { PERMS } from "@/shared/constants/acl";
@@ -98,6 +99,9 @@ import { buildReporteClienteDocx } from "../../services/reportes/reporteClienteW
 import { obtenerDemandasConSeguimientoCliente } from "../../services/reportes/demandaReporteService";
 import { obtenerReporteDeudoresPorPeriodo } from "../../services/reportes/reporteDeudoresService";
 import type { FilaReporte } from "../../services/reportes/tipos";
+
+// Mes a partir del cual rige el nuevo modelo de habilitación por ejecutivo (inclusive)
+const REPORTE_NUEVO_MODELO_DESDE = "2026-06";
 
 const COLORS = [
   "#4F46E5",
@@ -392,7 +396,8 @@ const capturarGraficoSVG = async (elemento: HTMLElement): Promise<string | null>
 export default function ReporteClientePage() {
   const { clienteId } = useParams<{ clienteId: string }>();
   const navigate = useNavigate();
-  const { can, loading: aclLoading } = useAcl();
+  const { can, roles, loading: aclLoading } = useAcl();
+  const isRolCliente = roles?.includes("cliente") ?? false;
 
   // Recomendado: permisos separados
   const canDownloadWord = can(PERMS.ReporteCliente_Download_Word);
@@ -420,6 +425,10 @@ export default function ReporteClientePage() {
 
   const [hayDatosPeriodo, setHayDatosPeriodo] = useState(true);
   const [valoresAgregadosGrupos, setValoresAgregadosGrupos] = useState<ValoresAgregadosPorTipo[]>([]);
+  const [reportesHabilitados, setReportesHabilitados] = useState<Record<string, boolean>>({});
+  const reportesHabilitadosRef = useRef<Record<string, boolean>>({});
+  const [clienteCargado, setClienteCargado] = useState(false);
+  const [togglingReporte, setTogglingReporte] = useState(false);
 
   const [gestionandoDetalle, setGestionandoDetalle] = useState<DeudorTipificacionDetalle[]>([]);
   const [recomMin, setRecomMin] = useState<number>(2_000_000);
@@ -468,13 +477,25 @@ export default function ReporteClientePage() {
     (async () => {
       setLoading(true);
 
-      const existeData = await existeEstadoMensualClienteEnPeriodo(
-        clienteId,
-        yearTabla,
-        monthTabla
-      );
+      const mesKey = `${yearTabla}-${String(monthTabla).padStart(2, "0")}`;
+      const esNuevoModelo = isRolCliente && mesKey >= REPORTE_NUEVO_MODELO_DESDE;
 
-      if (!existeData) {
+      // Para el nuevo modelo esperamos a que el cliente haya cargado antes de evaluar
+      if (esNuevoModelo && !clienteCargado) {
+        setLoading(false);
+        return;
+      }
+
+      let tieneAcceso: boolean;
+      if (esNuevoModelo) {
+        // Nuevo modelo: el cliente solo ve si el ejecutivo habilitó este mes
+        tieneAcceso = reportesHabilitadosRef.current[mesKey] === true;
+      } else {
+        // Comportamiento original: cualquier rol con estados mensuales
+        tieneAcceso = await existeEstadoMensualClienteEnPeriodo(clienteId, yearTabla, monthTabla);
+      }
+
+      if (!tieneAcceso) {
         setHayDatosPeriodo(false);
         setPieData([]);
         setBarsData([]);
@@ -515,12 +536,13 @@ export default function ReporteClientePage() {
       setValoresAgregadosGrupos(valoresGrupos);
       setLoading(false);
     })();
-  }, [clienteId, yearTabla, monthTabla]);
+  }, [clienteId, yearTabla, monthTabla, isRolCliente, clienteCargado]);
 
   useEffect(() => {
     if (!clienteId) return;
 
     let alive = true;
+    setClienteCargado(false);
 
     (async () => {
       try {
@@ -528,6 +550,10 @@ export default function ReporteClientePage() {
         if (!alive) return;
         setClienteNombre(c?.nombre?.trim() || "Cliente");
         setAdministrador(c?.administrador?.trim() || "");
+        const habMap = c?.reportesHabilitados ?? {};
+        setReportesHabilitados(habMap);
+        reportesHabilitadosRef.current = habMap;
+        setClienteCargado(true);
         // ✅ ejecutivo prejurídico (viene en Cliente)
         const ejecutivoId = c?.ejecutivoPrejuridicoId ?? null;
 
@@ -636,6 +662,28 @@ export default function ReporteClientePage() {
     return `${name} ${(percent * 100).toFixed(0)}%`;
   };
 
+
+  const handleToggleReporte = async () => {
+    if (!clienteId) return;
+    const mesKey = `${yearTabla}-${String(monthTabla).padStart(2, "0")}`;
+    const nuevoValor = !(reportesHabilitados[mesKey] === true);
+    setTogglingReporte(true);
+    try {
+      await actualizarCliente(clienteId, {
+        reportesHabilitados: { ...reportesHabilitados, [mesKey]: nuevoValor },
+      });
+      setReportesHabilitados((prev) => {
+        const updated = { ...prev, [mesKey]: nuevoValor };
+        reportesHabilitadosRef.current = updated;
+        return updated;
+      });
+      toast.success(nuevoValor ? "Reporte habilitado para el cliente" : "Reporte deshabilitado para el cliente");
+    } catch {
+      toast.error("Error al actualizar el permiso del reporte");
+    } finally {
+      setTogglingReporte(false);
+    }
+  };
 
   const handleDownloadPdf = async () => {
     if (!clienteId) return;
@@ -1034,13 +1082,41 @@ export default function ReporteClientePage() {
 
         <Separator className="bg-brand-secondary/20" />
 
+        {!isRolCliente && (() => {
+          const mesKey = `${yearTabla}-${String(monthTabla).padStart(2, "0")}`;
+          if (mesKey < REPORTE_NUEVO_MODELO_DESDE) return null;
+          const habilitado = reportesHabilitados[mesKey] === true;
+          return (
+            <div className="flex justify-end">
+              <Button
+                variant={habilitado ? "destructive" : "outline"}
+                disabled={togglingReporte}
+                onClick={handleToggleReporte}
+                className="gap-2"
+              >
+                {togglingReporte ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : habilitado ? (
+                  "Deshabilitar reporte al cliente"
+                ) : (
+                  "Habilitar reporte al cliente"
+                )}
+              </Button>
+            </div>
+          );
+        })()}
+
         <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
           <div className="p-10 text-center">
             <Typography variant="h3" className="!text-brand-secondary mb-2">
-              No hay información para el período seleccionado
+              {isRolCliente
+                ? "El reporte de este período no está disponible aún"
+                : "No hay información para el período seleccionado"}
             </Typography>
             <Typography variant="body" className="text-muted-foreground">
-              No existen estados mensuales registrados para este cliente en el período consultado.
+              {isRolCliente
+                ? "Comunícate con tu ejecutivo de cuenta para habilitarlo."
+                : "No existen estados mensuales registrados para este cliente en el período consultado."}
             </Typography>
           </div>
         </section>
@@ -1059,6 +1135,28 @@ export default function ReporteClientePage() {
             { label: "Ver Reporte" },
           ]}
         />
+
+        {!isRolCliente && (() => {
+          const mesKey = `${yearTabla}-${String(monthTabla).padStart(2, "0")}`;
+          if (mesKey < REPORTE_NUEVO_MODELO_DESDE) return null;
+          const habilitado = reportesHabilitados[mesKey] === true;
+          return (
+            <Button
+              variant={habilitado ? "destructive" : "outline"}
+              disabled={togglingReporte}
+              onClick={handleToggleReporte}
+              className="gap-2"
+            >
+              {togglingReporte ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : habilitado ? (
+                "Deshabilitar reporte al cliente"
+              ) : (
+                "Habilitar reporte al cliente"
+              )}
+            </Button>
+          );
+        })()}
 
         {canDownloadWord && (
           <Button

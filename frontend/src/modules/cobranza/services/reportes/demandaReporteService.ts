@@ -171,11 +171,7 @@ export async function obtenerDemandasConSeguimientoCliente(
     })
   );
 
-  const items = itemsAll.filter((it) => {
-    const tieneSeguimiento = it.seguimientos.length > 0; // ahora es "hasta corte"
-    const tieneObservacion = (it.observacionCliente ?? "").trim().length > 0;
-    return tieneSeguimiento || tieneObservacion;
-  });
+  const items = itemsAll.filter((it) => it.seguimientos.length > 0);
 
   items.sort((a, b) => (a.ubicacion || "").localeCompare(b.ubicacion || "", "es"));
   return items;

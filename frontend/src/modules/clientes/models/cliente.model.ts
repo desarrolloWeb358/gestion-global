@@ -15,4 +15,7 @@ export interface Cliente {
   dependienteAbogadoId?: string | null;
 
   activo?: boolean;
+
+  // Meses habilitados para que el rol cliente pueda ver el reporte (formato "YYYY-MM")
+  reportesHabilitados?: Record<string, boolean>;
 }
