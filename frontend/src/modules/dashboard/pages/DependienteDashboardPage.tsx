@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronUp,
+  Search,
 } from "lucide-react";
 import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 import { db } from "@/firebase";
@@ -111,6 +112,7 @@ export default function DependienteDashboardPage() {
   const [mesesFiltro, setMesesFiltro] = useState<MesesFiltro>("1m");
   const [showConjuntos, setShowConjuntos] = useState(false);
   const [showSinRevision, setShowSinRevision] = useState(false);
+  const [filtroConjunto, setFiltroConjunto] = useState("");
 
   const paramUid = searchParams.get("uid");
   const uid = paramUid ?? usuario?.uid;
@@ -232,6 +234,13 @@ export default function DependienteDashboardPage() {
 
   // ── Totales
   const totalConjuntos = filas.length;
+
+  const filasFiltradas = useMemo(() => {
+    if (!filtroConjunto.trim()) return filas;
+    const q = filtroConjunto.toLowerCase();
+    return filas.filter((f) => f.clienteNombre.toLowerCase().includes(q));
+  }, [filas, filtroConjunto]);
+
   const totalDeudoresEnDemanda = useMemo(
     () => filas.reduce((s, f) => s + f.totalDeudoresEnDemanda, 0),
     [filas]
@@ -349,15 +358,30 @@ export default function DependienteDashboardPage() {
           </button>
 
           {showConjuntos && (
-            <div className="overflow-x-auto">
+            <div>
+              {/* Filtro búsqueda */}
+              <div className="px-4 py-3 border-b bg-white">
+                <div className="relative max-w-sm">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                  <input
+                    type="text"
+                    value={filtroConjunto}
+                    onChange={(e) => setFiltroConjunto(e.target.value)}
+                    placeholder="Buscar conjunto..."
+                    className="w-full pl-9 pr-3 py-1.5 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-brand-primary/30"
+                  />
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
               {loading ? (
                 <div className="h-48 flex items-center justify-center">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
-              ) : filas.length === 0 ? (
+              ) : filasFiltradas.length === 0 ? (
                 <div className="h-48 flex items-center justify-center">
                   <p className="text-sm text-muted-foreground">
-                    No tienes conjuntos asignados actualmente.
+                    {filtroConjunto ? "No se encontraron conjuntos con esa búsqueda." : "No tienes conjuntos asignados actualmente."}
                   </p>
                 </div>
               ) : (
@@ -374,7 +398,7 @@ export default function DependienteDashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filas.map((fila) => (
+                    {filasFiltradas.map((fila) => (
                       <tr
                         key={fila.clienteId}
                         className="border-t hover:bg-slate-50/70 transition-colors"
@@ -411,6 +435,7 @@ export default function DependienteDashboardPage() {
                   </tfoot>
                 </table>
               )}
+            </div>
             </div>
           )}
         </section>

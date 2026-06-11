@@ -45,7 +45,7 @@ import { PERMS } from "@/shared/constants/acl";
 
 // ✅ Historial tipificaciones
 import type { HistorialTipificacion } from "../../models/historialTipificacion.model";
-import { crearEstadoMensual } from "../../services/estadoMensualService";
+import { crearEstadoMensual, obtenerEstadosMensuales } from "../../services/estadoMensualService";
 
 import { Timestamp } from "firebase/firestore";
 
@@ -1454,21 +1454,45 @@ export default function DeudoresTable() {
     );
   }
 
-  function exportarExcel() {
-    const rows = filteredDeudores.map((d) => ({
-      Nombre: d.nombre ?? "",
-      Cédula: d.cedula ?? "",
-      Teléfonos: (d.telefonos ?? []).join(", "),
-      "Ubicación / Apto": d.ubicacion ?? "",
-      Dirección: (d as any).direccion ?? "",
-      Tipificación: d.tipificacion ?? "",
-      Radicado: d.numeroRadicado ?? "",
-      Juzgado: d.juzgado ?? "",
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Deudores");
-    XLSX.writeFile(wb, `Deudores_${nombreCliente || clienteId}_${new Date().toISOString().slice(0,10)}.xlsx`);
+  const [exportando, setExportando] = useState(false);
+
+  async function exportarExcel() {
+    if (!clienteId || exportando) return;
+    setExportando(true);
+    try {
+      const fmt = (n: number | null | undefined) =>
+        n != null ? `$${Math.round(n).toLocaleString("es-CO")}` : "";
+
+      const deudoresConFinanzas = await Promise.all(
+        filteredDeudores.map(async (d) => {
+          const estados = await obtenerEstadosMensuales(clienteId, d.id!);
+          const ultimo = estados[0] ?? null;
+          const deuda = ultimo?.deuda ?? null;
+          const honorarios = ultimo?.honorariosDeuda ?? null;
+          const total = deuda != null ? deuda + (honorarios ?? 0) : null;
+          return {
+            Nombre: d.nombre ?? "",
+            Cédula: d.cedula ?? "",
+            Teléfonos: (d.telefonos ?? []).join(", "),
+            "Ubicación / Apto": d.ubicacion ?? "",
+            Dirección: (d as any).direccion ?? "",
+            Tipificación: d.tipificacion ?? "",
+            "Deuda (último mes)": fmt(deuda),
+            "Honorarios (último mes)": fmt(honorarios),
+            "Total con honorarios": fmt(total),
+          };
+        })
+      );
+
+      const ws = XLSX.utils.json_to_sheet(deudoresConFinanzas);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Deudores");
+      XLSX.writeFile(wb, `Deudores_${nombreCliente || clienteId}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    } catch {
+      toast.error("Error al exportar el archivo");
+    } finally {
+      setExportando(false);
+    }
   }
 
   return (
@@ -1536,10 +1560,10 @@ export default function DeudoresTable() {
               variant="outline"
               onClick={exportarExcel}
               className="gap-2 border-brand-secondary/30 shadow-sm"
-              disabled={filteredDeudores.length === 0}
+              disabled={filteredDeudores.length === 0 || exportando}
             >
-              <Download className="h-4 w-4" />
-              Exportar Excel
+              <Download className={`h-4 w-4 ${exportando ? "animate-pulse" : ""}`} />
+              {exportando ? "Exportando..." : "Exportar Excel"}
             </Button>
 
             {canEdit && (

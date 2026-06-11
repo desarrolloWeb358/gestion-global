@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye, Pencil, User, Users, Search, X, Download } from "lucide-react";
 import * as XLSX from "xlsx";
+import { toast } from "sonner";
 import {
   Table,
   TableHeader,
@@ -22,6 +23,9 @@ import {
 
 import { Cliente } from "@/modules/clientes/models/cliente.model";
 import { obtenerClientesPorUsuario } from "@/modules/clientes/services/clienteService";
+import { getUsuarioByUid } from "@/modules/usuarios/services/usuarioService";
+import { obtenerDeudorPorCliente } from "@/modules/cobranza/services/deudorService";
+import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 import { ClienteEditDialog } from "./ClienteEditDialog";
 
 import { Typography } from "@/shared/design-system/components/Typography";
@@ -127,18 +131,54 @@ export default function ClientesCrud() {
     setMostrarDialogo(false);
   };
 
-  function exportarExcel() {
-    const rows = clientesFiltrados.map((c) => ({
-      Nombre: (c as any).nombre ?? c.id ?? "",
-      Dirección: c.direccion ?? "",
-      Administrador: c.administrador ?? "",
-      "Forma de pago": c.formaPago ?? "",
-      Estado: c.activo === false ? "Inactivo" : "Activo",
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Clientes");
-    XLSX.writeFile(wb, `Clientes_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  const [exportando, setExportando] = useState(false);
+
+  const TIPIFICACIONES_INACTIVAS = new Set<string>([
+    TipificacionDeuda.INACTIVO,
+    TipificacionDeuda.TERMINADO,
+    TipificacionDeuda.DEMANDA_TERMINADO,
+    TipificacionDeuda.DEVUELTO,
+  ]);
+
+  async function exportarExcel() {
+    if (exportando) return;
+    setExportando(true);
+    try {
+      const rows = await Promise.all(
+        clientesFiltrados.map(async (c) => {
+          const cc = c as any;
+          const uid = cc.usuarioUid ?? c.id;
+
+          // Cargar usuario vinculado para email y teléfono
+          const usuario = uid ? await getUsuarioByUid(uid) : null;
+
+          // Contar deudores activos
+          const deudores = c.id ? await obtenerDeudorPorCliente(c.id) : [];
+          const deudoresActivos = deudores.filter(
+            (d) => !TIPIFICACIONES_INACTIVAS.has(d.tipificacion ?? "")
+          ).length;
+
+          return {
+            Nombre: cc.nombre ?? c.id ?? "",
+            NIT: cc.nit ?? cc.numeroDocumento ?? "",
+            Correo: usuario?.email ?? cc.email ?? "",
+            Teléfono: (usuario as any)?.telefonoUsuario ?? cc.telefono ?? "",
+            Dirección: c.direccion ?? "",
+            Administrador: c.administrador ?? "",
+            "Deudores activos": deudoresActivos,
+          };
+        })
+      );
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Clientes");
+      XLSX.writeFile(wb, `Clientes_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    } catch {
+      toast.error("Error al exportar el archivo");
+    } finally {
+      setExportando(false);
+    }
   }
 
   return (
@@ -170,11 +210,11 @@ export default function ClientesCrud() {
             <Button
               variant="outline"
               onClick={exportarExcel}
-              disabled={clientesFiltrados.length === 0}
+              disabled={clientesFiltrados.length === 0 || exportando}
               className="gap-2 border-brand-secondary/30 shadow-sm self-start md:self-auto"
             >
-              <Download className="h-4 w-4" />
-              Exportar Excel
+              <Download className={`h-4 w-4 ${exportando ? "animate-pulse" : ""}`} />
+              {exportando ? "Exportando..." : "Exportar Excel"}
             </Button>
           </div>
         </header>
