@@ -145,6 +145,7 @@ export default function BulkWhatsAppPage() {
 
   // ID del job de Firestore que está corriendo
   const [jobId, setJobId] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
 
   // Datos extra del cliente (se cargan una vez)
   const [asesor, setAsesor] = useState("");
@@ -287,7 +288,8 @@ export default function BulkWhatsAppPage() {
   // ── Crear job en Firestore (el backend hace el envío) ──────────────────────
 
   const handleSend = async () => {
-    if (!canSend || !selectedTemplate || !clienteId || !user) return;
+    if (!canSend || !selectedTemplate || !clienteId || !user || isSending) return;
+    setIsSending(true);
 
     // Pre-calcular parámetros por deudor para que el backend no necesite lógica de resolución
     const items: Array<{
@@ -705,7 +707,7 @@ export default function BulkWhatsAppPage() {
           {/* Botón de envío */}
           <Button
             onClick={handleSend}
-            disabled={!canSend}
+            disabled={!canSend || isSending}
             className="w-full gap-2 bg-brand-primary hover:bg-brand-secondary"
             size="lg"
           >

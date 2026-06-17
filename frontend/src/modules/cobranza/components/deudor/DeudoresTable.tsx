@@ -629,7 +629,7 @@ function ImportPreviewDialog({
     : (!preview.hasInmueble ? ["INMUEBLE"] : []);
 
   const canImport = preview.hasInmueble && (modo === "solo_actualizar" || preview.hasNombre);
-  const mostrarMes = esCrear && preview.hasDeuda && modo === "crear_y_actualizar";
+  const mostrarMes = esCrear && preview.hasDeuda;
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v && !importing) onCancel(); }}>
@@ -687,11 +687,11 @@ function ImportPreviewDialog({
             <span className="text-xl font-bold text-brand-primary">{preview.totalRows}</span>
           </div>
 
-          {/* Selector de mes — solo si viene columna DEUDA y el modo crea deudores */}
+          {/* Selector de mes — si viene columna DEUDA (deudores nuevos y existentes sin historial) */}
           {mostrarMes && (
             <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 space-y-2">
               <p className="text-sm font-medium text-blue-800">
-                Se detectó la columna <strong>DEUDA</strong>. Selecciona el mes para registrar la deuda de los deudores nuevos:
+                Se detectó la columna <strong>DEUDA</strong>. Selecciona el mes para registrar la deuda en deudores nuevos y en deudores existentes sin estados mensuales:
               </p>
               <input
                 type="month"
@@ -1029,8 +1029,11 @@ export default function DeudoresTable() {
             const correosNuevos   = colCorreo   ? parsearCorreosDeTexto(String(row[colCorreo]   ?? "")) : [];
             const cedulaRaw       = colCedula   ? String(row[colCedula] ?? "").trim() : "";
             const nombreRaw       = colNombre   ? String(row[colNombre] ?? "").trim() : "";
+            const deudaRawExist   = colDeuda    ? String(row[colDeuda]  ?? "").trim() : "";
+            const deudaNumExist   = deudaRawExist ? Number(deudaRawExist.replace(/[^0-9]/g, "")) : NaN;
+            const tieneDeudaValida = !!(colDeuda && opts.mesDeuda && !isNaN(deudaNumExist) && deudaNumExist > 0);
 
-            if (telefonosNuevos.length === 0 && correosNuevos.length === 0 && !cedulaRaw && !nombreRaw) {
+            if (telefonosNuevos.length === 0 && correosNuevos.length === 0 && !cedulaRaw && !nombreRaw && !tieneDeudaValida) {
               reportRows.push({ inmueble: inmuebleRaw, deudorNombre: deudorExistente.nombre, status: "no_data", phonesAdded: [], emailsAdded: [] });
               continue;
             }
@@ -1052,7 +1055,26 @@ export default function DeudoresTable() {
             if (nombreRaw) patch.nombre = nombreRaw;
 
             try {
-              await actualizarDeudorDatos(clienteId, deudorExistente.id!, patch);
+              if (Object.keys(patch).length > 0) {
+                await actualizarDeudorDatos(clienteId, deudorExistente.id!, patch);
+              }
+
+              if (tieneDeudaValida) {
+                const estadosExistentes = await obtenerEstadosMensuales(clienteId, deudorExistente.id!);
+                if (!estadosExistentes.some(e => e.mes === opts.mesDeuda)) {
+                  const pct = deudorExistente.porcentajeHonorarios ?? 15;
+                  await crearEstadoMensual(clienteId, deudorExistente.id!, {
+                    clienteUID: clienteId,
+                    mes: opts.mesDeuda,
+                    deuda: deudaNumExist,
+                    recaudo: 0,
+                    porcentajeHonorarios: pct,
+                    honorariosDeuda: Math.round(deudaNumExist * (pct / 100) * 100) / 100,
+                    honorariosRecaudo: 0,
+                  });
+                }
+              }
+
               reportRows.push({ inmueble: inmuebleRaw, deudorNombre: deudorExistente.nombre, status: "updated", phonesAdded: telefonosNuevos, emailsAdded: correosNuevos });
               updated++;
             } catch (e: any) {
