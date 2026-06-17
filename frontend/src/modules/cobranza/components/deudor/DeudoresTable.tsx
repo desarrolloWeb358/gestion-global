@@ -24,6 +24,7 @@ import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/select";
 import { Button } from "@/shared/ui/button";
+import { Checkbox } from "@/shared/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/shared/ui/tooltip";
 import { toast } from "sonner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
@@ -64,6 +65,19 @@ import {
 const ALL = "__ALL__";
 const ALL_ANIO = "__ALL_ANIO__";
 const CURRENT_YEAR = new Date().getFullYear();
+
+function parseTipFilters(searchParams: URLSearchParams, savedFilter: URLSearchParams) {
+  const rawTips = searchParams.get("tips") ?? savedFilter.get("tips");
+  if (rawTips) {
+    const values = rawTips.split(",").filter(Boolean);
+    if (values.includes(ALL)) return [ALL];
+    if (values.includes(ALL_ANIO)) return [ALL_ANIO];
+    return values.length > 0 ? values : [ALL];
+  }
+
+  const legacyTip = searchParams.get("tip") ?? savedFilter.get("tip");
+  return legacyTip ? [legacyTip] : [ALL];
+}
 
 /* =========================
    Utilidades de teléfonos
@@ -866,8 +880,8 @@ export default function DeudoresTable() {
   const [search, setSearch] = useState(
     searchParams.get("q") ?? savedFilter.get("q") ?? ""
   );
-  const [tipFilter, setTipFilter] = useState(
-    searchParams.get("tip") ?? savedFilter.get("tip") ?? ALL
+  const [tipFilters, setTipFilters] = useState<string[]>(() =>
+    parseTipFilters(searchParams, savedFilter)
   );
   const [currentPage, setCurrentPage] = useState(
     Number(searchParams.get("page") ?? savedFilter.get("page") ?? 1)
@@ -1163,7 +1177,11 @@ export default function DeudoresTable() {
     const params: any = {};
 
     if (search) params.q = search;
-    if (tipFilter && tipFilter !== ALL) params.tip = tipFilter;
+    if (tipFilters.length === 1 && tipFilters[0] !== ALL) {
+      params.tip = tipFilters[0];
+    } else if (tipFilters.length > 1) {
+      params.tips = tipFilters.join(",");
+    }
     if (currentPage > 1) params.page = String(currentPage);
 
     setSearchParams(params, { replace: true });
@@ -1171,10 +1189,14 @@ export default function DeudoresTable() {
     // Persiste el filtro para que las subpáginas puedan volver con él
     const qs = new URLSearchParams();
     if (search) qs.set("q", search);
-    if (tipFilter && tipFilter !== ALL) qs.set("tip", tipFilter);
+    if (tipFilters.length === 1 && tipFilters[0] !== ALL) {
+      qs.set("tip", tipFilters[0]);
+    } else if (tipFilters.length > 1) {
+      qs.set("tips", tipFilters.join(","));
+    }
     if (currentPage > 1) qs.set("page", String(currentPage));
     sessionStorage.setItem(`deudores_filter_${clienteId}`, qs.toString());
-  }, [search, tipFilter, currentPage, clienteId]);
+  }, [search, tipFilters, currentPage, clienteId]);
 
   useEffect(() => {
     if (aclLoading) return;
@@ -1201,7 +1223,7 @@ export default function DeudoresTable() {
 
   // Carga las fechas de inicio de tipificaciones finales cuando se activa el filtro "Todos (año)"
   useEffect(() => {
-    if (tipFilter !== ALL_ANIO || !clienteId || deudores.length === 0) return;
+    if (!tipFilters.includes(ALL_ANIO) || !clienteId || deudores.length === 0) return;
 
     const finales = deudores.filter((d) => isFinalTip(d.tipificacion as TipificacionDeuda));
     if (finales.length === 0) {
@@ -1225,9 +1247,33 @@ export default function DeudoresTable() {
       .catch((e) => console.error("Error cargando fechas de tipificación:", e))
       .finally(() => setLoadingAnio(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tipFilter, clienteId, deudores]);
+  }, [tipFilters, clienteId, deudores]);
 
   const normalizedQ = search.trim().toLowerCase();
+  const tipFilterSet = new Set(tipFilters);
+  const isAllActiveFilter = tipFilters.length === 1 && tipFilters[0] === ALL;
+  const isAllYearFilter = tipFilters.length === 1 && tipFilters[0] === ALL_ANIO;
+  const tipFilterLabel = isAllActiveFilter
+    ? "Todos (Activos)"
+    : isAllYearFilter
+      ? `Todos (${CURRENT_YEAR})`
+      : tipFilters.length === 1
+        ? tipFilters[0]
+        : `${tipFilters.length} tipificaciones`;
+
+  function toggleTipFilter(value: string) {
+    setTipFilters((prev) => {
+      if (value === ALL || value === ALL_ANIO) return [value];
+
+      const withoutGroups = prev.filter((v) => v !== ALL && v !== ALL_ANIO);
+      const next = withoutGroups.includes(value)
+        ? withoutGroups.filter((v) => v !== value)
+        : [...withoutGroups, value];
+
+      return next.length > 0 ? next : [ALL];
+    });
+    setCurrentPage(1);
+  }
 
   const EXCLUIR_EN_ACTIVOS = new Set<TipificacionDeuda>([
     TipificacionDeuda.INACTIVO,
@@ -1249,9 +1295,9 @@ export default function DeudoresTable() {
       }
 
       const tip = d.tipificacion as TipificacionDeuda;
-      if (tipFilter === ALL) {
+      if (isAllActiveFilter) {
         if (EXCLUIR_EN_ACTIVOS.has(tip)) return false;
-      } else if (tipFilter === ALL_ANIO) {
+      } else if (isAllYearFilter) {
         if (tip === TipificacionDeuda.INACTIVO) return false;
         if (isFinalTip(tip)) {
           const startDate = startDatesAnio.get(d.id!);
@@ -1260,7 +1306,7 @@ export default function DeudoresTable() {
           if (!inicioDentroDelAnio(startDate, CURRENT_YEAR)) return false;
         }
       } else {
-        if (String(tip) !== tipFilter) return false;
+        if (!tipFilterSet.has(String(tip))) return false;
       }
       return true;
     })
@@ -1832,24 +1878,64 @@ export default function DeudoresTable() {
 
               <div>
                 <Label className="mb-2 block text-brand-secondary font-medium">Tipificación</Label>
-                <Select
-                  value={tipFilter}
-                  onValueChange={(v) => {
-                    setTipFilter(v);
-                    setCurrentPage(1);
-                  }}
-                >
-                  <SelectTrigger className="border-brand-secondary/30 bg-white focus:border-brand-primary focus:ring-brand-primary/20">
-                    <SelectValue placeholder="Todas las tipificaciones" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL}>Todos (Activos)</SelectItem>
-                    <SelectItem value={ALL_ANIO}>Todos ({CURRENT_YEAR})</SelectItem>
-                    {Object.values(TipificacionDeuda).map((t) => (
-                      <SelectItem key={t} value={t}>{t}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full justify-between border-brand-secondary/30 bg-white font-normal text-brand-secondary hover:bg-brand-primary/5"
+                    >
+                      <span className="truncate">{tipFilterLabel}</span>
+                      <Filter className="ml-2 h-4 w-4 shrink-0 text-brand-secondary/60" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-72 p-2">
+                    <div className="space-y-1">
+                      <div
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-brand-primary/5"
+                      >
+                        <Checkbox
+                          id="tip-filter-all"
+                          checked={isAllActiveFilter}
+                          onCheckedChange={() => toggleTipFilter(ALL)}
+                        />
+                        <label htmlFor="tip-filter-all" className="flex-1 cursor-pointer">
+                          Todos (Activos)
+                        </label>
+                      </div>
+                      <div
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-brand-primary/5"
+                      >
+                        <Checkbox
+                          id="tip-filter-all-year"
+                          checked={isAllYearFilter}
+                          onCheckedChange={() => toggleTipFilter(ALL_ANIO)}
+                        />
+                        <label htmlFor="tip-filter-all-year" className="flex-1 cursor-pointer">
+                          Todos ({CURRENT_YEAR})
+                        </label>
+                      </div>
+
+                      <div className="my-2 border-t border-brand-secondary/10" />
+
+                      {Object.values(TipificacionDeuda).map((t) => (
+                        <div
+                          key={t}
+                          className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-brand-primary/5"
+                        >
+                          <Checkbox
+                            id={`tip-filter-${t}`}
+                            checked={tipFilterSet.has(t)}
+                            onCheckedChange={() => toggleTipFilter(t)}
+                          />
+                          <label htmlFor={`tip-filter-${t}`} className="flex-1 cursor-pointer">
+                            {t}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               <div className="flex items-end">
@@ -1857,11 +1943,11 @@ export default function DeudoresTable() {
                   variant="outline"
                   className={cn(
                     "w-full border-brand-secondary/30 text-brand-secondary hover:bg-brand-primary/5",
-                    (!search && tipFilter === ALL) && "opacity-50 pointer-events-none"
+                    (!search && isAllActiveFilter) && "opacity-50 pointer-events-none"
                   )}
                   onClick={() => {
                     setSearch("");
-                    setTipFilter(ALL);
+                    setTipFilters([ALL]);
                     setCurrentPage(1);
                   }}
                 >
@@ -1873,7 +1959,7 @@ export default function DeudoresTable() {
         </section>
 
         {/* TABLA */}
-        {loading || (tipFilter === ALL_ANIO && loadingAnio) ? (
+        {loading || (isAllYearFilter && loadingAnio) ? (
           <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
             <div className="flex flex-col items-center gap-4">
               <div className="h-12 w-12 animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary" />
@@ -1890,7 +1976,7 @@ export default function DeudoresTable() {
                 No hay resultados
               </Typography>
               <Typography variant="small" className="max-w-md">
-                {search || tipFilter !== ALL
+                {search || !isAllActiveFilter
                   ? "No se encontraron deudores que coincidan con los filtros aplicados."
                   : "Aún no hay deudores registrados para este cliente."}
               </Typography>

@@ -182,7 +182,7 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
   const [cpnuConsultado, setCpnuConsultado] = React.useState(false);
   const [cpnuError, setCpnuError] = React.useState<string | null>(null);
   const [cpnuLoading, setCpnuLoading] = React.useState(false);
-  const [showComparativa, setShowComparativa] = React.useState(false);
+  const [showCpnu, setShowCpnu] = React.useState(false);
 
   const consultarCPNU = async () => {
     const radicado = infoDemanda.numeroRadicado?.trim();
@@ -811,18 +811,17 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
       {/* ── RAMA JUDICIAL (CPNU) ─────────────────────────────────────────── */}
       {infoDemanda.numeroRadicado && (
         <section className="rounded-2xl border border-indigo-200 bg-white shadow-sm overflow-hidden">
-          {/* Header colapsable */}
           <div className="w-full bg-gradient-to-r from-indigo-50 to-blue-50 px-5 py-4 border-b border-indigo-100 flex items-center justify-between gap-3">
             <div
               className="flex items-center gap-3 flex-1 cursor-pointer select-none min-w-0"
-              onClick={() => setShowComparativa((v) => !v)}
+              onClick={() => setShowCpnu((v) => !v)}
             >
               <Scale className="h-5 w-5 text-indigo-600 shrink-0" />
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-indigo-800">Rama Judicial (CPNU)</p>
                 <p className="text-xs text-indigo-500 mt-0.5 font-mono truncate">{infoDemanda.numeroRadicado}</p>
               </div>
-              <ChevronDown className={cn("h-4 w-4 text-indigo-400 transition-transform duration-200 shrink-0", showComparativa && "rotate-180")} />
+              <ChevronDown className={cn("h-4 w-4 text-indigo-400 transition-transform duration-200 shrink-0", showCpnu && "rotate-180")} />
             </div>
             <button
               type="button"
@@ -839,10 +838,8 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
             </button>
           </div>
 
-          {showComparativa && (
+          {showCpnu && (
             <div className="p-4 md:p-5 space-y-3">
-
-              {/* Estado inicial sin consultar */}
               {!cpnuConsultado && !cpnuLoading && !cpnuError && (
                 <div className="flex flex-col items-center justify-center py-10 gap-2 text-muted-foreground">
                   <Scale className="h-8 w-8 opacity-20" />
@@ -850,7 +847,6 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
                 </div>
               )}
 
-              {/* Loading */}
               {cpnuLoading && (
                 <div className="flex items-center justify-center py-10 gap-3 text-muted-foreground">
                   <RefreshCw className="h-5 w-5 animate-spin" />
@@ -858,7 +854,6 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
                 </div>
               )}
 
-              {/* Error */}
               {cpnuError && !cpnuLoading && (
                 <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
                   <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
@@ -866,7 +861,6 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
                 </div>
               )}
 
-              {/* Proceso privado */}
               {cpnuConsultado && !cpnuLoading && cpnuPrivado === true && (
                 <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
                   <ShieldAlert className="h-4 w-4 mt-0.5 shrink-0" />
@@ -874,7 +868,6 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
                 </div>
               )}
 
-              {/* Actuaciones */}
               {cpnuConsultado && !cpnuLoading && cpnuPrivado === false && (
                 <>
                   <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
