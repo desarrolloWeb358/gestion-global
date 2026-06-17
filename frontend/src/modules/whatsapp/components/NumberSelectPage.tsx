@@ -4,7 +4,7 @@ import { useWaNumbers } from "../hooks/useWaNumbers";
 import { useNavigate } from "react-router-dom";
 
 export default function NumberSelectPage() {
-  const { numbers, loading } = useWaNumbers();
+  const { numbers, loading, error } = useWaNumbers();
   const navigate = useNavigate();
 
   // Redirect inmediato en render (sin flash) cuando hay un solo número
@@ -26,6 +26,13 @@ export default function NumberSelectPage() {
 
       {loading && (
         <p className="text-sm text-muted-foreground">Cargando números...</p>
+      )}
+
+      {error && (
+        <div className="border border-destructive/40 bg-destructive/10 rounded-lg p-4 text-sm text-destructive">
+          <p className="font-medium">Error al cargar los números</p>
+          <p className="mt-1 font-mono text-xs">{error}</p>
+        </div>
       )}
 
       {!loading && numbers.length === 0 && (

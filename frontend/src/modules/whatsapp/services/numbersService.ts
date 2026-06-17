@@ -11,10 +11,17 @@ function mapNumber(id: string, data: Record<string, any>): WaNumber {
   };
 }
 
-export function listenNumbers(callback: (numbers: WaNumber[]) => void): () => void {
-  // Sin orderBy: los números son pocos y no cambian seguido
+export function listenNumbers(
+  callback: (numbers: WaNumber[]) => void,
+  onError?: (err: Error) => void
+): () => void {
   const q = query(collection(db, "numbers"));
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => mapNumber(d.id, d.data())));
-  });
+  return onSnapshot(
+    q,
+    (snap) => callback(snap.docs.map((d) => mapNumber(d.id, d.data()))),
+    (err) => {
+      console.error("[numbersService] onSnapshot error:", err);
+      onError?.(err);
+    }
+  );
 }

@@ -230,6 +230,46 @@ export async function markConversationRead(
   });
 }
 
+// Busca todas las conversaciones de todos los clientes de un ejecutivo
+// Va directo a Firestore, no depende del límite del inbox
+export async function searchConversationsByEjecutivoId(
+  numberId: string,
+  ejecutivoId: string
+): Promise<WaConversation[]> {
+  const clientesSnap = await getDocs(
+    query(collection(db, "clientes"), where("ejecutivoPrejuridicoId", "==", ejecutivoId))
+  );
+  const clienteIds = clientesSnap.docs.map((d) => d.id);
+  if (clienteIds.length === 0) return [];
+
+  const groups = await Promise.all(
+    clienteIds.map((clienteId) =>
+      getDocs(
+        query(
+          collection(db, `numbers/${numberId}/conversations`),
+          where("clienteId", "==", clienteId)
+        )
+      )
+    )
+  );
+
+  const seen = new Set<string>();
+  const convs: WaConversation[] = [];
+  for (const snap of groups) {
+    for (const d of snap.docs) {
+      if (!seen.has(d.id)) {
+        seen.add(d.id);
+        convs.push(mapConversation(d.id, d.data() as Record<string, any>));
+      }
+    }
+  }
+  return convs.sort((a, b) => {
+    const aMs = (a.lastMessageAt as any)?.toMillis?.() ?? 0;
+    const bMs = (b.lastMessageAt as any)?.toMillis?.() ?? 0;
+    return bMs - aMs;
+  });
+}
+
 // Busca todas las conversaciones de un cliente específico
 export async function searchConversationsByClienteId(
   numberId: string,

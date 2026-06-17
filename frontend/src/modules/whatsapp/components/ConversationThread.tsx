@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, Fragment } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   IconArrowLeft,
@@ -14,6 +14,20 @@ import { markConversationRead, isMetaWindowOpen } from "../services/conversation
 import { ChatBubble } from "./ChatBubble";
 import { HumanReplyBox } from "./HumanReplyBox";
 import { Button } from "@/shared/ui/button";
+
+function getDateLabel(timestampMs: number): string {
+  const date = new Date(timestampMs);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (date.toDateString() === today.toDateString()) return "Hoy";
+  if (date.toDateString() === yesterday.toDateString()) return "Ayer";
+  return date.toLocaleDateString("es-CO", { weekday: "short", day: "numeric", month: "short" });
+}
+
+function sameDay(a: number, b: number): boolean {
+  return new Date(a).toDateString() === new Date(b).toDateString();
+}
 
 interface Props {
   numberId: string;
@@ -136,8 +150,19 @@ export function ConversationThread({
           </div>
         )}
 
-        {messages.map((msg) => (
-          <ChatBubble key={msg.id} message={msg} />
+        {messages.map((msg, i) => (
+          <Fragment key={msg.id}>
+            {(i === 0 || !sameDay(messages[i - 1].timestampMs, msg.timestampMs)) && (
+              <div className="flex items-center gap-2 my-2">
+                <div className="flex-1 h-px bg-border" />
+                <span className="text-[11px] text-muted-foreground font-medium px-1 select-none">
+                  {getDateLabel(msg.timestampMs)}
+                </span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+            )}
+            <ChatBubble message={msg} />
+          </Fragment>
         ))}
 
         <div ref={bottomRef} />

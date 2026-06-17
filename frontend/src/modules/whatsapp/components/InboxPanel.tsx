@@ -7,6 +7,10 @@ import { isMetaWindowOpen } from "../services/conversationsService";
 import { NewMessageDialog } from "./NewMessageDialog";
 import { useUsuarioActual } from "@/modules/auth/hooks/useUsuarioActual";
 import { listarClientesWhatsapp, type ClienteOption } from "@/modules/clientes/services/clienteService";
+import { obtenerEjecutivos } from "@/modules/usuarios/services/usuarioService";
+import type { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
+import type { WaConversation } from "../models/waConversation.model";
+import { searchConversationsByEjecutivoId } from "../services/conversationsService";
 
 interface Props {
   numberId: string;
@@ -27,17 +31,20 @@ function formatTime(ts: { toDate?: () => Date } | undefined): string {
   return d.toLocaleDateString("es-CO", { day: "2-digit", month: "short" });
 }
 
-const MODES: { key: SearchMode; label: string }[] = [
-  { key: "phone",   label: "Número"   },
-  { key: "cliente", label: "Conjunto" },
-];
-
 export function InboxPanel({ numberId, activeConvId }: Props) {
   const { usuario, roles, loading: rolesLoading } = useUsuarioActual();
   const uid = rolesLoading ? "" : (usuario?.uid ?? "");
   const { conversations, loading } = useInboxConversations(numberId, uid, roles);
   const navigate = useNavigate();
   const [newMsgOpen, setNewMsgOpen] = useState(false);
+
+  const isEjecutivoAdmin = roles.includes("ejecutivoAdmin");
+
+  const MODES: { key: SearchMode; label: string }[] = [
+    { key: "phone",   label: "Número"   },
+    { key: "cliente", label: "Conjunto" },
+    ...(isEjecutivoAdmin ? [{ key: "ejecutivo" as SearchMode, label: "Ejecutivo" }] : []),
+  ];
 
   // ── Búsqueda ──────────────────────────────────────────────────────────
   const [mode, setMode] = useState<SearchMode>("phone");
@@ -49,6 +56,14 @@ export function InboxPanel({ numberId, activeConvId }: Props) {
   const [clienteSearch, setClienteSearch] = useState("");
   const [selectedCliente, setSelectedCliente] = useState<ClienteOption | null>(null);
   const clientesLoaded = useRef(false);
+
+  // Para modo "ejecutivo": lista de ejecutivos y el seleccionado
+  const [ejecutivos, setEjecutivos] = useState<UsuarioSistema[]>([]);
+  const [ejecutivoSearch, setEjecutivoSearch] = useState("");
+  const [selectedEjecutivo, setSelectedEjecutivo] = useState<UsuarioSistema | null>(null);
+  const ejecutivosLoaded = useRef(false);
+  const [ejecutivoLoading, setEjecutivoLoading] = useState(false);
+  const [ejecutivoFilteredConvs, setEjecutivoFilteredConvs] = useState<WaConversation[]>([]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedTerm(searchInput.trim()), 500);
@@ -63,6 +78,33 @@ export function InboxPanel({ numberId, activeConvId }: Props) {
     }
   }, [mode, uid, roles]);
 
+  // Cargar ejecutivos la primera vez que se abre ese modo
+  useEffect(() => {
+    if (mode === "ejecutivo" && !ejecutivosLoaded.current) {
+      ejecutivosLoaded.current = true;
+      obtenerEjecutivos().then(setEjecutivos);
+    }
+  }, [mode]);
+
+  // Cargar conversaciones del ejecutivo seleccionado directo desde Firestore
+  useEffect(() => {
+    if (mode !== "ejecutivo" || !selectedEjecutivo) {
+      setEjecutivoFilteredConvs([]);
+      return;
+    }
+    let cancelled = false;
+    setEjecutivoLoading(true);
+
+    searchConversationsByEjecutivoId(numberId, selectedEjecutivo.uid).then((convs) => {
+      if (!cancelled) {
+        setEjecutivoFilteredConvs(convs);
+        setEjecutivoLoading(false);
+      }
+    });
+
+    return () => { cancelled = true; };
+  }, [selectedEjecutivo, numberId, mode]);
+
   // Al cambiar de modo limpiar estado
   const handleModeChange = (m: SearchMode) => {
     setMode(m);
@@ -70,6 +112,8 @@ export function InboxPanel({ numberId, activeConvId }: Props) {
     setDebouncedTerm("");
     setClienteSearch("");
     setSelectedCliente(null);
+    setEjecutivoSearch("");
+    setSelectedEjecutivo(null);
   };
 
   const { results: searchResults, loading: searchLoading } = useConversationSearch(
@@ -82,16 +126,34 @@ export function InboxPanel({ numberId, activeConvId }: Props) {
   );
 
   const isSearchActive =
-    mode === "cliente"
+    mode === "ejecutivo"
+      ? !!selectedEjecutivo
+      : mode === "cliente"
       ? !!selectedCliente
       : debouncedTerm.length >= 3;
 
-  const displayConversations = isSearchActive ? searchResults : conversations;
-  const isLoading = isSearchActive ? searchLoading : loading;
+  const displayConversations =
+    mode === "ejecutivo" && selectedEjecutivo
+      ? ejecutivoFilteredConvs
+      : isSearchActive
+      ? searchResults
+      : conversations;
+
+  const isLoading =
+    mode === "ejecutivo" && selectedEjecutivo
+      ? ejecutivoLoading
+      : isSearchActive
+      ? searchLoading
+      : loading;
 
   // Lista de clientes filtrada por lo que escribe el usuario
   const filteredClientes = clientes.filter((c) =>
     c.nombre.toLowerCase().includes(clienteSearch.toLowerCase())
+  );
+
+  // Lista de ejecutivos filtrada
+  const filteredEjecutivos = ejecutivos.filter((e) =>
+    (e.nombre ?? "").toLowerCase().includes(ejecutivoSearch.toLowerCase())
   );
 
   return (
@@ -107,9 +169,9 @@ export function InboxPanel({ numberId, activeConvId }: Props) {
                 {conversations.length} activa{conversations.length !== 1 ? "s" : ""}
               </p>
             )}
-            {isSearchActive && !searchLoading && (
+            {isSearchActive && !isLoading && (
               <p className="text-xs text-muted-foreground mt-0.5">
-                {searchResults.length} resultado{searchResults.length !== 1 ? "s" : ""}
+                {displayConversations.length} resultado{displayConversations.length !== 1 ? "s" : ""}
               </p>
             )}
           </div>
@@ -201,6 +263,37 @@ export function InboxPanel({ numberId, activeConvId }: Props) {
             <span className="truncate font-medium">{selectedCliente.nombre}</span>
           </button>
         )}
+
+        {mode === "ejecutivo" && !selectedEjecutivo && (
+          <div className="relative">
+            <IconSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Buscar ejecutivo..."
+              value={ejecutivoSearch}
+              onChange={(e) => setEjecutivoSearch(e.target.value)}
+              className="w-full pl-8 pr-7 py-1.5 text-xs rounded-md border border-border bg-muted/40 focus:outline-none focus:ring-1 focus:ring-[#004B87]/50 placeholder:text-muted-foreground"
+            />
+            {ejecutivoSearch && (
+              <button
+                onClick={() => setEjecutivoSearch("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <IconX className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        )}
+
+        {mode === "ejecutivo" && selectedEjecutivo && (
+          <button
+            onClick={() => setSelectedEjecutivo(null)}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
+          >
+            <IconChevronLeft className="w-3.5 h-3.5 flex-shrink-0" />
+            <span className="truncate font-medium">{selectedEjecutivo.nombre}</span>
+          </button>
+        )}
       </div>
 
       {/* Lista de clientes (solo modo "cliente" sin selección) */}
@@ -228,8 +321,33 @@ export function InboxPanel({ numberId, activeConvId }: Props) {
         </div>
       )}
 
+      {/* Lista de ejecutivos (solo modo "ejecutivo" sin selección) */}
+      {mode === "ejecutivo" && !selectedEjecutivo && (
+        <div className="flex-1 overflow-y-auto">
+          {ejecutivos.length === 0 && (
+            <div className="flex items-center justify-center py-8">
+              <p className="text-xs text-muted-foreground">Cargando ejecutivos...</p>
+            </div>
+          )}
+          {filteredEjecutivos.map((e) => (
+            <button
+              key={e.uid}
+              onClick={() => setSelectedEjecutivo(e)}
+              className="w-full text-left px-4 py-3 border-b border-border/60 hover:bg-muted/40 transition-colors"
+            >
+              <p className="text-sm text-foreground leading-snug">{e.nombre}</p>
+            </button>
+          ))}
+          {ejecutivos.length > 0 && filteredEjecutivos.length === 0 && (
+            <div className="flex items-center justify-center py-8">
+              <p className="text-xs text-muted-foreground">Sin resultados</p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Lista de conversaciones */}
-      {(mode !== "cliente" || selectedCliente) && (
+      {(mode === "phone" || (mode === "cliente" && !!selectedCliente) || (mode === "ejecutivo" && !!selectedEjecutivo)) && (
         <div className="flex-1 overflow-y-auto">
           {isLoading && (
             <div className="flex items-center justify-center py-10">

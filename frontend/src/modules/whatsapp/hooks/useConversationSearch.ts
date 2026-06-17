@@ -8,7 +8,7 @@ import {
 import type { WaConversation } from "../models/waConversation.model";
 import type { Rol } from "@/shared/constants/acl";
 
-export type SearchMode = "phone" | "cliente";
+export type SearchMode = "phone" | "cliente" | "ejecutivo";
 
 export function useConversationSearch(
   numberId: string,

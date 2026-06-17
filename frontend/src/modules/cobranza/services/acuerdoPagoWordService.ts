@@ -598,7 +598,7 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
             r(", por valor de "),
             rBold(formatCOP(total)),
             r("("),
-            isMissing(totalLetras) ? rRed("XXXXX (VALOR EN LETRAS)") : rBold(String(totalLetras)),
+            isMissing(totalLetras) ? rRed("XXXXX (VALOR EN LETRAS)") : rBold(String(totalLetras) + " PESOS MCTE"),
             r("). Conforme al estado de deuda bajado directamente del sistema a la fecha "),
             isMissing(input.fechaEstadoDeuda)
               ? rRed("XXXXX (FECHA)")
@@ -637,7 +637,7 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
             r("El presente acuerdo tiene como objeto principal, facilitar a EL DEUDOR, el pago de las obligaciones a favor de la Propiedad Horizontal por valor de "),
             rBold(formatCOP(total)),
             r("("),
-            isMissing(totalLetras) ? rRed("XXXXX (VALOR EN LETRAS)") : rBold(String(totalLetras)),
+            isMissing(totalLetras) ? rRed("XXXXX (VALOR EN LETRAS)") : rBold(String(totalLetras) + " PESOS MCTE"),
             r("). Frente a lo cual asume desde ya los compromisos y obligaciones contenidos en este acuerdo."),
           ]),
 
@@ -651,7 +651,7 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
             rBold("LA SUMA DE "),
             rBold(formatCOP(total)),
             r("("),
-            isMissing(totalLetras) ? rRed("XXXXX (VALOR EN LETRAS)") : rBold(String(totalLetras)),
+            isMissing(totalLetras) ? rRed("XXXXX (VALOR EN LETRAS)") : rBold(String(totalLetras) + " PESOS MCTE"),
             r("). "),
             r("Serán cancelados por el DEUDOR a la copropiedad "),
             valOrRedBold(acreedor, "XXXXX (NOMBRE CONJUNTO / CLIENTE)"),
@@ -1011,7 +1011,7 @@ export async function descargarAcuerdoPagoDemandaWord(input: AcuerdoPagoDemandaW
             r(", por valor de "),
             rBold(formatCOP(total)),
             r("("),
-            isMissing(totalLetras) ? rRed("XXXXX (VALOR EN LETRAS)") : rBold(String(totalLetras)),
+            isMissing(totalLetras) ? rRed("XXXXX (VALOR EN LETRAS)") : rBold(String(totalLetras) + " PESOS MCTE"),
             r("). Conforme al estado de deuda bajado directamente del sistema a la fecha "),
             isMissing(input.fechaEstadoDeuda)
               ? rRed("XXXXX (FECHA)")
@@ -1044,7 +1044,7 @@ export async function descargarAcuerdoPagoDemandaWord(input: AcuerdoPagoDemandaW
             r("El presente acuerdo tiene como objeto principal, facilitar a EL DEUDOR, el pago de las obligaciones a favor de la Propiedad Horizontal por valor de "),
             rBold(formatCOP(total)),
             r("("),
-            isMissing(totalLetras) ? rRed("XXXXX (VALOR EN LETRAS)") : rBold(String(totalLetras)),
+            isMissing(totalLetras) ? rRed("XXXXX (VALOR EN LETRAS)") : rBold(String(totalLetras) + " PESOS MCTE"),
             r("). Frente a lo cual asume desde ya los compromisos y obligaciones contenidos en este acuerdo."),
           ]),
 
@@ -1057,7 +1057,7 @@ export async function descargarAcuerdoPagoDemandaWord(input: AcuerdoPagoDemandaW
             rBold("LA SUMA DE "),
             rBold(formatCOP(total)),
             r("("),
-            isMissing(totalLetras) ? rRed("XXXXX (VALOR EN LETRAS)") : rBold(String(totalLetras)),
+            isMissing(totalLetras) ? rRed("XXXXX (VALOR EN LETRAS)") : rBold(String(totalLetras) + " PESOS MCTE"),
             r("). "),
             r("Serán cancelados por el DEUDOR a la copropiedad "),
             valOrRedBold(acreedor, "XXXXX (NOMBRE CONJUNTO / CLIENTE)"),
