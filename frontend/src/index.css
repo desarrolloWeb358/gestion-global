@@ -927,7 +927,7 @@ span.flatpickr-weekday,
   color: #1f2937;
 }
 
-.rich-editor-content .tiptap p { margin: 0 0 0.6em; }
+.rich-editor-content .tiptap p { margin: 0 0 0.11em; }
 .rich-editor-content .tiptap p:last-child { margin-bottom: 0; }
 .rich-editor-content .tiptap p:empty { min-height: 1em; }
 

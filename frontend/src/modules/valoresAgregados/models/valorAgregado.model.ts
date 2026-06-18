@@ -28,4 +28,7 @@ export interface ValorAgregado {
   completado?: boolean;
   fechaCompletado?: Timestamp | null;
   fechaLimite?: Timestamp | null;
+
+  // Última actualización (fecha del mensaje más reciente en la conversación)
+  fechaUltimaActualizacion?: Timestamp | { seconds: number; nanoseconds: number } | null;
 }

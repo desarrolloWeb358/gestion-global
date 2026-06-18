@@ -58,6 +58,7 @@ function mapDocToValorAgregado(id: string, data: any): ValorAgregado {
     completado: data.completado ?? false,
     fechaLimite: data.fechaLimite ?? null,
     fechaCompletado: data.fechaCompletado ?? null,
+    fechaUltimaActualizacion: data.fechaUltimaActualizacion ?? null,
   };
 }
 
@@ -553,13 +554,16 @@ export async function crearMensajeConversacionValorAgregado(
     await updateDoc(docRefConversacion(clienteId, valorId, msgId), updateData);
   }
 
-  // 3️⃣ Actualizar completado según quién responde
+  // 3️⃣ Actualizar completado y fechaUltimaActualizacion según quién responde
   try {
+    const parentPatch: any = { fechaUltimaActualizacion: serverTimestamp() };
     if (base.autorTipo === "cliente") {
-      await updateDoc(docRef(clienteId, valorId), { completado: false });
+      parentPatch.completado = false;
     } else {
-      await updateDoc(docRef(clienteId, valorId), { completado: true, fechaCompletado: serverTimestamp() });
+      parentPatch.completado = true;
+      parentPatch.fechaCompletado = serverTimestamp();
     }
+    await updateDoc(docRef(clienteId, valorId), parentPatch);
   } catch (err) {
     console.error("[crearMensajeConversacionValorAgregado] Error actualizando completado:", err);
   }

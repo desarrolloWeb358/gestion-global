@@ -306,6 +306,11 @@ export const crearUsuarioDesdeAdmin = onRequest(
 // =====================================================
 export { recordatorioPlazosLegales } from "./recordatorios/plazosLegales";
 
+// =====================================================
+// 💾 BACKUP SEMANAL — USUARIOS DE AUTHENTICATION
+// =====================================================
+export { backupUsuariosAuth } from "./backups/authBackup";
+
 const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export const cambiarCorreoUsuarioDesdeAdmin = onCall(async (request) => {

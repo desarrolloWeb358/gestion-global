@@ -3,17 +3,19 @@
 
 import * as React from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { 
-  Calendar as CalendarIcon, 
-  X, 
-  Plus, 
-  Edit, 
-  Eye, 
+import {
+  Calendar as CalendarIcon,
+  X,
+  Plus,
+  Edit,
+  Eye,
   FileText,
   Filter as FilterIcon,
   Upload,
   Trash2,
-  Search
+  Search,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 import { toast } from "sonner";
@@ -166,6 +168,26 @@ const canEdit = canView && isCliente;
   const [dateFrom, setDateFrom] = React.useState<Date | undefined>();
   const [dateTo, setDateTo] = React.useState<Date | undefined>();
 
+  // Ordenamiento
+  const [sortField, setSortField] = React.useState<"fecha" | "fechaUltimaActualizacion">("fechaUltimaActualizacion");
+  const [sortDir, setSortDir] = React.useState<"asc" | "desc">("desc");
+
+  const handleSort = (field: "fecha" | "fechaUltimaActualizacion") => {
+    if (sortField === field) {
+      setSortDir((d) => (d === "desc" ? "asc" : "desc"));
+    } else {
+      setSortField(field);
+      setSortDir("desc");
+    }
+  };
+
+  const SortIcon = ({ field }: { field: "fecha" | "fechaUltimaActualizacion" }) => {
+    if (sortField !== field) return <ChevronDown className="h-3 w-3 opacity-30" />;
+    return sortDir === "desc"
+      ? <ChevronDown className="h-3 w-3 text-brand-primary" />
+      : <ChevronUp className="h-3 w-3 text-brand-primary" />;
+  };
+
   const MAX_FILE_MB = 20;
 
   // =======================
@@ -206,23 +228,34 @@ const canEdit = canView && isCliente;
     const from = normalizeStart(dateFrom);
     const to = normalizeEnd(dateTo);
 
-    return (items || []).filter((it) => {
-      if (nq) {
-        const hay = ((it?.titulo ?? "") + " " + (it?.descripcion ?? "")).toLowerCase();
-        if (!hay.includes(nq)) return false;
-      }
-      if (tipoFilter !== ALL) {
-        if (it?.tipo !== (tipoFilter as TipoValorAgregado)) return false;
-      }
-      if (from || to) {
-        const d = toDateAny((it as any)?.fecha);
-        if (!d) return false;
-        if (from && d < from) return false;
-        if (to && d > to) return false;
-      }
-      return true;
-    });
-  }, [items, q, tipoFilter, dateFrom, dateTo]);
+    return (items || [])
+      .filter((it) => {
+        if (nq) {
+          const hay = ((it?.titulo ?? "") + " " + (it?.descripcion ?? "")).toLowerCase();
+          if (!hay.includes(nq)) return false;
+        }
+        if (tipoFilter !== ALL) {
+          if (it?.tipo !== (tipoFilter as TipoValorAgregado)) return false;
+        }
+        if (from || to) {
+          const d = toDateAny((it as any)?.fecha);
+          if (!d) return false;
+          if (from && d < from) return false;
+          if (to && d > to) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        const getDate = (it: ValorAgregado) => {
+          if (sortField === "fecha") {
+            return toDateAny((it as any)?.fecha) ?? new Date(0);
+          }
+          return toDateAny((it as any)?.fechaUltimaActualizacion) ?? toDateAny((it as any)?.fecha) ?? new Date(0);
+        };
+        const diff = getDate(b).getTime() - getDate(a).getTime();
+        return sortDir === "desc" ? diff : -diff;
+      });
+  }, [items, q, tipoFilter, dateFrom, dateTo, sortField, sortDir]);
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage) || 1;
   const paginated = React.useMemo(
@@ -728,9 +761,24 @@ const canEdit = canView && isCliente;
               <Table className="min-w-[800px]">
                 <TableHeader className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5">
                   <TableRow className="border-brand-secondary/10 hover:bg-transparent">
-                    <TableHead className="text-brand-secondary font-semibold">Fecha</TableHead>
+                    <TableHead
+                      className="text-brand-secondary font-semibold cursor-pointer select-none hover:text-brand-primary"
+                      onClick={() => handleSort("fecha")}
+                    >
+                      <div className="flex items-center gap-1">
+                        Fecha <SortIcon field="fecha" />
+                      </div>
+                    </TableHead>
                     <TableHead className="text-brand-secondary font-semibold">Tipo</TableHead>
                     <TableHead className="text-brand-secondary font-semibold">Título</TableHead>
+                    <TableHead
+                      className="text-brand-secondary font-semibold cursor-pointer select-none hover:text-brand-primary"
+                      onClick={() => handleSort("fechaUltimaActualizacion")}
+                    >
+                      <div className="flex items-center gap-1">
+                        Últ. actualización <SortIcon field="fechaUltimaActualizacion" />
+                      </div>
+                    </TableHead>
                     <TableHead className="w-[180px] text-center text-brand-secondary font-semibold">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -755,6 +803,9 @@ const canEdit = canView && isCliente;
                       </TableCell>
                       <TableCell className="max-w-[520px]">
                         <div className="truncate text-gray-700">{(it as any)?.titulo ?? "—"}</div>
+                      </TableCell>
+                      <TableCell className="text-gray-500 text-sm">
+                        {formatFechaCO((it as any)?.fechaUltimaActualizacion) || "—"}
                       </TableCell>
                       <TableCell>
                         <div className="flex justify-center gap-2">
