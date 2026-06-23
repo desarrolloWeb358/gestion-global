@@ -49,7 +49,7 @@ type Props = {
   onSaveWithDestino?: (
     destino: DestinoColeccion,
     data: Omit<Seguimiento, "id">,
-    archivo?: File,
+    archivos?: File[],
     reemplazar?: boolean
   ) => Promise<void>;
   tipificacionDeuda?: TipificacionDeuda;
@@ -130,7 +130,7 @@ export default function SeguimientoForm({
   const [descripcion, setDescripcion] = React.useState<string>(
     seguimiento?.descripcion ?? ""
   );
-  const [archivo, setArchivo] = React.useState<File | undefined>(undefined);
+  const [archivos, setArchivos] = React.useState<File[]>([]);
   const [reemplazarArchivo, setReemplazarArchivo] = React.useState<boolean>(false);
   const [saving, setSaving] = React.useState(false);
   const [showExitConfirm, setShowExitConfirm] = React.useState(false);
@@ -149,7 +149,7 @@ export default function SeguimientoForm({
     setFecha(toDate(seguimiento?.fecha));
     setTipoSeguimiento(seguimiento?.tipoSeguimiento ?? "otro");
     setDescripcion(seguimiento?.descripcion ?? "");
-    setArchivo(undefined);
+    setArchivos([]);
     setReemplazarArchivo(false);
     setDestino(destinoInicial ?? defaultDestinoFromTipificacion(tipificacionDeuda));
   }, [seguimiento, open, tipificacionDeuda, destinoInicial]);
@@ -163,10 +163,10 @@ export default function SeguimientoForm({
         fecha,
         tipoSeguimiento,
         descripcion,
-        archivoUrl: seguimiento?.archivoUrl,
+        archivosUrl: seguimiento?.archivosUrl,
       };
       if (onSaveWithDestino) {
-        await onSaveWithDestino(destino, data, archivo, reemplazarArchivo);
+        await onSaveWithDestino(destino, data, archivos.length > 0 ? archivos : undefined, reemplazarArchivo);
       }
       onClose();
     } finally {
@@ -174,8 +174,7 @@ export default function SeguimientoForm({
     }
   };
 
-  const archivoNombre =
-    archivo?.name ?? (seguimiento?.archivoUrl ? "Archivo cargado" : "");
+  const archivosExistentes = seguimiento?.archivosUrl ?? (seguimiento?.archivoUrl ? [seguimiento.archivoUrl] : []);
 
   return (
     <>
@@ -333,55 +332,67 @@ export default function SeguimientoForm({
 
                 <Separator />
 
-                {/* Archivo */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                {/* Archivos */}
+                <div className="space-y-3">
                   <div className="space-y-2">
-                    <Label htmlFor="archivo" className="text-sm">
-                      Archivo (opcional)
+                    <Label htmlFor="archivos" className="text-sm">
+                      Archivos (opcional)
                     </Label>
-                    <div className="flex items-center gap-3">
-                      <Input
-                        id="archivo"
-                        type="file"
-                        onChange={(e) => setArchivo(e.target.files?.[0])}
-                        disabled={saving}
-                      />
-                      {archivoNombre ? (
-                        <span className="text-xs text-muted-foreground">
-                          {archivoNombre}
-                        </span>
-                      ) : null}
-                    </div>
-                    {archivo ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="h-8 px-2 text-xs"
-                        onClick={() => setArchivo(undefined)}
-                        disabled={saving}
-                      >
-                        Quitar archivo
-                      </Button>
-                    ) : null}
+                    <Input
+                      id="archivos"
+                      type="file"
+                      multiple
+                      onChange={(e) => setArchivos(Array.from(e.target.files ?? []))}
+                      disabled={saving}
+                    />
+                    {archivos.length > 0 && (
+                      <div className="space-y-1">
+                        {archivos.map((f, i) => (
+                          <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span className="truncate max-w-xs">{f.name}</span>
+                            <button
+                              type="button"
+                              className="text-red-500 hover:text-red-700 shrink-0"
+                              onClick={() => setArchivos((prev) => prev.filter((_, j) => j !== i))}
+                              disabled={saving}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
-                  {seguimiento?.archivoUrl ? (
-                    <div className="flex items-center gap-2 pt-2 md:pt-0">
-                      <input
-                        id="reemplazar"
-                        type="checkbox"
-                        className="h-4 w-4 rounded border-muted-foreground/40"
-                        checked={reemplazarArchivo}
-                        onChange={(e) => setReemplazarArchivo(e.target.checked)}
-                        disabled={saving}
-                        title="Reemplazar archivo existente"
-                        aria-label="Reemplazar archivo existente"
-                      />
-                      <Label htmlFor="reemplazar" className="text-sm">
-                        Reemplazar archivo existente
-                      </Label>
+                  {archivosExistentes.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground font-medium">Archivos existentes:</p>
+                      {archivosExistentes.map((url, i) => (
+                        <a
+                          key={i}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-600 hover:underline block truncate max-w-xs"
+                        >
+                          Archivo {i + 1}
+                        </a>
+                      ))}
+                      <div className="flex items-center gap-2 pt-1">
+                        <input
+                          id="reemplazar"
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-muted-foreground/40"
+                          checked={reemplazarArchivo}
+                          onChange={(e) => setReemplazarArchivo(e.target.checked)}
+                          disabled={saving}
+                        />
+                        <Label htmlFor="reemplazar" className="text-sm">
+                          Reemplazar archivos existentes
+                        </Label>
+                      </div>
                     </div>
-                  ) : null}
+                  )}
                 </div>
               </form>
             </div>

@@ -8,5 +8,6 @@ export interface Seguimiento {
   tipoSeguimiento?: TipoSeguimientoCode;
   descripcion: string;
   archivoUrl?: string;
+  archivosUrl?: string[];
   actualizadoEn?: Timestamp;
 }

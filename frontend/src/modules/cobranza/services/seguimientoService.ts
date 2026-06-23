@@ -37,6 +37,14 @@ async function uploadArchivo(
   return getDownloadURL(sref);
 }
 
+async function uploadArchivos(
+  clienteId: string,
+  deudorId: string,
+  archivos: File[]
+): Promise<string[]> {
+  return Promise.all(archivos.map((f) => uploadArchivo(clienteId, deudorId, f)));
+}
+
 // Elimina por URL completa (https://... o gs://...) de forma segura
 async function safeDeleteByUrl(url?: string) {
   if (!url) return;
@@ -84,12 +92,12 @@ export async function addSeguimiento(
   clienteId: string,
   deudorId: string,
   data: Omit<Seguimiento, "id">,
-  archivo?: File
+  archivos?: File[]
 ) {
-  let archivoUrl = data.archivoUrl;
-  if (archivo) {
-    archivoUrl = await uploadArchivo(clienteId, deudorId, archivo);
-  }
+  const archivosUrl =
+    archivos && archivos.length > 0
+      ? await uploadArchivos(clienteId, deudorId, archivos)
+      : undefined;
 
   const refCol = collection(db, `clientes/${clienteId}/deudores/${deudorId}/seguimiento`);
 
@@ -104,7 +112,7 @@ export async function addSeguimiento(
     tipoSeguimiento: data.tipoSeguimiento,
     descripcion: data.descripcion,
     actualizadoEn: ahora,
-    ...(archivoUrl ? { archivoUrl } : {}),
+    ...(archivosUrl ? { archivosUrl } : {}),
   });
 
   const docRef = await addDoc(refCol, payload);
@@ -119,25 +127,19 @@ export async function updateSeguimiento(
   deudorId: string,
   seguimientoId: string,
   data: Omit<Seguimiento, "id">,
-  archivo?: File,
+  archivos?: File[],
   reemplazar?: boolean
 ) {
   const refDocu = doc(db, `clientes/${clienteId}/deudores/${deudorId}/seguimiento/${seguimientoId}`);
 
-  // Resolver mutación de archivo:
-  // - Si hay archivo nuevo:
-  //    * si había anterior y "reemplazar", primero bórralo
-  //    * sube el nuevo y setea archivoUrl
-  // - Si NO hay archivo nuevo:
-  //    * si "reemplazar" true ⇒ eliminar archivoUrl (deleteField)
-  //    * de lo contrario, NO tocar archivoUrl
-  let nuevoArchivoUrl: string | undefined;
+  const hayNuevos = archivos && archivos.length > 0;
+  let nuevasUrls: string[] | undefined;
 
-  if (archivo) {
-    if (data.archivoUrl && reemplazar) {
-      await safeDeleteByUrl(data.archivoUrl);
+  if (hayNuevos) {
+    if (reemplazar && data.archivosUrl) {
+      await Promise.all(data.archivosUrl.map(safeDeleteByUrl));
     }
-    nuevoArchivoUrl = await uploadArchivo(clienteId, deudorId, archivo);
+    nuevasUrls = await uploadArchivos(clienteId, deudorId, archivos!);
   }
 
   const ahora = Timestamp.fromDate(new Date());
@@ -150,10 +152,10 @@ export async function updateSeguimiento(
   });
 
   const payloadArchivo =
-    archivo
-      ? { archivoUrl: nuevoArchivoUrl }
+    hayNuevos
+      ? { archivosUrl: nuevasUrls }
       : reemplazar
-        ? { archivoUrl: deleteField() }
+        ? { archivosUrl: deleteField() }
         : {};
 
   const payload = { ...payloadBase, ...payloadArchivo };
@@ -173,6 +175,7 @@ export async function deleteSeguimiento(
   if (snap.exists()) {
     const d = snap.data() as Seguimiento;
     await safeDeleteByUrl(d.archivoUrl);
+    if (d.archivosUrl) await Promise.all(d.archivosUrl.map(safeDeleteByUrl));
   }
   await deleteDoc(refDocu);
   await registrarEliminacion({
@@ -203,12 +206,12 @@ export async function addSeguimientoJuridico(
   clienteId: string,
   deudorId: string,
   data: Omit<Seguimiento, "id">,
-  archivo?: File
+  archivos?: File[]
 ) {
-  let archivoUrl = data.archivoUrl;
-  if (archivo) {
-    archivoUrl = await uploadArchivo(clienteId, deudorId, archivo);
-  }
+  const archivosUrl =
+    archivos && archivos.length > 0
+      ? await uploadArchivos(clienteId, deudorId, archivos)
+      : undefined;
 
   const refCol = collection(db, `clientes/${clienteId}/deudores/${deudorId}/seguimientoJuridico`);
 
@@ -223,7 +226,7 @@ export async function addSeguimientoJuridico(
     tipoSeguimiento: data.tipoSeguimiento,
     descripcion: data.descripcion,
     actualizadoEn: ahora,
-    ...(archivoUrl ? { archivoUrl } : {}),
+    ...(archivosUrl ? { archivosUrl } : {}),
   });
 
   const docRef = await addDoc(refCol, payload);
@@ -238,7 +241,7 @@ export async function updateSeguimientoJuridico(
   deudorId: string,
   seguimientoId: string,
   data: Omit<Seguimiento, "id">,
-  archivo?: File,
+  archivos?: File[],
   reemplazar?: boolean
 ) {
   const refDocu = doc(
@@ -246,13 +249,14 @@ export async function updateSeguimientoJuridico(
     `clientes/${clienteId}/deudores/${deudorId}/seguimientoJuridico/${seguimientoId}`
   );
 
-  let nuevoArchivoUrl: string | undefined;
+  const hayNuevos = archivos && archivos.length > 0;
+  let nuevasUrls: string[] | undefined;
 
-  if (archivo) {
-    if (data.archivoUrl && reemplazar) {
-      await safeDeleteByUrl(data.archivoUrl);
+  if (hayNuevos) {
+    if (reemplazar && data.archivosUrl) {
+      await Promise.all(data.archivosUrl.map(safeDeleteByUrl));
     }
-    nuevoArchivoUrl = await uploadArchivo(clienteId, deudorId, archivo);
+    nuevasUrls = await uploadArchivos(clienteId, deudorId, archivos!);
   }
 
   const ahora = Timestamp.fromDate(new Date());
@@ -265,10 +269,10 @@ export async function updateSeguimientoJuridico(
   });
 
   const payloadArchivo =
-    archivo
-      ? { archivoUrl: nuevoArchivoUrl }
+    hayNuevos
+      ? { archivosUrl: nuevasUrls }
       : reemplazar
-        ? { archivoUrl: deleteField() }
+        ? { archivosUrl: deleteField() }
         : {};
 
   const payload = { ...payloadBase, ...payloadArchivo };
@@ -291,6 +295,7 @@ export async function deleteSeguimientoJuridico(
   if (snap.exists()) {
     const d = snap.data() as Seguimiento;
     await safeDeleteByUrl(d.archivoUrl);
+    if (d.archivosUrl) await Promise.all(d.archivosUrl.map(safeDeleteByUrl));
   }
   await deleteDoc(refDocu);
   await registrarEliminacion({

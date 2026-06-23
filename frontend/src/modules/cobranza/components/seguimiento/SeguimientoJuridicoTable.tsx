@@ -119,7 +119,7 @@ export default function SeguimientoJuridicoTable() {
 
   const onSave = async (
     data: Omit<Seguimiento, "id">,
-    archivo?: File,
+    archivos?: File[],
     reemplazar?: boolean
   ) => {
     if (!clienteId || !deudorId) return;
@@ -135,9 +135,9 @@ export default function SeguimientoJuridicoTable() {
       }
 
       if (seleccionado?.id) {
-        await updateSeguimientoJuridico(clienteId, deudorId, seleccionado.id, data, archivo, reemplazar);
+        await updateSeguimientoJuridico(clienteId, deudorId, seleccionado.id, data, archivos, reemplazar);
       } else {
-        await addSeguimientoJuridico(uidUsuario, clienteId, deudorId, data, archivo);
+        await addSeguimientoJuridico(uidUsuario, clienteId, deudorId, data, archivos);
       }
       toast.success("✓ Seguimiento jurídico guardado correctamente");
       setOpen(false);
@@ -170,14 +170,14 @@ export default function SeguimientoJuridicoTable() {
   async function onSaveWithDestino(
     destino: DestinoColeccion,
     data: Omit<Seguimiento, "id">,
-    archivo?: File,
+    archivos?: File[],
     reemplazar?: boolean
   ): Promise<void> {
     if (!clienteId || !deudorId) return;
 
     // si NO cambió el destino, guarda normal en jurídico
     if (destino === "seguimientoJuridico") {
-      return onSave(data, archivo, reemplazar);
+      return onSave(data, archivos, reemplazar);
     }
 
     // ✅ CASO: estaba en JURÍDICO y lo moviste a PRE
@@ -195,13 +195,13 @@ export default function SeguimientoJuridicoTable() {
 
       if (seleccionado?.id) {
         // 1) crear en PRE
-        await addSeguimiento(uidUsuario, clienteId, deudorId, data, archivo);
+        await addSeguimiento(uidUsuario, clienteId, deudorId, data, archivos);
 
         // 2) eliminar el jurídico original
         await deleteSeguimientoJuridico(clienteId, deudorId, seleccionado.id);
       } else {
         // Si por alguna razón llega sin seleccionado, lo tratamos como creación en PRE
-        await addSeguimiento(uidUsuario, clienteId, deudorId, data, archivo);
+        await addSeguimiento(uidUsuario, clienteId, deudorId, data, archivos);
       }
 
       toast.success("✓ Seguimiento movido a Pre-jurídico");
@@ -307,19 +307,26 @@ export default function SeguimientoJuridicoTable() {
                       <ExpandableCell text={seg.descripcion} />
                     </TableCell>
                     <TableCell>
-                      {seg.archivoUrl ? (
-                        <a
-                          href={seg.archivoUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-brand-primary hover:text-brand-secondary transition-colors text-sm font-medium"
-                        >
-                          <Download className="h-3.5 w-3.5" />
-                          Ver
-                        </a>
-                      ) : (
-                        <span className=" text-sm">—</span>
-                      )}
+                      {(() => {
+                        const urls = seg.archivosUrl ?? (seg.archivoUrl ? [seg.archivoUrl] : []);
+                        if (urls.length === 0) return <span className="text-sm">—</span>;
+                        return (
+                          <div className="flex flex-col gap-1">
+                            {urls.map((url, i) => (
+                              <a
+                                key={i}
+                                href={url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 text-brand-primary hover:text-brand-secondary transition-colors text-sm font-medium"
+                              >
+                                <Download className="h-3.5 w-3.5" />
+                                Archivo {urls.length > 1 ? i + 1 : ""}
+                              </a>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </TableCell>
                     {canEditSafe && (
                       <TableCell>

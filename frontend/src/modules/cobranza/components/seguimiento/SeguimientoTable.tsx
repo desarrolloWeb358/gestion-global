@@ -259,7 +259,7 @@ export default function SeguimientoTable() {
   const onSaveWithDestino = async (
     destino: DestinoColeccion,
     data: Omit<Seguimiento, "id">,
-    archivo?: File,
+    archivos?: File[],
     reemplazar?: boolean
   ) => {
     if (!clienteId || !deudorId) return;
@@ -281,7 +281,7 @@ export default function SeguimientoTable() {
       if (seleccionado?.id) {
         // 👇 CASO: estaba en PRE y lo moviste a JURÍDICO
         if (destino === "seguimientoJuridico") {
-          await addSeguimientoJuridico(uidUsuario, clienteId, deudorId, data, archivo);
+          await addSeguimientoJuridico(uidUsuario, clienteId, deudorId, data, archivos);
 
           // ✅ elimina el anterior en PRE (para que no quede duplicado)
           await deleteSeguimiento(clienteId, deudorId, seleccionado.id);
@@ -297,17 +297,17 @@ export default function SeguimientoTable() {
             deudorId,
             seleccionado.id,
             data,
-            archivo,
+            archivos,
             reemplazar
           );
         }
       } else {
         // creación normal
         if (destino === "seguimientoJuridico") {
-          await addSeguimientoJuridico(uidUsuario, clienteId, deudorId, data, archivo);
+          await addSeguimientoJuridico(uidUsuario, clienteId, deudorId, data, archivos);
           setRefreshJuridicoKey((k) => k + 1);
         } else {
-          await addSeguimiento(uidUsuario, clienteId, deudorId, data, archivo);
+          await addSeguimiento(uidUsuario, clienteId, deudorId, data, archivos);
         }
       }
 
@@ -607,19 +607,26 @@ export default function SeguimientoTable() {
                             <ExpandableCell text={seg.descripcion} />
                           </TableCell>
                           <TableCell>
-                            {seg.archivoUrl ? (
-                              <a
-                                href={seg.archivoUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1 text-brand-primary hover:text-brand-secondary transition-colors text-sm font-medium"
-                              >
-                                <Download className="h-3.5 w-3.5" />
-                                Ver
-                              </a>
-                            ) : (
-                              <span className="text-gray-400 text-sm">—</span>
-                            )}
+                            {(() => {
+                              const urls = seg.archivosUrl ?? (seg.archivoUrl ? [seg.archivoUrl] : []);
+                              if (urls.length === 0) return <span className="text-gray-400 text-sm">—</span>;
+                              return (
+                                <div className="flex flex-col gap-1">
+                                  {urls.map((url, i) => (
+                                    <a
+                                      key={i}
+                                      href={url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center gap-1 text-brand-primary hover:text-brand-secondary transition-colors text-sm font-medium"
+                                    >
+                                      <Download className="h-3.5 w-3.5" />
+                                      Archivo {urls.length > 1 ? i + 1 : ""}
+                                    </a>
+                                  ))}
+                                </div>
+                              );
+                            })()}
                           </TableCell>
                           {canEditPre && (
                             <TableCell>
