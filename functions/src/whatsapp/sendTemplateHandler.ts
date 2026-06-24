@@ -13,6 +13,15 @@ function normalizePhone(raw: string): string {
   return raw.replace(/[^\d]/g, "");
 }
 
+// Limpia parámetros para Meta: elimina saltos de línea, tabs, y espacios múltiples
+function sanitizeParameterValue(value: string): string {
+  if (!value || typeof value !== "string") return "";
+  return value
+    .replace(/[\n\r\t]/g, " ") // Reemplaza newlines y tabs con espacio
+    .replace(/  +/g, " ")       // Reduce espacios múltiples a uno solo
+    .trim();                     // Elimina espacios al inicio y final
+}
+
 // Retorna el wamid asignado por Meta ("wamid.xxx...") o "" si no viene
 async function callMetaTemplateApi(
   phoneNumberId: string,
@@ -129,7 +138,23 @@ export const sendMetaTemplate = onCall(
       deudorNombre,
     });
 
-    const params = parameters ?? [];
+    const params = (parameters ?? []).map((p) => ({
+      ...p,
+      value: sanitizeParameterValue(p.value),
+    }));
+
+    // Log para debug
+    const hasSanitized = (parameters ?? []).some(
+      (orig, idx) => orig.value !== params[idx].value
+    );
+    if (hasSanitized) {
+      logger.info("Parámetros sanitizados para Meta", {
+        numberId,
+        deudorId,
+        original: parameters,
+        sanitized: params,
+      });
+    }
 
     const wamid = await callMetaTemplateApi(
       numberData.phoneNumberId,

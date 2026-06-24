@@ -33,6 +33,15 @@ function delay(ms: number) {
   return new Promise((res) => setTimeout(res, ms));
 }
 
+// Limpia parámetros para Meta: elimina saltos de línea, tabs, y espacios múltiples
+function sanitizeParameterValue(value: string): string {
+  if (!value || typeof value !== "string") return "";
+  return value
+    .replace(/[\n\r\t]/g, " ") // Reemplaza newlines y tabs con espacio
+    .replace(/  +/g, " ")       // Reduce espacios múltiples a uno solo
+    .trim();                     // Elimina espacios al inicio y final
+}
+
 async function callMetaTemplateApi(
   phoneNumberId: string,
   token: string,
@@ -165,12 +174,17 @@ export const processBulkSendJob = onDocumentCreated(
       await Promise.allSettled(
         batch.map(async (item) => {
           try {
+            const sanitizedParams = item.parameters.map((p) => ({
+              ...p,
+              value: sanitizeParameterValue(p.value),
+            }));
+
             const wamid = await callMetaTemplateApi(
               phoneNumberId,
               metaToken,
               item.phone,
               providerTemplateName,
-              item.parameters
+              sanitizedParams
             );
 
             const conv = await getOrCreateConversation(job.numberId, item.phone, {
