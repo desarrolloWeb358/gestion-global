@@ -127,20 +127,9 @@ export async function updateSeguimiento(
   deudorId: string,
   seguimientoId: string,
   data: Omit<Seguimiento, "id">,
-  archivos?: File[],
-  reemplazar?: boolean
+  archivos?: File[]
 ) {
   const refDocu = doc(db, `clientes/${clienteId}/deudores/${deudorId}/seguimiento/${seguimientoId}`);
-
-  const hayNuevos = archivos && archivos.length > 0;
-  let nuevasUrls: string[] | undefined;
-
-  if (hayNuevos) {
-    if (reemplazar && data.archivosUrl) {
-      await Promise.all(data.archivosUrl.map(safeDeleteByUrl));
-    }
-    nuevasUrls = await uploadArchivos(clienteId, deudorId, archivos!);
-  }
 
   const ahora = Timestamp.fromDate(new Date());
 
@@ -151,16 +140,14 @@ export async function updateSeguimiento(
     actualizadoEn: ahora,
   });
 
-  const payloadArchivo =
-    hayNuevos
-      ? { archivosUrl: nuevasUrls }
-      : reemplazar
-        ? { archivosUrl: deleteField() }
-        : {};
+  let payloadArchivo = {};
+  if (archivos && archivos.length > 0) {
+    const nuevasUrls = await uploadArchivos(clienteId, deudorId, archivos);
+    const existentes = data.archivosUrl ?? [];
+    payloadArchivo = { archivosUrl: [...existentes, ...nuevasUrls] };
+  }
 
-  const payload = { ...payloadBase, ...payloadArchivo };
-
-  await updateDoc(refDocu, payload);
+  await updateDoc(refDocu, { ...payloadBase, ...payloadArchivo });
 
   await actualizarFechaUltimoSeguimiento(clienteId, deudorId, ahora);
 }
@@ -241,23 +228,12 @@ export async function updateSeguimientoJuridico(
   deudorId: string,
   seguimientoId: string,
   data: Omit<Seguimiento, "id">,
-  archivos?: File[],
-  reemplazar?: boolean
+  archivos?: File[]
 ) {
   const refDocu = doc(
     db,
     `clientes/${clienteId}/deudores/${deudorId}/seguimientoJuridico/${seguimientoId}`
   );
-
-  const hayNuevos = archivos && archivos.length > 0;
-  let nuevasUrls: string[] | undefined;
-
-  if (hayNuevos) {
-    if (reemplazar && data.archivosUrl) {
-      await Promise.all(data.archivosUrl.map(safeDeleteByUrl));
-    }
-    nuevasUrls = await uploadArchivos(clienteId, deudorId, archivos!);
-  }
 
   const ahora = Timestamp.fromDate(new Date());
 
@@ -268,16 +244,14 @@ export async function updateSeguimientoJuridico(
     actualizadoEn: ahora,
   });
 
-  const payloadArchivo =
-    hayNuevos
-      ? { archivosUrl: nuevasUrls }
-      : reemplazar
-        ? { archivosUrl: deleteField() }
-        : {};
+  let payloadArchivo = {};
+  if (archivos && archivos.length > 0) {
+    const nuevasUrls = await uploadArchivos(clienteId, deudorId, archivos);
+    const existentes = data.archivosUrl ?? [];
+    payloadArchivo = { archivosUrl: [...existentes, ...nuevasUrls] };
+  }
 
-  const payload = { ...payloadBase, ...payloadArchivo };
-
-  await updateDoc(refDocu, payload);
+  await updateDoc(refDocu, { ...payloadBase, ...payloadArchivo });
 
   await actualizarFechaUltimoSeguimiento(clienteId, deudorId, ahora);
 }

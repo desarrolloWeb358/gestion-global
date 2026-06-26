@@ -31,7 +31,8 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover";
 import { Calendar } from "@/shared/ui/calendar";
 import { Separator } from "@/shared/ui/separator";
-import { Loader2, Calendar as CalendarIcon, Lock } from "lucide-react";
+import { Loader2, Calendar as CalendarIcon, Lock, Download } from "lucide-react";
+import { openStorageFile } from "@/shared/lib/openStorageFile";
 
 import { Seguimiento } from "../../models/seguimiento.model";
 import { TIPO_SEGUIMIENTO, TipoSeguimientoCode } from "@/shared/constants/tipoSeguimiento";
@@ -49,8 +50,7 @@ type Props = {
   onSaveWithDestino?: (
     destino: DestinoColeccion,
     data: Omit<Seguimiento, "id">,
-    archivos?: File[],
-    reemplazar?: boolean
+    archivos?: File[]
   ) => Promise<void>;
   tipificacionDeuda?: TipificacionDeuda;
   destinoInicial?: DestinoColeccion;
@@ -131,7 +131,6 @@ export default function SeguimientoForm({
     seguimiento?.descripcion ?? ""
   );
   const [archivos, setArchivos] = React.useState<File[]>([]);
-  const [reemplazarArchivo, setReemplazarArchivo] = React.useState<boolean>(false);
   const [saving, setSaving] = React.useState(false);
   const [showExitConfirm, setShowExitConfirm] = React.useState(false);
 
@@ -150,7 +149,6 @@ export default function SeguimientoForm({
     setTipoSeguimiento(seguimiento?.tipoSeguimiento ?? "otro");
     setDescripcion(seguimiento?.descripcion ?? "");
     setArchivos([]);
-    setReemplazarArchivo(false);
     setDestino(destinoInicial ?? defaultDestinoFromTipificacion(tipificacionDeuda));
   }, [seguimiento, open, tipificacionDeuda, destinoInicial]);
 
@@ -166,7 +164,7 @@ export default function SeguimientoForm({
         archivosUrl: seguimiento?.archivosUrl,
       };
       if (onSaveWithDestino) {
-        await onSaveWithDestino(destino, data, archivos.length > 0 ? archivos : undefined, reemplazarArchivo);
+        await onSaveWithDestino(destino, data, archivos.length > 0 ? archivos : undefined);
       }
       onClose();
     } finally {
@@ -368,29 +366,17 @@ export default function SeguimientoForm({
                     <div className="space-y-1">
                       <p className="text-xs text-muted-foreground font-medium">Archivos existentes:</p>
                       {archivosExistentes.map((url, i) => (
-                        <a
+                        <button
                           key={i}
-                          href={url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-blue-600 hover:underline block truncate max-w-xs"
+                          type="button"
+                          onClick={() => openStorageFile(url).catch(() => {})}
+                          className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
                         >
-                          Archivo {i + 1}
-                        </a>
+                          <Download className="h-3 w-3" />
+                          Archivo {archivosExistentes.length > 1 ? i + 1 : ""}
+                        </button>
                       ))}
-                      <div className="flex items-center gap-2 pt-1">
-                        <input
-                          id="reemplazar"
-                          type="checkbox"
-                          className="h-4 w-4 rounded border-muted-foreground/40"
-                          checked={reemplazarArchivo}
-                          onChange={(e) => setReemplazarArchivo(e.target.checked)}
-                          disabled={saving}
-                        />
-                        <Label htmlFor="reemplazar" className="text-sm">
-                          Reemplazar archivos existentes
-                        </Label>
-                      </div>
+                      <p className="text-xs text-muted-foreground">Los archivos nuevos se agregarán a los existentes.</p>
                     </div>
                   )}
                 </div>

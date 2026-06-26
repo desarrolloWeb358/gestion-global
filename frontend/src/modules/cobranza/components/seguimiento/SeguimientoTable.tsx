@@ -260,8 +260,7 @@ export default function SeguimientoTable() {
   const onSaveWithDestino = async (
     destino: DestinoColeccion,
     data: Omit<Seguimiento, "id">,
-    archivos?: File[],
-    reemplazar?: boolean
+    archivos?: File[]
   ) => {
     if (!clienteId || !deudorId) return;
     const canEditByDestino =
@@ -298,8 +297,7 @@ export default function SeguimientoTable() {
             deudorId,
             seleccionado.id,
             data,
-            archivos,
-            reemplazar
+            archivos
           );
         }
       } else {

@@ -120,8 +120,7 @@ export default function SeguimientoJuridicoTable() {
 
   const onSave = async (
     data: Omit<Seguimiento, "id">,
-    archivos?: File[],
-    reemplazar?: boolean
+    archivos?: File[]
   ) => {
     if (!clienteId || !deudorId) return;
     if (!canEdit) {
@@ -136,7 +135,7 @@ export default function SeguimientoJuridicoTable() {
       }
 
       if (seleccionado?.id) {
-        await updateSeguimientoJuridico(clienteId, deudorId, seleccionado.id, data, archivos, reemplazar);
+        await updateSeguimientoJuridico(clienteId, deudorId, seleccionado.id, data, archivos);
       } else {
         await addSeguimientoJuridico(uidUsuario, clienteId, deudorId, data, archivos);
       }
@@ -171,14 +170,13 @@ export default function SeguimientoJuridicoTable() {
   async function onSaveWithDestino(
     destino: DestinoColeccion,
     data: Omit<Seguimiento, "id">,
-    archivos?: File[],
-    reemplazar?: boolean
+    archivos?: File[]
   ): Promise<void> {
     if (!clienteId || !deudorId) return;
 
     // si NO cambió el destino, guarda normal en jurídico
     if (destino === "seguimientoJuridico") {
-      return onSave(data, archivos, reemplazar);
+      return onSave(data, archivos);
     }
 
     // ✅ CASO: estaba en JURÍDICO y lo moviste a PRE
