@@ -16,7 +16,6 @@ import {
 import {
   ref,
   uploadBytes,
-  getDownloadURL,
   deleteObject,
 } from "firebase/storage";
 import { Seguimiento } from "../models/seguimiento.model";
@@ -29,12 +28,10 @@ async function uploadArchivo(
   deudorId: string,
   archivo: File
 ): Promise<string> {
-  const sref = ref(
-    storage,
-    `clientes/${clienteId}/deudores/${deudorId}/seguimientos/${Date.now()}_${archivo.name}`
-  );
+  const path = `clientes/${clienteId}/deudores/${deudorId}/seguimientos/${Date.now()}_${archivo.name}`;
+  const sref = ref(storage, path);
   await uploadBytes(sref, archivo);
-  return getDownloadURL(sref);
+  return path;
 }
 
 async function uploadArchivos(
