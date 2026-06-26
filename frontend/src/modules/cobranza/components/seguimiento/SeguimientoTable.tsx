@@ -86,6 +86,7 @@ import { Typography } from "@/shared/design-system/components/Typography";
 import { BackButton } from "@/shared/design-system/components/BackButton";
 import { cn } from "@/shared/lib/cn";
 import { ExpandableCell } from "@/shared/components/expandable-cell";
+import { openStorageFile } from "@/shared/lib/openStorageFile";
 import AppBreadcrumb from "@/shared/components/app-breadcrumb";
 import { useUnsavedChanges } from "@/shared/hooks/useUnsavedChanges";
 
@@ -613,16 +614,19 @@ export default function SeguimientoTable() {
                               return (
                                 <div className="flex flex-col gap-1">
                                   {urls.map((url, i) => (
-                                    <a
+                                    <button
                                       key={i}
-                                      href={url}
-                                      target="_blank"
-                                      rel="noreferrer"
+                                      type="button"
+                                      onClick={() =>
+                                        openStorageFile(url).catch(() =>
+                                          toast.error("No se pudo abrir el archivo (no existe o no tienes permiso).")
+                                        )
+                                      }
                                       className="inline-flex items-center gap-1 text-brand-primary hover:text-brand-secondary transition-colors text-sm font-medium"
                                     >
                                       <Download className="h-3.5 w-3.5" />
                                       Archivo {urls.length > 1 ? i + 1 : ""}
-                                    </a>
+                                    </button>
                                   ))}
                                 </div>
                               );
@@ -810,14 +814,17 @@ export default function SeguimientoTable() {
 
                             {o.archivoUrl && (
                               <div className="mt-2">
-                                <a
-                                  href={o.archivoUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    openStorageFile(o.archivoUrl!).catch(() =>
+                                      toast.error("No se pudo abrir el archivo (no existe o no tienes permiso).")
+                                    )
+                                  }
                                   className="text-sm text-brand-primary underline"
                                 >
                                   Ver archivo adjunto
-                                </a>
+                                </button>
                               </div>
                             )}
                           </div>
