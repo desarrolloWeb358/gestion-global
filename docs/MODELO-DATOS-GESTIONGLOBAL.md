@@ -430,3 +430,47 @@ El ajuste debe ser **casi transparente** para los usuarios actuales. Reglas que 
    4. Filtro/scope en la lista de clientes y en el Panel Gerencial.
 
 > El control de acceso seguirá basándose en menú por rol (el rol nuevo no expone nada nuevo a los roles viejos). Recordatorio: las rutas no están protegidas por rol y las reglas de Firestore están abiertas (ver [§6.4](#64-alcance-por-franquicia-segundo-eje-de-seguridad)); esto **no** es un cambio introducido por franquicias, es el estado actual.
+
+---
+
+## 13. Estado de Implementación
+
+> Estado a junio de 2026. La extensión de franquicias quedó implementada y verificada (typecheck en verde).
+
+### Datos y migración (ejecutado)
+- Colección `franquicias` creada: **Cundinamarca** (`ciudades: ["Bogotá"]`) y **Eje Cafetero** (`["Pereira","Armenia","Manizales"]`), con ids autogenerados. → `migracion/seed-franquicias.js`
+- Backfill de **clientes** existentes → `franquiciaId` (Cundinamarca) + `ciudad: "Bogotá"`. → `migracion/backfill-franquicia-clientes.js`
+- **Usuarios y deudores NO se tocaron** (no requieren franquicia). Se eliminó el script de backfill de usuarios por innecesario.
+
+### Modelos
+- [franquicia.model.ts](../frontend/src/modules/franquicias/models/franquicia.model.ts) (nuevo): `{ id?, nombre, ciudades[], activo?, fechaCreacion? }`.
+- [cliente.model.ts](../frontend/src/modules/clientes/models/cliente.model.ts): `+ franquiciaId?`, `+ ciudad?`.
+- [usuarioSistema.model.ts](../frontend/src/modules/usuarios/models/usuarioSistema.model.ts): `+ franquiciasAsignadas?` (sin `franquiciaId`).
+
+### ACL ([acl.ts](../frontend/src/shared/constants/acl.ts))
+- Rol nuevo **`adminFranquicia`** (solo lectura), en `ROLES`, `ROL_PRIORITY`, `ROLE_HOME` (→ `/clientes-tables`) y `ROLE_PERMISSIONS`.
+- Helper **`franquiciasVisibles({ roles, franquiciasAsignadas })`** → `"ALL"` para admin/supervisor/ejecutivoAdmin; lista asignada para `adminFranquicia`.
+
+### Pantallas (implementado)
+| Pantalla / archivo | Qué se hizo |
+|---|---|
+| [ClienteEditDialog](../frontend/src/modules/clientes/components/ClienteEditDialog.tsx) | Selectores **Franquicia + Ciudad** (ciudad dependiente de la franquicia). |
+| [ClientesTable](../frontend/src/modules/clientes/components/ClientesTable.tsx) | **Columna Franquicia** + **filtro** desplegable + **scope** automático para `adminFranquicia`. |
+| [ClienteInfoCard](../frontend/src/modules/clientes/components/ClienteInfoCard.tsx) | **Chips** de franquicia + ciudad arriba de la ficha. |
+| [UsuariosTable](../frontend/src/modules/usuarios/components/UsuariosTable.tsx) | Al crear `cliente`: pide **franquicia + ciudad**. Al crear/editar `adminFranquicia`: **franquicias asignadas**. Además, ahora envía **todos los roles** seleccionados. |
+| [AdminDashboardPage](../frontend/src/modules/dashboard/pages/AdminDashboardPage.tsx) | **Filtro "Franquicia"** (Todas por defecto) que reescala todo el panel. |
+| [nav.config.ts](../frontend/src/app/layout/nav.config.ts) | `adminFranquicia` ve **Clientes** y **Notificaciones**. |
+| [franquiciaService.ts](../frontend/src/modules/franquicias/services/franquiciaService.ts) (nuevo) | Lectura de franquicias (`obtenerFranquicias`, `getFranquiciaById`). |
+
+### Backend ([functions/src/index.ts](../functions/src/index.ts))
+- `crearUsuarioDesdeAdmin`: guarda `franquiciaId`/`ciudad` en el doc del cliente y `franquiciasAsignadas` en el del usuario.
+- ⚠️ **Requiere deploy** (`firebase deploy --only functions:crearUsuarioDesdeAdmin`) para que la creación de clientes persista franquicia/ciudad. La edición de cliente y de `adminFranquicia` funciona sin deploy (escritura del lado cliente).
+
+### No se hizo (por decisión o por no aplicar)
+- **Pantalla de administración de franquicias**: no se crea; se gestionan por script.
+- **Reporte del Cliente** y demás servicios de reporte por cliente: no requieren franquicia (son de un solo conjunto).
+- **Deudores y sus subcolecciones**: sin cambios.
+
+### Pendiente opcional / a futuro
+- Blindar el scope en backend (reglas de Firestore / Functions); hoy es visual (ver [§6.4](#64-alcance-por-franquicia-segundo-eje-de-seguridad)).
+- Filtro de franquicia en dashboards de ejecutivo/dependiente, si se desea (no es necesario por su alcance por cliente).
