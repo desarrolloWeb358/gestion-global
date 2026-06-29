@@ -29,6 +29,8 @@ import {
   obtenerAbogados,
   obtenerDependientes,
 } from "@/modules/usuarios/services/usuarioService";
+import type { Franquicia } from "@/modules/franquicias/models/franquicia.model";
+import { obtenerFranquicias } from "@/modules/franquicias/services/franquiciaService";
 
 interface Props {
   cliente: Cliente | null;
@@ -41,6 +43,7 @@ export function ClienteEditDialog({ cliente, open, onClose, onSaved }: Props) {
   const [ejecutivos, setEjecutivos] = useState<UsuarioSistema[]>([]);
   const [abogados, setAbogados] = useState<UsuarioSistema[]>([]);
   const [dependientes, setDependientes] = useState<UsuarioSistema[]>([]);
+  const [franquicias, setFranquicias] = useState<Franquicia[]>([]);
 
   const [ejecutivoPreSel, setEjecutivoPreSel] = useState("");
   const [ejecutivoJurSel, setEjecutivoJurSel] = useState("");
@@ -48,15 +51,25 @@ export function ClienteEditDialog({ cliente, open, onClose, onSaved }: Props) {
   const [abogadoSel, setAbogadoSel] = useState("");
   const [dependienteAbogadoSel, setDependienteAbogadoSel] = useState("");
   const [activoSel, setActivoSel] = useState(true);
+  const [franquiciaSel, setFranquiciaSel] = useState("");
+  const [ciudadSel, setCiudadSel] = useState("");
+
+  // Ciudades disponibles según la franquicia seleccionada
+  const ciudadesDisponibles =
+    franquicias.find((f) => f.id === franquiciaSel)?.ciudades ?? [];
 
   useEffect(() => {
-    Promise.all([obtenerEjecutivos(), obtenerAbogados(), obtenerDependientes()]).then(
-      ([execs, lawyers, deps]) => {
-        setEjecutivos(execs);
-        setAbogados(lawyers);
-        setDependientes(deps);
-      }
-    );
+    Promise.all([
+      obtenerEjecutivos(),
+      obtenerAbogados(),
+      obtenerDependientes(),
+      obtenerFranquicias(),
+    ]).then(([execs, lawyers, deps, franqs]) => {
+      setEjecutivos(execs);
+      setAbogados(lawyers);
+      setDependientes(deps);
+      setFranquicias(franqs);
+    });
   }, []);
 
   useEffect(() => {
@@ -67,7 +80,16 @@ export function ClienteEditDialog({ cliente, open, onClose, onSaved }: Props) {
     setAbogadoSel(cliente.abogadoId ?? "");
     setDependienteAbogadoSel(cliente.dependienteAbogadoId ?? "");
     setActivoSel(cliente.activo ?? true);
+    setFranquiciaSel(cliente.franquiciaId ?? "");
+    setCiudadSel(cliente.ciudad ?? "");
   }, [cliente]);
+
+  // Si cambia la franquicia y la ciudad actual ya no pertenece a ella, se limpia.
+  const handleFranquiciaChange = (value: string) => {
+    setFranquiciaSel(value);
+    const fr = franquicias.find((f) => f.id === value);
+    if (!fr?.ciudades?.includes(ciudadSel)) setCiudadSel("");
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -84,6 +106,8 @@ export function ClienteEditDialog({ cliente, open, onClose, onSaved }: Props) {
       abogadoId: abogadoSel || null,
       dependienteAbogadoId: dependienteAbogadoSel || null,
       activo: activoSel,
+      ...(franquiciaSel ? { franquiciaId: franquiciaSel } : {}),
+      ...(ciudadSel ? { ciudad: ciudadSel } : {}),
     };
 
     await actualizarCliente(cliente.id, payload);
@@ -117,6 +141,42 @@ export function ClienteEditDialog({ cliente, open, onClose, onSaved }: Props) {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label className="text-brand-secondary font-medium">Franquicia</Label>
+                <Select value={franquiciaSel} onValueChange={handleFranquiciaChange}>
+                  <SelectTrigger className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20">
+                    <SelectValue placeholder="Selecciona una franquicia" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {franquicias.map((f) => (
+                      <SelectItem key={f.id} value={f.id!}>
+                        {f.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="text-brand-secondary font-medium">Ciudad</Label>
+                <Select
+                  value={ciudadSel}
+                  onValueChange={setCiudadSel}
+                  disabled={!franquiciaSel || ciudadesDisponibles.length === 0}
+                >
+                  <SelectTrigger className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20">
+                    <SelectValue placeholder={franquiciaSel ? "Selecciona una ciudad" : "Primero la franquicia"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ciudadesDisponibles.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div>
                 <Label className="text-brand-secondary font-medium">Ejecutivo Prejurídico</Label>
                 <Select value={ejecutivoPreSel} onValueChange={setEjecutivoPreSel}>

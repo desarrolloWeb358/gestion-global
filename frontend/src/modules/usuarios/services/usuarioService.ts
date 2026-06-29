@@ -195,6 +195,7 @@ export const actualizarUsuario = async (usuario: UsuarioSistema): Promise<void> 
     numeroDocumento: usuario.numeroDocumento,
     roles: usuario.roles,
     activo: usuario.activo ?? true,
+    franquiciasAsignadas: usuario.franquiciasAsignadas,
     fecha_actualizacion: serverTimestamp(),
   });
 

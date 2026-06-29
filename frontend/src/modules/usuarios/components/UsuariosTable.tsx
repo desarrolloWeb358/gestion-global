@@ -66,6 +66,8 @@ import { cambiarCorreoUsuarioDesdeAdmin } from "../services/actualizarEmailUsuar
 
 import { cn } from "@/shared/lib/cn";
 import { Rol, ROLES } from "@/shared/constants/acl";
+import type { Franquicia } from "@/modules/franquicias/models/franquicia.model";
+import { obtenerFranquicias } from "@/modules/franquicias/services/franquiciaService";
 import { Typography } from "@/shared/design-system/components/Typography";
 import { BackButton } from "@/shared/design-system/components/BackButton";
 import { enviarEmail } from "@/modules/notificaciones/services/notificacionService";
@@ -119,6 +121,23 @@ export default function UsuariosCrud() {
   const [rolesSeleccionados, setRolesSeleccionados] = useState<Rol[]>([]);
   const rolesDisponibles = ROLES;
   const [activoControl, setActivoControl] = useState(true);
+
+  // ====== FRANQUICIAS ======
+  const [franquicias, setFranquicias] = useState<Franquicia[]>([]);
+  const [franquiciaSel, setFranquiciaSel] = useState("");
+  const [ciudadSel, setCiudadSel] = useState("");
+  const [franquiciasAsignadasSel, setFranquiciasAsignadasSel] = useState<string[]>([]);
+
+  const esCliente = rolesSeleccionados.includes("cliente");
+  const esAdminFranquicia = rolesSeleccionados.includes("adminFranquicia");
+  const ciudadesDisponibles =
+    franquicias.find((f) => f.id === franquiciaSel)?.ciudades ?? [];
+
+  const handleFranquiciaChange = (value: string) => {
+    setFranquiciaSel(value);
+    const fr = franquicias.find((f) => f.id === value);
+    if (!fr?.ciudades?.includes(ciudadSel)) setCiudadSel("");
+  };
 
   // ====== FILTROS ======
   const [q, setQ] = useState("");
@@ -213,6 +232,54 @@ export default function UsuariosCrud() {
     );
   }
 
+  function MultiSelectFranquicias({
+    selected,
+    setSelected,
+  }: {
+    selected: string[];
+    setSelected: (ids: string[]) => void;
+  }) {
+    const toggle = (id: string) => {
+      if (selected.includes(id)) setSelected(selected.filter((x) => x !== id));
+      else setSelected([...selected, id]);
+    };
+    const labels = franquicias
+      .filter((f) => f.id && selected.includes(f.id))
+      .map((f) => f.nombre);
+
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            className="w-full justify-between border-brand-secondary/30 hover:border-brand-secondary/50"
+            type="button"
+          >
+            {labels.length > 0 ? labels.join(", ") : "Selecciona franquicias"}
+            <ChevronDown className="ml-2 h-4 w-4" />
+          </Button>
+        </PopoverTrigger>
+
+        <PopoverContent className="w-60 p-2 space-y-1">
+          {franquicias.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => toggle(f.id!)}
+              className={cn(
+                "w-full flex items-center justify-between px-2 py-1.5 text-sm rounded hover:bg-brand-primary/10 transition-colors",
+                f.id && selected.includes(f.id) && "bg-brand-primary/10 text-brand-primary"
+              )}
+            >
+              <span>{f.nombre}</span>
+              {f.id && selected.includes(f.id) && <Check className="w-4 h-4" />}
+            </button>
+          ))}
+        </PopoverContent>
+      </Popover>
+    );
+  }
+
   const fetchUsuarios = async () => {
     setLoading(true);
     const data = await obtenerUsuarios();
@@ -222,6 +289,10 @@ export default function UsuariosCrud() {
 
   useEffect(() => {
     fetchUsuarios();
+  }, []);
+
+  useEffect(() => {
+    obtenerFranquicias().then(setFranquicias).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -239,6 +310,9 @@ export default function UsuariosCrud() {
     setTipoDocControl(undefined);
     setMostrarDialogo(true);
     setActivoControl(true);
+    setFranquiciaSel("");
+    setCiudadSel("");
+    setFranquiciasAsignadasSel([]);
   };
 
   const abrirEditar = (usuario: UsuarioSistema) => {
@@ -253,6 +327,9 @@ export default function UsuariosCrud() {
     setTipoDocControl(usuario.tipoDocumento as any);
     setMostrarDialogo(true);
     setActivoControl(Boolean(usuario.activo));
+    setFranquiciaSel("");
+    setCiudadSel("");
+    setFranquiciasAsignadasSel(usuario.franquiciasAsignadas ?? []);
   };
 
   const cerrarDialogo = () => {
@@ -264,6 +341,9 @@ export default function UsuariosCrud() {
     setTipoDocControl(undefined);
     setActivoControl(true);
     setMostrarDialogo(false);
+    setFranquiciaSel("");
+    setCiudadSel("");
+    setFranquiciasAsignadasSel([]);
   };
 
   const abrirDialogoCorreo = () => {
@@ -804,6 +884,18 @@ export default function UsuariosCrud() {
                   return;
                 }
 
+                // Cliente nuevo: franquicia + ciudad obligatorias
+                if (!usuarioEditando && esCliente && (!franquiciaSel || !ciudadSel)) {
+                  toast.error("Para un cliente debes seleccionar franquicia y ciudad.");
+                  return;
+                }
+
+                // adminFranquicia: debe tener al menos una franquicia asignada
+                if (esAdminFranquicia && franquiciasAsignadasSel.length === 0) {
+                  toast.error("Para 'adminFranquicia' debes asignar al menos una franquicia.");
+                  return;
+                }
+
                 if (!usuarioEditando) {
                   if (!password) {
                     toast.error("La contraseña es obligatoria para nuevos usuarios.");
@@ -828,6 +920,7 @@ export default function UsuariosCrud() {
                       numeroDocumento,
                       roles: rolesSeleccionados,
                       activo: activoControl,
+                      franquiciasAsignadas: esAdminFranquicia ? franquiciasAsignadasSel : [],
                       //fecha_registro: usuarioEditando.fecha_registro,
                     };
 
@@ -849,9 +942,14 @@ export default function UsuariosCrud() {
                       telefonoUsuario,
                       tipoDocumento,
                       numeroDocumento,
-                      roles: [rolesSeleccionados?.[0] ?? "ejecutivo"], // tu lógica actual
+                      roles: rolesSeleccionados.length ? rolesSeleccionados : ["ejecutivo"], // todos los roles seleccionados
                       activo: Boolean(activoControl),
                       asociadoA: null,
+                      // Cliente: franquicia + ciudad (se guardan en el doc del cliente)
+                      franquiciaId: esCliente ? (franquiciaSel || null) : null,
+                      ciudad: esCliente ? (ciudadSel || null) : null,
+                      // adminFranquicia: franquicias que podrá ver
+                      franquiciasAsignadas: esAdminFranquicia ? franquiciasAsignadasSel : [],
                     });
 
                     if (rolesSeleccionados?.includes("cliente")) {
@@ -897,6 +995,7 @@ export default function UsuariosCrud() {
                       numeroDocumento,
                       roles: rolesSeleccionados,
                       activo: Boolean(activoControl),
+                      franquiciasAsignadas: esAdminFranquicia ? franquiciasAsignadasSel : [],
                       fecha_registro: fecha ? Timestamp.fromDate(fecha) : Timestamp.now(),
                     };
 
@@ -1008,6 +1107,62 @@ export default function UsuariosCrud() {
                     />
                   </div>
                 </div>
+
+                {/* Cliente (solo al crear): franquicia + ciudad */}
+                {!usuarioEditando && esCliente && (
+                  <>
+                    <div>
+                      <Label className="text-brand-secondary font-medium">Franquicia</Label>
+                      <Select value={franquiciaSel} onValueChange={handleFranquiciaChange}>
+                        <SelectTrigger className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20">
+                          <SelectValue placeholder="Selecciona una franquicia" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {franquicias.map((f) => (
+                            <SelectItem key={f.id} value={f.id!}>
+                              {f.nombre}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label className="text-brand-secondary font-medium">Ciudad</Label>
+                      <Select
+                        value={ciudadSel}
+                        onValueChange={setCiudadSel}
+                        disabled={!franquiciaSel || ciudadesDisponibles.length === 0}
+                      >
+                        <SelectTrigger className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20">
+                          <SelectValue placeholder={franquiciaSel ? "Selecciona una ciudad" : "Primero la franquicia"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ciudadesDisponibles.map((c) => (
+                            <SelectItem key={c} value={c}>
+                              {c}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
+
+                {/* adminFranquicia: franquicias que podrá ver (solo consulta) */}
+                {esAdminFranquicia && (
+                  <div className="md:col-span-2">
+                    <Label className="text-brand-secondary font-medium">
+                      Franquicias asignadas (solo consulta)
+                    </Label>
+                    <div className="mt-1.5">
+                      <MultiSelectFranquicias
+                        selected={franquiciasAsignadasSel}
+                        setSelected={setFranquiciasAsignadasSel}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex items-center gap-3 p-3 rounded-lg border border-brand-secondary/20 bg-brand-primary/5">
                   <Switch

@@ -26,6 +26,10 @@
 7. [Plan de Migración](#7-plan-de-migración)
 8. [Índices y Reglas](#8-índices-y-reglas)
 9. [Convenciones, Legados y Pendientes](#9-convenciones-legados-y-pendientes)
+10. [Análisis de Roles — Acciones y Pantallas](#10-análisis-de-roles--acciones-y-pantallas)
+11. [Impacto por Pantalla](#11-impacto-por-pantalla)
+12. [Estrategia para No Afectar Producción](#12-estrategia-para-no-afectar-producción)
+13. [Estado de Implementación](#13-estado-de-implementación)
 
 ---
 
@@ -99,8 +103,7 @@ Colección raíz `usuarios/{uid}` (el id del doc = `uid` de Firebase Auth). Mode
 | `clienteIdAsociado` | string? | Si el usuario es rol `cliente`, apunta a su `clientes/{id}` |
 | `deudorIdAsociado` | string? | Si el usuario es rol `deudor` |
 | `canConsultarPersonas` | boolean? | Permiso puntual de consulta |
-| `franquiciaId` | string? | `NUEVO` — franquicia de pertenencia del empleado |
-| `franquiciasAsignadas` | string[]? | `NUEVO` — alcance de visibilidad del rol `adminFranquicia` |
+| `franquiciasAsignadas` | string[]? | `NUEVO` — alcance de visibilidad del rol `adminFranquicia` (se asigna al crear ese usuario) |
 
 Subcolección `usuarios/{uid}/notificaciones/{id}` → ver [§3.6](#36-notificaciones).
 
@@ -245,9 +248,8 @@ Definido en [acl.ts](../frontend/src/shared/constants/acl.ts). Dos ejes **indepe
 | Rol | Descripción | Alcance de datos |
 |---|---|---|
 | `admin` | **Superadmin técnico** (gestión de usuarios, sistema, registros eliminados) | Global |
-| `adminGeneral` `NUEVO` | Dirección de negocio: operación completa + reportes consolidados | **Todas** las franquicias |
+| `supervisor` | **Gestor de negocio global**: crea usuarios y clientes; ve reportes consolidados y por franquicia | **Todas** las franquicias |
 | `adminFranquicia` `NUEVO` | Supervisión de franquicia: **solo consulta y reportes** | `franquiciasAsignadas[]` |
-| `supervisor` | Operación + reportes | Global (hoy) |
 | `ejecutivoAdmin` | Ejecutivo con permisos ampliados (incl. edición de fechas) | Sus clientes asignados |
 | `ejecutivo` | Cartera pre-jurídica | Sus clientes asignados |
 | `dependiente` | Cartera de demandas | Sus clientes asignados |
@@ -273,23 +275,25 @@ Introducir la **franquicia** como dimensión organizacional por encima de los cl
 
 | Campo | Tipo | Notas |
 |---|---|---|
-| `id` | string | = id del documento (p. ej. `bogota`, `eje-cafetero`) |
-| `nombre` | string | "Bogotá", "Eje Cafetero" |
+| `id` | string | = id del documento, **autogenerado por Firestore** (opaco y estable; no se deriva del nombre) |
+| `nombre` | string | "Bogotá", "Eje Cafetero" — editable; renombrarla no afecta el id ni las referencias |
 | `ciudades` | string[] | `["Pereira","Armenia","Manizales"]` — la franquicia **no** está atada a una sola ciudad |
 | `activo` | boolean | |
 | `fechaCreacion` | Timestamp | |
 
+> **IDs autogenerados:** se usan ids de Firestore (no slugs) para que renombrar una franquicia sea seguro y para mantener consistencia con `clientes`/`usuarios`, que ya usan ids opacos. En el backfill inicial, el id de la franquicia destino se pega manualmente en los scripts (lo imprime `seed-franquicias.js`).
+
 ### 6.3 Cambios en entidades existentes
 
 - `clientes`: **+ `franquiciaId: string`** (1:1) y **+ `ciudad: string`** (∈ `franquicia.ciudades`).
-- `usuarios`: **+ `franquiciaId?`** (pertenencia del empleado) y **+ `franquiciasAsignadas?: string[]`** (alcance del `adminFranquicia`).
+- `usuarios`: **+ `franquiciasAsignadas?: string[]`** (alcance del `adminFranquicia`; se asigna al crear ese usuario, **no requiere backfill**). Los demás roles no llevan franquicia en el usuario.
 - `deudores`: **sin cambios** (franquicia y ciudad se derivan del cliente padre).
 
 ### 6.4 Alcance por franquicia (segundo eje de seguridad)
 
 Helper en `acl.ts` (a implementar), p. ej. `franquiciasVisibles(usuario)`:
 
-- `admin`, `adminGeneral`, `supervisor` → `"ALL"`.
+- `admin`, `supervisor`, `ejecutivoAdmin` → `"ALL"`.
 - `adminFranquicia` → `usuario.franquiciasAsignadas`.
 - Roles operativos → no aplica (su filtro real son sus clientes asignados).
 
@@ -303,13 +307,12 @@ Las vistas globales (dashboards, monitoreo, reportes) aplican el filtro así: ca
 
 Objetivo: que lo existente (Bogotá) siga operando mientras se incorpora la nueva franquicia. Scripts siguiendo el patrón de [migracion/](../migracion/) (Admin SDK + `collectionGroup` + batch).
 
-1. **Crear franquicias:** `franquicias/bogota` (`ciudades: ["Bogotá"]`) y `franquicias/eje-cafetero` (`["Pereira","Armenia","Manizales"]`).
-2. **Backfill `clientes`:** a todos los existentes → `franquiciaId = "bogota"`, `ciudad = "Bogotá"`.
-3. **Backfill `usuarios` (empleados):** `franquiciaId = "bogota"`.
-4. **Roles nuevos:** asignar `adminGeneral` a la dirección; crear `adminFranquicia` con `franquiciasAsignadas = ["eje-cafetero"]`.
-5. **Fallback defensivo en código:** tratar `franquiciaId` ausente como `"bogota"` durante la transición.
+1. **Crear franquicias** (id autogenerado): "Cundinamarca" (`ciudades: ["Bogotá"]`) y "Eje Cafetero" (`["Pereira","Armenia","Manizales"]`). → `seed-franquicias.js` (imprime los ids).
+2. **Backfill `clientes`:** pegar el id de "Cundinamarca" en `FRANQUICIA_ID` → asigna `franquiciaId` + `ciudad` a todos los clientes. → `backfill-franquicia-clientes.js`
+3. **Rol nuevo:** crear el/los `adminFranquicia` con `franquiciasAsignadas = [<id de Eje Cafetero>]`. (La gestión global la mantiene `supervisor`, que ya existe.)
+4. **Nuevos clientes:** se crean siempre con `franquiciaId`/`ciudad` desde la UI (paso 3 de la implementación), por lo que tras el backfill ningún doc queda sin franquicia.
 
-> Los **deudores no se tocan** en la migración (no llevan franquicia ni ciudad).
+> Los **deudores no se tocan** (no llevan franquicia ni ciudad). Los **usuarios tampoco**: la franquicia no restringe a los empleados, y `franquiciasAsignadas` solo se pone al crear un `adminFranquicia`.
 
 ---
 
@@ -330,3 +333,100 @@ Objetivo: que lo existente (Bogotá) siga operando mientras se incorpora la nuev
 - **Campos legado conviviendo con nuevos:** `demandados` (string ↔ array, normalizado por `normalizeDemandados`), archivos planos (`archivoUrl`) vs `archivos[]`, `cuotas_acuerdo` (legado) vs `acuerdos/cuotas`, y una colección `deudores` de nivel raíz usada solo en conteos del dashboard.
 - **Estados de acuerdo legados** se normalizan en `normalizarEstadoAcuerdo` (`activo→EN_FIRME`, `cumplido/cancelado→CERRADO`).
 - **Pendientes a futuro:** blindar reglas de Firestore por franquicia; reportes consolidados por franquicia/ciudad/empresa; decidir denormalización de `franquiciaId` en deudor solo si la escala o las reglas lo exigen.
+
+---
+
+## 10. Análisis de Roles — Acciones y Pantallas
+
+### 10.1 Cómo se aplica el control de acceso (3 capas)
+
+El acceso **no** se hace por ruta (todas las rutas comparten un único [ProtectedRoute](../frontend/src/modules/auth/components/ProtectedRoute.tsx) que solo verifica sesión + usuario activo). El control real está en tres capas:
+
+1. **Menú visible** → por **rol**, en [nav.config.ts](../frontend/src/app/layout/nav.config.ts) (filtrado en [app-sidebar.tsx](../frontend/src/app/layout/app-sidebar.tsx) con `roles.some(...)` + `can(perm)`).
+2. **Acciones (crear/editar/borrar)** → por **permiso**, con `can(perms, PERM)` ([rbac.ts](../frontend/src/shared/lib/rbac.ts)) dentro de cada componente.
+3. **Datos visibles (scope)** → en los **servicios** de consulta.
+
+> ⚠️ **Estado actual del scope:** `obtenerClientesPorUsuario` ([clienteService.ts:79](../frontend/src/modules/clientes/services/clienteService.ts#L79)) **devuelve TODOS los clientes** sin filtrar por rol (el bloque de filtrado está comentado). Es decir, hoy cualquier rol con acceso a "Clientes" ve **todos** los conjuntos. El scope por franquicia se introduce aquí.
+
+### 10.2 Roles actuales (8) — qué ven y qué hacen
+
+| Rol | Pantallas (menú) | Puede editar | Scope de datos (hoy) |
+|---|---|---|---|
+| `admin` | Dashboard admin, **Usuarios**, Registros eliminados, Clientes, Monitoreo radicados, WhatsApp, Notificaciones | Todo: usuarios, clientes, deudores, seguimientos (ejec+dep), **fecha de seguimiento**, abonos, valores agregados, contratos, WhatsApp | Global |
+| `supervisor` | Dashboard ejecutivo, **Usuarios**, Registros eliminados, Clientes, WhatsApp, Notificaciones, Ajustes | Usuarios (crear), clientes, deudores, seguimientos (ejec+dep), abonos, valores, contratos, WhatsApp | Global |
+| `ejecutivoAdmin` | Dashboard admin + ejecutivo, Clientes, WhatsApp, Notificaciones | Clientes, deudores, seguimientos (ejec+dep), **fecha de seguimiento**, abonos, valores, contratos, WhatsApp, registros eliminados. **No** usuarios | Todos (sin filtro hoy) |
+| `ejecutivo` | Dashboard ejecutivo, Clientes, WhatsApp, Notificaciones | Clientes, deudores, **seguimientos ejecutivos**, abonos, contratos, WhatsApp. **No** edita seguimientos de dependiente ni fecha | Todos (sin filtro hoy) |
+| `dependiente` | Dashboard dependiente, Clientes, Notificaciones | Clientes, deudores, **seguimientos de dependiente**. Abonos solo lectura. **No** WhatsApp ni valores | Todos (sin filtro hoy) |
+| `abogado` | Clientes, Notificaciones | **Valores agregados** (responde), reporte Word. **No** edita clientes/deudores | Sus clientes (asignado) |
+| `cliente` | Inicio (dashboard cliente), Notificaciones | Crea observaciones (seguimiento y valores), responde valores, descarga reporte PDF | Su propio conjunto |
+| `deudor` | Inicio (ficha de su deuda), Notificaciones | — (solo lectura de su deuda) | Su propio deudor |
+
+> Fuente: `ROLE_PERMISSIONS` en [acl.ts](../frontend/src/shared/constants/acl.ts) y `NAV_ITEMS` en [nav.config.ts](../frontend/src/app/layout/nav.config.ts).
+
+### 10.3 Rol nuevo `NUEVO` y rol global
+
+| Rol | Pantallas | Acciones | Scope |
+|---|---|---|---|
+| `adminFranquicia` `NUEVO` | Dashboard de su franquicia, Clientes (solo su franquicia), reportes de su franquicia | **Solo consulta y reportes** (sin crear/editar) | `franquiciasAsignadas[]` |
+| `supervisor` (ya existe) | Usuarios, Clientes, reportes consolidados/por franquicia | Crea usuarios y clientes; edita operación | **Todas** las franquicias |
+
+- **Solo se agrega un rol: `adminFranquicia`.** La visión global de negocio la cubre el `supervisor`, que ya existe.
+- **Las franquicias y sus ciudades se gestionan por script** (no hay pantalla de administración de franquicias).
+- **`admin` se mantiene como superadmin técnico** (usuarios, sistema, registros eliminados); no cambia.
+- Los roles operativos (`ejecutivo`, `dependiente`, `abogado`) **no se filtran por franquicia**: su alcance es por cliente asignado y pueden atender clientes de cualquier franquicia.
+
+---
+
+## 11. Impacto por Pantalla
+
+### A. Cambian sí o sí (capturan / muestran franquicia + ciudad)
+
+| Pantalla / archivo | Cambio |
+|---|---|
+| [UsuariosTable.tsx](../frontend/src/modules/usuarios/components/UsuariosTable.tsx) | Al crear usuario `cliente`: pedir **franquicia + ciudad**. Al crear `adminFranquicia`: `franquiciasAsignadas[]`. |
+| [ClienteEditDialog.tsx](../frontend/src/modules/clientes/components/ClienteEditDialog.tsx) | Selector **franquicia + ciudad** (consulta y edición). |
+| [ClientesTable.tsx](../frontend/src/modules/clientes/components/ClientesTable.tsx) | Columna + filtro por franquicia/ciudad; punto de scope para `adminFranquicia`. |
+| [ClientePage.tsx](../frontend/src/modules/clientes/components/ClientePage.tsx) + `ClienteInfoCard` / `ClienteInfoSummaryCard` | Mostrar franquicia/ciudad en la ficha. |
+| [clienteService.ts](../frontend/src/modules/clientes/services/clienteService.ts) | `crearClienteDesdeUsuario`, `crearCliente`, `actualizarCliente`, filtro por franquicia en `obtenerClientesPorUsuario` / `listarClientesWhatsapp` / `listarClientesBasico`. |
+| [functions/src/index.ts](../functions/src/index.ts) (`crearUsuarioDesdeAdmin`) | Persistir franquicia en el usuario y en el `cliente` que crea. |
+
+### B. Acceso y navegación (por el rol nuevo `adminFranquicia`)
+
+[acl.ts](../frontend/src/shared/constants/acl.ts) (roles, permisos, `ROLE_HOME`, `ROL_PRIORITY`, helper `franquiciasVisibles`), [App.tsx](../frontend/src/App.tsx) (rutas/dashboards), [nav.config.ts](../frontend/src/app/layout/nav.config.ts) (menú), [rbac.ts](../frontend/src/shared/lib/rbac.ts) / [RedirectByRol.tsx](../frontend/src/modules/auth/pages/RedirectByRol.tsx) (home).
+
+### C. Consultas / reportes globales (filtran o agrupan por franquicia)
+
+Tras revisar el código, la **única vista global de reportes que existe** es el **Panel Gerencial** ([AdminDashboardPage](../frontend/src/modules/dashboard/pages/AdminDashboardPage.tsx)) → se le agregó el filtro de franquicia.
+
+- El **Reporte del Cliente** ([ReporteClientePage](../frontend/src/modules/cobranza/components/reportes/ReporteClientePage.tsx), ruta `/clientes/:clienteId/reporte`) y los servicios `recaudosService`, `tipificacionService`, `reporteDeudoresService`, `demandaReporteService` son **por cliente individual** → la franquicia ya está implícita, **no se filtran**.
+- `RecaudoDashboardAdmin` y `SeguimientoDashboardAdmin` son componentes **huérfanos** (sin ruta), no se tocan.
+- Dashboards de `ejecutivo`/`dependiente` y `MonitoreoRadicadosPage`/`RadicadosPage`: su alcance es por cliente asignado; no requieren franquicia (pendiente solo si se desea filtro opcional).
+
+### D. Sin pantalla nueva
+
+**No se crea pantalla de administración de franquicias.** Las franquicias y sus ciudades se gestionan por script (`migracion/seed-franquicias.js` y backfills). Si se necesita una nueva franquicia o agregar una ciudad, se hace a mano por ese medio.
+
+### E. NO cambian (pantallas de deudor y subcolecciones)
+
+Se abren dentro de un cliente ya seleccionado y heredan su franquicia: `DeudorDetailPage`, `DeudoresTable`, `EstadosMensualesTable`, `FormAgregarAbono`, `AcuerdoPagoPage` / `AgreementTableGrid`, `Seguimiento*`, `InformacionDemandaPage`, `DetalleProcesoJudicialPage`, `ObservacionesDeudorPage`, `ReporteClientePage`, valores agregados y contratos. **No leen ni escriben franquicia/ciudad.**
+
+> **Matiz:** la pantalla *individual* de un deudor no cambia; lo que cambia son las **vistas que agregan deudores de varios clientes** (sección C) cuando las consulta un rol con scope.
+
+---
+
+## 12. Estrategia para No Afectar Producción
+
+El ajuste debe ser **casi transparente** para los usuarios actuales. Reglas que lo garantizan:
+
+1. **No se modifican los permisos de los roles existentes.** `ROLE_PERMISSIONS` queda idéntico. Solo se **agrega** `adminFranquicia`.
+2. **El scope por franquicia aplica solo al rol nuevo (`adminFranquicia`).** `ejecutivo`, `dependiente`, `abogado`, `cliente`, `deudor`, `admin`, `supervisor` siguen viendo lo mismo que hoy.
+3. **Campos nuevos opcionales.** Son `franquiciaId?`/`ciudad?`: el código no se rompe si faltan. El backfill los completa a todos los clientes actuales y, de ahí en adelante, los nuevos clientes se crean siempre con ellos.
+4. **Backfill primero.** Se setea Bogotá a todos los clientes/usuarios existentes → todo queda visualmente igual.
+5. **Las pantallas existentes no cambian de comportamiento** para los roles existentes; los nuevos campos aparecen como datos extra (opcionales) en clientes/usuarios.
+6. **Orden de despliegue recomendado:**
+   1. Modelos + campos opcionales + colección `franquicias` + scripts de backfill (sin tocar UI).
+   2. ACL: agregar el rol `adminFranquicia` + helper de scope (sin alterar los roles existentes).
+   3. Captura de franquicia/ciudad en Usuarios/Clientes (las franquicias se gestionan por script, sin pantalla).
+   4. Filtro/scope en la lista de clientes y en el Panel Gerencial.
+
+> El control de acceso seguirá basándose en menú por rol (el rol nuevo no expone nada nuevo a los roles viejos). Recordatorio: las rutas no están protegidas por rol y las reglas de Firestore están abiertas (ver [§6.4](#64-alcance-por-franquicia-segundo-eje-de-seguridad)); esto **no** es un cambio introducido por franquicias, es el estado actual.

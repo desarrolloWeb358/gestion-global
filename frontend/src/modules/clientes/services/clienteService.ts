@@ -11,7 +11,7 @@ import {
   or, where,
   getDoc, orderBy, query
 } from "firebase/firestore";
-import type { Rol } from "@/shared/constants/acl";
+import { franquiciasVisibles, type Rol } from "@/shared/constants/acl";
 import { Cliente } from "@/modules/clientes/models/cliente.model";
 import { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 
@@ -79,13 +79,22 @@ export const obtenerClientes = async (): Promise<Cliente[]> => {
 export async function obtenerClientesPorUsuario(params: {
   uid: string;
   roles: Rol[];
+  franquiciasAsignadas?: string[];
 }): Promise<Cliente[]> {
-  const { uid, roles } = params;
+  const { roles, franquiciasAsignadas } = params;
 
-  // temporalmente pueden ver todos los clientes sin importar el rol
+  // Todos ven todos los clientes EXCEPTO adminFranquicia, que se limita a sus franquicias.
   const qy = query(clientesRef, orderBy("nombre", "asc"));
   const snap = await getDocs(qy);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+  let clientes = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as Cliente[];
+
+  const alcance = franquiciasVisibles({ roles, franquiciasAsignadas });
+  if (alcance !== "ALL") {
+    const permitidas = new Set(alcance);
+    clientes = clientes.filter((c) => !!c.franquiciaId && permitidas.has(c.franquiciaId));
+  }
+
+  return clientes;
 
   /* despues se habilita nuevamente el control por roles
 

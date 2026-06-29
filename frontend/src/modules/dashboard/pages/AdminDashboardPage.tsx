@@ -40,9 +40,12 @@ import { obtenerResumenMesConNombres } from "@/modules/reportes/services/recaudo
 import {
   ResumenMesSeleccionado,
   ResumenPorCliente,
+  TotalesMes,
 } from "@/modules/reportes/models/recaudoMensual.model";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { PERMS } from "@/shared/constants/acl";
+import type { Franquicia } from "@/modules/franquicias/models/franquicia.model";
+import { obtenerFranquicias } from "@/modules/franquicias/services/franquiciaService";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -101,6 +104,7 @@ interface ClienteInfo {
   nombre: string;
   ejecutivoPrejuridicoId: string | null;
   ejecutivoDependienteId: string | null;
+  franquiciaId?: string;
 }
 
 interface EjecutivoStat {
@@ -246,8 +250,12 @@ export default function AdminDashboardPage() {
   const [month, setMonth] = useState(m);
   const mesClave = `${year}-${month}`;
 
+  // ── Filtro por franquicia (solo vista; reescala todo el panel)
+  const FRANQ_ALL = "__ALL__";
+  const [franquicias, setFranquicias] = useState<Franquicia[]>([]);
+  const [franquiciaFiltro, setFranquiciaFiltro] = useState<string>(FRANQ_ALL);
+
   // ── Data
-  const [clientesActivos, setClientesActivos] = useState<number | null>(null);
   const [clientesList, setClientesList] = useState<ClienteInfo[]>([]);
   const [deudoresPorCliente, setDeudoresPorCliente] = useState<Map<string, number>>(
     new Map()
@@ -363,7 +371,6 @@ export default function AdminDashboardPage() {
         // 2. Resolver clientes activos
         if (clientesResult.status === "fulfilled") {
           const filteredDocs = clientesResult.value.docs;
-          setClientesActivos(filteredDocs.length);
           setClientesList(
             filteredDocs.map((doc) => ({
               id: doc.id,
@@ -372,6 +379,7 @@ export default function AdminDashboardPage() {
                 (doc.data().ejecutivoPrejuridicoId as string) ?? null,
               ejecutivoDependienteId:
                 (doc.data().ejecutivoDependienteId as string) ?? null,
+              franquiciaId: (doc.data().franquiciaId as string) ?? undefined,
             }))
           );
 
@@ -412,6 +420,11 @@ export default function AdminDashboardPage() {
     fetchKpis();
   }, []);
 
+  // ── Cargar franquicias para el filtro
+  useEffect(() => {
+    obtenerFranquicias().then(setFranquicias).catch(() => {});
+  }, []);
+
   // ── Fetch resumen del mes seleccionado
   const fetchMes = useCallback(async () => {
     if (!canView) return;
@@ -431,31 +444,64 @@ export default function AdminDashboardPage() {
     fetchMes();
   }, [fetchMes]);
 
-  // ── Totales calculados
+  // ── Helpers de franquicia (solo vista; restringen el conjunto de clienteIds)
+  const franquiciaPorCliente = useMemo(() => {
+    const m = new Map<string, string | undefined>();
+    clientesList.forEach((c) => m.set(c.id, c.franquiciaId));
+    return m;
+  }, [clientesList]);
+
+  const enFranquicia = useCallback(
+    (clienteId: string) =>
+      franquiciaFiltro === FRANQ_ALL ||
+      franquiciaPorCliente.get(clienteId) === franquiciaFiltro,
+    [franquiciaFiltro, franquiciaPorCliente]
+  );
+
+  const clientesListView = useMemo(
+    () =>
+      franquiciaFiltro === FRANQ_ALL
+        ? clientesList
+        : clientesList.filter((c) => c.franquiciaId === franquiciaFiltro),
+    [clientesList, franquiciaFiltro]
+  );
+
+  // ── Totales calculados (respetan el filtro de franquicia)
   const totalDeudores = useMemo(() => {
     let total = 0;
-    deudoresPorCliente.forEach((v) => (total += v));
+    deudoresPorCliente.forEach((v, id) => { if (enFranquicia(id)) total += v; });
     return total;
-  }, [deudoresPorCliente]);
+  }, [deudoresPorCliente, enFranquicia]);
 
   const totalAcuerdosEnFirme = useMemo(() => {
     let total = 0;
-    acuerdosEnFirmeMap.forEach((v) => (total += v));
+    acuerdosEnFirmeMap.forEach((v, id) => { if (enFranquicia(id)) total += v; });
     return total;
-  }, [acuerdosEnFirmeMap]);
+  }, [acuerdosEnFirmeMap, enFranquicia]);
 
-  const totales = resumen?.totales;
-  const pctRecuperacion = pct(totales?.totalRecaudo ?? 0, totales?.totalDeuda ?? 0);
-
-  // ── Tabla conjuntos: combinar resumen + conteo deudores
+  // ── Tabla conjuntos: combinar resumen + conteo deudores (filtrado por franquicia)
   const filas = useMemo<FilaCliente[]>(() => {
     if (!resumen) return [];
-    return resumen.porCliente.map((r) => ({
-      ...r,
-      deudores: deudoresPorCliente.get(r.clienteUID) ?? 0,
-      recuperacion: pct(r.recaudo, r.deuda),
-    }));
-  }, [resumen, deudoresPorCliente]);
+    return resumen.porCliente
+      .filter((r) => enFranquicia(r.clienteUID))
+      .map((r) => ({
+        ...r,
+        deudores: deudoresPorCliente.get(r.clienteUID) ?? 0,
+        recuperacion: pct(r.recaudo, r.deuda),
+      }));
+  }, [resumen, deudoresPorCliente, enFranquicia]);
+
+  // Cartera/recaudo: consolidado cuando es "Todas"; si no, suma de las filas filtradas
+  const totales = useMemo<TotalesMes | null>(() => {
+    if (franquiciaFiltro === FRANQ_ALL) return resumen?.totales ?? null;
+    if (!resumen) return null;
+    const totalDeuda = filas.reduce((s, f) => s + (f.deuda ?? 0), 0);
+    const totalRecaudo = filas.reduce((s, f) => s + (f.recaudo ?? 0), 0);
+    const totalHonorario = filas.reduce((s, f) => s + (f.honorario ?? 0), 0);
+    return { mes: resumen.totales.mes, totalDeuda, totalHonorario, totalRecaudo };
+  }, [resumen, filas, franquiciaFiltro]);
+
+  const pctRecuperacion = pct(totales?.totalRecaudo ?? 0, totales?.totalDeuda ?? 0);
 
   const filasOrdenadas = useMemo(() => {
     return [...filas].sort((a, b) => {
@@ -492,7 +538,7 @@ export default function AdminDashboardPage() {
       sinGestion15d: 0,
     };
 
-    for (const cliente of clientesList) {
+    for (const cliente of clientesListView) {
       const ejId = cliente.ejecutivoPrejuridicoId;
 
       if (!ejId || excludedEjecutivoIds.has(ejId)) {
@@ -535,7 +581,7 @@ export default function AdminDashboardPage() {
     }
 
     return resultado;
-  }, [clientesList, usuariosMap, deudoresPorCliente, acuerdosEnFirmeMap, excludedEjecutivoIds, sinGestion15dMap]);
+  }, [clientesListView, usuariosMap, deudoresPorCliente, acuerdosEnFirmeMap, excludedEjecutivoIds, sinGestion15dMap]);
 
   // ── Sin gestión dependientes: recalcula según el filtro seleccionado
   const sinGestionDemandaMap = useMemo(() => {
@@ -580,7 +626,7 @@ export default function AdminDashboardPage() {
       sinGestion: 0,
     };
 
-    for (const cliente of clientesList) {
+    for (const cliente of clientesListView) {
       const depId = cliente.ejecutivoDependienteId;
       const deudoresDemanda = demandaCountMap.get(cliente.id) ?? 0;
       const sinGest = sinGestionDemandaMap.get(cliente.id) ?? 0;
@@ -608,7 +654,7 @@ export default function AdminDashboardPage() {
     }
 
     return resultado;
-  }, [clientesList, usuariosMap, demandaCountMap, sinGestionDemandaMap, dependientesUsers]);
+  }, [clientesListView, usuariosMap, demandaCountMap, sinGestionDemandaMap, dependientesUsers]);
 
   const mesLabel = MONTH_LABELS.find((mm) => mm.v === month)?.l ?? month;
 
@@ -673,6 +719,22 @@ export default function AdminDashboardPage() {
                 </SelectContent>
               </Select>
             </div>
+            <div>
+              <Label className="text-xs text-muted-foreground block mb-1">Franquicia</Label>
+              <Select value={franquiciaFiltro} onValueChange={setFranquiciaFiltro}>
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="Todas" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={FRANQ_ALL}>Todas</SelectItem>
+                  {franquicias.map((f) => (
+                    <SelectItem key={f.id} value={f.id!}>
+                      {f.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <Button
               variant="outline"
               onClick={fetchMes}
@@ -695,7 +757,7 @@ export default function AdminDashboardPage() {
             icon={<Building2 className="h-5 w-5 text-blue-600" />}
             iconBg="bg-blue-100"
             label="Conjuntos activos"
-            value={loadingKpis ? "…" : String(clientesActivos ?? 0)}
+            value={loadingKpis ? "…" : String(clientesListView.length)}
             onClick={() => navigate("/clientes-tables")}
             subtitle="Ver todos →"
           />

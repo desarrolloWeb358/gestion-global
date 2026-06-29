@@ -204,6 +204,9 @@ export const crearUsuarioDesdeAdmin = onRequest(
         fecha_registro,
         clienteIdAsociado,
         deudorIdAsociado,
+        franquiciaId,
+        ciudad,
+        franquiciasAsignadas,
       } = req.body ?? {};
 
       if (!email || !password) {
@@ -250,6 +253,7 @@ export const crearUsuarioDesdeAdmin = onRequest(
         activo: true as any,
         clienteIdAsociado: clienteIdAsociado ?? null,
         deudorIdAsociado: deudorIdAsociado ?? null,
+        franquiciasAsignadas: Array.isArray(franquiciasAsignadas) ? franquiciasAsignadas : null,
         fecha_registro: fechaRegistro,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         createdBy: decoded.uid,
@@ -267,6 +271,8 @@ export const crearUsuarioDesdeAdmin = onRequest(
           ejecutivoDependienteId: null as any,
           abogadoId: null as any,
           activo: true as any,
+          franquiciaId: franquiciaId ?? null,
+          ciudad: ciudad ?? null,
           fecha_creacion: admin.firestore.FieldValue.serverTimestamp(),
         }, { merge: true });
       }

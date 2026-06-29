@@ -1,6 +1,7 @@
 export const ROLES = [
   "admin",
   "supervisor",
+  "adminFranquicia",
   "ejecutivo",
   "ejecutivoAdmin",
   "dependiente",
@@ -14,6 +15,7 @@ export type Rol = (typeof ROLES)[number];
 export const ROL_PRIORITY: Rol[] = [
   "admin",
   "supervisor",
+  "adminFranquicia",
   "ejecutivoAdmin",
   "ejecutivo",
   "dependiente",
@@ -28,6 +30,7 @@ export const DEFAULT_HOME = "/dashboard/cliente" as const;
 export const ROLE_HOME: Record<Rol, string> = {
   admin: "/dashboard/admin",
   supervisor: "/dashboard/ejecutivo",
+  adminFranquicia: "/clientes-tables",
   ejecutivoAdmin: "/dashboard/ejecutivo",
   ejecutivo: "/dashboard/ejecutivo",
   dependiente: "/clientes-tables",
@@ -235,6 +238,20 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.ReporteCliente_Download_Word,
   ],
 
+  // Supervisión de franquicia: SOLO lectura + reportes, limitado a franquiciasAsignadas.
+  adminFranquicia: [
+    PERMS.Clientes_Read,
+    PERMS.Deudores_Read,
+    PERMS.Seguimientos_Ejecutivos_Read,
+    PERMS.Seguimientos_Dependientes_Read,
+    PERMS.Abonos_Read,
+    PERMS.Recaudos_Read,
+    PERMS.Valores_Read,
+    PERMS.Valores_agregados_Read,
+    PERMS.Contratos_Read,
+    PERMS.ReporteCliente_Download_Word,
+  ],
+
   deudor: [
     PERMS.Deudores_Read,
   ],
@@ -251,4 +268,28 @@ export function crudMode(can: CanFn, p: { view: Perm; edit: Perm }) {
 export function sanitizeRoles(input: unknown): Rol[] {
   if (!Array.isArray(input)) return [];
   return input.filter((r): r is Rol => ROLES.includes(r as Rol));
+}
+
+// === Alcance por franquicia (segundo eje, independiente de los permisos) ===
+// "ALL" = sin restricción de franquicia. Un array = solo esas franquicias.
+export type AlcanceFranquicias = "ALL" | string[];
+
+// Roles que ven TODAS las franquicias.
+const FRANQUICIA_FULL_ACCESS: Rol[] = ["admin", "supervisor", "ejecutivoAdmin"];
+
+/**
+ * Devuelve qué franquicias puede ver un usuario.
+ * - admin / supervisor / ejecutivoAdmin → "ALL".
+ * - adminFranquicia → sus franquiciasAsignadas (solo consulta/reportes).
+ * - resto (ejecutivo, dependiente, abogado, cliente, deudor) → "ALL":
+ *   NO se filtran por franquicia; su alcance real es por cliente asignado.
+ */
+export function franquiciasVisibles(params: {
+  roles?: Rol[];
+  franquiciasAsignadas?: string[];
+}): AlcanceFranquicias {
+  const roles = params.roles ?? [];
+  if (roles.some((r) => FRANQUICIA_FULL_ACCESS.includes(r))) return "ALL";
+  if (roles.includes("adminFranquicia")) return params.franquiciasAsignadas ?? [];
+  return "ALL";
 }

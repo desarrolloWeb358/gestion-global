@@ -1,11 +1,12 @@
 // src/modules/clientes/components/ClienteInfoCard.tsx
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
-import { ScrollText, Download } from "lucide-react";
+import { ScrollText, Download, Building2, MapPin } from "lucide-react";
 import type { Cliente } from "@/modules/clientes/models/cliente.model";
 import type { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 import type { Contrato } from "@/modules/contratos/models/contrato.model";
 import { getUsuarioByUid } from "@/modules/usuarios/services/usuarioService";
+import { getFranquiciaById } from "@/modules/franquicias/services/franquiciaService";
 import { Typography } from "@/shared/design-system/components/Typography";
 
 interface Props {
@@ -112,6 +113,20 @@ export function ClienteInfoCard({ cliente, ejecutivos = [], usuarios = [], total
 
   const usuarioCliente = usuarioEnLista ?? usuarioFetch;
 
+  // Nombre de la franquicia (resuelto desde cliente.franquiciaId)
+  const [franquiciaNombre, setFranquiciaNombre] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    let cancel = false;
+    if (!cliente.franquiciaId) {
+      setFranquiciaNombre(null);
+      return;
+    }
+    getFranquiciaById(cliente.franquiciaId)
+      .then((f) => { if (!cancel) setFranquiciaNombre(f?.nombre ?? null); })
+      .catch(() => { if (!cancel) setFranquiciaNombre(null); });
+    return () => { cancel = true; };
+  }, [cliente.franquiciaId]);
+
   const show = (v?: string | null) => (v && String(v).trim() !== "" ? String(v) : "—");
 
   const nombreCliente =
@@ -137,6 +152,24 @@ export function ClienteInfoCard({ cliente, ejecutivos = [], usuarios = [], total
 
   return (
     <div className="space-y-6">
+      {/* Franquicia + ciudad como chips (no ocupan celda del grid) */}
+      {(franquiciaNombre || cliente.ciudad) && (
+        <div className="flex flex-wrap items-center gap-2">
+          {franquiciaNombre && (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
+              <Building2 className="h-3.5 w-3.5" />
+              {franquiciaNombre}
+            </span>
+          )}
+          {cliente.ciudad && (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
+              <MapPin className="h-3.5 w-3.5" />
+              {cliente.ciudad}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Información básica */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <div>

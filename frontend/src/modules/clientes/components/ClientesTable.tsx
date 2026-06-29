@@ -15,6 +15,13 @@ import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
 import { Button } from "@/shared/ui/button";
 import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/shared/ui/select";
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -23,6 +30,8 @@ import {
 
 import { Cliente } from "@/modules/clientes/models/cliente.model";
 import { obtenerClientesPorUsuario } from "@/modules/clientes/services/clienteService";
+import type { Franquicia } from "@/modules/franquicias/models/franquicia.model";
+import { obtenerFranquicias } from "@/modules/franquicias/services/franquiciaService";
 import { getUsuarioByUid } from "@/modules/usuarios/services/usuarioService";
 import { obtenerDeudorPorCliente } from "@/modules/cobranza/services/deudorService";
 import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
@@ -39,16 +48,26 @@ const SESSION_KEY = "clientesTable_q";
 export default function ClientesCrud() {
   const navigate = useNavigate();
   const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [franquicias, setFranquicias] = useState<Franquicia[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [clienteEditando, setClienteEditando] = useState<Cliente | null>(null);
   const [mostrarDialogo, setMostrarDialogo] = useState(false);
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
   const [q, setQ] = useState(() => sessionStorage.getItem(SESSION_KEY) ?? "");
+  const FRANQ_ALL = "__ALL__";
+  const [franquiciaFiltro, setFranquiciaFiltro] = useState<string>(FRANQ_ALL);
 
   // Auth / Roles / ACL
-  const { usuario, roles, loading: userLoading } = useUsuarioActual();
+  const { usuario, usuarioSistema, roles, loading: userLoading } = useUsuarioActual();
   const { can, loading: aclLoading } = useAcl();
+
+  // Mapa franquiciaId → nombre (para mostrar en la tabla)
+  const franquiciaNombrePorId = useMemo(() => {
+    const m: Record<string, string> = {};
+    franquicias.forEach((f) => { if (f.id) m[f.id] = f.nombre; });
+    return m;
+  }, [franquicias]);
 
   const isAdmin = roles?.includes("admin") || roles?.includes("ejecutivoAdmin");
   const isEjecutivo = roles?.includes("ejecutivo");
@@ -73,6 +92,7 @@ export default function ClientesCrud() {
       const data = await obtenerClientesPorUsuario({
         uid: usuario?.uid ?? "", // si es admin y no hay uid por algo raro, igual no debería pasar
         roles,
+        franquiciasAsignadas: usuarioSistema?.franquiciasAsignadas ?? [],
       });
 
       setClientes(Array.isArray(data) ? data : []);
@@ -89,6 +109,10 @@ export default function ClientesCrud() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userLoading, aclLoading, usuario?.uid, roles?.join("|")]);
 
+  useEffect(() => {
+    obtenerFranquicias().then(setFranquicias).catch(() => {});
+  }, []);
+
   // ----------------------------
   function resolverNombreCliente(c: Cliente) {
     return (c as any).nombre ?? c.id ?? "(Sin nombre)";
@@ -99,13 +123,17 @@ export default function ClientesCrud() {
       ? clientes.filter((c) => c.activo === false)
       : clientes.filter((c) => c.activo !== false);
 
+    if (franquiciaFiltro !== FRANQ_ALL) {
+      result = result.filter((c) => c.franquiciaId === franquiciaFiltro);
+    }
+
     const qn = q.trim().toLowerCase();
     if (!qn) return result;
     return result.filter((c) => {
       const nombre = (c as any).nombre?.toLowerCase?.() ?? "";
       return nombre.includes(qn);
     });
-  }, [clientes, q, mostrarInactivos]);
+  }, [clientes, q, mostrarInactivos, franquiciaFiltro]);
 
   // Guards UI
   if (userLoading || aclLoading) {
@@ -261,14 +289,37 @@ export default function ClientesCrud() {
                 </div>
               </div>
 
+              <div>
+                <Label className="mb-2 block text-brand-secondary font-medium">
+                  Franquicia
+                </Label>
+                <Select value={franquiciaFiltro} onValueChange={setFranquiciaFiltro}>
+                  <SelectTrigger className="border-brand-secondary/30 bg-white focus:border-brand-primary focus:ring-brand-primary/20">
+                    <SelectValue placeholder="Todas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={FRANQ_ALL}>Todas las franquicias</SelectItem>
+                    {franquicias.map((f) => (
+                      <SelectItem key={f.id} value={f.id!}>
+                        {f.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="flex items-end">
                 <Button
                   variant="outline"
                   className={cn(
                     "w-full border-brand-secondary/30 text-brand-secondary hover:bg-brand-primary/5",
-                    !q && "opacity-50 pointer-events-none"
+                    !q && franquiciaFiltro === FRANQ_ALL && "opacity-50 pointer-events-none"
                   )}
-                  onClick={() => { setQ(""); sessionStorage.removeItem(SESSION_KEY); }}
+                  onClick={() => {
+                    setQ("");
+                    sessionStorage.removeItem(SESSION_KEY);
+                    setFranquiciaFiltro(FRANQ_ALL);
+                  }}
                 >
                   Limpiar búsqueda
                 </Button>
@@ -329,6 +380,9 @@ export default function ClientesCrud() {
                     <TableHead className="text-brand-secondary font-semibold">
                       Nombre
                     </TableHead>
+                    <TableHead className="text-brand-secondary font-semibold">
+                      Franquicia
+                    </TableHead>
                     <TableHead className="text-center text-brand-secondary font-semibold">
                       Acciones
                     </TableHead>
@@ -347,6 +401,12 @@ export default function ClientesCrud() {
                     >
                       <TableCell className="font-medium text-brand-secondary">
                         {resolverNombreCliente(cliente)}
+                      </TableCell>
+
+                      <TableCell className="text-gray-600">
+                        {cliente.franquiciaId
+                          ? franquiciaNombrePorId[cliente.franquiciaId] ?? "—"
+                          : "—"}
                       </TableCell>
 
                       <TableCell>

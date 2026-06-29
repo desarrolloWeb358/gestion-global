@@ -14,4 +14,8 @@ export interface UsuarioSistema {
   clienteIdAsociado?: string;
   deudorIdAsociado?: string;
   canConsultarPersonas?: boolean;
+
+  // Franquicias que puede ver el rol adminFranquicia (solo consulta/reportes).
+  // Se asigna al crear ese usuario; los demás roles no lo usan.
+  franquiciasAsignadas?: string[];
 }
