@@ -141,6 +141,9 @@ export default function AcuerdoPagoPage() {
     const [saving, setSaving] = useState(false);
     const [deudaUltimoMes, setDeudaUltimoMes] = useState<{ deuda: number; mes: string } | null>(null);
 
+    // % de honorarios configurado en el deudor (default para acuerdos nuevos)
+    const [porcentajeDeudor, setPorcentajeDeudor] = useState<number>(15);
+
     const [clienteNombre, setClienteNombre] = useState("Cargando...");
     const [deudorNombre, setDeudorNombre] = useState("Cargando...");
 
@@ -458,6 +461,10 @@ export default function AcuerdoPagoPage() {
         const nombreDeudor = dd?.nombre || dd?.nombreResponsable || "Deudor";
         setDeudorNombre(nombreDeudor);
 
+        // % de honorarios definido en el deudor (según su tipificación)
+        const pctDeudor = Number(dd?.porcentajeHonorarios ?? 15);
+        setPorcentajeDeudor(Number.isFinite(pctDeudor) ? pctDeudor : 15);
+
         const deudorCedula = String(dd?.cedula || "").trim();
         const deudorDireccion = String(dd?.direccion || "").trim();
         const deudorUbicacion = String(dd?.ubicacion || "").trim();
@@ -511,13 +518,18 @@ export default function AcuerdoPagoPage() {
             juzgado,
             localidad,
         });
+
+        return pctDeudor;
     };
 
     // ==============================
     // Cargar acuerdo actual (EN_FIRME > BORRADOR)
     // ==============================
-    const cargarAcuerdoActual = async () => {
+    const cargarAcuerdoActual = async (pctDefaultParam?: number) => {
         if (!clienteId || !deudorId) return;
+
+        // % por defecto para acuerdos nuevos: el del deudor (param en carga inicial, o estado)
+        const pctDefault = Number(pctDefaultParam ?? porcentajeDeudor ?? 15);
 
         const { acuerdo, acuerdoId } = await obtenerAcuerdoActual(clienteId, deudorId);
 
@@ -537,13 +549,13 @@ export default function AcuerdoPagoPage() {
                     const mes = String(ultimo.mes ?? "");
                     if (deuda > 0) {
                         setDeudaUltimoMes({ deuda, mes });
-                        setForm((p) => ({ ...p, numero: "", detalles: "", capitalInicial: deuda }));
+                        setForm((p) => ({ ...p, numero: "", detalles: "", capitalInicial: deuda, porcentajeHonorarios: pctDefault }));
                         return;
                     }
                 }
             } catch { /* si falla, no prellenamos */ }
 
-            setForm((p) => ({ ...p, numero: "", detalles: "", capitalInicial: 0 }));
+            setForm((p) => ({ ...p, numero: "", detalles: "", capitalInicial: 0, porcentajeHonorarios: pctDefault }));
             return;
         }
 
@@ -557,7 +569,7 @@ export default function AcuerdoPagoPage() {
             numero: acuerdo.numero || "",
             fechaAcuerdo: toDateSafe(acuerdo.fechaAcuerdo),
             capitalInicial: Number(acuerdo.capitalInicial || 0),
-            porcentajeHonorarios: Number(acuerdo.porcentajeHonorarios || 15),
+            porcentajeHonorarios: Number(acuerdo.porcentajeHonorarios || pctDefault),
             fechaPrimeraCuota: toDateSafe(acuerdo.fechaPrimeraCuota),
             valorCuotaBase: Number(acuerdo.valorCuotaBase || 0),
             detalles: acuerdo.detalles || "",
@@ -567,7 +579,7 @@ export default function AcuerdoPagoPage() {
         setCuotas(
             recalcularTablaDesdeValorCuota(cuotasDb, {
                 capitalInicial: Number(acuerdo.capitalInicial || 0),
-                porcentajeHonorarios: Number(acuerdo.porcentajeHonorarios || 15),
+                porcentajeHonorarios: Number(acuerdo.porcentajeHonorarios || pctDefault),
             })
         );
     };
@@ -581,8 +593,8 @@ export default function AcuerdoPagoPage() {
 
             try {
                 setLoading(true);
-                await cargarClienteDeudor();
-                await cargarAcuerdoActual();
+                const pctDeudor = await cargarClienteDeudor();
+                await cargarAcuerdoActual(pctDeudor);
             } catch (e) {
                 console.error(e);
                 toast.error("⚠️ Error cargando datos");
