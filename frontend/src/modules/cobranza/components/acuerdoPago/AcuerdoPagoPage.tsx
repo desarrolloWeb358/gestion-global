@@ -542,7 +542,7 @@ export default function AcuerdoPagoPage() {
     // ==============================
     // Cargar datos base (cliente/deudor)
     // ==============================
-    const cargarClienteDeudor = async () => {
+    const cargarClienteDeudor = async (): Promise<number | undefined> => {
         if (!clienteId || !deudorId) return;
 
         // -------- Deudor --------
@@ -561,7 +561,8 @@ export default function AcuerdoPagoPage() {
 
         // % de honorarios definido en el deudor (según su tipificación)
         const pctDeudor = Number(dd?.porcentajeHonorarios ?? 15);
-        setPorcentajeDeudor(Number.isFinite(pctDeudor) ? pctDeudor : 15);
+        const porcentajeHonorariosDeudor = Number.isFinite(pctDeudor) ? pctDeudor : 15;
+        setPorcentajeDeudor(porcentajeHonorariosDeudor);
 
         const deudorCedula = String(dd?.cedula || "").trim();
         const deudorDireccion = String(dd?.direccion || "").trim();
@@ -629,6 +630,8 @@ export default function AcuerdoPagoPage() {
                     email: deudorEmails[0] ?? "",
                 }]
         );
+
+        return porcentajeHonorariosDeudor;
     };
 
     // ==============================
