@@ -167,12 +167,13 @@ export default function EstadosMensualesTable() {
   // Calcular honorarios automáticamente
   React.useEffect(() => {
     setNuevoEstadoMensual((s) => {
-      const pct = (s.porcentajeHonorarios ?? 15) / 100;
+      const pctNumber = s.porcentajeHonorarios ?? 15;
       const deudaVal = s.deuda ?? undefined;
       const recaudoVal = s.recaudo ?? undefined;
-      const hd = deudaVal != null ? round0(deudaVal * pct) : undefined;
+      const hd = deudaVal != null ? round0(deudaVal * (pctNumber / 100)) : undefined;
       const recaudoNum = recaudoVal != null ? Number(recaudoVal) : 0;
-      const hr = round0(recaudoNum * pct);
+      // Honorarios del Recaudo = Recaudo × (% / (100 + %))
+      const hr = recaudoNum > 0 ? round0(recaudoNum * (pctNumber / (100 + pctNumber))) : undefined;
       if (hd === s.honorariosDeuda && hr === s.honorariosRecaudo) return s;
       return { ...s, honorariosDeuda: hd, honorariosRecaudo: hr };
     });
@@ -271,15 +272,15 @@ export default function EstadosMensualesTable() {
     }
     try {
       setSaving(true);
-      const pct = (nuevoEstadoMensual.porcentajeHonorarios ?? 15) / 100;
+      const pctNumber = nuevoEstadoMensual.porcentajeHonorarios ?? 15;
       const deuda = nuevoEstadoMensual.deuda != null ? Math.round(nuevoEstadoMensual.deuda) : undefined;
       const recaudo = nuevoEstadoMensual.recaudo != null ? Math.round(nuevoEstadoMensual.recaudo) : undefined;
       const payload: Partial<EstadoMensual> = {
         ...nuevoEstadoMensual,
         deuda,
         recaudo,
-        honorariosDeuda: deuda != null ? Math.round(deuda * pct) : undefined,
-        honorariosRecaudo: recaudo != null ? Math.round(recaudo * pct) : undefined,
+        honorariosDeuda: deuda != null ? Math.round(deuda * (pctNumber / 100)) : undefined,
+        honorariosRecaudo: recaudo != null ? Math.round(recaudo * (pctNumber / (100 + pctNumber))) : undefined,
       };
       await upsertEstadoMensualPorMes(clienteId, deudorId, payload);
       toast.success(editing ? "Estado mensual actualizado" : "Estado mensual guardado");

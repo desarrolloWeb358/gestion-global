@@ -218,7 +218,8 @@ export async function obtenerResumenPorTipificacion(
           mes?: string;
           deuda?: number;
           recaudo?: number;
-          honorariosRecaudo?: number; // ✅ nuevo
+          honorariosRecaudo?: number;
+          honorariosDeuda?: number; // ✅ nuevo
         };
 
         const rawMes = (data.mes || mDoc.id || "").trim();
@@ -237,9 +238,15 @@ export async function obtenerResumenPorTipificacion(
         const d = Number(data.deuda ?? 0);
         const deudaValida = Number.isFinite(d) && d !== 0;
 
+        // "Por recuperar" = último registro con deuda (deuda + honorarios de la deuda)
+        // menos el recaudo de ESE mismo mes. La deuda NO es acumulativa: el último
+        // mes con deuda es el saldo real vigente.
         if (deudaValida && (!ultimoMesConDeuda || rawMes > ultimoMesConDeuda)) {
           ultimoMesConDeuda = rawMes;
-          deudaUltimoMesNoCero = d;
+          const honDeuda = Number(data.honorariosDeuda ?? 0);
+          const deudaConHonorarios = d + (Number.isFinite(honDeuda) ? honDeuda : 0);
+          const rec = Number.isFinite(recaudo) ? recaudo : 0;
+          deudaUltimoMesNoCero = Math.max(0, deudaConHonorarios - rec);
         }
       });
 
@@ -326,7 +333,7 @@ export async function obtenerDetalleDeudoresPorTipificacion(
       let deudaUltimaNoCero = 0;
 
       estadosSnap.forEach((mDoc) => {
-        const data = mDoc.data() as { mes?: string; recaudo?: number; deuda?: number; honorariosRecaudo?: number };
+        const data = mDoc.data() as { mes?: string; recaudo?: number; deuda?: number; honorariosRecaudo?: number; honorariosDeuda?: number };
         const rawMes = (data.mes || mDoc.id || "").trim();
         if (!rawMes || rawMes.length < 7) return;
 
@@ -344,9 +351,15 @@ export async function obtenerDetalleDeudoresPorTipificacion(
         const d = Number(data.deuda ?? 0);
         const deudaValida = Number.isFinite(d) && d !== 0;
 
+        // "Por recuperar" = último registro con deuda (deuda + honorarios de la deuda)
+        // menos el recaudo de ESE mismo mes. La deuda NO es acumulativa: el último
+        // mes con deuda es el saldo real vigente.
         if (deudaValida && (!ultimoMesConDeudaNoCero || rawMes > ultimoMesConDeudaNoCero)) {
           ultimoMesConDeudaNoCero = rawMes;
-          deudaUltimaNoCero = d;
+          const honDeuda = Number(data.honorariosDeuda ?? 0);
+          const deudaConHonorarios = d + (Number.isFinite(honDeuda) ? honDeuda : 0);
+          const rec = Number.isFinite(r) ? r : 0;
+          deudaUltimaNoCero = Math.max(0, deudaConHonorarios - rec);
         }
       });
 

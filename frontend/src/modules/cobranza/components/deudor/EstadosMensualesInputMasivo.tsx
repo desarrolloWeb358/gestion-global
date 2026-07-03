@@ -303,11 +303,10 @@ export default function EstadosMensualesInputMasivo() {
 
           const round0 = (n: number) => Math.round(n);
 
-          const pct = porc / 100;          
+          const honorariosDeuda = deuda > 0 ? round0(deuda * (porc / 100)) : 0;
 
-          const honorariosDeuda = deuda > 0 ? round0(deuda * pct) : 0;
-          
-          const honorariosRecaudo = recaudo > 0 ? round0(recaudo * pct) : 0;            
+          // Honorarios del Recaudo = Recaudo × (% / (100 + %))
+          const honorariosRecaudo = recaudo > 0 ? round0(recaudo * (porc / (100 + porc))) : 0;            
 
           await upsertEstadoMensualPorMes(clienteId, fila.deudorId, {
             mes: mesGlobal,
