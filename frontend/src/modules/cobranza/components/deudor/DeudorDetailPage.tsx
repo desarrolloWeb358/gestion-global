@@ -24,9 +24,10 @@ import {
   MapPin,
   Scale,
   MessageCircle,
+  Pencil,
 } from "lucide-react";
 
-import { getDeudorById, vincularDeudorConUsuario } from "../../services/deudorService";
+import { actualizarDeudorDatos, getDeudorById, vincularDeudorConUsuario } from "../../services/deudorService";
 
 
 import {
@@ -36,8 +37,13 @@ import {
 import type { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 
 import { Typography } from "@/shared/design-system/components/Typography";
+import { Button } from "@/shared/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/shared/ui/dialog";
+import { Input } from "@/shared/ui/input";
+import { Label } from "@/shared/ui/label";
 import AppBreadcrumb from "@/shared/components/app-breadcrumb";
 import { cn } from "@/shared/lib/cn";
+import { toast } from "sonner";
 
 import { getClienteById } from "@/modules/clientes/services/clienteService";
 import type { Cliente } from "@/modules/clientes/models/cliente.model";
@@ -87,6 +93,7 @@ export default function DeudorDetailPage() {
   const esCliente = userRoles.includes("cliente");
   const esEjecutivo = userRoles.includes("ejecutivo");
   const esAdmin = userRoles.includes("admin");
+  const canEdit = !esDeudor && !esCliente && can(PERMS.Deudores_Edit);
   const puedeCrearAccesoDeudor = !esDeudor && !esCliente && (esAdmin || esEjecutivo);
   const puedeGestionarAccesos = puedeCrearAccesoDeudor;
   const [deudor, setDeudor] = React.useState<Deudor | null>(null);
@@ -102,6 +109,16 @@ export default function DeudorDetailPage() {
 
   const [mensajeAcceso, setMensajeAcceso] = React.useState<string | null>(null);
   const [creandoAcceso, setCreandoAcceso] = React.useState(false);
+  const [editOpen, setEditOpen] = React.useState(false);
+  const [editSaving, setEditSaving] = React.useState(false);
+  const [editForm, setEditForm] = React.useState({
+    nombre: "",
+    cedula: "",
+    ubicacion: "",
+    porcentajeHonorarios: "",
+    correos: "",
+    telefonos: "",
+  });
 
   // ===========================
   // Cargar información del cliente
@@ -210,6 +227,69 @@ export default function DeudorDetailPage() {
       );
     } finally {
       setCreandoAcceso(false);
+    }
+  };
+
+  const abrirEditar = () => {
+    if (!deudor) return;
+    setEditForm({
+      nombre: deudor.nombre ?? "",
+      cedula: deudor.cedula ?? "",
+      ubicacion: deudor.ubicacion ?? "",
+      porcentajeHonorarios:
+        deudor.porcentajeHonorarios !== undefined && deudor.porcentajeHonorarios !== null
+          ? String(deudor.porcentajeHonorarios)
+          : "",
+      correos: (deudor.correos ?? []).join(", "),
+      telefonos: (deudor.telefonos ?? []).join(", "),
+    });
+    setEditOpen(true);
+  };
+
+  const guardarEdicion = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!clienteId || !deudor?.id || editSaving) return;
+
+    const nombre = editForm.nombre.trim();
+    if (!nombre) {
+      toast.error("El nombre del deudor es obligatorio.");
+      return;
+    }
+
+    const porcentaje = editForm.porcentajeHonorarios.trim()
+      ? Number(editForm.porcentajeHonorarios)
+      : undefined;
+
+    if (porcentaje !== undefined && Number.isNaN(porcentaje)) {
+      toast.error("El porcentaje de honorarios debe ser un número.");
+      return;
+    }
+
+    const payload = {
+      nombre,
+      cedula: editForm.cedula.trim(),
+      ubicacion: editForm.ubicacion.trim(),
+      porcentajeHonorarios: porcentaje,
+      correos: editForm.correos
+        .split(",")
+        .map((correo) => correo.trim())
+        .filter(Boolean),
+      telefonos: editForm.telefonos
+        .split(",")
+        .map((telefono) => telefono.trim())
+        .filter(Boolean),
+    };
+
+    try {
+      setEditSaving(true);
+      await actualizarDeudorDatos(clienteId, deudor.id, payload);
+      setDeudor((prev) => (prev ? { ...prev, ...payload } : prev));
+      setEditOpen(false);
+      toast.success("Deudor actualizado correctamente.");
+    } catch (error: any) {
+      toast.error(error?.message ?? "No se pudo actualizar el deudor.");
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -392,16 +472,29 @@ export default function DeudorDetailPage() {
           )}
 
           <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-brand-primary/10">
-                <User className="h-6 w-6 text-brand-primary" />
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="p-2 rounded-lg bg-brand-primary/10">
+                  <User className="h-6 w-6 text-brand-primary" />
+                </div>
+                <Typography
+                  variant="h1"
+                  className="!text-brand-primary font-bold"
+                >
+                  {deudor.nombre} - {deudor.ubicacion}
+                </Typography>
               </div>
-              <Typography
-                variant="h1"
-                className="!text-brand-primary font-bold"
-              >
-                {deudor.nombre} - {deudor.ubicacion}
-              </Typography>
+              {canEdit && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={abrirEditar}
+                  className="flex shrink-0 items-center gap-2 border-brand-secondary/30 text-brand-secondary hover:text-brand-primary hover:border-brand-primary"
+                >
+                  <Pencil className="h-4 w-4" />
+                  Editar
+                </Button>
+              )}
             </div>
             <Typography
               variant="body"
@@ -841,6 +934,113 @@ export default function DeudorDetailPage() {
             )}
           </div>
         </section>
+
+        <Dialog open={editOpen} onOpenChange={(open) => !editSaving && setEditOpen(open)}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="text-brand-primary text-xl font-bold flex items-center gap-2">
+                <Pencil className="h-5 w-5" />
+                Editar deudor
+              </DialogTitle>
+            </DialogHeader>
+
+            <form className="space-y-5" onSubmit={guardarEdicion}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-brand-secondary font-medium">Nombre completo</Label>
+                  <Input
+                    value={editForm.nombre}
+                    onChange={(event) =>
+                      setEditForm((prev) => ({ ...prev, nombre: event.target.value }))
+                    }
+                    disabled={editSaving}
+                    className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-brand-secondary font-medium">Cédula</Label>
+                  <Input
+                    value={editForm.cedula}
+                    onChange={(event) =>
+                      setEditForm((prev) => ({ ...prev, cedula: event.target.value }))
+                    }
+                    disabled={editSaving}
+                    className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-brand-secondary font-medium">Inmueble</Label>
+                  <Input
+                    value={editForm.ubicacion}
+                    onChange={(event) =>
+                      setEditForm((prev) => ({ ...prev, ubicacion: event.target.value }))
+                    }
+                    disabled={editSaving}
+                    className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-brand-secondary font-medium">Porcentaje de honorarios (%)</Label>
+                  <Input
+                    type="number"
+                    value={editForm.porcentajeHonorarios}
+                    onChange={(event) =>
+                      setEditForm((prev) => ({ ...prev, porcentajeHonorarios: event.target.value }))
+                    }
+                    disabled={editSaving}
+                    className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-brand-secondary font-medium">Correos electrónicos</Label>
+                <Input
+                  value={editForm.correos}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({ ...prev, correos: event.target.value }))
+                  }
+                  disabled={editSaving}
+                  placeholder="correo1@example.com, correo2@example.com"
+                  className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
+                />
+                <p className="text-xs mt-1">Separa múltiples correos con comas.</p>
+              </div>
+
+              <div>
+                <Label className="text-brand-secondary font-medium">Teléfonos</Label>
+                <Input
+                  value={editForm.telefonos}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({ ...prev, telefonos: event.target.value }))
+                  }
+                  disabled={editSaving}
+                  placeholder="3001234567, 3109876543"
+                  className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
+                />
+                <p className="text-xs mt-1">Separa múltiples teléfonos con comas.</p>
+              </div>
+
+              <DialogFooter className="gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setEditOpen(false)}
+                  disabled={editSaving}
+                  className="border-brand-secondary/30"
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit" variant="brand" disabled={editSaving}>
+                  {editSaving ? "Guardando..." : "Guardar cambios"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

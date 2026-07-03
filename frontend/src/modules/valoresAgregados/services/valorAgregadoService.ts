@@ -200,7 +200,6 @@ export async function crearValorAgregado(
     const nombreCliente = clienteInfo.nombreCliente;
     const tipoLabel = TipoValorAgregadoLabels[data.tipo];
     const nombreValor = data.titulo || "Documento";
-    const descripcionValor = data.descripcion || "";
     const ruta = `/clientes/${clienteId}/valores-agregados/${valorId}`;
 
     const descripcionAlerta = `Nuevo valor agregado (${tipoLabel}) para el cliente ${nombreCliente}: ${nombreValor}`;
@@ -211,9 +210,8 @@ export async function crearValorAgregado(
         <li><strong>Cliente:</strong> ${nombreCliente}</li>
         <li><strong>Tipo:</strong> ${tipoLabel}</li>
         <li><strong>Nombre:</strong> ${nombreValor}</li>
-        <li><strong>Descripción:</strong> ${descripcionValor}</li>
       </ul>
-      <p>Puedes revisar el detalle directamente en la plataforma.</p>
+      <p>Tienes una nueva actualización. Ingresa a la plataforma para revisar el detalle completo.</p>
     `;
 
     if (abogadoId) {
@@ -362,9 +360,6 @@ export async function actualizarValorAgregado(
 
     const tipoLabel = TipoValorAgregadoLabels[tipoFinal];
     const nombreValor = patch.titulo ?? prev?.titulo ?? "Documento";
-    const descripcionValor =
-      patch.descripcion ?? prev?.descripcion ?? "";
-
     const ruta = `/clientes/${clienteId}/valores-agregados/${valorId}`;
 
     const descripcionAlerta = `Se ha modificado el valor agregado (${tipoLabel}) del cliente ${nombreCliente}: ${nombreValor}`;
@@ -375,9 +370,8 @@ export async function actualizarValorAgregado(
         <li><strong>Cliente:</strong> ${nombreCliente}</li>
         <li><strong>Tipo:</strong> ${tipoLabel}</li>
         <li><strong>Nombre:</strong> ${nombreValor}</li>
-        <li><strong>Descripción actual:</strong> ${descripcionValor}</li>
       </ul>
-      <p>Puedes revisar el detalle directamente en la plataforma.</p>
+      <p>Tienes una actualización. Ingresa a la plataforma para revisar el detalle completo.</p>
       ${
         nuevosArchivos && nuevosArchivos.length > 0
           ? `<p>Nota: Se han agregado ${nuevosArchivos.length} archivo(s) adjunto(s).</p>`
@@ -458,6 +452,7 @@ export async function listarConversacionValorAgregado(
       id: d.id,
       descripcion: data.descripcion ?? "",
       fecha: data.fecha,
+      fechaEdicion: data.fechaEdicion,
       archivoPath: data.archivoPath,
       archivoURL: data.archivoURL,
       archivoNombre: data.archivoNombre,
@@ -580,14 +575,12 @@ export async function crearMensajeConversacionValorAgregado(
     const tipoLabel = TipoValorAgregadoLabels[tipoValor] ?? "Valor agregado";
     const nombreValor = valor?.titulo || "Documento";
 
-    // Texto breve del mensaje
-    const descripcionMsg =
-      base.descripcion ||
-      (archivosFiles && archivosFiles.length > 0
+    const resumenAdjuntos =
+      archivosFiles && archivosFiles.length > 0
         ? archivosFiles.length === 1
-          ? `Mensaje con archivo adjunto: ${archivosFiles[0].name}`
-          : `Mensaje con ${archivosFiles.length} archivos adjuntos`
-        : "Nuevo mensaje en la conversación.");
+          ? "El mensaje incluye 1 archivo adjunto."
+          : `El mensaje incluye ${archivosFiles.length} archivos adjuntos.`
+        : "";
 
     // Ruta interna hacia el detalle del valor agregado
     const ruta = `/clientes/${clienteId}/valores-agregados/${valorId}`;
@@ -626,9 +619,8 @@ export async function crearMensajeConversacionValorAgregado(
           <li><strong>Tipo de valor agregado:</strong> ${tipoLabel}</li>
           <li><strong>Título:</strong> ${nombreValor}</li>
         </ul>
-        <p><strong>Mensaje:</strong></p>
-        <p>${descripcionMsg || "(sin texto, solo archivo adjunto)"}</p>
-        <p>Puedes revisar la conversación y responder directamente desde la plataforma.</p>
+        ${resumenAdjuntos ? `<p>${resumenAdjuntos}</p>` : ""}
+        <p>Tienes un nuevo mensaje. Ingresa a la plataforma para revisar el contenido completo y responder.</p>
       `;
     } else {
       // 👉 Mensaje creado por el ABOGADO → se notifica al CLIENTE
@@ -646,9 +638,8 @@ export async function crearMensajeConversacionValorAgregado(
           <li><strong>Tipo de valor agregado:</strong> ${tipoLabel}</li>
           <li><strong>Título:</strong> ${nombreValor}</li>
         </ul>
-        <p><strong>Mensaje:</strong></p>
-        <p>${descripcionMsg || "(sin texto, solo archivo adjunto)"}</p>
-        <p>Puedes ingresar a la plataforma para revisar el mensaje completo y responder.</p>
+        ${resumenAdjuntos ? `<p>${resumenAdjuntos}</p>` : ""}
+        <p>Tienes un nuevo mensaje. Ingresa a la plataforma para revisar el contenido completo y responder.</p>
       `;
     }
 
@@ -704,6 +695,40 @@ export async function crearMensajeConversacionValorAgregado(
   }
 
   return msgId;
+}
+
+export async function actualizarMensajeConversacionValorAgregado(
+  clienteId: string,
+  valorId: string,
+  msgId: string,
+  descripcion: string
+): Promise<void> {
+  const texto = (descripcion ?? "").trim();
+  const snap = await getDoc(docRefConversacion(clienteId, valorId, msgId));
+
+  if (!snap.exists()) {
+    throw new Error("El mensaje no existe.");
+  }
+
+  const data: any = snap.data() || {};
+  const tieneArchivos =
+    (Array.isArray(data.archivos) && data.archivos.length > 0) ||
+    Boolean(data.archivoURL);
+
+  if (!texto && !tieneArchivos) {
+    throw new Error("El mensaje no puede quedar vacío.");
+  }
+
+  await updateDoc(docRefConversacion(clienteId, valorId, msgId), {
+    descripcion: texto,
+    fechaEdicion: serverTimestamp(),
+  });
+
+  await updateDoc(docRef(clienteId, valorId), {
+    fechaUltimaActualizacion: serverTimestamp(),
+  }).catch((err) => {
+    console.error("[actualizarMensajeConversacionValorAgregado] Error actualizando padre:", err);
+  });
 }
 
 

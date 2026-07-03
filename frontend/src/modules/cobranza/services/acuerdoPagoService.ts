@@ -1,6 +1,7 @@
 // src/modules/cobranza/services/acuerdoPagoService.ts
 import {
   collection,
+  arrayUnion,
   doc,
   getDocs,
   limit,
@@ -12,12 +13,13 @@ import {
   where,
   writeBatch,
   getDoc,
+  Timestamp,
 } from "firebase/firestore";
 import { db, storage } from "@/firebase";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 
 
-import type { AcuerdoPago, CuotaAcuerdo } from "../models/acuerdoPago.model";
+import type { AcuerdoPago, ArchivoAcuerdoFirmado, CuotaAcuerdo } from "../models/acuerdoPago.model";
 import { ACUERDO_ESTADO, normalizarEstadoAcuerdo } from "@/shared/constants/acuerdoEstado";
 
 // ================= RUTAS =================
@@ -29,6 +31,14 @@ const acuerdoDoc = (clienteId: string, deudorId: string, acuerdoId: string) =>
 
 const cuotasCol = (clienteId: string, deudorId: string, acuerdoId: string) =>
   collection(db, `clientes/${clienteId}/deudores/${deudorId}/acuerdos/${acuerdoId}/cuotas`);
+
+function safeFileName(name: string) {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "_")
+    .replace(/^_+|_+$/g, "") || "archivo";
+}
 
 // ================= OBTENER ACUERDO ACTUAL =================
 export async function obtenerAcuerdoActual(clienteId: string, deudorId: string) {
@@ -119,27 +129,24 @@ export async function guardarBorrador(
 
 
 
-// ================= SUBIR PDF FIRMADO A STORAGE (REEMPLAZABLE) =================
-export async function subirAcuerdoFirmadoPdf(params: {
+// ================= SUBIR ARCHIVO DEL ACUERDO A STORAGE =================
+export async function subirArchivoAcuerdo(params: {
   clienteId: string;
   deudorId: string;
   acuerdoId: string;
   file: File;
+  userId?: string;
 }) {
-  const { clienteId, deudorId, acuerdoId, file } = params;
+  const { clienteId, deudorId, acuerdoId, file, userId } = params;
 
   if (!file) throw new Error("Archivo no válido");
 
-  const isPdf =
-    file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
-  if (!isPdf) throw new Error("El archivo debe ser PDF");
-
-  // ✅ Ruta fija: si subes de nuevo, reemplaza el mismo archivo (lo que quieres)
-  const path = `clientes/${clienteId}/deudores/${deudorId}/acuerdos/${acuerdoId}/acuerdo_firmado.pdf`;
+  const path = `clientes/${clienteId}/deudores/${deudorId}/acuerdos/${acuerdoId}/adjuntos/${Date.now()}_${safeFileName(file.name)}`;
 
   const storageRef = ref(storage, path);
+  const mime = file.type || "application/octet-stream";
 
-  await uploadBytes(storageRef, file, { contentType: "application/pdf" });
+  await uploadBytes(storageRef, file, { contentType: mime });
   const url = await getDownloadURL(storageRef);
 
   return {
@@ -147,11 +154,24 @@ export async function subirAcuerdoFirmadoPdf(params: {
     path,
     nombre: file.name,
     size: file.size,
-    mime: file.type || "application/pdf",
-  };
+    mime,
+    contentType: mime,
+    subidoEn: Timestamp.now(),
+    subidoPor: userId,
+  } satisfies ArchivoAcuerdoFirmado;
 }
 
-// ================= GUARDAR METADATA DEL PDF EN EL ACUERDO (SIGUE BORRADOR) =================
+// Compatibilidad con llamadas antiguas.
+export async function subirAcuerdoFirmadoPdf(params: {
+  clienteId: string;
+  deudorId: string;
+  acuerdoId: string;
+  file: File;
+}) {
+  return subirArchivoAcuerdo(params);
+}
+
+// ================= GUARDAR METADATA DEL ARCHIVO EN EL ACUERDO (SIGUE BORRADOR) =================
 export async function guardarAcuerdoFirmadoBorrador(
   clienteId: string,
   deudorId: string,
@@ -162,6 +182,7 @@ export async function guardarAcuerdoFirmadoBorrador(
     acuerdoNombre?: string;
     acuerdoSize?: number;
     acuerdoMime?: string;
+    archivosAcuerdo?: ArchivoAcuerdoFirmado[];
   },
   userId?: string
 ) {
@@ -173,6 +194,9 @@ export async function guardarAcuerdoFirmadoBorrador(
     acuerdoNombre: data.acuerdoNombre ?? null,
     acuerdoSize: data.acuerdoSize ?? null,
     acuerdoMime: data.acuerdoMime ?? null,
+    ...(data.archivosAcuerdo && data.archivosAcuerdo.length > 0
+      ? { archivosAcuerdo: arrayUnion(...data.archivosAcuerdo) }
+      : {}),
 
     // se queda en BORRADOR (no cambiamos estado aquí)
     fechaActualizacion: serverTimestamp(),
@@ -182,7 +206,43 @@ export async function guardarAcuerdoFirmadoBorrador(
   return true;
 }
 
-// ================= FLUJO: SUBIR PDF + GUARDAR EN FIRESTORE (REEMPLAZABLE) =================
+// ================= FLUJO: SUBIR ARCHIVOS + GUARDAR EN FIRESTORE =================
+export async function subirYGuardarArchivosAcuerdoBorrador(params: {
+  clienteId: string;
+  deudorId: string;
+  acuerdoId: string;
+  files: File[];
+  userId?: string;
+}) {
+  const { clienteId, deudorId, acuerdoId, files, userId } = params;
+
+  if (!files.length) throw new Error("Selecciona al menos un archivo");
+
+  const uploads = await Promise.all(
+    files.map((file) => subirArchivoAcuerdo({ clienteId, deudorId, acuerdoId, file, userId }))
+  );
+
+  const principal = uploads[0];
+
+  await guardarAcuerdoFirmadoBorrador(
+    clienteId,
+    deudorId,
+    acuerdoId,
+    {
+      acuerdoURL: principal.url,
+      acuerdoPath: principal.path,
+      acuerdoNombre: principal.nombre,
+      acuerdoSize: principal.size,
+      acuerdoMime: principal.mime,
+      archivosAcuerdo: uploads,
+    },
+    userId
+  );
+
+  return uploads;
+}
+
+// Compatibilidad con el nombre anterior.
 export async function subirYGuardarPdfFirmadoBorrador(params: {
   clienteId: string;
   deudorId: string;
@@ -190,27 +250,15 @@ export async function subirYGuardarPdfFirmadoBorrador(params: {
   file: File;
   userId?: string;
 }) {
-  const { clienteId, deudorId, acuerdoId, file, userId } = params;
-
-  const up = await subirAcuerdoFirmadoPdf({ clienteId, deudorId, acuerdoId, file });
-
-  await guardarAcuerdoFirmadoBorrador(
-    clienteId,
-    deudorId,
-    acuerdoId,
-    {
-      acuerdoURL: up.url,
-      acuerdoPath: up.path,
-      acuerdoNombre: up.nombre,
-      acuerdoSize: up.size,
-      acuerdoMime: up.mime,
-    },
-    userId
-  );
-
-  return up; // {url,path,nombre,size,mime}
+  const uploads = await subirYGuardarArchivosAcuerdoBorrador({
+    clienteId: params.clienteId,
+    deudorId: params.deudorId,
+    acuerdoId: params.acuerdoId,
+    files: [params.file],
+    userId: params.userId,
+  });
+  return uploads[0];
 }
-
 
 // ================= ACTIVAR EN FIRME (GUARDA acuerdoURL) =================
 export async function activarAcuerdoEnFirme(
@@ -262,7 +310,7 @@ export async function activarAcuerdoEnFirme(
   return true;
 }
 
-// ================= FLUJO COMPLETO: SUBIR PDF + PASAR A EN FIRME =================
+// ================= FLUJO LEGADO: SUBIR ARCHIVO + PASAR A EN FIRME =================
 export async function firmarAcuerdoConPdf(params: {
   clienteId: string;
   deudorId: string;
@@ -272,7 +320,7 @@ export async function firmarAcuerdoConPdf(params: {
 }) {
   const { clienteId, deudorId, acuerdoId, file, userId } = params;
 
-  // 1) sube el pdf
+  // 1) sube el archivo
   const { url } = await subirAcuerdoFirmadoPdf({ clienteId, deudorId, acuerdoId, file });
 
   // 2) activa en firme guardando el url
@@ -374,12 +422,14 @@ export async function incumplirAcuerdoYCrearNuevoBorrador(params: {
     estado: ACUERDO_ESTADO.BORRADOR,
     esActivo: false,
 
-    // importante: no heredar pdf firmado del anterior
+    // importante: no heredar adjuntos del anterior
     acuerdoURL: "",
     acuerdoPath: null,
     acuerdoNombre: null,
     acuerdoSize: null,
     acuerdoMime: null,
+    archivosAcuerdo: [],
+    archivoFirmado: null,
 
     // auditoría
     creadoPor: userId ?? null,

@@ -21,6 +21,7 @@ import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { Label } from "@/shared/ui/label";
 import { Textarea } from "@/shared/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/select";
 import { Calendar } from "@/shared/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover";
 import { Typography } from "@/shared/design-system/components/Typography";
@@ -31,7 +32,13 @@ import { getAuth } from "firebase/auth";
 
 import numeroALetras from "@/shared/numeroALetras";
 
-import type { AcuerdoPago, CuotaAcuerdo } from "@/modules/cobranza/models/acuerdoPago.model";
+import type {
+    AcuerdoPago,
+    ArchivoAcuerdoFirmado,
+    CuotaAcuerdo,
+    FuenteRepresentantesAcuerdo,
+    RepresentanteAcuerdo,
+} from "@/modules/cobranza/models/acuerdoPago.model";
 import { generarTablaAcuerdo } from "@/modules/cobranza/lib/generarTablaAcuerdo";
 import TablaAmortizacionEditable from "./TablaAmortizacionEditable";
 import { descargarAcuerdoPagoWord, descargarAcuerdoPagoDemandaWord } from "@/modules/cobranza/services/acuerdoPagoWordService";
@@ -41,7 +48,7 @@ import {
     obtenerAcuerdoActual,
     obtenerCuotas,
     guardarBorrador,
-    firmarAcuerdoConPdf,
+    subirYGuardarArchivosAcuerdoBorrador,
 } from "@/modules/cobranza/services/acuerdoPagoService";
 
 import {
@@ -53,7 +60,7 @@ import { ajustarUltimaCuotaHonorariosMinimo } from "@/modules/cobranza/lib/ajust
 
 import { ACUERDO_ESTADO } from "@/shared/constants/acuerdoEstado";
 
-import { subirYGuardarPdfFirmadoBorrador, activarAcuerdoEnFirme } from "@/modules/cobranza/services/acuerdoPagoService";
+import { activarAcuerdoEnFirme } from "@/modules/cobranza/services/acuerdoPagoService";
 
 import { AlertTriangle, List } from "lucide-react";
 import { listarAcuerdos, incumplirAcuerdoYCrearNuevoBorrador, eliminarBorrador } from "@/modules/cobranza/services/acuerdoPagoService";
@@ -124,8 +131,10 @@ export default function AcuerdoPagoPage() {
     const canEdit = can(PERMS.Deudores_Edit);
 
     const MAX_FILE_MB = 15;
+    const ACCEPT_ARCHIVOS_ACUERDO =
+        ".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,.txt,.zip,.rar";
 
-    const [archivoFirmadoFile, setArchivoFirmadoFile] = useState<File | undefined>(undefined);
+    const [archivoFirmadoFiles, setArchivoFirmadoFiles] = useState<File[]>([]);
     const [subiendoFirmado, setSubiendoFirmado] = useState(false);
 
     function formatBytes(bytes: number) {
@@ -134,6 +143,89 @@ export default function AcuerdoPagoPage() {
         const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), sizes.length - 1);
         const value = bytes / Math.pow(1024, i);
         return `${value.toFixed(value >= 10 || i === 0 ? 0 : 1)} ${sizes[i]}`;
+    }
+
+    function normalizarArchivosAcuerdo(acuerdo: any): ArchivoAcuerdoFirmado[] {
+        const archivos = Array.isArray(acuerdo?.archivosAcuerdo)
+            ? acuerdo.archivosAcuerdo.filter((a: any) => a?.url)
+            : [];
+        if (archivos.length > 0) return archivos;
+
+        const url = String(acuerdo?.acuerdoURL || "").trim();
+        if (!url) return [];
+
+        return [{
+            url,
+            path: acuerdo?.acuerdoPath ?? undefined,
+            nombre: acuerdo?.acuerdoNombre ?? "Acuerdo firmado",
+            size: acuerdo?.acuerdoSize ?? undefined,
+            mime: acuerdo?.acuerdoMime ?? undefined,
+            contentType: acuerdo?.acuerdoMime ?? undefined,
+        }];
+    }
+
+    function representanteDesdeDeudor(): RepresentanteAcuerdo {
+        return {
+            nombre: deudorNombre === "Cargando..." ? "" : deudorNombre,
+            numeroDocumento: datosWord.deudorCedula ?? "",
+            ciudadDocumento: "",
+            direccion: datosWord.deudorDireccion ?? "",
+            celular: datosWord.deudorTelefonos?.[0] ?? "",
+            email: datosWord.deudorEmails?.[0] ?? "",
+        };
+    }
+
+    function representanteVacio(): RepresentanteAcuerdo {
+        return {
+            nombre: "",
+            numeroDocumento: "",
+            ciudadDocumento: "",
+            direccion: "",
+            celular: "",
+            email: "",
+        };
+    }
+
+    function representantesDesdeDemandados(): RepresentanteAcuerdo[] {
+        const demandados = normalizeDemandados(datosWord.demandados);
+        return demandados.length > 0
+            ? demandados.map((d) => ({
+                nombre: d.nombre,
+                numeroDocumento: d.numeroDocumento,
+                ciudadDocumento: "",
+                direccion: datosWord.deudorDireccion ?? "",
+                celular: datosWord.deudorTelefonos?.[0] ?? "",
+                email: datosWord.deudorEmails?.[0] ?? "",
+            }))
+            : [representanteDesdeDeudor()];
+    }
+
+    function aplicarFuenteRepresentantes(fuente: FuenteRepresentantesAcuerdo) {
+        setRepresentantesFuente(fuente);
+        if (fuente === "deudor") {
+            setRepresentantes([representanteDesdeDeudor()]);
+        } else if (fuente === "demandados") {
+            setRepresentantes(representantesDesdeDemandados());
+        } else {
+            setRepresentantes([representanteVacio()]);
+        }
+    }
+
+    function actualizarRepresentante(index: number, patch: Partial<RepresentanteAcuerdo>) {
+        setRepresentantes((prev) => prev.map((rep, i) => (i === index ? { ...rep, ...patch } : rep)));
+    }
+
+    function representantesValidos() {
+        return representantes
+            .map((rep) => ({
+                nombre: String(rep.nombre ?? "").trim(),
+                numeroDocumento: String(rep.numeroDocumento ?? "").trim(),
+                ciudadDocumento: String(rep.ciudadDocumento ?? "").trim(),
+                direccion: String(rep.direccion ?? "").trim(),
+                celular: String(rep.celular ?? "").trim(),
+                email: String(rep.email ?? "").trim(),
+            }))
+            .filter((rep) => rep.nombre || rep.numeroDocumento);
     }
 
 
@@ -151,6 +243,7 @@ export default function AcuerdoPagoPage() {
     const [acuerdoEstado, setAcuerdoEstado] = useState<string | null>(null); // EN_FIRME/BORRADOR/etc
 
     const [acuerdoURL, setAcuerdoURL] = useState<string>("");
+    const [archivosAcuerdo, setArchivosAcuerdo] = useState<ArchivoAcuerdoFirmado[]>([]);
 
     const [tablaKey, setTablaKey] = useState(0);
 
@@ -173,13 +266,14 @@ export default function AcuerdoPagoPage() {
         valorCuotaBase: 0,
         detalles: "",
     });
+    const [representantesFuente, setRepresentantesFuente] = useState<FuenteRepresentantesAcuerdo>("deudor");
+    const [representantes, setRepresentantes] = useState<RepresentanteAcuerdo[]>([]);
 
     const [cuotas, setCuotas] = useState<CuotaAcuerdo[]>([]);
 
     const readOnly = acuerdoEstado === ACUERDO_ESTADO.EN_FIRME;
 
     const [downloadingWord, setDownloadingWord] = useState(false);
-    const [firmando, setFirmando] = useState(false);
 
     const [openHistorial, setOpenHistorial] = useState(false);
     const [historialLoading, setHistorialLoading] = useState(false);
@@ -242,33 +336,34 @@ export default function AcuerdoPagoPage() {
 
 
 
-    const handleSubirPdfFirmado = async () => {
+    const handleSubirArchivosAcuerdo = async () => {
         if (!clienteId || !deudorId) return;
         if (!currentAcuerdoId) return toast.error("Primero guarda el acuerdo (BORRADOR).");
-        if (!archivoFirmadoFile) return toast.error("Selecciona el PDF firmado.");
+        if (archivoFirmadoFiles.length === 0) return toast.error("Selecciona al menos un archivo.");
         if (readOnly) return;
 
         try {
             setSubiendoFirmado(true);
             const auth = getAuth();
-            toast.info("Subiendo PDF firmado...");
+            toast.info("Subiendo archivo(s) del acuerdo...");
 
-            const up = await subirYGuardarPdfFirmadoBorrador({
+            const uploads = await subirYGuardarArchivosAcuerdoBorrador({
                 clienteId,
                 deudorId,
                 acuerdoId: currentAcuerdoId,
-                file: archivoFirmadoFile,
+                files: archivoFirmadoFiles,
                 userId: auth.currentUser?.uid,
             });
 
-            setAcuerdoURL(up.url);
-            setArchivoFirmadoFile(undefined);
+            setAcuerdoURL(uploads[0]?.url ?? acuerdoURL);
+            setArchivosAcuerdo((prev) => [...prev, ...uploads]);
+            setArchivoFirmadoFiles([]);
 
-            toast.success("✓ PDF firmado cargado. (Aún puedes reemplazarlo mientras esté en BORRADOR)");
+            toast.success("✓ Archivo(s) cargado(s). Aún puedes agregar más mientras esté en BORRADOR");
             await cargarAcuerdoActual(); // para refrescar estado/URL
         } catch (e: any) {
             console.error(e);
-            toast.error(e?.message || "Error subiendo el PDF firmado");
+            toast.error(e?.message || "Error subiendo archivo(s)");
         } finally {
             setSubiendoFirmado(false);
         }
@@ -277,11 +372,12 @@ export default function AcuerdoPagoPage() {
     const handleDejarEnFirme = async () => {
         if (!clienteId || !deudorId) return;
         if (!currentAcuerdoId) return toast.error("No hay acuerdo para dejar en firme.");
-        if (!acuerdoURL) return toast.error("Primero sube el PDF firmado.");
+        const archivoPrincipal = acuerdoURL || archivosAcuerdo[0]?.url || "";
+        if (!archivoPrincipal) return toast.error("Primero sube al menos un archivo del acuerdo.");
         if (readOnly) return;
 
         const ok = window.confirm(
-            "¿Confirmas dejar este acuerdo EN FIRME?\n\nDespués no podrás editar ni reemplazar el PDF."
+            "¿Confirmas dejar este acuerdo EN FIRME?\n\nDespués no podrás editar ni agregar archivos."
         );
         if (!ok) return;
 
@@ -294,7 +390,7 @@ export default function AcuerdoPagoPage() {
                 clienteId,
                 deudorId,
                 currentAcuerdoId,
-                acuerdoURL,
+                archivoPrincipal,
                 auth.currentUser?.uid
             );
 
@@ -383,6 +479,7 @@ export default function AcuerdoPagoPage() {
 
             const deudorEmail = String(deudorEmailsArr[0] || "").trim();
             const deudorCelular = String(deudorTelefonosArr[0] || "").trim();
+            const representantesWord = representantesValidos();
 
             const esDemanda = String(datosWord.tipificacion || "").startsWith("Demanda");
 
@@ -405,6 +502,7 @@ export default function AcuerdoPagoPage() {
                 deudorEmail: deudorEmail || "XXXXX",
 
                 deudorUbicacion: deudorUbicacion || "XXXXX",
+                representantes: representantesWord.length > 0 ? representantesWord : [representanteDesdeDeudor()],
 
                 numeroAcuerdo: form.numero,
                 capitalInicial: form.capitalInicial,
@@ -519,7 +617,18 @@ export default function AcuerdoPagoPage() {
             localidad,
         });
 
-        return pctDeudor;
+        setRepresentantes((prev) =>
+            prev.length > 0
+                ? prev
+                : [{
+                    nombre: nombreDeudor,
+                    numeroDocumento: deudorCedula,
+                    ciudadDocumento: "",
+                    direccion: deudorDireccion,
+                    celular: deudorTelefonos[0] ?? "",
+                    email: deudorEmails[0] ?? "",
+                }]
+        );
     };
 
     // ==============================
@@ -537,6 +646,7 @@ export default function AcuerdoPagoPage() {
             setCurrentAcuerdoId(null);
             setAcuerdoEstado(null);
             setAcuerdoURL("");
+            setArchivosAcuerdo([]);
             setCuotas([]);
 
             // Pre-llenar capitalInicial con la deuda del último estado mensual
@@ -562,8 +672,9 @@ export default function AcuerdoPagoPage() {
         setCurrentAcuerdoId(acuerdoId);
         setAcuerdoEstado(acuerdo.estado);
 
-        // ✅ lee acuerdoURL si existe
-        setAcuerdoURL(String((acuerdo as any)?.acuerdoURL || ""));
+        const archivosGuardados = normalizarArchivosAcuerdo(acuerdo);
+        setArchivosAcuerdo(archivosGuardados);
+        setAcuerdoURL(String((acuerdo as any)?.acuerdoURL || archivosGuardados[0]?.url || ""));
 
         setForm({
             numero: acuerdo.numero || "",
@@ -574,6 +685,14 @@ export default function AcuerdoPagoPage() {
             valorCuotaBase: Number(acuerdo.valorCuotaBase || 0),
             detalles: acuerdo.detalles || "",
         });
+
+        const repsGuardados = Array.isArray((acuerdo as any).representantes)
+            ? ((acuerdo as any).representantes as RepresentanteAcuerdo[])
+            : [];
+        setRepresentantesFuente(((acuerdo as any).representantesFuente as FuenteRepresentantesAcuerdo) || "deudor");
+        if (repsGuardados.length > 0) {
+            setRepresentantes(repsGuardados);
+        }
 
         const cuotasDb = await obtenerCuotas(clienteId, deudorId, acuerdoId);
         setCuotas(
@@ -700,6 +819,8 @@ export default function AcuerdoPagoPage() {
                 valorCuotaBase: Math.round(form.valorCuotaBase),
 
                 detalles: form.detalles,
+                representantesFuente,
+                representantes: representantesValidos(),
 
                 estado: ACUERDO_ESTADO.BORRADOR,
                 esActivo: false,
@@ -757,45 +878,6 @@ export default function AcuerdoPagoPage() {
         } finally {
             setEliminando(false);
             setOpenEliminarBorrador(false);
-        }
-    };
-
-    // ==============================
-    // Firmar acuerdo: subir PDF + pasar a EN_FIRME
-    // ==============================
-    const onPickFirmado = async (file?: File | null) => {
-        if (!file) return;
-        if (!clienteId || !deudorId) return;
-        if (!currentAcuerdoId) return toast.error("Primero guarda el acuerdo (BORRADOR) para poder firmarlo.");
-        if (readOnly) return;
-
-        const isPdf =
-            file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
-        if (!isPdf) return toast.error("El archivo debe ser PDF");
-
-        try {
-            setFirmando(true);
-            toast.info("Subiendo PDF firmado...");
-
-            const auth = getAuth();
-            const { url } = await firmarAcuerdoConPdf({
-                clienteId,
-                deudorId,
-                acuerdoId: currentAcuerdoId,
-                file,
-                userId: auth.currentUser?.uid,
-            });
-
-            setAcuerdoURL(url);
-            toast.success("✓ Acuerdo firmado y activado EN FIRME");
-
-            // recarga para bloquear UI
-            await cargarAcuerdoActual();
-        } catch (e: any) {
-            console.error(e);
-            toast.error(e?.message || "Error subiendo el PDF firmado");
-        } finally {
-            setFirmando(false);
         }
     };
 
@@ -873,12 +955,12 @@ export default function AcuerdoPagoPage() {
 
         <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30">
             <div className="max-w-6xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
-                {(saving || firmando) && (
+                {(saving || subiendoFirmado) && (
                     <div className="fixed inset-0 z-[1000] bg-black/40 backdrop-blur-sm flex items-center justify-center">
                         <div className="rounded-xl bg-white shadow-lg px-6 py-5 flex items-center gap-3">
                             <div className="h-5 w-5 animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary" />
                             <Typography variant="body" className="font-medium">
-                                {saving ? "Guardando acuerdo..." : "Subiendo PDF firmado..."}
+                                {saving ? "Guardando acuerdo..." : "Subiendo archivo(s)..."}
                             </Typography>
                         </div>
                     </div>
@@ -968,14 +1050,14 @@ export default function AcuerdoPagoPage() {
                             <Typography variant="small" className="text-orange-800">
                                 Este acuerdo está <b>EN FIRME</b>. Solo se puede consultar.
                             </Typography>
-                            {acuerdoURL ? (
+                            {archivosAcuerdo.length > 0 ? (
                                 <Button
                                     variant="outline"
                                     className="gap-2"
-                                    onClick={() => window.open(acuerdoURL, "_blank")}
+                                    onClick={() => window.open(archivosAcuerdo[0].url, "_blank")}
                                 >
                                     <ExternalLink className="h-4 w-4" />
-                                    Abrir PDF firmado
+                                    Abrir adjunto principal
                                 </Button>
                             ) : null}
                         </div>
@@ -1150,6 +1232,102 @@ export default function AcuerdoPagoPage() {
                         </div>
                     </section>
 
+                    {/* Representantes */}
+                    <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
+                        <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5 border-b border-brand-secondary/10">
+                            <Typography variant="h3" className="!text-brand-secondary font-semibold">
+                                Representantes del acuerdo
+                            </Typography>
+                            <Typography variant="small" className="text-muted-foreground">
+                                Estos datos se usan para llenar el Word del acuerdo.
+                            </Typography>
+                        </div>
+
+                        <div className="p-4 md:p-5 space-y-4">
+                            <div className="grid gap-4 md:grid-cols-[240px_1fr]">
+                                <div className="space-y-2">
+                                    <Label className="text-brand-secondary font-medium">Cargar desde</Label>
+                                    <Select
+                                        value={representantesFuente}
+                                        onValueChange={(value) => aplicarFuenteRepresentantes(value as FuenteRepresentantesAcuerdo)}
+                                        disabled={readOnly}
+                                    >
+                                        <SelectTrigger className="w-full border-brand-secondary/30">
+                                            <SelectValue placeholder="Selecciona fuente" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="deudor">Deudor</SelectItem>
+                                            <SelectItem value="demandados">Demandados</SelectItem>
+                                            <SelectItem value="manual">Nuevo / manual</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="flex items-end justify-end gap-2">
+                                    {!readOnly && (
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={() => {
+                                                setRepresentantesFuente("manual");
+                                                setRepresentantes((prev) => [
+                                                    ...prev,
+                                                    representanteVacio(),
+                                                ]);
+                                            }}
+                                        >
+                                            Agregar representante
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="space-y-3">
+                                {representantes.map((rep, idx) => (
+                                    <div key={idx} className="rounded-lg border border-brand-secondary/20 p-3 space-y-3">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <span className="text-sm font-semibold text-brand-secondary">
+                                                Representante {idx + 1}
+                                            </span>
+                                            {!readOnly && representantes.length > 1 && (
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="hover:bg-red-50"
+                                                    onClick={() => setRepresentantes((prev) => prev.filter((_, i) => i !== idx))}
+                                                >
+                                                    <Trash2 className="h-4 w-4 text-red-600" />
+                                                </Button>
+                                            )}
+                                        </div>
+
+                                        <div className="grid gap-3 md:grid-cols-2">
+                                            <div className="space-y-1">
+                                                <Label>Nombre</Label>
+                                                <Input
+                                                    value={rep.nombre ?? ""}
+                                                    disabled={readOnly}
+                                                    onChange={(e) => actualizarRepresentante(idx, { nombre: e.target.value })}
+                                                    className="border-brand-secondary/30"
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <Label>Documento</Label>
+                                                <Input
+                                                    value={rep.numeroDocumento ?? ""}
+                                                    disabled={readOnly}
+                                                    onChange={(e) => actualizarRepresentante(idx, { numeroDocumento: e.target.value })}
+                                                    className="border-brand-secondary/30"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </section>
+
                     {/* Tabla amortización */}
                     {cuotas.length > 0 && (
                         <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
@@ -1203,14 +1381,14 @@ export default function AcuerdoPagoPage() {
                         </div>
                     </section>
 
-                    {/* ===================== PDF ACUERDO FIRMADO ===================== */}
+                    {/* ===================== ADJUNTOS DEL ACUERDO ===================== */}
                     <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
                         <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5 border-b border-brand-secondary/10">
                             <Typography variant="h3" className="!text-brand-secondary font-semibold">
-                                Acuerdo firmado (PDF)
+                                Adjuntos del acuerdo
                             </Typography>
                             <Typography variant="small" className="text-muted-foreground">
-                                Puedes subir/reemplazar el PDF mientras esté en BORRADOR. Cuando confirmes “Dejar en firme”, ya no se podrá cambiar.
+                                Puedes subir varios archivos mientras esté en BORRADOR. Cuando confirmes “Dejar en firme”, ya no se podrán agregar más.
                             </Typography>
                         </div>
 
@@ -1218,31 +1396,35 @@ export default function AcuerdoPagoPage() {
                             <div className="space-y-2">
                                 <Label className="text-brand-secondary font-medium flex items-center gap-2">
                                     <Upload className="h-4 w-4" />
-                                    Archivo adjunto
+                                    Archivos adjuntos
                                 </Label>
 
-                                {/* Si ya hay URL guardada (pdf cargado) */}
-                                {acuerdoURL && !archivoFirmadoFile && (
-                                    <div className="text-xs text-muted-foreground p-3 rounded-lg bg-blue-50 border border-blue-100 flex items-start justify-between gap-3 flex-wrap">
-                                        <div>
-                                            Hay un PDF firmado cargado.
-                                            {!readOnly && (
-                                                <>
-                                                    <br />
-                                                    <span>Si seleccionas y subes uno nuevo, reemplazará el actual (mientras esté en BORRADOR).</span>
-                                                </>
-                                            )}
-                                        </div>
-
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            className="gap-2"
-                                            onClick={() => window.open(acuerdoURL, "_blank")}
-                                        >
-                                            <ExternalLink className="h-4 w-4" />
-                                            Ver PDF
-                                        </Button>
+                                {archivosAcuerdo.length > 0 && (
+                                    <div className="rounded-lg bg-blue-50 border border-blue-100 p-3 space-y-2">
+                                        <p className="text-xs font-medium text-blue-800">
+                                            Archivos cargados ({archivosAcuerdo.length})
+                                        </p>
+                                        {archivosAcuerdo.map((a, idx) => (
+                                            <div key={`${a.url}-${idx}`} className="flex items-center justify-between gap-3 text-xs flex-wrap">
+                                                <div className="flex items-center gap-2 min-w-0 flex-1">
+                                                    <FileText className="h-3.5 w-3.5 shrink-0 text-brand-primary" />
+                                                    <span className="font-medium truncate">{a.nombre || "Archivo del acuerdo"}</span>
+                                                    {a.size ? (
+                                                        <span className="text-muted-foreground shrink-0">({formatBytes(a.size)})</span>
+                                                    ) : null}
+                                                </div>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="h-7 gap-1.5 text-xs"
+                                                    onClick={() => window.open(a.url, "_blank")}
+                                                >
+                                                    <ExternalLink className="h-3.5 w-3.5" />
+                                                    Ver
+                                                </Button>
+                                            </div>
+                                        ))}
                                     </div>
                                 )}
 
@@ -1250,32 +1432,27 @@ export default function AcuerdoPagoPage() {
                                     <Input
                                         id="archivo-acuerdo-firmado"
                                         type="file"
+                                        multiple
                                         className="hidden"
-                                        accept=".pdf"
+                                        accept={ACCEPT_ARCHIVOS_ACUERDO}
                                         disabled={saving || subiendoFirmado || readOnly}
                                         onChange={(e) => {
-                                            const f = e.target.files?.[0];
-                                            if (!f) {
-                                                setArchivoFirmadoFile(undefined);
+                                            const files = Array.from(e.target.files ?? []);
+                                            if (files.length === 0) {
+                                                setArchivoFirmadoFiles([]);
                                                 return;
                                             }
 
-                                            const tooBig = f.size > MAX_FILE_MB * 1024 * 1024;
-                                            if (tooBig) {
-                                                toast.error(`El archivo supera ${MAX_FILE_MB} MB`);
-                                                e.currentTarget.value = "";
-                                                return;
-                                            }
+                                            const validos = files.filter((f) => {
+                                                if (f.size > MAX_FILE_MB * 1024 * 1024) {
+                                                    toast.error(`"${f.name}" supera ${MAX_FILE_MB} MB y fue omitido`);
+                                                    return false;
+                                                }
+                                                return true;
+                                            });
 
-                                            const isPdf =
-                                                f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
-                                            if (!isPdf) {
-                                                toast.error("Solo se permite PDF");
-                                                e.currentTarget.value = "";
-                                                return;
-                                            }
-
-                                            setArchivoFirmadoFile(f);
+                                            setArchivoFirmadoFiles((prev) => [...prev, ...validos]);
+                                            e.currentTarget.value = "";
                                         }}
                                     />
 
@@ -1288,39 +1465,42 @@ export default function AcuerdoPagoPage() {
                                         className="border-brand-secondary/30"
                                     >
                                         <Upload className="h-4 w-4 mr-2" />
-                                        Seleccionar archivo
+                                        Seleccionar archivos
                                     </Button>
 
-                                    {/* Estado seleccionado */}
-                                    {archivoFirmadoFile ? (
-                                        <div className="text-sm flex items-center gap-2 flex-1 min-w-[220px]">
-                                            <FileText className="h-4 w-4 text-brand-primary" />
-                                            <span className="font-medium">{archivoFirmadoFile.name}</span>
-                                            <span className="text-muted-foreground">({formatBytes(archivoFirmadoFile.size)})</span>
-                                        </div>
-                                    ) : (
+                                    {archivoFirmadoFiles.length === 0 && (
                                         <div className="text-sm text-muted-foreground flex-1 min-w-[220px]">
-                                            No hay archivo seleccionado
+                                            No hay archivos nuevos seleccionados
                                         </div>
-                                    )}
-
-                                    {/* Quitar seleccionado */}
-                                    {archivoFirmadoFile && !readOnly && (
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => setArchivoFirmadoFile(undefined)}
-                                            disabled={saving || subiendoFirmado}
-                                            className="hover:bg-red-50"
-                                        >
-                                            <Trash2 className="h-4 w-4 text-red-600" />
-                                        </Button>
                                     )}
                                 </div>
 
+                                {archivoFirmadoFiles.length > 0 && (
+                                    <div className="space-y-1.5">
+                                        {archivoFirmadoFiles.map((f, i) => (
+                                            <div key={`${f.name}-${i}`} className="flex items-center gap-2 text-sm">
+                                                <FileText className="h-4 w-4 text-brand-primary shrink-0" />
+                                                <span className="font-medium flex-1 min-w-0 truncate">{f.name}</span>
+                                                <span className="text-muted-foreground">({formatBytes(f.size)})</span>
+                                                {!readOnly && (
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => setArchivoFirmadoFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                                                        disabled={saving || subiendoFirmado}
+                                                        className="hover:bg-red-50"
+                                                    >
+                                                        <Trash2 className="h-4 w-4 text-red-600" />
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
                                 <p className="text-xs text-muted-foreground">
-                                    Formato permitido: PDF. Tamaño máximo: {MAX_FILE_MB} MB.
+                                    Formatos permitidos: PDF, Word, Excel, imágenes, TXT, ZIP/RAR. Tamaño máximo: {MAX_FILE_MB} MB por archivo.
                                 </p>
                             </div>
 
@@ -1330,18 +1510,18 @@ export default function AcuerdoPagoPage() {
                                     <Button
                                         type="button"
                                         variant="outline"
-                                        disabled={subiendoFirmado || saving || !archivoFirmadoFile || !currentAcuerdoId}
-                                        onClick={handleSubirPdfFirmado}
+                                        disabled={subiendoFirmado || saving || archivoFirmadoFiles.length === 0 || !currentAcuerdoId}
+                                        onClick={handleSubirArchivosAcuerdo}
                                         className="gap-2"
                                     >
                                         <Upload className="h-4 w-4" />
-                                        {subiendoFirmado ? "Subiendo..." : "Subir archivo"}
+                                        {subiendoFirmado ? "Subiendo..." : "Subir archivo(s)"}
                                     </Button>
 
                                     <Button
                                         type="button"
                                         variant="brand"
-                                        disabled={saving || subiendoFirmado || !acuerdoURL || !currentAcuerdoId}
+                                        disabled={saving || subiendoFirmado || archivosAcuerdo.length === 0 || !currentAcuerdoId}
                                         onClick={handleDejarEnFirme}
                                         className="gap-2"
                                     >
@@ -1418,7 +1598,7 @@ export default function AcuerdoPagoPage() {
                         <DialogHeader>
                             <DialogTitle>Historial de acuerdos</DialogTitle>
                             <DialogDescription>
-                                Aquí puedes consultar acuerdos anteriores y abrir sus PDF firmados.
+                                Aquí puedes consultar acuerdos anteriores y abrir sus archivos adjuntos.
                             </DialogDescription>
                         </DialogHeader>
 
@@ -1439,11 +1619,9 @@ export default function AcuerdoPagoPage() {
                                                 : null;
 
                                     const estado = String(a?.estado || "");
-                                    const url = String(a?.acuerdoURL || "");
-                                    const nombreArchivo = String(a?.acuerdoNombre || "").trim();
-
-                                    // Título: nombre del archivo, si no existe, fallback
-                                    const titulo = nombreArchivo || (url ? "Acuerdo firmado" : "Acuerdo sin PDF");
+                                    const adjuntos = normalizarArchivosAcuerdo(a);
+                                    const principal = adjuntos[0];
+                                    const titulo = principal?.nombre || (principal?.url ? "Acuerdo firmado" : "Acuerdo sin adjuntos");
 
                                     return (
                                         <div
@@ -1455,7 +1633,7 @@ export default function AcuerdoPagoPage() {
                                                     {titulo}
                                                 </div>
                                                 <div className="text-xs text-muted-foreground">
-                                                    {fecha ? fecha.toLocaleDateString("es-CO") : "Sin fecha"} • Estado: {estado}
+                                                    {fecha ? fecha.toLocaleDateString("es-CO") : "Sin fecha"} • Estado: {estado} • {adjuntos.length} adjunto{adjuntos.length === 1 ? "" : "s"}
                                                 </div>
                                             </div>
 
@@ -1463,11 +1641,11 @@ export default function AcuerdoPagoPage() {
                                                 <Button
                                                     variant="outline"
                                                     className="gap-2"
-                                                    disabled={!url}
-                                                    onClick={() => url && window.open(url, "_blank")}
+                                                    disabled={!principal?.url}
+                                                    onClick={() => principal?.url && window.open(principal.url, "_blank")}
                                                 >
                                                     <ExternalLink className="h-4 w-4" />
-                                                    Ver PDF
+                                                    Ver adjunto
                                                 </Button>
                                             </div>
                                         </div>

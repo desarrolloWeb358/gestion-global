@@ -17,7 +17,7 @@ import {
 } from "docx";
 
 import type { IRunOptions, IParagraphOptions } from "docx";
-import type { CuotaAcuerdo } from "@/modules/cobranza/models/acuerdoPago.model";
+import type { CuotaAcuerdo, RepresentanteAcuerdo } from "@/modules/cobranza/models/acuerdoPago.model";
 import { normalizeDemandados, type DemandadoItem } from "@/modules/cobranza/models/deudores.model";
 
 import {
@@ -166,6 +166,73 @@ const sectionTitle = (text: string) =>
 const valOrRed = (v: any, fallback = "XXXXX") => (isMissing(v) ? rRed(fallback) : r(String(v)));
 const valOrRedBold = (v: any, fallback = "XXXXX") => (isMissing(v) ? rRed(fallback) : rBold(String(v)));
 
+function normalizeRepresentantesAcuerdo(input: AcuerdoPagoWordInput): RepresentanteAcuerdo[] {
+  const representantes = Array.isArray(input.representantes)
+    ? input.representantes
+        .map((r) => ({
+          nombre: String(r?.nombre ?? "").trim(),
+          numeroDocumento: String(r?.numeroDocumento ?? "").trim(),
+          ciudadDocumento: String(r?.ciudadDocumento ?? "").trim(),
+          direccion: String(r?.direccion ?? "").trim(),
+          celular: String(r?.celular ?? "").trim(),
+          email: String(r?.email ?? "").trim(),
+        }))
+        .filter((r) => r.nombre || r.numeroDocumento)
+    : [];
+
+  if (representantes.length > 0) return representantes;
+
+  return [{
+    nombre: input.deudorNombre ?? "",
+    numeroDocumento: input.deudorDocumento ?? "",
+    ciudadDocumento: input.deudorCiudadDoc ?? "",
+    direccion: input.deudorDireccion ?? "",
+    celular: input.deudorCelular ?? "",
+    email: input.deudorEmail ?? "",
+  }];
+}
+
+function representantesNombresTexto(items: RepresentanteAcuerdo[]) {
+  const nombres = items.map((x) => String(x.nombre || "").trim().toUpperCase()).filter(Boolean);
+  if (nombres.length === 0) return "XXXXX (NOMBRE DEUDOR)";
+  if (nombres.length === 1) return nombres[0];
+  return `${nombres.slice(0, -1).join(", ")} Y ${nombres[nombres.length - 1]}`;
+}
+
+function representantesNombreRuns(items: RepresentanteAcuerdo[]) {
+  const validos = items.filter((x) => String(x.nombre || "").trim());
+  if (validos.length === 0) return [rRed("XXXXX (NOMBRE DEUDOR)")];
+
+  const runs: TextRun[] = [];
+  validos.forEach((rep, idx) => {
+    const isLast = idx === validos.length - 1;
+    if (idx > 0) runs.push(r(isLast ? " y " : ", "));
+    runs.push(rBold(String(rep.nombre).trim().toUpperCase()));
+  });
+  return runs;
+}
+
+function representantesIntroRuns(items: RepresentanteAcuerdo[]) {
+  const validos = items.length > 0 ? items : [{ nombre: "", numeroDocumento: "", ciudadDocumento: "" }];
+  const runs: TextRun[] = [];
+
+  validos.forEach((rep, idx) => {
+    const isLast = idx === validos.length - 1;
+    if (idx > 0) runs.push(r(isLast ? " y " : ", "));
+    runs.push(valOrRedBold(rep.nombre?.toUpperCase(), "XXXXX (NOMBRE DEUDOR)"));
+    runs.push(r(" persona mayor de edad identificada con la Cedula de Ciudadania No. "));
+    runs.push(valOrRed(rep.numeroDocumento, "XXXXX (CEDULA)"));
+    runs.push(r(" de "));
+    runs.push(valOrRed(rep.ciudadDocumento, "XXXXX (CIUDAD)"));
+  });
+
+  return runs;
+}
+
+function contactoPrincipal(items: RepresentanteAcuerdo[], field: keyof RepresentanteAcuerdo, fallback?: string) {
+  return items.map((x) => String(x[field] || "").trim()).find(Boolean) || fallback || "";
+}
+
 
 
 // =====================
@@ -190,6 +257,7 @@ export type AcuerdoPagoWordInput = {
   deudorEmail?: string;
   deudorDireccion?: string;
   deudorUbicacion?: string;
+  representantes?: RepresentanteAcuerdo[];
 
   totalAcordadoLetras?: string;
 
@@ -528,6 +596,14 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
   const acreedorDir = input.entidadAcreedoraDireccion;
 
   const deudor = input.deudorNombre?.toUpperCase();
+  const representantes = normalizeRepresentantesAcuerdo(input);
+  const representantePrincipal = representantes[0] ?? {};
+  const representantesNombres = representantesNombresTexto(representantes);
+  const representantesLabel = representantes.length > 1 ? "LOS DEUDORES" : "EL DEUDOR";
+  const representantesArticulo = representantes.length > 1 ? "los" : "el";
+  const representanteDireccion = contactoPrincipal(representantes, "direccion", input.deudorDireccion);
+  const representanteCelular = contactoPrincipal(representantes, "celular", input.deudorCelular);
+  const representanteEmail = contactoPrincipal(representantes, "email", input.deudorEmail);
 
 
   const doc = new Document({
@@ -557,7 +633,7 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
           pCenterText("ACUERDO DE PAGO CELEBRADO", 14, true),
           pCenterText(`ENTRE ${empresaNombre}`, 14, true),
           pCenterText(
-            `Y ${(deudor || "XXXXX (NOMBRE DEUDOR)").toUpperCase()}`,
+            `Y ${representantesNombres}`,
             14,
             true
           ),
@@ -573,13 +649,9 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
             r(" actuando como apoderado(a) judicial de la copropiedad "),
             valOrRedBold(acreedor, "XXXXX (NOMBRE CONJUNTO / CLIENTE)"),
             r(", y por otra parte "),
-            valOrRedBold(deudor, "XXXXX (NOMBRE DEUDOR)"),
-            r(" persona mayor de edad identificada con la Cédula de Ciudadanía No."),
-            valOrRed(input.deudorDocumento, "XXXXX (CÉDULA)"),
-            r(" de "),
-            valOrRed(input.deudorCiudadDoc, "XXXXX (CIUDAD)"),
+            ...representantesIntroRuns(representantes),
             r(", quienes en adelante se denominarán el "),
-            rBold("DEUDOR"),
+            rBold(representantesLabel),
             r(", hemos convenido celebrar el presente "),
             rBold("ACUERDO DE PAGO"),
             r(", que en adelante se regirá por las cláusulas que a continuación se enuncian, previas las siguientes"),
@@ -592,7 +664,7 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
 
           // Consid 1
           pJustify([            
-            valOrRedBold(deudor, "XXXXX (NOMBRE DEUDOR)"),
+            ...representantesNombreRuns(representantes),
             r(", deuda acreencias a favor de la copropiedad "),
             valOrRedBold(acreedor, "XXXXX (NOMBRE CONJUNTO / CLIENTE)"),
             r(", por valor de "),
@@ -622,7 +694,7 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
             r("Que en virtud de lo anterior y con el fin de resolver el inconveniente presentado de manera amigable "),
             rBold(empresaNombre),
             r(", de una parte y por otra parte "),
-            valOrRedBold(deudor, "XXXXX (NOMBRE DEUDOR)"),
+            ...representantesNombreRuns(representantes),
             r(", hemos acordado celebrar el presente acuerdo de pago, que se regirá en especial por las siguientes:"),
           ]),
 
@@ -634,7 +706,7 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
           // CLAUSULA 1
           pJustify([
             rBold("CLÁUSULA PRIMERA. - OBJETO: "),
-            r("El presente acuerdo tiene como objeto principal, facilitar a EL DEUDOR, el pago de las obligaciones a favor de la Propiedad Horizontal por valor de "),
+            r(`El presente acuerdo tiene como objeto principal, facilitar a ${representantesLabel}, el pago de las obligaciones a favor de la Propiedad Horizontal por valor de `),
             rBold(formatCOP(total)),
             r("("),
             isMissing(totalLetras) ? rRed("XXXXX (VALOR EN LETRAS)") : rBold(String(totalLetras) + " PESOS MCTE"),
@@ -653,7 +725,7 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
             r("("),
             isMissing(totalLetras) ? rRed("XXXXX (VALOR EN LETRAS)") : rBold(String(totalLetras) + " PESOS MCTE"),
             r("). "),
-            r("Serán cancelados por el DEUDOR a la copropiedad "),
+            r(`Serán cancelados por ${representantesArticulo} ${representantesLabel} a la copropiedad `),
             valOrRedBold(acreedor, "XXXXX (NOMBRE CONJUNTO / CLIENTE)"),
             r(", según tabla de amortización."),
           ]),
@@ -775,13 +847,14 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
             r("Para efectos de las comunicaciones a que haya lugar en virtud del presente Acuerdo, las direcciones son las siguientes: la Propiedad Horizontal las recibirá en la "),
             valOrRedBold(acreedorDir, "XXXXX (DIRECCIÓN ADMINISTRACIÓN / SEDE)"),
             r(" y "),
-            valOrRedBold(deudor, "XXXXX (NOMBRE DEUDOR)"),
+            ...representantesNombreRuns(representantes),
             r(" del inmueble "),
             valOrRedBold(deudorUbicacion, "XXXXX (TORRE/APTO o CASA)"),
+            representanteDireccion ? r(`, direccion ${representanteDireccion}`) : r(""),
             r(" celular "),
-            valOrRedBold(input.deudorCelular, "XXXXX (CELULAR)"),
+            valOrRedBold(representanteCelular, "XXXXX (CELULAR)"),
             r(" y correo electrónico "),
-            valOrRedBold(input.deudorEmail, "XXXXX (EMAIL)"),            
+            valOrRedBold(representanteEmail, "XXXXX (EMAIL)"),            
           ]),
 
           pJustify([r("Los cambios de direcciones serán informados por escrito.")]),
@@ -814,14 +887,14 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
 
           new Paragraph({ text: "", spacing: { after: 320 } }),
 
-          p([rBold("EL DEUDOR,")]),
+          p([rBold(`${representantesLabel},`)]),
           new Paragraph({ text: "", spacing: { after: 220 } }),
 
 /**/ new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
             layout: TableLayoutType.FIXED,
             rows: [
-              new TableRow({
+              ...representantes.map((rep) => new TableRow({
                 children: [
                   // IZQUIERDA (ancha) - SIN BORDES
                   new TableCell({
@@ -830,19 +903,19 @@ export async function descargarAcuerdoPagoWord(input: AcuerdoPagoWordInput) {
                     verticalAlign: VerticalAlign.TOP,
                     children: [
                       new Paragraph({ text: "", spacing: { after: 1800 } }),
-                      p([valOrRedBold(deudor, "XXXXX (NOMBRE DEUDOR)")]),
+                      p([valOrRedBold(rep.nombre?.toUpperCase(), "XXXXX (NOMBRE DEUDOR)")]),
                       p([
                         r("C.C No. "),
-                        valOrRedBold(input.deudorDocumento, "XXXXX (CÉDULA)"),
+                        valOrRedBold(rep.numeroDocumento, "XXXXX (CÉDULA)"),
                         r(" de "),
-                        valOrRedBold(input.deudorCiudadDoc, "XXXXX (CIUDAD)"),
+                        valOrRedBold(rep.ciudadDocumento, "XXXXX (CIUDAD)"),
                         r("."),
                       ]),
                     ],
                   }),
 
                 ],
-              }),
+              })),
             ],
           }),
 
@@ -911,12 +984,19 @@ export async function descargarAcuerdoPagoDemandaWord(input: AcuerdoPagoDemandaW
   const acreedorDir = input.entidadAcreedoraDireccion;
 
   const deudor = input.deudorNombre?.toUpperCase();
+  const representantes = normalizeRepresentantesAcuerdo(input);
+  const representanteCelular = contactoPrincipal(representantes, "celular", input.deudorCelular);
+  const representanteEmail = contactoPrincipal(representantes, "email", input.deudorEmail);
 
-  // Construir string de demandados separados por " / " (para el título)
-  const demandadosItems = normalizeDemandados(input.demandados);
+  // Para el Word de demanda, los firmantes salen de los representantes elegidos en pantalla.
+  const demandadosItems = representantes.map((rep) => ({
+    nombre: String(rep.nombre ?? "").trim(),
+    numeroDocumento: String(rep.numeroDocumento ?? "").trim(),
+    ciudadDocumento: String(rep.ciudadDocumento ?? "").trim(),
+  }));
   const demandadosNombres =
     demandadosItems.length > 0
-      ? demandadosItems.map((d) => d.nombre.trim().toUpperCase()).filter(Boolean).join(" / ")
+      ? representantesNombresTexto(representantes)
       : (deudor || "XXXXX (NOMBRE DEMANDADO)");
 
   // Construir runs del párrafo intro para cada demandado del array
@@ -936,7 +1016,9 @@ export async function descargarAcuerdoPagoDemandaWord(input: AcuerdoPagoDemandaW
         d.numeroDocumento.trim() ? rBold(d.numeroDocumento.trim()) : rRed("XXXXX (DOC)")
       );
       demandadosIntroRuns.push(r(" de "));
-      demandadosIntroRuns.push(rRed("XXXXX (CIUDAD)"));
+      demandadosIntroRuns.push(
+        d.ciudadDocumento.trim() ? rBold(d.ciudadDocumento.trim()) : rRed("XXXXX (CIUDAD)")
+      );
       demandadosIntroRuns.push(r(", "));
     });
   }
@@ -1159,9 +1241,9 @@ export async function descargarAcuerdoPagoDemandaWord(input: AcuerdoPagoDemandaW
             r(" del inmueble "),
             valOrRedBold(deudorUbicacion, "XXXXX (TORRE/APTO o CASA)"),
             r(" celular "),
-            valOrRedBold(input.deudorCelular, "XXXXX (CELULAR)"),
+            valOrRedBold(representanteCelular, "XXXXX (CELULAR)"),
             r(" y correo electrónico "),
-            valOrRedBold(input.deudorEmail, "XXXXX (EMAIL)"),
+            valOrRedBold(representanteEmail, "XXXXX (EMAIL)"),
           ]),
 
           pJustify([r("Los cambios de direcciones serán informados por escrito.")]),
@@ -1247,7 +1329,7 @@ export async function descargarAcuerdoPagoDemandaWord(input: AcuerdoPagoDemandaW
                               r("C.C No. "),
                               d.numeroDocumento.trim() ? rBold(d.numeroDocumento.trim()) : rRed("XXXXX (CÉDULA)"),
                               r(" de "),
-                              rRed("XXXXX (CIUDAD)"),
+                              d.ciudadDocumento.trim() ? rBold(d.ciudadDocumento.trim()) : rRed("XXXXX (CIUDAD)"),
                               r("."),
                             ]),
                           ],
