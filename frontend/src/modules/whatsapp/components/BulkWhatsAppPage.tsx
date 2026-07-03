@@ -708,7 +708,7 @@ export default function BulkWhatsAppPage() {
           <Button
             onClick={handleSend}
             disabled={!canSend || isSending}
-            className="w-full gap-2 bg-brand-primary hover:bg-brand-secondary"
+            className="w-full gap-2 bg-brand-primary text-white hover:bg-brand-secondary hover:text-white disabled:text-white/70"
             size="lg"
           >
             <Send className="h-4 w-4" />

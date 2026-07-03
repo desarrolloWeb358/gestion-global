@@ -21,11 +21,24 @@ export interface CuotaAcuerdo {
 
 export interface ArchivoAcuerdoFirmado {
   url: string;
+  path?: string;
   nombre?: string;
+  mime?: string;
   contentType?: string;
   size?: number;
   subidoEn?: Timestamp;
   subidoPor?: string;
+}
+
+export type FuenteRepresentantesAcuerdo = "deudor" | "demandados" | "manual";
+
+export interface RepresentanteAcuerdo {
+  nombre: string;
+  numeroDocumento?: string;
+  ciudadDocumento?: string;
+  direccion?: string;
+  celular?: string;
+  email?: string;
 }
 
 export interface AcuerdoPago {
@@ -48,6 +61,16 @@ export interface AcuerdoPago {
   esActivo: boolean;
 
   archivoFirmado?: ArchivoAcuerdoFirmado;
+  archivosAcuerdo?: ArchivoAcuerdoFirmado[];
+  representantesFuente?: FuenteRepresentantesAcuerdo;
+  representantes?: RepresentanteAcuerdo[];
+
+  // Campos legados para acuerdos existentes con un solo archivo.
+  acuerdoURL?: string;
+  acuerdoPath?: string | null;
+  acuerdoNombre?: string | null;
+  acuerdoSize?: number | null;
+  acuerdoMime?: string | null;
 
   creadoPor?: string;
   actualizadoPor?: string;

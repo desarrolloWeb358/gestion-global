@@ -8,6 +8,7 @@ export interface MensajeValorAgregado {
 
   descripcion: string;
   fecha: Timestamp | { seconds: number; nanoseconds: number } | FieldValue;
+  fechaEdicion?: Timestamp | { seconds: number; nanoseconds: number } | FieldValue;
 
   // Archivo legado (campo plano, se mantiene para compatibilidad con docs existentes)
   archivoPath?: string;

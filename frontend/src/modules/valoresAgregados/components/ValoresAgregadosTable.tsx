@@ -142,9 +142,11 @@ export default function ValoresAgregadosTable() {
   const { can, roles = [], loading: aclLoading } = useAcl();
 const canView = can(PERMS.Valores_agregados_Read);
 
-// ✅ SOLO cliente puede crear/editar
-const isCliente = roles.includes("cliente");
-const canEdit = canView && isCliente;
+const rolesPuedeEditar = ["admin", "ejecutivoAdmin", "abogado", "dependiente"];
+const canCreate = canView && roles.includes("cliente");
+const canEdit =
+  canView && roles.some((rol) => rolesPuedeEditar.includes(rol));
+const canOpenForm = canCreate || canEdit;
 
   const [clienteNombre, setClienteNombre] = React.useState("Cliente");
   const [items, setItems] = React.useState<ValorAgregado[]>([]);
@@ -271,7 +273,7 @@ const canEdit = canView && isCliente;
   // Acciones
   // =======================
   const iniciarCrear = () => {
-    if (!canEdit) return;
+    if (!canCreate) return;
     setEditando(null);
     setFormData({ tipo: TipoValorAgregado.DERECHO_DE_PETICION, titulo: "", descripcion: "" });
     setArchivoFiles([]);
@@ -295,7 +297,9 @@ const canEdit = canView && isCliente;
   };
 
   const onSubmit = async () => {
-    if (!clienteId || saving || !canEdit) return;
+    if (!clienteId || saving) return;
+    if (editando?.id && !canEdit) return;
+    if (!editando?.id && !canCreate) return;
     setSaving(true);
     try {
       const fechaTs = fecha ? Timestamp.fromDate(fecha) : undefined;
@@ -392,19 +396,21 @@ const canEdit = canView && isCliente;
             </Typography>
           </div>
 
-          {canEdit && (
+          {canOpenForm && (
             <Dialog open={open} onOpenChange={setOpen}>
-              <DialogTrigger asChild>
-                <Button
-                  onClick={iniciarCrear}
-                  disabled={saving}
-                  variant="brand"
-                  className="gap-2 shadow-md hover:shadow-lg transition-all"
-                >
-                  <Plus className="h-4 w-4" />
-                  Crear valor agregado
-                </Button>
-              </DialogTrigger>
+              {canCreate && (
+                <DialogTrigger asChild>
+                  <Button
+                    onClick={iniciarCrear}
+                    disabled={saving}
+                    variant="brand"
+                    className="gap-2 shadow-md hover:shadow-lg transition-all"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Crear valor agregado
+                  </Button>
+                </DialogTrigger>
+              )}
 
               <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>

@@ -1653,7 +1653,11 @@ export default function DeudoresTable() {
                 >
                   <DialogHeader>
                     <DialogTitle className="text-brand-primary text-xl font-bold flex items-center gap-2">
-                      <Users className="h-5 w-5" />
+                      {deudorEditando ? (
+                        <Pencil className="h-5 w-5" />
+                      ) : (
+                        <Users className="h-5 w-5" />
+                      )}
                       {deudorEditando ? (readOnly ? "Ver deudor" : "Editar deudor") : "Crear nuevo deudor"}
                     </DialogTitle>
                   </DialogHeader>

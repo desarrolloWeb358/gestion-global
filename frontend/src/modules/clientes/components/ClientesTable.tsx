@@ -54,6 +54,7 @@ export default function ClientesCrud() {
   const [clienteEditando, setClienteEditando] = useState<Cliente | null>(null);
   const [mostrarDialogo, setMostrarDialogo] = useState(false);
   const [mostrarInactivos, setMostrarInactivos] = useState(false);
+  const [exportando, setExportando] = useState(false);
   const [q, setQ] = useState(() => sessionStorage.getItem(SESSION_KEY) ?? "");
   const FRANQ_ALL = "__ALL__";
   const [franquiciaFiltro, setFranquiciaFiltro] = useState<string>(FRANQ_ALL);
@@ -159,8 +160,6 @@ export default function ClientesCrud() {
     setMostrarDialogo(false);
   };
 
-  const [exportando, setExportando] = useState(false);
-
   const TIPIFICACIONES_INACTIVAS = new Set<string>([
     TipificacionDeuda.INACTIVO,
     TipificacionDeuda.TERMINADO,
@@ -172,12 +171,19 @@ export default function ClientesCrud() {
     if (exportando) return;
     setExportando(true);
     try {
+      const valorTexto = (...valores: unknown[]) => {
+        const encontrado = valores.find(
+          (v) => v !== undefined && v !== null && String(v).trim() !== ""
+        );
+        return encontrado === undefined ? "" : String(encontrado).trim();
+      };
+
       const rows = await Promise.all(
         clientesFiltrados.map(async (c) => {
           const cc = c as any;
           const uid = cc.usuarioUid ?? c.id;
 
-          // Cargar usuario vinculado para email y teléfono
+          // Los datos de identidad/contacto viven principalmente en usuarios.
           const usuario = uid ? await getUsuarioByUid(uid) : null;
 
           // Contar deudores activos
@@ -187,12 +193,21 @@ export default function ClientesCrud() {
           ).length;
 
           return {
-            Nombre: cc.nombre ?? c.id ?? "",
-            NIT: cc.nit ?? cc.numeroDocumento ?? "",
-            Correo: usuario?.email ?? cc.email ?? "",
-            Teléfono: (usuario as any)?.telefonoUsuario ?? cc.telefono ?? "",
-            Dirección: c.direccion ?? "",
-            Administrador: c.administrador ?? "",
+            Nombre: valorTexto(usuario?.nombre, cc.nombre, c.id),
+            NIT: valorTexto(usuario?.numeroDocumento, cc.nit, cc.numeroDocumento),
+            Correo: valorTexto(usuario?.email, cc.email),
+            Teléfono: valorTexto(
+              usuario?.telefonoUsuario,
+              cc.telefonoUsuario,
+              cc.telefono
+            ),
+            Dirección: valorTexto(c.direccion),
+            Administrador: valorTexto(c.administrador),
+            Franquicia: c.franquiciaId
+              ? valorTexto(franquiciaNombrePorId[c.franquiciaId], c.franquiciaId)
+              : "",
+            Ciudad: valorTexto(c.ciudad),
+            Estado: c.activo === false ? "Inactivo" : "Activo",
             "Deudores activos": deudoresActivos,
           };
         })

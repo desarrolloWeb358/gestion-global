@@ -6,7 +6,7 @@ import { Button } from "@/shared/ui/button";
 import { Label } from "@/shared/ui/label";
 import { Input } from "@/shared/ui/input";
 import { toast } from "sonner";
-import { Upload, FileText, User as UserIcon, Calendar, Tag, MessageSquare, Send, CheckCircle, Eye, Download } from "lucide-react";
+import { Upload, FileText, User as UserIcon, Calendar, Tag, MessageSquare, Send, CheckCircle, Eye, Download, Edit, Save, X } from "lucide-react";
 
 import { ref as storageRef, getBlob } from "firebase/storage";
 import { storage } from "@/firebase";
@@ -15,6 +15,7 @@ import {
   timestampToDateInput,
   listarConversacionValorAgregado,
   crearMensajeConversacionValorAgregado,
+  actualizarMensajeConversacionValorAgregado,
 } from "../services/valorAgregadoService";
 
 import { ValorAgregado } from "../models/valorAgregado.model";
@@ -74,7 +75,8 @@ export default function ValorAgregadoDetailPage() {
 
   const { can, roles = [] } = useAcl();
   const canView = can(PERMS.Valores_Read);
-  const canEdit = can(PERMS.Valores_agregados_Edit);
+  const rolesPuedeEditar = ["admin", "ejecutivoAdmin", "abogado", "dependiente"];
+  const canEdit = roles.some((rol) => rolesPuedeEditar.includes(rol));
   const isCliente = Array.isArray(roles) && roles.includes("cliente");
 
   // ===== Detalle principal
@@ -85,6 +87,9 @@ export default function ValorAgregadoDetailPage() {
   const [mensajes, setMensajes] = React.useState<MensajeValorAgregado[]>([]);
   const [msgsLoading, setMsgsLoading] = React.useState(false);
   const [msgSaving, setMsgSaving] = React.useState(false);
+  const [editMsgId, setEditMsgId] = React.useState<string | null>(null);
+  const [editTexto, setEditTexto] = React.useState("");
+  const [editSaving, setEditSaving] = React.useState(false);
 
   // Nuevo mensaje
   const [texto, setTexto] = React.useState("");
@@ -166,6 +171,49 @@ export default function ValorAgregadoDetailPage() {
       toast.error("⚠️ No se pudo guardar el mensaje");
     } finally {
       setMsgSaving(false);
+    }
+  }
+
+  function iniciarEditarMensaje(m: MensajeValorAgregado) {
+    if (!canEdit || !m.id) return;
+    setEditMsgId(m.id);
+    setEditTexto(m.descripcion ?? "");
+  }
+
+  function cancelarEditarMensaje() {
+    setEditMsgId(null);
+    setEditTexto("");
+  }
+
+  async function guardarEdicionMensaje(m: MensajeValorAgregado) {
+    if (!clienteId || !valorId || !m.id || editSaving) return;
+
+    const desc = editTexto.replace(/<[^>]*>/g, "").trim() ? editTexto : "";
+    const tieneArchivos =
+      (Array.isArray(m.archivos) && m.archivos.length > 0) ||
+      Boolean(m.archivoURL);
+
+    if (!desc && !tieneArchivos) {
+      toast.error("El mensaje no puede quedar vacío.");
+      return;
+    }
+
+    setEditSaving(true);
+    try {
+      await actualizarMensajeConversacionValorAgregado(
+        clienteId,
+        valorId,
+        m.id,
+        desc
+      );
+      cancelarEditarMensaje();
+      await fetchMensajes();
+      toast.success("✓ Mensaje actualizado");
+    } catch (e) {
+      console.error(e);
+      toast.error("⚠️ No se pudo actualizar el mensaje");
+    } finally {
+      setEditSaving(false);
     }
   }
 
@@ -366,8 +414,10 @@ export default function ValorAgregadoDetailPage() {
               <div className="space-y-3">
                 {mensajes.map((m) => {
                   const fechaStr = formatMsgDate(m.fecha as any);
+                  const fechaEdicionStr = m.fechaEdicion ? formatMsgDate(m.fechaEdicion as any) : "";
                   const autorLabel = m.autorTipo === "cliente" ? "Cliente" : "Abogado";
                   const isClienteMsg = m.autorTipo === "cliente";
+                  const estaEditando = editMsgId === m.id;
 
                   return (
                     <div
@@ -379,7 +429,7 @@ export default function ValorAgregadoDetailPage() {
                           : "bg-white border-gray-200"
                       )}
                     >
-                      <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center justify-between gap-3 mb-2">
                         <div className="flex items-center gap-2">
                           <div className={cn(
                             "p-1.5 rounded-full",
@@ -394,10 +444,66 @@ export default function ValorAgregadoDetailPage() {
                             {autorLabel}
                           </span>
                         </div>
-                        <span className="text-xs text-gray-500">{fechaStr}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-500">
+                            {fechaStr}
+                            {fechaEdicionStr ? ` · Editado ${fechaEdicionStr}` : ""}
+                          </span>
+                          {canEdit && m.id && !estaEditando && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 gap-1 text-xs"
+                              onClick={() => iniciarEditarMensaje(m)}
+                              disabled={editSaving || msgSaving}
+                            >
+                              <Edit className="h-3.5 w-3.5" />
+                              Editar
+                            </Button>
+                          )}
+                        </div>
                       </div>
 
-                      {m.descripcion && (
+                      {estaEditando ? (
+                        <div className="space-y-3">
+                          <RichTextEditor
+                            value={editTexto}
+                            onChange={setEditTexto}
+                            placeholder="Corrige el mensaje..."
+                            disabled={editSaving}
+                            minHeight="7rem"
+                          />
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="gap-1"
+                              onClick={cancelarEditarMensaje}
+                              disabled={editSaving}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                              Cancelar
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="brand"
+                              size="sm"
+                              className="gap-1"
+                              onClick={() => guardarEdicionMensaje(m)}
+                              disabled={editSaving}
+                            >
+                              {editSaving ? (
+                                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+                              ) : (
+                                <Save className="h-3.5 w-3.5" />
+                              )}
+                              Guardar
+                            </Button>
+                          </div>
+                        </div>
+                      ) : m.descripcion && (
                         <RichTextViewer html={m.descripcion} />
                       )}
 
