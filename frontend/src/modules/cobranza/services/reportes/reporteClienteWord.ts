@@ -14,6 +14,7 @@ import {
   TableLayoutType,
   BorderStyle,
   ExternalHyperlink,
+  VerticalAlign,
 } from "docx";
 
 import { buildHeaderGG, buildFooterGG, cm, formatCOP, formatFechaLargaES } from "./helperWord";
@@ -186,22 +187,22 @@ function buildTablaRecomendacionesExcelStyle(input: {
 
   const header = new TableRow({
     children: [
-      excelCell({ text: "TIPIFICACIÓN", bold: true, fill: HEADER_FILL, align: AlignmentType.LEFT }),
-      excelCell({ text: "INMUEBLE", bold: true, fill: HEADER_FILL, align: AlignmentType.LEFT }),
-      excelCell({ text: "DEUDOR", bold: true, fill: HEADER_FILL, align: AlignmentType.LEFT }),
-      excelCell({ text: `CAPITAL ${mes}`, bold: true, fill: HEADER_FILL, align: AlignmentType.RIGHT }),
+      excelCell({ text: "TIPIFICACIÓN", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: 18 }),
+      excelCell({ text: "INM.", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: 18 }),
+      excelCell({ text: "DEUDOR", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: 18 }),
+      excelCell({ text: `CAPITAL ${mes}`, bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: 18 }),
     ],
   });
 
   const body = input.rows.map((r) => {
     return new TableRow({
       children: [
-        excelCell({ text: (r.tipificacion || "").toUpperCase(), align: AlignmentType.LEFT }),
-        excelCell({ text: (r.ubicacion || "").toUpperCase(), align: AlignmentType.LEFT }),
-        excelCell({ text: (r.deudor || "").toUpperCase(), align: AlignmentType.LEFT }),
+        excelCell({ text: (r.tipificacion || "").toUpperCase(), align: AlignmentType.CENTER }),
+        excelCell({ text: (r.ubicacion || "").toUpperCase(), align: AlignmentType.CENTER }),
+        excelCell({ text: (r.deudor || "").toUpperCase(), align: AlignmentType.CENTER }),
         excelCell({
           text: formatCOP(r.capitalMes ?? 0),
-          align: AlignmentType.RIGHT,
+          align: AlignmentType.CENTER,
           bold: true,
           color: "000000",
         }),
@@ -221,10 +222,10 @@ function buildTablaRecomendacionesExcelStyle(input: {
 
 function fontSizeByCols(cols: number, kind: "header" | "value") {
   // half-points: 24=12pt, 20=10pt, 18=9pt, 16=8pt, 14=7pt
-  if (cols <= 5) return kind === "header" ? 20 : 20;
-  if (cols <= 8) return kind === "header" ? 18 : 20;
-  if (cols <= 10) return kind === "header" ? 16 : 18;
-  return kind === "header" ? 14 : 14; // ✅ 12 meses: header 7pt, value 8pt
+  if (cols <= 5) return kind === "header" ? 18 : 18;
+  if (cols <= 8) return kind === "header" ? 18 : 18;
+  if (cols <= 10) return kind === "header" ? 18 : 18;
+  return kind === "header" ? 18 : 18; // ✅ todo en 9pt
 }
 
 function moneyNoBreak(s: string) {
@@ -388,26 +389,26 @@ function buildTablaDetalleTipificacionExcelStyle(input: {
 
   const header = new TableRow({
     children: [
-      excelCell({ text: "INMUEBLE", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
-      excelCell({ text: "DEUDOR", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
-      excelCell({ text: "RECAUDO TOTAL", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
-      excelCell({ text: "HONORARIOS", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
-      excelCell({ text: "INGRESO COPROPIEDAD", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
-      excelCell({ text: "POR RECUPERAR", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER }),
+      excelCell({ text: "INM.", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: 18 }),
+      excelCell({ text: "DEUDOR", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: 18 }),
+      excelCell({ text: "RECAUDO TOTAL", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: 18 }),
+      excelCell({ text: "HONORARIOS", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: 18 }),
+      excelCell({ text: "INGRESO COPROPIEDAD", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: 18 }),
+      excelCell({ text: "POR RECUPERAR", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: 18 }),
     ],
   });
 
   const rows = detalle.map((d) => new TableRow({
     children: [
-      excelCell({ text: d.ubicacion ?? "", align: AlignmentType.LEFT }),
-      excelCell({ text: (d.nombre ?? "").toUpperCase(), align: AlignmentType.LEFT }),
+      excelCell({ text: d.ubicacion ?? "", align: AlignmentType.CENTER }),
+      excelCell({ text: (d.nombre ?? "").toUpperCase(), align: AlignmentType.CENTER }),
 
-      excelCell({ text: formatCOP(d.recaudoTotal ?? 0), align: AlignmentType.RIGHT, color: RED, bold: true }),
-      excelCell({ text: formatCOP(d.honorariosRecaudoTotal ?? 0), align: AlignmentType.RIGHT, color: RED, bold: true }),
+      excelCell({ text: formatCOP(d.recaudoTotal ?? 0), align: AlignmentType.CENTER, color: RED, bold: true }),
+      excelCell({ text: formatCOP(d.honorariosRecaudoTotal ?? 0), align: AlignmentType.CENTER, color: RED, bold: true }),
 
-      excelCell({ text: formatCOP(d.ingresoConjunto ?? 0), align: AlignmentType.RIGHT, bold: true, color: "000000" }),
+      excelCell({ text: formatCOP(d.ingresoConjunto ?? 0), align: AlignmentType.CENTER, bold: true, color: "000000" }),
 
-      excelCell({ text: formatCOP(d.porRecuperar ?? 0), align: AlignmentType.RIGHT }),
+      excelCell({ text: formatCOP(d.porRecuperar ?? 0), align: AlignmentType.CENTER }),
     ],
   }));
 
@@ -417,12 +418,12 @@ function buildTablaDetalleTipificacionExcelStyle(input: {
 
       excelCell({ text: String(totales.inmuebles ?? 0), bold: true, color: "000000", fill: TOTAL_FILL, align: AlignmentType.CENTER }),
 
-      excelCell({ text: formatCOP(totales.recaudoTotal ?? 0), bold: true, color: RED, fill: TOTAL_FILL, align: AlignmentType.RIGHT }),
-      excelCell({ text: formatCOP(totales.honorariosRecaudoTotal ?? 0), bold: true, color: RED, fill: TOTAL_FILL, align: AlignmentType.RIGHT }),
+      excelCell({ text: formatCOP(totales.recaudoTotal ?? 0), bold: true, color: RED, fill: TOTAL_FILL, align: AlignmentType.CENTER }),
+      excelCell({ text: formatCOP(totales.honorariosRecaudoTotal ?? 0), bold: true, color: RED, fill: TOTAL_FILL, align: AlignmentType.CENTER }),
 
-      excelCell({ text: formatCOP(totales.ingresoConjunto ?? 0), bold: true, color: "000000", fill: TOTAL_FILL, align: AlignmentType.RIGHT }),
+      excelCell({ text: formatCOP(totales.ingresoConjunto ?? 0), bold: true, color: "000000", fill: TOTAL_FILL, align: AlignmentType.CENTER }),
 
-      excelCell({ text: formatCOP(totales.porRecuperar ?? 0), bold: true, color: "000000", fill: TOTAL_FILL, align: AlignmentType.RIGHT }),
+      excelCell({ text: formatCOP(totales.porRecuperar ?? 0), bold: true, color: "000000", fill: TOTAL_FILL, align: AlignmentType.CENTER }),
     ],
   });
 
@@ -463,7 +464,7 @@ function valueCell(
     bold: opts?.bold ?? false,
     color: opts?.color ?? "000000",
     fill: opts?.fill,
-    size: opts?.size ?? 22,
+    size: opts?.size ?? 18,
   });
 }
 
@@ -523,19 +524,19 @@ function buildProcesoDemandaCard(input: {
 
   const headRow = new TableRow({
     children: [
-      cellWrap({ text: "INMUEBLE", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: 20, widthPct: W_INM }),
-      cellWrap({ text: "DEMANDADO", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: 20, widthPct: W_DEM }),
-      cellWrap({ text: "RADICADO", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: 20, widthPct: W_RAD }),
-      cellWrap({ text: "JUZGADO", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: 20, widthPct: W_JUZ }),
+      cellWrap({ text: "INM.", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: 18, widthPct: W_INM }),
+      cellWrap({ text: "DEMANDADO", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: 18, widthPct: W_DEM }),
+      cellWrap({ text: "RADICADO", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: 18, widthPct: W_RAD }),
+      cellWrap({ text: "JUZGADO", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: 18, widthPct: W_JUZ }),
     ],
   });
 
   const valRow = new TableRow({
     children: [
       cellWrap({ text: cleanUpper(ubicacion), bold: true, align: AlignmentType.CENTER, widthPct: W_INM }),
-      cellWrap({ text: cleanUpper(demandados), align: AlignmentType.LEFT, widthPct: W_DEM }),
+      cellWrap({ text: cleanUpper(demandados), align: AlignmentType.CENTER, widthPct: W_DEM }),
       cellWrap({ text: cleanUpper(radicado), align: AlignmentType.CENTER, widthPct: W_RAD }),
-      cellWrap({ text: cleanUpper(juzgado), align: AlignmentType.LEFT, widthPct: W_JUZ }),
+      cellWrap({ text: cleanUpper(juzgado), align: AlignmentType.CENTER, widthPct: W_JUZ }),
     ],
   });
 
@@ -546,7 +547,7 @@ function buildProcesoDemandaCard(input: {
         bold: true,
         fill: HEADER_FILL,
         align: AlignmentType.LEFT,
-        size: 22,
+        size: 18,
         colSpan: 4,
         widthPct: 100,
       }),
@@ -563,15 +564,15 @@ function buildProcesoDemandaCard(input: {
         spacing: { after: 80 },
         children: [
           ...(fecha
-            ? [new TextRun({ text: `${fecha} `, bold: false, size: 20, color: "000000" })]
+            ? [new TextRun({ text: `${fecha} `, bold: false, size: 18, color: "000000" })]
             : []),
 
           // ✅ Respeta saltos de línea (\n) dentro del texto
-          ...runsFromMultiline(texto, { size: 20, color: "000000" }),
+          ...runsFromMultiline(texto, { size: 18, color: "000000" }),
         ],
       });
     })
-    : [new Paragraph({ children: [new TextRun({ text: "Sin observaciones.", size: 20 })] })];
+    : [new Paragraph({ children: [new TextRun({ text: "Sin observaciones.", size: 18 })] })];
 
 
   const obsRow = new TableRow({
@@ -612,6 +613,7 @@ function cellWrap(params: {
     width: widthPct ? { size: widthPct, type: WidthType.PERCENTAGE } : undefined,
     borders: excelBorders(),
     shading: fill ? { fill } : undefined,
+    verticalAlign: VerticalAlign.CENTER,
     children:
       children ??
       [
@@ -622,7 +624,7 @@ function cellWrap(params: {
               text: text ?? "",
               bold: !!bold,
               color: color ?? "000000",
-              size: size ?? 20,
+              size: size ?? 18,
             }),
           ],
         }),
@@ -644,6 +646,7 @@ function excelCell(params: {
   return new TableCell({
     borders: excelBorders(),
     shading: fill ? { fill } : undefined,
+    verticalAlign: VerticalAlign.CENTER,
     children: [
       new Paragraph({
         alignment: align ?? AlignmentType.LEFT,
@@ -652,7 +655,7 @@ function excelCell(params: {
             text: text ?? "",
             bold: !!bold,
             color: color ?? "000000",
-            size: size ?? 20, // 12pt (docx usa half-points*2 => 24)
+            size: size ?? 18, // 9pt (docx usa half-points)
           }),
         ],
       }),
@@ -691,12 +694,12 @@ function buildTablaResumenTipificacionExcelStyle(input: {
   const { resumenTipificacion, totalesResumen, formatCOP } = input;
 
   // ✅ anchos fijos (suman 100) - 6 columnas
-  const W_TIP = 24;
-  const W_INM = 12;
-  const W_REC = 16;
-  const W_HON = 16;
-  const W_ING = 16;
-  const W_POR = 16;
+  const W_TIP = 28;
+  const W_INM = 8;
+  const W_REC = 15;
+  const W_HON = 15;
+  const W_ING = 18;
+  const W_POR = 18;
 
   // ✅ SOLO esta tabla: letra más pequeña
   const HEADER_SIZE = 18; // 10pt aprox
@@ -718,6 +721,7 @@ function buildTablaResumenTipificacionExcelStyle(input: {
       width: { size: widthPct, type: WidthType.PERCENTAGE },
       borders: excelBorders(),
       shading: fill ? { fill } : undefined,
+      verticalAlign: VerticalAlign.CENTER,
       children: [
         new Paragraph({
           alignment: align ?? AlignmentType.LEFT,
@@ -738,7 +742,7 @@ function buildTablaResumenTipificacionExcelStyle(input: {
   const header = new TableRow({
     children: [
       cellPct({ text: "TIPIFICACIÓN", widthPct: W_TIP, bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: HEADER_SIZE }),
-      cellPct({ text: "INMUEBLES", widthPct: W_INM, bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: HEADER_SIZE }),
+      cellPct({ text: "INMS.", widthPct: W_INM, bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: HEADER_SIZE }),
       cellPct({ text: "RECAUDO TOTAL", widthPct: W_REC, bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: HEADER_SIZE }),
       cellPct({ text: "HONORARIOS", widthPct: W_HON, bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: HEADER_SIZE }),
       cellPct({ text: "INGRESO COPROPIEDAD", widthPct: W_ING, bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, size: HEADER_SIZE }),
@@ -757,7 +761,7 @@ function buildTablaResumenTipificacionExcelStyle(input: {
           widthPct: W_TIP,
           bold: rojo,
           color: rojo ? RED : "000000",
-          align: AlignmentType.LEFT,
+          align: AlignmentType.CENTER,
           size: VALUE_SIZE,
         }),
         cellPct({
@@ -773,7 +777,7 @@ function buildTablaResumenTipificacionExcelStyle(input: {
           widthPct: W_REC,
           bold: rojo, // si es TERMINADO, todo en rojo
           color: rojo ? RED : "000000",
-          align: AlignmentType.RIGHT,
+          align: AlignmentType.CENTER,
           size: VALUE_SIZE,
         }),
         cellPct({
@@ -781,7 +785,7 @@ function buildTablaResumenTipificacionExcelStyle(input: {
           widthPct: W_HON,
           bold: rojo,
           color: rojo ? RED : "000000",
-          align: AlignmentType.RIGHT,
+          align: AlignmentType.CENTER,
           size: VALUE_SIZE,
         }),
         cellPct({
@@ -789,7 +793,7 @@ function buildTablaResumenTipificacionExcelStyle(input: {
           widthPct: W_ING,
           bold: true,
           color: rojo ? RED : "000000", // si quieres que ingreso NO vaya rojo nunca, cámbialo a "000000"
-          align: AlignmentType.RIGHT,
+          align: AlignmentType.CENTER,
           size: VALUE_SIZE,
         }),
         cellPct({
@@ -797,7 +801,7 @@ function buildTablaResumenTipificacionExcelStyle(input: {
           widthPct: W_POR,
           bold: false,
           color: "000000",
-          align: AlignmentType.RIGHT,
+          align: AlignmentType.CENTER,
           size: VALUE_SIZE,
         }),
       ],
@@ -808,10 +812,10 @@ function buildTablaResumenTipificacionExcelStyle(input: {
     children: [
       cellPct({ text: "TOTAL", widthPct: W_TIP, bold: true, color: RED, fill: TOTAL_FILL, align: AlignmentType.CENTER, size: VALUE_SIZE }),
       cellPct({ text: String(totalesResumen.inmuebles ?? 0), widthPct: W_INM, bold: true, color: RED, fill: TOTAL_FILL, align: AlignmentType.CENTER, size: VALUE_SIZE }),
-      cellPct({ text: formatCOP(totalesResumen.recaudoTotal ?? 0), widthPct: W_REC, bold: true, color: RED, fill: TOTAL_FILL, align: AlignmentType.RIGHT, size: VALUE_SIZE }),
-      cellPct({ text: formatCOP(totalesResumen.honorariosRecaudoTotal ?? 0), widthPct: W_HON, bold: true, color: RED, fill: TOTAL_FILL, align: AlignmentType.RIGHT, size: VALUE_SIZE }),
-      cellPct({ text: formatCOP(totalesResumen.ingresoConjunto ?? 0), widthPct: W_ING, bold: true, color: "000000", fill: TOTAL_FILL, align: AlignmentType.RIGHT, size: VALUE_SIZE }),
-      cellPct({ text: formatCOP(totalesResumen.porRecuperar ?? 0), widthPct: W_POR, bold: true, color: "000000", fill: TOTAL_FILL, align: AlignmentType.RIGHT, size: VALUE_SIZE }),
+      cellPct({ text: formatCOP(totalesResumen.recaudoTotal ?? 0), widthPct: W_REC, bold: true, color: RED, fill: TOTAL_FILL, align: AlignmentType.CENTER, size: VALUE_SIZE }),
+      cellPct({ text: formatCOP(totalesResumen.honorariosRecaudoTotal ?? 0), widthPct: W_HON, bold: true, color: RED, fill: TOTAL_FILL, align: AlignmentType.CENTER, size: VALUE_SIZE }),
+      cellPct({ text: formatCOP(totalesResumen.ingresoConjunto ?? 0), widthPct: W_ING, bold: true, color: "000000", fill: TOTAL_FILL, align: AlignmentType.CENTER, size: VALUE_SIZE }),
+      cellPct({ text: formatCOP(totalesResumen.porRecuperar ?? 0), widthPct: W_POR, bold: true, color: "000000", fill: TOTAL_FILL, align: AlignmentType.CENTER, size: VALUE_SIZE }),
     ],
   });
 
@@ -841,6 +845,7 @@ function buildTablaRecaudoHorizontalExcelStyle(input: {
       return new TableCell({
         borders: excelBorders(),
         shading: { fill: HEADER_FILL },
+        verticalAlign: VerticalAlign.CENTER,
         children: [
           new Paragraph({
             alignment: AlignmentType.CENTER,
@@ -868,7 +873,7 @@ function buildTablaRecaudoHorizontalExcelStyle(input: {
     children: recaudosMensuales.map((m) =>
       excelCell({
         text: moneyNoBreak(formatCOP(m.total)),
-        align: AlignmentType.RIGHT,
+        align: AlignmentType.CENTER,
         size: valueSize,
       })
     ),
@@ -911,6 +916,7 @@ function buildValoresAgregadosWord(grupos: ValorAgregadoWordGrupo[]) {
   grupos.forEach((grupo) => {
     out.push(
       new Paragraph({
+        alignment: AlignmentType.CENTER,
         spacing: { before: 160, after: 100 },
         children: [
           new TextRun({ text: grupo.tipoLabel.toUpperCase(), bold: true, size: 22, color: PURPLE }),
@@ -920,20 +926,18 @@ function buildValoresAgregadosWord(grupos: ValorAgregadoWordGrupo[]) {
 
     const header = new TableRow({
       children: [
-        cellWrap({ text: "TÍTULO", bold: true, fill: HEADER_FILL, align: AlignmentType.LEFT, widthPct: 30 }),
-        cellWrap({ text: "FECHA SOLICITADO", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, widthPct: 18 }),
-        cellWrap({ text: "FECHA ENTREGADO", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, widthPct: 18 }),
-        cellWrap({ text: "ARCHIVO(S)", bold: true, fill: HEADER_FILL, align: AlignmentType.LEFT, widthPct: 34 }),
+        cellWrap({ text: "FECHA SOLICITADO", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, widthPct: 25, size: 18 }),
+        cellWrap({ text: "FECHA ENTREGADO", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, widthPct: 25, size: 18 }),
+        cellWrap({ text: "OBSERVACIÓN", bold: true, fill: HEADER_FILL, align: AlignmentType.CENTER, widthPct: 50, size: 18 }),
       ],
     });
 
     const rows = grupo.items.map((item) =>
       new TableRow({
         children: [
-          cellWrap({ text: item.titulo || "—", align: AlignmentType.LEFT, widthPct: 30, size: 20 }),
-          cellWrap({ text: item.fechaSolicitado, align: AlignmentType.CENTER, widthPct: 18, size: 20 }),
-          cellWrap({ text: item.fechaEntregado, align: AlignmentType.CENTER, widthPct: 18, size: 20 }),
-          cellWrap({ text: item.archivos.join("\n") || "—", align: AlignmentType.LEFT, widthPct: 34, size: 20 }),
+          cellWrap({ text: item.fechaSolicitado, align: AlignmentType.CENTER, widthPct: 25, size: 18 }),
+          cellWrap({ text: item.fechaEntregado, align: AlignmentType.CENTER, widthPct: 25, size: 18 }),
+          cellWrap({ text: item.titulo || "—", align: AlignmentType.CENTER, widthPct: 50, size: 18 }),
         ],
       })
     );
@@ -1083,6 +1087,7 @@ function headerRow(cells: string[], rightCols: number[] = []) {
       const align = rightCols.includes(idx) ? AlignmentType.RIGHT : AlignmentType.LEFT;
       return new TableCell({
         shading: { fill: PURPLE },
+        verticalAlign: VerticalAlign.CENTER,
         children: [
           new Paragraph({
             alignment: align,
@@ -1100,6 +1105,7 @@ function bodyRow(values: string[], rightCols: number[] = [], fill?: string, bold
       const align = rightCols.includes(idx) ? AlignmentType.RIGHT : AlignmentType.LEFT;
       return new TableCell({
         shading: fill ? { fill } : undefined,
+        verticalAlign: VerticalAlign.CENTER,
         children: [
           new Paragraph({
             alignment: align,
