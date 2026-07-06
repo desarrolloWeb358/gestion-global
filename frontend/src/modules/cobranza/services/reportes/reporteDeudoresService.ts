@@ -102,7 +102,7 @@ export async function obtenerReporteDeudoresPorPeriodo(
     let ultimoMesConDeuda: string | null = null;
 
     estadosSnap.forEach((mDoc) => {
-      const data = mDoc.data() as { mes?: string; deuda?: number; recaudo?: number };
+      const data = mDoc.data() as { mes?: string; deuda?: number; recaudo?: number; honorariosDeuda?: number };
       const mesId = (data.mes || mDoc.id || "").trim(); // "YYYY-MM"
       if (!mesId || mesId.length < 7) return;
       if (!mesId.startsWith(`${yearStr}-`)) return;
@@ -113,13 +113,16 @@ export async function obtenerReporteDeudoresPorPeriodo(
 
       const deudaNum = Number(data.deuda ?? 0);
       const recVal = Number(data.recaudo ?? 0);
+      const honDeuda = Number(data.honorariosDeuda ?? 0);
 
       if (Number.isFinite(recVal)) rec[mmStr] = (rec[mmStr] ?? 0) + recVal;
 
       const deudaValida = Number.isFinite(deudaNum) && deudaNum !== 0;
       if (deudaValida && (!ultimoMesConDeuda || mesId > ultimoMesConDeuda)) {
         ultimoMesConDeuda = mesId;
-        porRecaudar = deudaNum;
+        const deudaConHonorarios = deudaNum + (Number.isFinite(honDeuda) ? honDeuda : 0);
+        const rec = Number.isFinite(recVal) ? recVal : 0;
+        porRecaudar = Math.max(0, deudaConHonorarios - rec);
       }
     });
 
