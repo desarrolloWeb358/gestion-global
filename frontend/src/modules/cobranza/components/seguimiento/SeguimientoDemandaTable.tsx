@@ -134,6 +134,7 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
   const isCliente = roles.includes("cliente");
   const isDeudor = roles.includes("deudor");
   const isExterno = isCliente || isDeudor;
+  const isEjecutivo = roles.includes("ejecutivo") || roles.includes("ejecutivoAdmin");
   const puedeEditar = acl.can(PERMS.Seguimientos_Dependientes_Edit);
 
   const [rows, setRows] = React.useState<SeguimientoDemanda[]>([]);
@@ -919,25 +920,6 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
         </section>
       )}
 
-      {/* Observaciones internas */}
-      {!loadingObs && !isExterno && (
-        <section className="rounded-2xl border border-orange-200 bg-white shadow-sm overflow-hidden">
-          <div className="bg-gradient-to-r from-orange-50 to-orange-100/50 p-4 md:p-5 border-b border-orange-200/50">
-            <Typography variant="h3" className="!text-orange-900 font-semibold">
-              Observaciones internas
-            </Typography>
-          </div>
-          <div className="p-4 md:p-5">
-            <Textarea
-              value={obsInterna}
-              onChange={(e) => setObsInterna(e.target.value)}
-              readOnly={!puedeEditar}
-              className="min-h-36 border-brand-secondary/30"
-            />
-          </div>
-        </section>
-      )}
-
       {/* Observaciones del conjunto */}
       {!loadingObs && (
         <section className="rounded-2xl border border-green-200 bg-white shadow-sm overflow-hidden">
@@ -963,6 +945,25 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
                 })()}
               </span>
             </div>
+          </div>
+        </section>
+      )}
+
+      {/* Observaciones internas */}
+      {!loadingObs && !isExterno && !isEjecutivo && (
+        <section className="rounded-2xl border border-orange-200 bg-white shadow-sm overflow-hidden">
+          <div className="bg-gradient-to-r from-orange-50 to-orange-100/50 p-4 md:p-5 border-b border-orange-200/50">
+            <Typography variant="h3" className="!text-orange-900 font-semibold">
+              Observaciones internas
+            </Typography>
+          </div>
+          <div className="p-4 md:p-5">
+            <Textarea
+              value={obsInterna}
+              onChange={(e) => setObsInterna(e.target.value)}
+              readOnly={!puedeEditar}
+              className="min-h-36 border-brand-secondary/30"
+            />
           </div>
         </section>
       )}
