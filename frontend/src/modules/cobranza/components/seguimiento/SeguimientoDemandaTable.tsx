@@ -690,6 +690,9 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
         </div>
       </section>
 
+      {/* Tabla y CPNU — ocultos para ejecutivo y ejecutivoAdmin */}
+      {!isEjecutivo && (
+      <>
       {/* Tabla */}
       {loading ? (
         <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
@@ -918,6 +921,8 @@ const SeguimientoDemandaTable = React.forwardRef<any, {}>((_, ref) => {
             </div>
           )}
         </section>
+      )}
+      </>
       )}
 
       {/* Observaciones del conjunto */}
