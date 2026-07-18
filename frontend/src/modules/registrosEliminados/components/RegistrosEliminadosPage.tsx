@@ -52,6 +52,7 @@ const MODULO_LABEL: Record<ModuloApp, string> = {
   cliente: "Cliente",
   usuario: "Usuario",
   deudor: "Deudor",
+  tarea: "Tarea",
 };
 
 // ─── Colores de badge por módulo ─────────────────────────────────────────────
@@ -67,6 +68,7 @@ const MODULO_COLOR: Record<ModuloApp, string> = {
   cliente: "bg-blue-100 text-blue-700 border-blue-200",
   usuario: "bg-purple-100 text-purple-700 border-purple-200",
   deudor: "bg-green-100 text-green-700 border-green-200",
+  tarea: "bg-indigo-100 text-indigo-700 border-indigo-200",
 };
 
 const ALL = "__ALL__";

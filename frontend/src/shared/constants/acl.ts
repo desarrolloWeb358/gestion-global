@@ -94,6 +94,11 @@ export const PERMS = {
 
   // Seguimiento — edición de fecha (solo ejecutivoAdmin y admin)
   Seguimientos_Fecha_Edit: "seguimientos.fecha.edit",
+
+  // Tareas (asignación admin/ejecutivoAdmin → ejecutivo)
+  Tareas_Read: "tareas.read",
+  Tareas_Manage: "tareas.manage",
+  Tareas_Estado_Edit: "tareas.estado.edit",
 } as const;
 export type Perm = (typeof PERMS)[keyof typeof PERMS];
 
@@ -124,6 +129,8 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Contratos_Edit,
     PERMS.Whatsapp_Read,
     PERMS.Whatsapp_Write,
+    PERMS.Tareas_Read,
+    PERMS.Tareas_Manage,
   ],
 
   supervisor: [
@@ -173,6 +180,8 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.RegistrosEliminados_Read,
     PERMS.Whatsapp_Read,
     PERMS.Whatsapp_Write,
+    PERMS.Tareas_Read,
+    PERMS.Tareas_Manage,
   ],
 
   ejecutivo: [
@@ -193,6 +202,8 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.ReporteCliente_Download_Word,
     PERMS.Whatsapp_Read,
     PERMS.Whatsapp_Write,
+    PERMS.Tareas_Read,
+    PERMS.Tareas_Estado_Edit,
   ],
 
   dependiente: [

@@ -16,7 +16,9 @@ import {
   IconSettings,
   IconSearch,
   IconEye,
+  IconLayoutKanban,
 } from "@tabler/icons-react";
+import { PERMS } from "@/shared/constants/acl";
 
 export type NavItem = {
   to: string;
@@ -96,6 +98,17 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Monitoreo Radicados",
     icon: IconEye,
     roles: ["admin"],
+  },
+
+  // ========================================
+  // TAREAS
+  // ========================================
+  {
+    to: "/tareas",
+    label: "Tareas",
+    icon: IconLayoutKanban,
+    roles: ["admin", "ejecutivoAdmin", "ejecutivo"],
+    perm: PERMS.Tareas_Read,
   },
 
   // ========================================

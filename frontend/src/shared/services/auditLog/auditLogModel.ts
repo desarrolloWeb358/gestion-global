@@ -11,7 +11,8 @@ export type ModuloApp =
   | "estadoMensual"
   | "cliente"
   | "usuario"
-  | "deudor";
+  | "deudor"
+  | "tarea";
 
 export interface RegistroEliminado {
   id?: string;
