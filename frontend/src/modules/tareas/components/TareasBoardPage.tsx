@@ -67,6 +67,7 @@ export default function TareasBoardPage() {
 
   function puedeArrastrar(tarea: Tarea): boolean {
     if (canManage) return true;
+    if (tarea.creadoPor === uid) return true;
     return canEstadoEdit && tarea.asignadoA === uid;
   }
 
@@ -120,7 +121,7 @@ export default function TareasBoardPage() {
               </SelectContent>
             </Select>
           )}
-          {canManage && (
+          {canRead && (
             <Button onClick={() => setMostrarNuevaTarea(true)}>
               <Plus className="h-4 w-4 mr-1" /> Nueva tarea
             </Button>

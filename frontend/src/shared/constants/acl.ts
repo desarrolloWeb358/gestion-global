@@ -247,6 +247,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Contratos_Read,
     PERMS.Valores_agregados_Edit,
     PERMS.ReporteCliente_Download_Word,
+    PERMS.Tareas_Read,
   ],
 
   // Supervisión de franquicia: SOLO lectura + reportes, limitado a franquiciasAsignadas.

@@ -39,12 +39,15 @@ interface TareaFormModalProps {
 
 export function TareaFormModal({ tarea, canManage, ejecutivos, actor, onClose, onSaved }: TareaFormModalProps) {
   const esEdicion = !!tarea;
-  const soloLectura = esEdicion && !canManage;
+  const esPropia = tarea?.creadoPor === actor.uid;
+  const soloLectura = esEdicion && !canManage && !esPropia;
 
   const [titulo, setTitulo] = React.useState(tarea?.titulo ?? "");
   const [descripcion, setDescripcion] = React.useState(tarea?.descripcion ?? "");
   const [prioridad, setPrioridad] = React.useState<TareaPrioridad>(tarea?.prioridad ?? "media");
-  const [asignadoA, setAsignadoA] = React.useState(tarea?.asignadoA ?? "");
+  const [asignadoA, setAsignadoA] = React.useState(
+    tarea?.asignadoA ?? (canManage ? "" : actor.uid)
+  );
   const [fechaLimite, setFechaLimite] = React.useState<Date | undefined>(
     tarea?.fechaLimite ? (tarea.fechaLimite as any).toDate() : undefined
   );
@@ -56,12 +59,16 @@ export function TareaFormModal({ tarea, canManage, ejecutivos, actor, onClose, o
       toast.error("El título es obligatorio.");
       return;
     }
-    if (!asignadoA) {
+    const asignadoEfectivo = canManage ? asignadoA : actor.uid;
+    if (!asignadoEfectivo) {
       toast.error("Selecciona un ejecutivo asignado.");
       return;
     }
 
-    const ejecutivo = ejecutivos.find((e) => e.uid === asignadoA);
+    const ejecutivo = ejecutivos.find((e) => e.uid === asignadoEfectivo);
+    const asignadoNombre = canManage
+      ? ejecutivo?.nombre ?? ""
+      : actor.nombre ?? tarea?.asignadoNombre ?? "";
     setSaving(true);
     try {
       if (esEdicion && tarea?.id) {
@@ -70,8 +77,8 @@ export function TareaFormModal({ tarea, canManage, ejecutivos, actor, onClose, o
           descripcion,
           prioridad,
           fechaLimite: fechaLimite ? Timestamp.fromDate(fechaLimite) : null,
-          asignadoA,
-          asignadoNombre: ejecutivo?.nombre ?? "",
+          asignadoA: asignadoEfectivo,
+          asignadoNombre,
         });
         toast.success("Tarea actualizada.");
       } else {
@@ -81,8 +88,8 @@ export function TareaFormModal({ tarea, canManage, ejecutivos, actor, onClose, o
             descripcion,
             prioridad,
             fechaLimite: fechaLimite ? Timestamp.fromDate(fechaLimite) : null,
-            asignadoA,
-            asignadoNombre: ejecutivo?.nombre ?? "",
+            asignadoA: asignadoEfectivo,
+            asignadoNombre,
           },
           actor
         );
@@ -191,8 +198,8 @@ export function TareaFormModal({ tarea, canManage, ejecutivos, actor, onClose, o
 
             <div className="space-y-2">
               <Label>Asignado a *</Label>
-              {soloLectura ? (
-                <p className="text-sm font-medium">{tarea?.asignadoNombre || "—"}</p>
+              {soloLectura || !canManage ? (
+                <p className="text-sm font-medium">{tarea?.asignadoNombre || actor.nombre || "—"}</p>
               ) : (
                 <Select value={asignadoA} onValueChange={setAsignadoA} disabled={saving}>
                   <SelectTrigger>
