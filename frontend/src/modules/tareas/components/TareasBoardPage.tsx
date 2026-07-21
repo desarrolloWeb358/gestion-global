@@ -28,7 +28,7 @@ import { TareaFormModal } from "./TareaFormModal";
 const TODOS = "__TODOS__";
 
 export default function TareasBoardPage() {
-  const { can, loading: aclLoading } = useAcl();
+  const { can, roles, loading: aclLoading } = useAcl();
   const { usuario, usuarioSistema } = useUsuarioActual();
 
   const canRead = can(PERMS.Tareas_Read);
@@ -37,8 +37,9 @@ export default function TareasBoardPage() {
 
   const uid = usuario?.uid;
   const nombreActor = usuarioSistema?.nombre ?? usuario?.displayName ?? "";
+  const puedeVerTodas = roles.includes("admin") || roles.includes("ejecutivoAdmin");
 
-  const { tareas, loading } = useTareas(uid, canManage);
+  const { tareas, loading } = useTareas(uid, canManage && puedeVerTodas);
 
   const [ejecutivos, setEjecutivos] = React.useState<UsuarioSistema[]>([]);
   const [filtroEjecutivo, setFiltroEjecutivo] = React.useState<string>(TODOS);

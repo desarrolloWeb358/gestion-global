@@ -43,7 +43,8 @@ export function useTareas(uid: string | undefined, verTodas: boolean) {
       }, onErr);
     } else {
       unsub = suscribirTareasPorAsignado(uid, (arr) => {
-        setTareas(ordenarPorFechaCreacionDesc(arr));
+        const tareasAsignadas = arr.filter((tarea) => tarea.asignadoA === uid);
+        setTareas(ordenarPorFechaCreacionDesc(tareasAsignadas));
         setLoading(false);
       }, onErr);
     }
