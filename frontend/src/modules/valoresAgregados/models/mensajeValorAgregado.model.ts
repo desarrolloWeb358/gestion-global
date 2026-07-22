@@ -1,7 +1,15 @@
 import { Timestamp, FieldValue } from "firebase/firestore";
 import { ArchivoAdjunto } from "./valorAgregado.model";
 
-export type AutorTipoValorAgregado = "cliente" | "abogado";
+export type AutorTipoValorAgregado =
+  | "cliente"
+  | "abogado"
+  | "dependiente"
+  | "admin"
+  | "ejecutivoAdmin"
+  | "ejecutivo"
+  | "supervisor"
+  | "adminFranquicia";
 
 export interface MensajeValorAgregado {
   id?: string;
@@ -18,6 +26,5 @@ export interface MensajeValorAgregado {
   // Múltiples archivos (campo nuevo)
   archivos?: ArchivoAdjunto[];
 
-  // Sólo necesitamos saber si lo escribió el cliente o el abogado
-  autorTipo: AutorTipoValorAgregado; // "cliente" | "abogado"
+  autorTipo: AutorTipoValorAgregado;
 }

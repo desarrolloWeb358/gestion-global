@@ -2,6 +2,7 @@
 import {
   addDoc,
   collection,
+  collectionGroup,
   doc,
   getDoc,
   getDocs,
@@ -427,5 +428,33 @@ export async function resolverNotificacionMasAntigua(
     await updateDoc(masAntigua.ref, { resuelta: true, visto: true });
   } catch (err) {
     console.error("[resolverNotificacionMasAntigua] Error:", err);
+  }
+}
+
+/** Marca como resueltas las alertas de una ruta para todos los usuarios,
+ * excepto quienes todavía deban recibir la respuesta recién creada. */
+export async function resolverNotificacionesPorRuta(
+  ruta: string,
+  excluirUsuarioIds: string[] = []
+): Promise<void> {
+  try {
+    const excluidos = new Set(excluirUsuarioIds);
+    const snap = await getDocs(
+      query(collectionGroup(db, "notificaciones"), where("ruta", "==", ruta))
+    );
+
+    const pendientes = snap.docs.filter((documento) => {
+      const usuarioId = documento.ref.parent.parent?.id;
+      return documento.data().resuelta !== true &&
+        (!usuarioId || !excluidos.has(usuarioId));
+    });
+
+    await Promise.all(
+      pendientes.map((documento) =>
+        updateDoc(documento.ref, { resuelta: true, visto: true })
+      )
+    );
+  } catch (err) {
+    console.error("[resolverNotificacionesPorRuta] Error:", err);
   }
 }

@@ -19,7 +19,7 @@ import {
 } from "../services/valorAgregadoService";
 
 import { ValorAgregado } from "../models/valorAgregado.model";
-import { MensajeValorAgregado } from "../models/mensajeValorAgregado.model";
+import { MensajeValorAgregado, type AutorTipoValorAgregado } from "../models/mensajeValorAgregado.model";
 import { TipoValorAgregadoLabels } from "../../../shared/constants/tipoValorAgregado";
 
 import { useAcl } from "@/modules/auth/hooks/useAcl";
@@ -31,6 +31,34 @@ import RichTextEditor from "@/shared/components/RichTextEditor";
 import RichTextViewer from "@/shared/components/RichTextViewer";
 
 const MAX_FILE_MB = 15;
+
+function resolverAutorTipo(roles: string[]): AutorTipoValorAgregado {
+  const prioridad: AutorTipoValorAgregado[] = [
+    "cliente",
+    "abogado",
+    "dependiente",
+    "ejecutivoAdmin",
+    "admin",
+    "ejecutivo",
+    "supervisor",
+    "adminFranquicia",
+  ];
+  return prioridad.find((rol) => roles.includes(rol)) ?? "abogado";
+}
+
+function etiquetaAutor(tipo: AutorTipoValorAgregado): string {
+  const etiquetas: Record<AutorTipoValorAgregado, string> = {
+    cliente: "Cliente",
+    abogado: "Abogado",
+    dependiente: "Dependiente",
+    admin: "Administrador",
+    ejecutivoAdmin: "Ejecutivo administrador",
+    ejecutivo: "Ejecutivo",
+    supervisor: "Supervisor",
+    adminFranquicia: "Administrador de franquicia",
+  };
+  return etiquetas[tipo];
+}
 
 function formatMsgDate(input: any): string {
   try {
@@ -77,8 +105,6 @@ export default function ValorAgregadoDetailPage() {
   const canView = can(PERMS.Valores_Read);
   const rolesPuedeEditar = ["admin", "ejecutivoAdmin", "abogado", "dependiente"];
   const canEdit = roles.some((rol) => rolesPuedeEditar.includes(rol));
-  const isCliente = Array.isArray(roles) && roles.includes("cliente");
-
   // ===== Detalle principal
   const [item, setItem] = React.useState<ValorAgregado | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -146,7 +172,7 @@ export default function ValorAgregadoDetailPage() {
       return;
     }
 
-    const autorTipo: "cliente" | "abogado" = isCliente ? "cliente" : "abogado";
+    const autorTipo = resolverAutorTipo(roles);
 
     setMsgSaving(true);
     try {
@@ -415,7 +441,7 @@ export default function ValorAgregadoDetailPage() {
                 {mensajes.map((m) => {
                   const fechaStr = formatMsgDate(m.fecha as any);
                   const fechaEdicionStr = m.fechaEdicion ? formatMsgDate(m.fechaEdicion as any) : "";
-                  const autorLabel = m.autorTipo === "cliente" ? "Cliente" : "Abogado";
+                  const autorLabel = etiquetaAutor(m.autorTipo);
                   const isClienteMsg = m.autorTipo === "cliente";
                   const estaEditando = editMsgId === m.id;
 

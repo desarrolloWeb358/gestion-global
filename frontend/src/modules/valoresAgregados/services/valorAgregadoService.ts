@@ -17,8 +17,8 @@ import { db, storage } from "../../../firebase";
 import { registrarEliminacion } from "@/shared/services/auditLog/auditLogService";
 import { ArchivoAdjunto, ValorAgregado } from "../models/valorAgregado.model";
 import { TipoValorAgregado, TipoValorAgregadoLabels } from "../../../shared/constants/tipoValorAgregado";
-import { MensajeValorAgregado } from "../models/mensajeValorAgregado.model";
-import { notificarUsuarioConAlertaYCorreo, notificarUsuarioConAlerta, resolverNotificacionMasAntigua, enviarEmail } from "@/modules/notificaciones/services/notificacionService";
+import { MensajeValorAgregado, type AutorTipoValorAgregado } from "../models/mensajeValorAgregado.model";
+import { notificarUsuarioConAlertaYCorreo, notificarUsuarioConAlerta, resolverNotificacionMasAntigua, resolverNotificacionesPorRuta, enviarEmail } from "@/modules/notificaciones/services/notificacionService";
 
 
 
@@ -35,6 +35,36 @@ function normalizarTipo(input: unknown): TipoValorAgregado {
     "estudios contratos": TipoValorAgregado.ESTUDIOS_CONTRATOS,
   };
   return map[v] ?? TipoValorAgregado.DERECHO_DE_PETICION;
+}
+
+const AUTOR_TIPOS = new Set<AutorTipoValorAgregado>([
+  "cliente",
+  "abogado",
+  "dependiente",
+  "admin",
+  "ejecutivoAdmin",
+  "ejecutivo",
+  "supervisor",
+  "adminFranquicia",
+]);
+
+function normalizarAutorTipo(input: unknown): AutorTipoValorAgregado {
+  const autorTipo = String(input ?? "") as AutorTipoValorAgregado;
+  return AUTOR_TIPOS.has(autorTipo) ? autorTipo : "abogado";
+}
+
+function etiquetaAutor(tipo: AutorTipoValorAgregado): string {
+  const etiquetas: Record<AutorTipoValorAgregado, string> = {
+    cliente: "Cliente",
+    abogado: "Abogado",
+    dependiente: "Dependiente",
+    admin: "Administrador",
+    ejecutivoAdmin: "Ejecutivo administrador",
+    ejecutivo: "Ejecutivo",
+    supervisor: "Supervisor",
+    adminFranquicia: "Administrador de franquicia",
+  };
+  return etiquetas[tipo];
 }
 
 function mapDocToValorAgregado(id: string, data: any): ValorAgregado {
@@ -347,11 +377,6 @@ export async function actualizarValorAgregado(
     const abogadoId = clienteInfo.abogadoId;
     const dependienteAbogadoId = clienteInfo.dependienteAbogadoId;
 
-    if (!abogadoId) {
-      console.warn(`[actualizarValorAgregado] Cliente ${clienteId} sin abogadoId; no se notifica.`);
-      return;
-    }
-
     const nombreCliente = clienteInfo.nombreCliente || clienteId;
 
     // Determinar valores FINALES (usando patch o, si no, lo que había antes)
@@ -379,17 +404,21 @@ export async function actualizarValorAgregado(
       }
     `;
 
-    await notificarUsuarioConAlertaYCorreo({
-      usuarioId: abogadoId,
-      modulo: "valor agregado",
-      ruta,
-      descripcionAlerta,
-      nombreDestino: clienteInfo.nombreAbogado ?? "Abogado",
-      correoDestino: clienteInfo.correoAbogado ?? "",
-      subject: `Valor agregado modificado: ${tipoLabel} - ${nombreCliente}`,
-      tituloCorreo: "Se ha modificado un valor agregado",
-      cuerpoHtmlCorreo,
-    });
+    if (abogadoId) {
+      await notificarUsuarioConAlertaYCorreo({
+        usuarioId: abogadoId,
+        modulo: "valor agregado",
+        ruta,
+        descripcionAlerta,
+        nombreDestino: clienteInfo.nombreAbogado ?? "Abogado",
+        correoDestino: clienteInfo.correoAbogado ?? "",
+        subject: `Valor agregado modificado: ${tipoLabel} - ${nombreCliente}`,
+        tituloCorreo: "Se ha modificado un valor agregado",
+        cuerpoHtmlCorreo,
+      });
+    } else {
+      console.warn(`[actualizarValorAgregado] Cliente ${clienteId} sin abogadoId.`);
+    }
 
     if (dependienteAbogadoId) {
       await notificarUsuarioConAlertaYCorreo({
@@ -457,7 +486,7 @@ export async function listarConversacionValorAgregado(
       archivoURL: data.archivoURL,
       archivoNombre: data.archivoNombre,
       archivos,
-      autorTipo: data.autorTipo === "cliente" ? "cliente" : "abogado",
+      autorTipo: normalizarAutorTipo(data.autorTipo),
     } as MensajeValorAgregado;
   });
 }
@@ -504,7 +533,7 @@ function storagePathConversacion(
 export type CrearMensajeConversacionInput = {
   descripcion: string;
   fechaTs?: Timestamp;
-  autorTipo: "cliente" | "abogado";
+  autorTipo: AutorTipoValorAgregado;
 };
 
 export async function crearMensajeConversacionValorAgregado(
@@ -516,7 +545,7 @@ export async function crearMensajeConversacionValorAgregado(
   const base: any = {
     descripcion: (data.descripcion ?? "").trim(),
     fecha: data.fechaTs ?? serverTimestamp(),
-    autorTipo: data.autorTipo === "cliente" ? "cliente" : "abogado",
+    autorTipo: normalizarAutorTipo(data.autorTipo),
     archivos: [],
   };
 
@@ -585,11 +614,11 @@ export async function crearMensajeConversacionValorAgregado(
     // Ruta interna hacia el detalle del valor agregado
     const ruta = `/clientes/${clienteId}/valores-agregados/${valorId}`;
 
-    let usuarioDestinoId: string;
-    let subject: string;
-    let tituloCorreo: string;
-    let descripcionAlerta: string;
-    let cuerpoHtmlCorreo: string;
+    let usuarioDestinoId: string | undefined;
+    let subject = "";
+    let tituloCorreo = "";
+    let descripcionAlerta = "";
+    let cuerpoHtmlCorreo = "";
 
 
     var nombreDestinatario = "";
@@ -601,12 +630,11 @@ export async function crearMensajeConversacionValorAgregado(
       const abogadoId = clienteInfo.abogadoId;
       if (!abogadoId) {
         console.warn(
-          `[crearMensajeConversacionValorAgregado] Cliente ${clienteId} sin abogadoId; no se notifica.`
+          `[crearMensajeConversacionValorAgregado] Cliente ${clienteId} sin abogadoId; se omite ese destinatario.`
         );
-        return msgId;
+      } else {
+        usuarioDestinoId = abogadoId;
       }
-
-      usuarioDestinoId = abogadoId;
 
       subject = `Nuevo mensaje del cliente en valor agregado: ${tipoLabel}`;
       tituloCorreo = "Nuevo mensaje del cliente en un valor agregado";
@@ -623,16 +651,16 @@ export async function crearMensajeConversacionValorAgregado(
         <p>Tienes un nuevo mensaje. Ingresa a la plataforma para revisar el contenido completo y responder.</p>
       `;
     } else {
-      // 👉 Mensaje creado por el ABOGADO → se notifica al CLIENTE
-      //    Aquí el usuarioId del cliente es el mismo clienteId ✅
+      // Mensaje creado por un usuario interno → se notifica al cliente.
       usuarioDestinoId = clienteId;
+      const autorLabel = etiquetaAutor(base.autorTipo);
 
-      subject = `Nuevo mensaje del abogado en valor agregado: ${tipoLabel}`;
-      tituloCorreo = "Nuevo mensaje del abogado en un valor agregado";
-      descripcionAlerta = `Nuevo mensaje del abogado en el valor agregado (${tipoLabel}) del cliente ${nombreCliente}: ${nombreValor}`;
+      subject = `Nuevo mensaje de ${autorLabel.toLowerCase()} en valor agregado: ${tipoLabel}`;
+      tituloCorreo = `Nuevo mensaje de ${autorLabel.toLowerCase()} en un valor agregado`;
+      descripcionAlerta = `Nuevo mensaje de ${autorLabel.toLowerCase()} en el valor agregado (${tipoLabel}) del cliente ${nombreCliente}: ${nombreValor}`;
 
       cuerpoHtmlCorreo = `
-        <p>Tu abogado ha enviado un nuevo mensaje en la conversación de un <strong>valor agregado</strong>.</p>
+        <p>${autorLabel} ha enviado un nuevo mensaje en la conversación de un <strong>valor agregado</strong>.</p>
         <ul>
           <li><strong>Cliente:</strong> ${nombreCliente}</li>
           <li><strong>Tipo de valor agregado:</strong> ${tipoLabel}</li>
@@ -643,17 +671,19 @@ export async function crearMensajeConversacionValorAgregado(
       `;
     }
 
-    await notificarUsuarioConAlertaYCorreo({
-      usuarioId: usuarioDestinoId,
-      modulo: "valor agregado conversacion",
-      ruta,
-      descripcionAlerta,
-      nombreDestino: nombreDestinatario,
-      correoDestino: correoDestinatario,
-      subject,
-      tituloCorreo,
-      cuerpoHtmlCorreo,
-    });
+    if (usuarioDestinoId) {
+      await notificarUsuarioConAlertaYCorreo({
+        usuarioId: usuarioDestinoId,
+        modulo: "valor agregado conversacion",
+        ruta,
+        descripcionAlerta,
+        nombreDestino: nombreDestinatario,
+        correoDestino: correoDestinatario,
+        subject,
+        tituloCorreo,
+        cuerpoHtmlCorreo,
+      });
+    }
 
     if (base.autorTipo === "cliente" && clienteInfo.correoDepAbogado) {
       await enviarEmail({
@@ -681,14 +711,9 @@ export async function crearMensajeConversacionValorAgregado(
       // 👉 Cliente escribe → resolver la notificación más antigua del CLIENTE
       await resolverNotificacionMasAntigua(clienteId, ruta);
     } else {
-      // 👉 Abogado escribe → resolver la notificación más antigua del ABOGADO y del DEPENDIENTE
-      const abogadoId = clienteInfo.abogadoId;
-      if (abogadoId) {
-        await resolverNotificacionMasAntigua(abogadoId, ruta);
-      }
-      if (dependienteAbogadoId) {
-        await resolverNotificacionMasAntigua(dependienteAbogadoId, ruta);
-      }
+      // Un usuario interno respondió: cerrar pendientes jurídicos de la ruta
+      // (incluido admin), conservando la nueva alerta enviada al cliente.
+      await resolverNotificacionesPorRuta(ruta, [clienteId]);
     }
   } catch (err) {
     console.error("[crearMensajeConversacionValorAgregado] Error al notificar:", err);
