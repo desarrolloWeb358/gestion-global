@@ -207,6 +207,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Whatsapp_Read,
     PERMS.Whatsapp_Write,
     PERMS.Tareas_Read,
+    PERMS.Tareas_Assign,
     PERMS.Tareas_Estado_Edit,
   ],
 
