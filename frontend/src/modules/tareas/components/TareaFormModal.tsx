@@ -31,13 +31,14 @@ import { crearTarea, actualizarTarea, eliminarTarea } from "../services/tareaSer
 interface TareaFormModalProps {
   tarea?: Tarea | null;
   canManage: boolean;
-  ejecutivos: UsuarioSistema[];
+  canAssign: boolean;
+  usuariosAsignables: UsuarioSistema[];
   actor: { uid: string; nombre?: string };
   onClose: () => void;
   onSaved: () => void;
 }
 
-export function TareaFormModal({ tarea, canManage, ejecutivos, actor, onClose, onSaved }: TareaFormModalProps) {
+export function TareaFormModal({ tarea, canManage, canAssign, usuariosAsignables, actor, onClose, onSaved }: TareaFormModalProps) {
   const esEdicion = !!tarea;
   const esPropia = tarea?.creadoPor === actor.uid;
   const soloLectura = esEdicion && !canManage && !esPropia;
@@ -46,7 +47,7 @@ export function TareaFormModal({ tarea, canManage, ejecutivos, actor, onClose, o
   const [descripcion, setDescripcion] = React.useState(tarea?.descripcion ?? "");
   const [prioridad, setPrioridad] = React.useState<TareaPrioridad>(tarea?.prioridad ?? "media");
   const [asignadoA, setAsignadoA] = React.useState(
-    tarea?.asignadoA ?? (canManage ? "" : actor.uid)
+    tarea?.asignadoA ?? (canAssign ? "" : actor.uid)
   );
   const [fechaLimite, setFechaLimite] = React.useState<Date | undefined>(
     tarea?.fechaLimite ? (tarea.fechaLimite as any).toDate() : undefined
@@ -59,15 +60,15 @@ export function TareaFormModal({ tarea, canManage, ejecutivos, actor, onClose, o
       toast.error("El título es obligatorio.");
       return;
     }
-    const asignadoEfectivo = canManage ? asignadoA : actor.uid;
+    const asignadoEfectivo = canAssign ? asignadoA : actor.uid;
     if (!asignadoEfectivo) {
       toast.error("Selecciona un ejecutivo asignado.");
       return;
     }
 
-    const ejecutivo = ejecutivos.find((e) => e.uid === asignadoEfectivo);
-    const asignadoNombre = canManage
-      ? ejecutivo?.nombre ?? ""
+    const usuarioAsignado = usuariosAsignables.find((e) => e.uid === asignadoEfectivo);
+    const asignadoNombre = canAssign
+      ? usuarioAsignado?.nombre ?? ""
       : actor.nombre ?? tarea?.asignadoNombre ?? "";
     setSaving(true);
     try {
@@ -198,7 +199,7 @@ export function TareaFormModal({ tarea, canManage, ejecutivos, actor, onClose, o
 
             <div className="space-y-2">
               <Label>Asignado a *</Label>
-              {soloLectura || !canManage ? (
+              {soloLectura || !canAssign ? (
                 <p className="text-sm font-medium">{tarea?.asignadoNombre || actor.nombre || "—"}</p>
               ) : (
                 <Select value={asignadoA} onValueChange={setAsignadoA} disabled={saving}>
@@ -206,7 +207,7 @@ export function TareaFormModal({ tarea, canManage, ejecutivos, actor, onClose, o
                     <SelectValue placeholder="Selecciona un ejecutivo" />
                   </SelectTrigger>
                   <SelectContent>
-                    {ejecutivos.map((e) => (
+                    {usuariosAsignables.map((e) => (
                       <SelectItem key={e.uid} value={e.uid}>{e.nombre || e.email}</SelectItem>
                     ))}
                   </SelectContent>

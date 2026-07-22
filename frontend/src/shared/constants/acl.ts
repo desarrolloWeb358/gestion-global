@@ -95,8 +95,9 @@ export const PERMS = {
   // Seguimiento — edición de fecha (solo ejecutivoAdmin y admin)
   Seguimientos_Fecha_Edit: "seguimientos.fecha.edit",
 
-  // Tareas (asignación admin/ejecutivoAdmin → ejecutivo)
+  // Tareas
   Tareas_Read: "tareas.read",
+  Tareas_Assign: "tareas.assign",
   Tareas_Manage: "tareas.manage",
   Tareas_Estado_Edit: "tareas.estado.edit",
 } as const;
@@ -130,6 +131,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Whatsapp_Read,
     PERMS.Whatsapp_Write,
     PERMS.Tareas_Read,
+    PERMS.Tareas_Assign,
     PERMS.Tareas_Manage,
   ],
 
@@ -182,6 +184,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Whatsapp_Read,
     PERMS.Whatsapp_Write,
     PERMS.Tareas_Read,
+    PERMS.Tareas_Assign,
     PERMS.Tareas_Manage,
   ],
 
@@ -221,6 +224,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Contratos_Read,
     PERMS.ReporteCliente_Download_Word,
     PERMS.Tareas_Read,
+    PERMS.Tareas_Assign,
   ],
 
   cliente: [
@@ -250,6 +254,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Valores_agregados_Edit,
     PERMS.ReporteCliente_Download_Word,
     PERMS.Tareas_Read,
+    PERMS.Tareas_Assign,
   ],
 
   // Supervisión de franquicia: SOLO lectura + reportes, limitado a franquiciasAsignadas.

@@ -15,7 +15,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { useUsuarioActual } from "@/modules/auth/hooks/useUsuarioActual";
 import { PERMS } from "@/shared/constants/acl";
-import { obtenerEjecutivos } from "@/modules/usuarios/services/usuarioService";
+import { suscribirUsuariosAsignablesTareas } from "@/modules/usuarios/services/usuarioService";
 import type { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 
 import { useTareas } from "../hooks/useTareas";
@@ -32,6 +32,7 @@ export default function TareasBoardPage() {
   const { usuario, usuarioSistema } = useUsuarioActual();
 
   const canRead = can(PERMS.Tareas_Read);
+  const canAssign = can(PERMS.Tareas_Assign);
   const canManage = can(PERMS.Tareas_Manage);
   const canEstadoEdit = can(PERMS.Tareas_Estado_Edit);
 
@@ -41,7 +42,7 @@ export default function TareasBoardPage() {
 
   const { tareas, loading } = useTareas(uid, canManage && puedeVerTodas);
 
-  const [ejecutivos, setEjecutivos] = React.useState<UsuarioSistema[]>([]);
+  const [usuariosAsignables, setUsuariosAsignables] = React.useState<UsuarioSistema[]>([]);
   const [filtroEjecutivo, setFiltroEjecutivo] = React.useState<string>(TODOS);
   const [tareaSeleccionada, setTareaSeleccionada] = React.useState<Tarea | null>(null);
   const [mostrarNuevaTarea, setMostrarNuevaTarea] = React.useState(false);
@@ -51,11 +52,12 @@ export default function TareasBoardPage() {
   );
 
   React.useEffect(() => {
-    if (!canManage) return;
-    obtenerEjecutivos()
-      .then(setEjecutivos)
-      .catch((err) => console.error("[TareasBoardPage] Error cargando ejecutivos:", err));
-  }, [canManage]);
+    if (!canAssign) return;
+    return suscribirUsuariosAsignablesTareas(
+      setUsuariosAsignables,
+      (err) => console.error("[TareasBoardPage] Error cargando usuarios asignables:", err)
+    );
+  }, [canAssign]);
 
   const tareasFiltradas = React.useMemo(() => {
     if (!canManage || filtroEjecutivo === TODOS) return tareas;
@@ -112,11 +114,11 @@ export default function TareasBoardPage() {
           {canManage && (
             <Select value={filtroEjecutivo} onValueChange={setFiltroEjecutivo}>
               <SelectTrigger className="w-[220px]">
-                <SelectValue placeholder="Filtrar por ejecutivo" />
+                <SelectValue placeholder="Filtrar por usuario" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={TODOS}>Todos los ejecutivos</SelectItem>
-                {ejecutivos.map((e) => (
+                <SelectItem value={TODOS}>Todos los usuarios</SelectItem>
+                {usuariosAsignables.map((e) => (
                   <SelectItem key={e.uid} value={e.uid}>{e.nombre || e.email}</SelectItem>
                 ))}
               </SelectContent>
@@ -149,7 +151,8 @@ export default function TareasBoardPage() {
         <TareaFormModal
           tarea={tareaSeleccionada}
           canManage={canManage}
-          ejecutivos={ejecutivos}
+          canAssign={canAssign}
+          usuariosAsignables={usuariosAsignables}
           actor={{ uid: uid ?? "", nombre: nombreActor }}
           onClose={() => setTareaSeleccionada(null)}
           onSaved={() => setTareaSeleccionada(null)}
@@ -159,7 +162,8 @@ export default function TareasBoardPage() {
       {mostrarNuevaTarea && (
         <TareaFormModal
           canManage={canManage}
-          ejecutivos={ejecutivos}
+          canAssign={canAssign}
+          usuariosAsignables={usuariosAsignables}
           actor={{ uid: uid ?? "", nombre: nombreActor }}
           onClose={() => setMostrarNuevaTarea(false)}
           onSaved={() => setMostrarNuevaTarea(false)}
