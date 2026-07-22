@@ -9,6 +9,7 @@ import { Input } from "@/shared/ui/input";
 import { Textarea } from "@/shared/ui/textarea";
 import { Label } from "@/shared/ui/label";
 import { Badge } from "@/shared/ui/badge";
+import { Checkbox } from "@/shared/ui/checkbox";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/shared/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover";
 import { Calendar } from "@/shared/ui/calendar";
@@ -46,8 +47,8 @@ export function TareaFormModal({ tarea, canManage, canAssign, usuariosAsignables
   const [titulo, setTitulo] = React.useState(tarea?.titulo ?? "");
   const [descripcion, setDescripcion] = React.useState(tarea?.descripcion ?? "");
   const [prioridad, setPrioridad] = React.useState<TareaPrioridad>(tarea?.prioridad ?? "media");
-  const [asignadoA, setAsignadoA] = React.useState(
-    tarea?.asignadoA ?? (canAssign ? "" : actor.uid)
+  const [asignadosA, setAsignadosA] = React.useState<string[]>(
+    tarea?.asignadoA ? [tarea.asignadoA] : (canAssign ? [] : [actor.uid])
   );
   const [fechaLimite, setFechaLimite] = React.useState<Date | undefined>(
     tarea?.fechaLimite ? (tarea.fechaLimite as any).toDate() : undefined
@@ -60,41 +61,52 @@ export function TareaFormModal({ tarea, canManage, canAssign, usuariosAsignables
       toast.error("El título es obligatorio.");
       return;
     }
-    const asignadoEfectivo = canAssign ? asignadoA : actor.uid;
-    if (!asignadoEfectivo) {
-      toast.error("Selecciona un ejecutivo asignado.");
+    const destinatarios = canAssign ? asignadosA : [actor.uid];
+    if (destinatarios.length === 0 || destinatarios.some((uid) => !uid)) {
+      toast.error("Selecciona al menos una persona.");
       return;
     }
 
-    const usuarioAsignado = usuariosAsignables.find((e) => e.uid === asignadoEfectivo);
-    const asignadoNombre = canAssign
-      ? usuarioAsignado?.nombre ?? ""
-      : actor.nombre ?? tarea?.asignadoNombre ?? "";
     setSaving(true);
     try {
       if (esEdicion && tarea?.id) {
+        const asignadoEfectivo = destinatarios[0];
+        const usuarioAsignado = usuariosAsignables.find((e) => e.uid === asignadoEfectivo);
         await actualizarTarea(tarea.id, {
           titulo,
           descripcion,
           prioridad,
           fechaLimite: fechaLimite ? Timestamp.fromDate(fechaLimite) : null,
           asignadoA: asignadoEfectivo,
-          asignadoNombre,
+          asignadoNombre: canAssign
+            ? usuarioAsignado?.nombre ?? ""
+            : actor.nombre ?? tarea.asignadoNombre ?? "",
         });
         toast.success("Tarea actualizada.");
       } else {
-        await crearTarea(
-          {
-            titulo,
-            descripcion,
-            prioridad,
-            fechaLimite: fechaLimite ? Timestamp.fromDate(fechaLimite) : null,
-            asignadoA: asignadoEfectivo,
-            asignadoNombre,
-          },
-          actor
+        await Promise.all(
+          destinatarios.map((uid) => {
+            const usuarioAsignado = usuariosAsignables.find((e) => e.uid === uid);
+            return crearTarea(
+              {
+                titulo,
+                descripcion,
+                prioridad,
+                fechaLimite: fechaLimite ? Timestamp.fromDate(fechaLimite) : null,
+                asignadoA: uid,
+                asignadoNombre: canAssign
+                  ? usuarioAsignado?.nombre ?? ""
+                  : actor.nombre ?? "",
+              },
+              actor
+            );
+          })
         );
-        toast.success("Tarea creada.");
+        toast.success(
+          destinatarios.length > 1
+            ? `Tarea grupal asignada a ${destinatarios.length} personas.`
+            : "Tarea creada."
+        );
       }
       onSaved();
     } catch (err) {
@@ -201,10 +213,39 @@ export function TareaFormModal({ tarea, canManage, canAssign, usuariosAsignables
               <Label>Asignado a *</Label>
               {soloLectura || !canAssign ? (
                 <p className="text-sm font-medium">{tarea?.asignadoNombre || actor.nombre || "—"}</p>
+              ) : !esEdicion ? (
+                <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border p-2">
+                  {usuariosAsignables.map((usuario) => {
+                    const checked = asignadosA.includes(usuario.uid);
+                    return (
+                      <label
+                        key={usuario.uid}
+                        className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-muted"
+                      >
+                        <Checkbox
+                          checked={checked}
+                          disabled={saving}
+                          onCheckedChange={(value) =>
+                            setAsignadosA((actuales) =>
+                              value
+                                ? [...actuales, usuario.uid]
+                                : actuales.filter((uid) => uid !== usuario.uid)
+                            )
+                          }
+                        />
+                        <span>{usuario.nombre || usuario.email}</span>
+                      </label>
+                    );
+                  })}
+                </div>
               ) : (
-                <Select value={asignadoA} onValueChange={setAsignadoA} disabled={saving}>
+                <Select
+                  value={asignadosA[0] ?? ""}
+                  onValueChange={(uid) => setAsignadosA([uid])}
+                  disabled={saving}
+                >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecciona un ejecutivo" />
+                    <SelectValue placeholder="Selecciona una persona" />
                   </SelectTrigger>
                   <SelectContent>
                     {usuariosAsignables.map((e) => (
