@@ -107,7 +107,15 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/tareas",
     label: "Tareas",
     icon: IconLayoutKanban,
-    roles: ["admin", "ejecutivoAdmin", "ejecutivo"],
+    roles: [
+      "admin",
+      "supervisor",
+      "adminFranquicia",
+      "ejecutivo",
+      "ejecutivoAdmin",
+      "dependiente",
+      "abogado",
+    ],
     perm: PERMS.Tareas_Read,
   },
 
