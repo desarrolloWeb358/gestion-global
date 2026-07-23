@@ -159,6 +159,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Whatsapp_Read,
     PERMS.Whatsapp_Write,
     PERMS.Tareas_Read,
+    PERMS.Tareas_Estado_Edit,
   ],
 
   ejecutivoAdmin: [    
@@ -226,6 +227,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.ReporteCliente_Download_Word,
     PERMS.Tareas_Read,
     PERMS.Tareas_Assign,
+    PERMS.Tareas_Estado_Edit,
   ],
 
   cliente: [
@@ -256,6 +258,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.ReporteCliente_Download_Word,
     PERMS.Tareas_Read,
     PERMS.Tareas_Assign,
+    PERMS.Tareas_Estado_Edit,
   ],
 
   // Supervisión de franquicia: SOLO lectura + reportes, limitado a franquiciasAsignadas.
@@ -271,6 +274,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Contratos_Read,
     PERMS.ReporteCliente_Download_Word,
     PERMS.Tareas_Read,
+    PERMS.Tareas_Estado_Edit,
   ],
 
   deudor: [
