@@ -23,7 +23,8 @@ import {
 
 /** ============================================
  *  Modelo de Seguimiento de Demanda
- *  Campos: fecha, descripcion, archivoPath, archivoUrl
+ *  Ruta: clientes/{clienteId}/deudores/{deudorId}/demandas/{demandaId}/seguimientoDemanda
+ *  Campos: fecha, descripcion, esInterno, archivoPath, archivoUrl
  *  ============================================ */
 export interface SeguimientoDemanda {
   id?: string;
@@ -44,13 +45,18 @@ function stripUndefined<T extends Record<string, any>>(obj: T): T {
   ) as T;
 }
 
+function seguimientoPath(clienteId: string, deudorId: string, demandaId: string) {
+  return `clientes/${clienteId}/deudores/${deudorId}/demandas/${demandaId}/seguimientoDemanda`;
+}
+
 // Sube archivo a Storage y retorna { path, url }
 async function uploadArchivoDemanda(
   clienteId: string,
   deudorId: string,
+  demandaId: string,
   archivo: File
 ): Promise<{ path: string; url: string }> {
-  const path = `clientes/${clienteId}/deudores/${deudorId}/seguimientoDemanda/${Date.now()}_${archivo.name}`;
+  const path = `clientes/${clienteId}/deudores/${deudorId}/demandas/${demandaId}/seguimientoDemanda/${Date.now()}_${archivo.name}`;
   const sref = ref(storage, path);
   await uploadBytes(sref, archivo);
   const url = await getDownloadURL(sref);
@@ -68,18 +74,15 @@ async function safeDeleteByPath(path?: string) {
 }
 
 /* ======================================================
-   CRUD Seguimiento Demanda
-   Ruta: clientes/{clienteId}/deudores/{deudorId}/seguimientoDemanda
+   CRUD Seguimiento Demanda (por demanda)
    ====================================================== */
 
 export async function getSeguimientosDemanda(
   clienteId: string,
-  deudorId: string
+  deudorId: string,
+  demandaId: string
 ): Promise<SeguimientoDemanda[]> {
-  const refCol = collection(
-    db,
-    `clientes/${clienteId}/deudores/${deudorId}/seguimientoDemanda`
-  );
+  const refCol = collection(db, seguimientoPath(clienteId, deudorId, demandaId));
   const snap = await getDocs(query(refCol, orderBy("fecha", "desc")));
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as SeguimientoDemanda) }));
 }
@@ -88,6 +91,7 @@ export async function addSeguimientoDemanda(
   ejecutivoUID: string,
   clienteId: string,
   deudorId: string,
+  demandaId: string,
   data: Omit<SeguimientoDemanda, "id">,
   archivo?: File
 ) {
@@ -95,15 +99,12 @@ export async function addSeguimientoDemanda(
   let archivoUrl = data.archivoUrl;
 
   if (archivo) {
-    const up = await uploadArchivoDemanda(clienteId, deudorId, archivo);
+    const up = await uploadArchivoDemanda(clienteId, deudorId, demandaId, archivo);
     archivoPath = up.path;
     archivoUrl = up.url;
   }
 
-  const refCol = collection(
-    db,
-    `clientes/${clienteId}/deudores/${deudorId}/seguimientoDemanda`
-  );
+  const refCol = collection(db, seguimientoPath(clienteId, deudorId, demandaId));
 
   const ahora = Timestamp.fromDate(new Date());
   const fechaSeleccionada = data.fecha instanceof Date
@@ -123,9 +124,19 @@ export async function addSeguimientoDemanda(
 
   const docRef = await addDoc(refCol, payload);
 
-  // Siempre actualizar fechaUltimaRevision con la fecha real de creación (independiente de esInterno)
-  const deudorRef = doc(db, `clientes/${clienteId}/deudores/${deudorId}`);
-  await updateDoc(deudorRef, { fechaUltimaRevision: ahora });
+  // Actualizar fechaUltimaRevision de la DEMANDA con la fecha real de creación
+  const demandaRef = doc(
+    db,
+    `clientes/${clienteId}/deudores/${deudorId}/demandas/${demandaId}`
+  );
+  await updateDoc(demandaRef, { fechaUltimaRevision: ahora });
+
+  // Denormalizar en el deudor: "última revisión entre todas sus demandas".
+  // Mantiene correctos los dashboards que miden días sin revisión por deudor.
+  await updateDoc(
+    doc(db, `clientes/${clienteId}/deudores/${deudorId}`),
+    { fechaUltimaRevision: ahora }
+  );
 
   return docRef;
 }
@@ -134,13 +145,14 @@ export async function updateSeguimientoDemanda(
   clienteId: string,
   deudorId: string,
   demandaId: string,
+  seguimientoId: string,
   data: Omit<SeguimientoDemanda, "id">,
   archivo?: File,
   reemplazar?: boolean
 ) {
   const refDocu = doc(
     db,
-    `clientes/${clienteId}/deudores/${deudorId}/seguimientoDemanda/${demandaId}`
+    `${seguimientoPath(clienteId, deudorId, demandaId)}/${seguimientoId}`
   );
 
   let newPath: string | undefined;
@@ -151,7 +163,7 @@ export async function updateSeguimientoDemanda(
     if (data.archivoPath && reemplazar) {
       await safeDeleteByPath(data.archivoPath);
     }
-    const up = await uploadArchivoDemanda(clienteId, deudorId, archivo);
+    const up = await uploadArchivoDemanda(clienteId, deudorId, demandaId, archivo);
     newPath = up.path;
     newUrl = up.url;
   }
@@ -180,11 +192,12 @@ export async function updateSeguimientoDemanda(
 export async function deleteSeguimientoDemanda(
   clienteId: string,
   deudorId: string,
-  demandaId: string
+  demandaId: string,
+  seguimientoId: string
 ) {
   const refDocu = doc(
     db,
-    `clientes/${clienteId}/deudores/${deudorId}/seguimientoDemanda/${demandaId}`
+    `${seguimientoPath(clienteId, deudorId, demandaId)}/${seguimientoId}`
   );
   const snap = await getDoc(refDocu);
   const data = snap.exists() ? (snap.data() as SeguimientoDemanda) : null;
@@ -194,7 +207,7 @@ export async function deleteSeguimientoDemanda(
   await deleteDoc(refDocu);
   await registrarEliminacion({
     modulo: "seguimientoDemanda",
-    descripcion: data?.descripcion ?? demandaId,
-    coleccionPath: `clientes/${clienteId}/deudores/${deudorId}/seguimientoDemanda`,
+    descripcion: data?.descripcion ?? seguimientoId,
+    coleccionPath: seguimientoPath(clienteId, deudorId, demandaId),
   });
 }

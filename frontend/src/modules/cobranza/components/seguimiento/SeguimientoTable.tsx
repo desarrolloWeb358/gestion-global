@@ -1,6 +1,6 @@
 // modules/cobranza/components/SeguimientoTable.tsx
 import * as React from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { getClienteById } from "@/modules/clientes/services/clienteService";
 import { getDeudorById } from "../../services/deudorService";
@@ -80,7 +80,7 @@ import {
   SelectItem,
   SelectValue,
 } from "@/shared/ui/select";
-import SeguimientoDemandaTable from "./SeguimientoDemandaTable";
+import DemandasDeudorTable from "./DemandasDeudorTable";
 import { DeudorWhatsAppTab } from "@/modules/whatsapp/components/DeudorWhatsAppTab";
 import { Typography } from "@/shared/design-system/components/Typography";
 import { BackButton } from "@/shared/design-system/components/BackButton";
@@ -175,7 +175,14 @@ export default function SeguimientoTable() {
 
   const isAdmin = roles?.includes("admin") ?? false;
 
-  const [tab, setTab] = React.useState<"pre" | "juridico" | "demanda" | "obs" | "whatsapp">("pre");
+  const [searchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const tabInicial = (["pre", "juridico", "demanda", "obs", "whatsapp"] as const).includes(
+    tabParam as any
+  )
+    ? (tabParam as "pre" | "juridico" | "demanda" | "obs" | "whatsapp")
+    : "pre";
+  const [tab, setTab] = React.useState<"pre" | "juridico" | "demanda" | "obs" | "whatsapp">(tabInicial);
 
   type PreFilters = { fecha?: DateRange; order: SortDir };
   const [preFilters, setPreFilters] = React.useState<PreFilters>({ order: "desc" });
@@ -472,7 +479,7 @@ export default function SeguimientoTable() {
                 className="gap-2 shadow-md hover:shadow-lg transition-all"
               >
                 <Plus className="h-4 w-4" />
-                Nuevo seguimiento (Demanda)
+                Nueva demanda
               </Button>
             )}
 
@@ -719,8 +726,8 @@ export default function SeguimientoTable() {
           {/* DEMANDA */}
           <TabsContent value="demanda" className="mt-6">
             {(() => {
-              const SeguimientoDemandaTableAny = SeguimientoDemandaTable as any;
-              return <SeguimientoDemandaTableAny ref={demandaRef} />;
+              const DemandasDeudorTableAny = DemandasDeudorTable as any;
+              return <DemandasDeudorTableAny ref={demandaRef} />;
             })()}
           </TabsContent>
 

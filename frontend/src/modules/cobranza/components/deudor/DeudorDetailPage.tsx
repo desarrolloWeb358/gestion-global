@@ -863,7 +863,7 @@ export default function DeudorDetailPage() {
                 (deudor.tipificacion as string) === "DEMANDA_INSOLVENCIA") && (
                 <button
                   onClick={() =>
-                    navigate(`/clientes/${clienteId}/deudores/${deudor.id}/informacion-demanda`)
+                    navigate(`/deudores/${clienteId}/${deudor.id}/seguimiento?tab=demanda`)
                   }
                   className="group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-5 text-left transition-all hover:border-red-500 hover:shadow-lg hover:-translate-y-1"
                 >
@@ -873,10 +873,10 @@ export default function DeudorDetailPage() {
                       <Scale className="h-5 w-5 text-red-600" />
                     </div>
                     <Typography variant="h3" className="!text-brand-secondary mb-1 text-base">
-                      Información de la demanda
+                      Demandas
                     </Typography>
                     <Typography variant="small">
-                      Juzgado, radicado, demandados y datos judiciales.
+                      Radicados, demandados, notificaciones y seguimiento.
                     </Typography>
                   </div>
                 </button>

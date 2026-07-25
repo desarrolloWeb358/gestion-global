@@ -6,6 +6,8 @@ export type ModuloApp =
   | "seguimientoPreJuridico"
   | "seguimientoJuridico"
   | "seguimientoDemanda"
+  | "demanda"
+  | "etiquetasDemanda"
   | "observacionCliente"
   | "historialTipificacion"
   | "estadoMensual"

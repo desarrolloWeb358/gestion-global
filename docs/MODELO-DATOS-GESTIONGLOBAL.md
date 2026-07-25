@@ -60,10 +60,14 @@ clientes/{clienteId}                    → Cliente   (+ franquiciaId, ciudad �
   │    ├─ estadosMensuales/{YYYY-MM}    → EstadoMensual   (id del doc = mes)
   │    ├─ seguimiento/{id}              → Seguimiento (pre-jurídico)
   │    ├─ seguimientoJuridico/{id}      → SeguimientoJuridico
-  │    ├─ seguimientoDemanda/{id}       → SeguimientoDemanda
+  │    ├─ demandas/{demandaId}          → Demanda   (varias por deudor ← NUEVO)
+  │    │    └─ seguimientoDemanda/{id}  → SeguimientoDemanda
+  │    ├─ seguimientoDemanda/{id}       → SeguimientoDemanda (LEGADO, pre-migración)
   │    ├─ historialTipificaciones/{id}  → HistorialTipificacion
   │    ├─ observacionesCliente/{id}     → ObservacionCliente (scope "deudor")
   │    └─ cuotas_acuerdo/{id}           → (LEGADO, amortización visual)
+
+etiquetasDemanda/{id}                   → EtiquetaDemanda  (catálogo raíz ← NUEVO)
   ├─ valoresAgregados/{valorId}         → ValorAgregado
   │    └─ observacionesCliente/{id}     → ObservacionCliente (scope "valor")
   ├─ contratos/{contratoId}             → Contrato
@@ -179,7 +183,13 @@ enum TipificacionDeuda {
 
 **`estadosMensuales/{YYYY-MM}`** → `EstadoMensual` ([estadoMensual.model.ts](../frontend/src/modules/cobranza/models/estadoMensual.model.ts)). **El id del documento es el mes** (`"AAAA-MM"`). Campos: `mes`, `clienteUID`, `deuda`, `recaudo?`, `porcentajeHonorarios?`, `honorariosDeuda?`, `honorariosRecaudo?`, `recibo?`, `observaciones?`. Es la base de los reportes de cartera/recaudo.
 
-**`seguimiento/{id}`** → `Seguimiento` (pre-jurídico) · **`seguimientoJuridico/{id}`** → `SeguimientoJuridico` · **`seguimientoDemanda/{id}`** → `SeguimientoDemanda`. Registran la gestión: `fecha`, `tipoSeguimiento` (`llamada | visita_notificacion | correo | whatsapp | correo_certificado | sms | otro`), `descripcion`, `archivoUrl?`. `seguimientoDemanda` agrega `consecutivo` y `esInterno`.
+**`seguimiento/{id}`** → `Seguimiento` (pre-jurídico) · **`seguimientoJuridico/{id}`** → `SeguimientoJuridico`. Registran la gestión: `fecha`, `tipoSeguimiento` (`llamada | visita_notificacion | correo | whatsapp | correo_certificado | sms | otro`), `descripcion`, `archivoUrl?`.
+
+**`demandas/{demandaId}`** → `Demanda` (`NUEVO`, [demanda.model.ts](../frontend/src/modules/cobranza/models/demanda.model.ts)). Un deudor puede tener **varias** demandas. Reemplaza los campos judiciales planos del deudor (`numeroRadicado`, `juzgado`, `localidad`, `demandados`, `demandaSustituto`, `observacionesDemanda*`, `procesoJudicial`), que quedan como **legado** (no se borran en la migración). Campos: `numeroRadicado`, `juzgado`, `localidad`, `demandaSustituto`, `estado` (`activa | terminada`, independiente de la tipificación del deudor), `demandados: [{ nombre, numeroDocumento, notificaciones: [{ tipo, fecha, coteje }] }]`, `etiquetas: [{ etiquetaId, nombre, detalle, fecha }]`, `proximaAccionFecha` (min de `etiquetas[].fecha`, denormalizada para ordenar), `observacionesDemanda`, `observacionesDemandaCliente`, `fechaUltimaRevision`, `procesoJudicial` (monitoreo CPNU), y denormalizados `clienteId/deudorId/deudorNombre/ubicacion` para `collectionGroup("demandas")`.
+- **`demandas/{id}/seguimientoDemanda/{id}`** → `SeguimientoDemanda`: `fecha`, `descripcion`, `esInterno`, `archivoUrl?`. Al crear uno se actualiza `demanda.fechaUltimaRevision` **y** se denormaliza `deudor.fechaUltimaRevision` (última revisión entre todas sus demandas, para los dashboards por deudor).
+- El **catálogo de etiquetas** vive en la colección raíz `etiquetasDemanda/{id}` (`nombre`, `color?`, `activo`). El `ejecutivoDependiente` sigue asignándose por **cliente** (`cliente.ejecutivoDependienteId`); el reporte global lo resuelve con un mapa `clienteId → dependiente` en memoria.
+
+> **Legado `seguimientoDemanda` del deudor:** antes de la migración el seguimiento colgaba directo del deudor (`deudores/{id}/seguimientoDemanda`). El script `migracion/migrar-demandas.js` crea una demanda por deudor y copia esos docs (conservando ids) a `demandas/{demandaId}/seguimientoDemanda`. El reporte mensual del cliente ([demandaReporteService.ts](../frontend/src/modules/cobranza/services/reportes/demandaReporteService.ts)) lee la subcolección `demandas` y cae al legado si un deudor aún no fue migrado.
 
 **`historialTipificaciones/{id}`** → `HistorialTipificacion`: `{ fecha, tipificacion }`. Se crea un registro inicial al crear el deudor y en cada cambio de tipificación.
 

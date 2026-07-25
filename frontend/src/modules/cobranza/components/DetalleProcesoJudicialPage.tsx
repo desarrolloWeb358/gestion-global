@@ -4,6 +4,7 @@ import { getAuth } from "firebase/auth";
 import { getDoc, doc } from "firebase/firestore";
 import { db } from "@/firebase";
 import { getSeguimientosDemanda, addSeguimientoDemanda } from "../services/seguimientoDemandaService";
+import { getDemandas } from "../services/demandaService";
 import { getObservacionesClienteGlobal } from "../services/observacionClienteGlobalService";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
@@ -55,6 +56,8 @@ export default function DetalleProcesoJudicialPage() {
   // Interno
   const [seguimientosDemanda, setSeguimientosDemanda] = useState<any[]>([]);
   const [observacionesConjunto, setObservacionesConjunto] = useState<any[]>([]);
+  // Demanda objetivo del deudor (la que coincide con el radicado, o la primera)
+  const [demandaId, setDemandaId] = useState<string | null>(null);
 
   // ── Cargar meta + campo observacionesDemandaCliente ──────
   useEffect(() => {
@@ -83,12 +86,25 @@ export default function DetalleProcesoJudicialPage() {
     if (!clienteId || !deudorId) return;
     async function cargar() {
       try {
-        const [demanda, observaciones] = await Promise.all([
-          getSeguimientosDemanda(clienteId!, deudorId!),
+        const [demandas, observaciones] = await Promise.all([
+          getDemandas(clienteId!, deudorId!),
           getObservacionesClienteGlobal(clienteId!),
         ]);
-        setSeguimientosDemanda(demanda);
         setObservacionesConjunto(observaciones);
+
+        // Elegir la demanda objetivo: la que coincide con el radicado del deudor, o la primera.
+        const radicado = (numeroRadicado ?? "").trim();
+        const objetivo =
+          demandas.find((d) => (d.numeroRadicado ?? "").trim() === radicado && radicado) ??
+          demandas[0];
+
+        if (objetivo?.id) {
+          setDemandaId(objetivo.id);
+          const segs = await getSeguimientosDemanda(clienteId!, deudorId!, objetivo.id);
+          setSeguimientosDemanda(segs);
+        } else {
+          setSeguimientosDemanda([]);
+        }
       } catch {
         toast.error("Error cargando datos internos");
       } finally {
@@ -96,7 +112,7 @@ export default function DetalleProcesoJudicialPage() {
       }
     }
     cargar();
-  }, [clienteId, deudorId]);
+  }, [clienteId, deudorId, numeroRadicado]);
 
   // ── Consultar CPNU ───────────────────────────────────────
   async function consultarCPNU() {
@@ -138,14 +154,18 @@ export default function DetalleProcesoJudicialPage() {
   // ── Pasar actuación a Seguimiento Demanda ───────────────
   async function pasarASeguimiento(act: ActuacionCPNU) {
     if (pasando.has(act.numero)) return;
+    if (!demandaId) {
+      toast.error("El deudor no tiene una demanda registrada. Crea la demanda primero.");
+      return;
+    }
     setPasando((prev) => new Set(prev).add(act.numero));
     try {
       const uid = getAuth().currentUser?.uid ?? "";
       const fecha = act.fecha ? new Date(act.fecha) : new Date();
       const descripcion = [act.tipo, act.anotacion].filter(Boolean).join("\n");
-      await addSeguimientoDemanda(uid, clienteId!, deudorId!, { fecha, descripcion });
+      await addSeguimientoDemanda(uid, clienteId!, deudorId!, demandaId, { fecha, descripcion });
       // Refrescar lista
-      const actualizado = await getSeguimientosDemanda(clienteId!, deudorId!);
+      const actualizado = await getSeguimientosDemanda(clienteId!, deudorId!, demandaId);
       setSeguimientosDemanda(actualizado);
       toast.success("Actuación pasada a Seguimiento Demanda");
     } catch {

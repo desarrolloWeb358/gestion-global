@@ -51,6 +51,9 @@ import ClienteSeguimiento from "./modules/cobranza/components/observaciones/Clie
 import ObservacionesDeudorPage from "./modules/cobranza/components/observaciones/ObservacionesDeudorPage";
 import RegistrosEliminadosPage from "./modules/registrosEliminados/components/RegistrosEliminadosPage";
 import InformacionDemandaPage from "./modules/cobranza/components/seguimiento/InformacionDemandaPage";
+import DemandaDetailPage from "./modules/cobranza/components/seguimiento/DemandaDetailPage";
+import EtiquetasDemandaPage from "./modules/cobranza/components/seguimiento/EtiquetasDemandaPage";
+import ReporteDemandasPage from "./modules/cobranza/components/reportes/ReporteDemandasPage";
 import ConsultarRadicadoPage from "./modules/cobranza/components/ConsultarRadicadoPage";
 import RadicadosPage from "./modules/cobranza/components/RadicadosPage";
 import MonitoreoRadicadosPage from "./modules/cobranza/components/MonitoreoRadicadosPage";
@@ -113,6 +116,9 @@ export default function App() {
             <Route path="/clientes/:clienteId/valores-agregados/:valorId" element={<ValorAgregadoDetailPage />} />
             <Route path="/clientes/:clienteId/deudores/:deudorId/AcuerdoPago" element={<AcuerdoPagoPage />} />
             <Route path="/clientes/:clienteId/deudores/:deudorId/informacion-demanda" element={<InformacionDemandaPage />} />
+            <Route path="/clientes/:clienteId/deudores/:deudorId/demandas/:demandaId" element={<DemandaDetailPage />} />
+            <Route path="/etiquetas-demanda" element={<EtiquetasDemandaPage />} />
+            <Route path="/reporte-demandas" element={<ReporteDemandasPage />} />
             <Route path="/ajustes" element={<AjustesPage />} />
             <Route path="/tareas" element={<TareasBoardPage />} />
             <Route path="/clientes/:clienteId/contratos" element={<ContratosPage />} />

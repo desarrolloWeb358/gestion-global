@@ -1,4 +1,4 @@
-// src/modules/cobranza/services/reportes/seguimientoDemandaService.ts
+// src/modules/cobranza/services/reportes/demandaReporteService.ts
 import { db } from "@/firebase";
 import {
   collection,
@@ -29,6 +29,7 @@ export type SeguimientoDemandaItem = {
 
 export type DemandaDeudorItem = {
   deudorId: string;
+  demandaId: string;
   ubicacion: string;
   demandados: string;
   numeroRadicado: string;
@@ -52,28 +53,44 @@ function toDateSafe(v: any): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-function monthRange(year: number, month1to12: number) {
-  const start = new Date(year, month1to12 - 1, 1, 0, 0, 0, 0);
-  const end = new Date(year, month1to12, 1, 0, 0, 0, 0);
-  return {
-    startTs: Timestamp.fromDate(start),
-    endTs: Timestamp.fromDate(end),
-  };
-}
-
 function endOfMonthExclusiveTs(year: number, month1to12: number) {
   // primer día del mes siguiente (exclusivo)
   const end = new Date(year, month1to12, 1, 0, 0, 0, 0);
   return Timestamp.fromDate(end);
 }
 
+// Lee los seguimientos de una subcolección seguimientoDemanda, filtra por rango + visibilidad cliente.
+async function leerSeguimientosVisibles(
+  path: string,
+  endTs: Timestamp
+): Promise<SeguimientoDemandaItem[]> {
+  const segRef = collection(db, path);
+  const qSeg = query(segRef, where("fecha", "<", endTs), orderBy("fecha", "asc"));
+  const segSnap = await getDocs(qSeg);
+
+  return segSnap.docs
+    .map((s) => {
+      const sdata = s.data() as any;
+      const esInterno = sdata.esInterno as boolean | undefined;
+      const visibleCliente = esInterno === false || esInterno == null;
+      if (!visibleCliente) return null;
+      return {
+        id: s.id,
+        consecutivo: String(sdata.consecutivo ?? ""),
+        descripcion: String(sdata.descripcion ?? ""),
+        fecha: toDateSafe(sdata.fecha),
+        esInterno,
+      } as SeguimientoDemandaItem;
+    })
+    .filter(Boolean) as SeguimientoDemandaItem[];
+}
+
 /**
- * Seguimiento de demandas (corte mensual):
- * 1) Para cada deudor determina tipificación "vigente" a fechaCorte (year+month) usando historialTipificaciones.
- * 2) Solo incluye deudores cuya tipificación vigente sea DEMANDA / DEMANDA_ACUERDO / DEMANDA_TERMINADO.
- *    - Si es un estado final (DEMANDA_TERMINADO), solo si su inicio (startDate) cae dentro del año consultado.
- * 3) Para esos deudores, trae seguimientoDemanda filtrado por rango del mes.
- * 4) Muestra el deudor si tiene seguimientos en ese mes OR si tiene observacionesDemandaCliente (sin filtro fecha).
+ * Seguimiento de demandas del cliente (corte mensual).
+ * Devuelve UNA fila por demanda (no por deudor): todas las demandas de todos los
+ * deudores del cliente cuya tipificación vigente sea Demanda*, cada una con su
+ * seguimiento del corte. Si un deudor aún no tiene subcolección `demandas`
+ * (no migrado), cae al modelo legacy (campos del deudor + su seguimientoDemanda).
  */
 export async function obtenerDemandasConSeguimientoCliente(
   clienteId: string,
@@ -81,36 +98,26 @@ export async function obtenerDemandasConSeguimientoCliente(
   month: number
 ): Promise<DemandaDeudorItem[]> {
   const fechaCorte = buildFechaCorte(year, month);
-
   const endTs = endOfMonthExclusiveTs(year, month);
 
-  // 0) Traer TODOS los deudores (porque el filtro real es por historialTipificaciones)
   const deudoresRef = collection(db, `clientes/${clienteId}/deudores`);
   const deudoresSnap = await getDocs(deudoresRef);
 
-  // 1) Filtrar por tipificación vigente a fechaCorte (historialTipificaciones)
+  // 1) Filtrar deudores por tipificación vigente a fechaCorte
   const candidatos = await Promise.all(
     deudoresSnap.docs.map(async (doc) => {
       const data = doc.data() as any;
-
       const tipFallback = (data.tipificacion as TipificacionDeuda) ?? TipificacionDeuda.GESTIONANDO;
-
       const { tipificacion, startDate } = await getTipificacionEnFechaCorte(
         clienteId,
         doc.id,
         fechaCorte,
         tipFallback
       );
-
-      // Solo demanda*
       if (!TIP_DEMANDA.has(tipificacion)) return null;
-
-      // Si es final (para ti, DEMANDA_TERMINADO entra aquí por isFinalTip)
       if (isFinalTip(tipificacion)) {
-        // misma regla que tu reporte: “terminados del año”
         if (!inicioDentroDelAnio(startDate, year)) return null;
       }
-
       return { id: doc.id, data, tipificacion };
     })
   );
@@ -121,57 +128,64 @@ export async function obtenerDemandasConSeguimientoCliente(
     tipificacion: TipificacionDeuda;
   }>;
 
-  // 2) Para cada deudor (ya filtrado), traer seguimientoDemanda del mes
-  const itemsAll = await Promise.all(
+  // 2) Para cada deudor: una fila por demanda (o legacy si no hay subcolección)
+  const itemsPorDeudor = await Promise.all(
     deudoresDemanda.map(async ({ id, data, tipificacion }) => {
-      const ubicacion = String(data.ubicacion ?? "");
-      const demandados = demandadosToString(normalizeDemandados(data.demandados));
-      const numeroRadicado = String(data.numeroRadicado ?? "");
-      const juzgado = String(data.juzgado ?? "");
-      const observacionCliente = String(data.observacionesDemandaCliente ?? "");
+      const ubicacionDeudor = String(data.ubicacion ?? "");
+      const tip = String(tipificacion);
 
-      const segRef = collection(db, `clientes/${clienteId}/deudores/${id}/seguimientoDemanda`);
-
-      // Nota: para range necesitas orderBy("fecha")
-      const qSeg = query(
-        segRef,
-        where("fecha", "<", endTs),     // ✅ todo lo anterior al 1ro del mes siguiente
-        orderBy("fecha", "asc")
+      const demandasSnap = await getDocs(
+        collection(db, `clientes/${clienteId}/deudores/${id}/demandas`)
       );
 
-      const segSnap = await getDocs(qSeg);
+      // Modelo nuevo: una fila por demanda
+      if (!demandasSnap.empty) {
+        return Promise.all(
+          demandasSnap.docs.map(async (dem) => {
+            const ddata = dem.data() as any;
+            const seguimientos = await leerSeguimientosVisibles(
+              `clientes/${clienteId}/deudores/${id}/demandas/${dem.id}/seguimientoDemanda`,
+              endTs
+            );
+            return {
+              deudorId: id,
+              demandaId: dem.id,
+              ubicacion: String(ddata.ubicacion ?? ubicacionDeudor),
+              demandados: demandadosToString(normalizeDemandados(ddata.demandados)),
+              numeroRadicado: String(ddata.numeroRadicado ?? ""),
+              juzgado: String(ddata.juzgado ?? ""),
+              tipificacion: tip,
+              observacionCliente: String(ddata.observacionesDemandaCliente ?? ""),
+              seguimientos,
+            } as DemandaDeudorItem;
+          })
+        );
+      }
 
-      const seguimientosMes: SeguimientoDemandaItem[] = segSnap.docs
-        .map((s) => {
-          const sdata = s.data() as any;
-          const esInterno = sdata.esInterno as boolean | undefined;
-          const visibleCliente = esInterno === false || esInterno == null;
-          if (!visibleCliente) return null;
-
-          return {
-            id: s.id,
-            consecutivo: String(sdata.consecutivo ?? ""),
-            descripcion: String(sdata.descripcion ?? ""),
-            fecha: toDateSafe(sdata.fecha),
-            esInterno,
-          };
-        })
-        .filter(Boolean) as SeguimientoDemandaItem[];
-
-      return {
-        deudorId: id,
-        ubicacion,
-        demandados,
-        numeroRadicado,
-        juzgado,
-        tipificacion: String(tipificacion),
-        observacionCliente,
-        seguimientos: seguimientosMes,
-      } as DemandaDeudorItem;
+      // Legacy: campos en el deudor + seguimientoDemanda del deudor
+      const seguimientos = await leerSeguimientosVisibles(
+        `clientes/${clienteId}/deudores/${id}/seguimientoDemanda`,
+        endTs
+      );
+      return [
+        {
+          deudorId: id,
+          demandaId: `legacy-${id}`,
+          ubicacion: ubicacionDeudor,
+          demandados: demandadosToString(normalizeDemandados(data.demandados)),
+          numeroRadicado: String(data.numeroRadicado ?? ""),
+          juzgado: String(data.juzgado ?? ""),
+          tipificacion: tip,
+          observacionCliente: String(data.observacionesDemandaCliente ?? ""),
+          seguimientos,
+        } as DemandaDeudorItem,
+      ];
     })
   );
 
-  const items = itemsAll.filter((it) => it.seguimientos.length > 0);
+  const items = itemsPorDeudor
+    .flat()
+    .filter((it) => it.seguimientos.length > 0);
 
   items.sort((a, b) => (a.ubicacion || "").localeCompare(b.ubicacion || "", "es"));
   return items;

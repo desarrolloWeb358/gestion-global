@@ -170,8 +170,8 @@ export default function SeguimientoDemandasClienteSection({ clienteId, year, mon
 
                             return (
                                 <AccordionItem
-                                    key={d.deudorId}
-                                    value={d.deudorId}
+                                    key={d.demandaId}
+                                    value={d.demandaId}
                                     className="rounded-xl border border-brand-secondary/15 bg-white overflow-hidden"
                                 >
                                     <AccordionTrigger className="px-4 py-4 hover:no-underline hover:bg-brand-primary/[0.03]">
