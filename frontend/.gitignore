@@ -36,3 +36,5 @@ node_modules/
 # Builds
 dist/
 build/
+# TypeScript incremental build info (generado, no versionar)
+*.tsbuildinfo
