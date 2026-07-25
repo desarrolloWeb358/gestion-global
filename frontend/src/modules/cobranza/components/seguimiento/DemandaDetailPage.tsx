@@ -725,7 +725,8 @@ export default function DemandaDetailPage() {
               )}
             </div>
 
-            {/* ── Etiquetas ── */}
+            {/* ── Etiquetas (uso interno; ocultas para cliente/deudor) ── */}
+            {!isExterno && (
             <div className="space-y-3">
               <Label className="text-brand-secondary font-medium flex items-center gap-2">
                 <Tag className="h-4 w-4" /> Etiquetas
@@ -785,6 +786,7 @@ export default function DemandaDetailPage() {
                 </Button>
               )}
             </div>
+            )}
 
             {puedeEditar && (
               <div className="flex justify-end pt-1">
@@ -868,8 +870,8 @@ export default function DemandaDetailPage() {
           </div>
         </section>
 
-        {/* ── CPNU ── */}
-        {form.numeroRadicado && (
+        {/* ── CPNU (uso interno; oculto para cliente/deudor) ── */}
+        {!isExterno && form.numeroRadicado && (
           <section className="rounded-2xl border border-indigo-200 bg-white shadow-sm overflow-hidden">
             <div className="w-full bg-gradient-to-r from-indigo-50 to-blue-50 px-5 py-4 border-b border-indigo-100 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 flex-1 cursor-pointer select-none min-w-0" onClick={() => setCpnu((s) => ({ ...s, show: !s.show }))}>

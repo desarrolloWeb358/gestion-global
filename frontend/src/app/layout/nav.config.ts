@@ -18,7 +18,6 @@ import {
   IconEye,
   IconLayoutKanban,
   IconGavel,
-  IconTag,
 } from "@tabler/icons-react";
 import { PERMS } from "@/shared/constants/acl";
 
@@ -105,12 +104,6 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/reporte-demandas",
     label: "Demandas",
     icon: IconGavel,
-    roles: ["admin", "supervisor", "ejecutivoAdmin", "dependiente"],
-  },
-  {
-    to: "/etiquetas-demanda",
-    label: "Etiquetas Demanda",
-    icon: IconTag,
     roles: ["admin", "supervisor", "ejecutivoAdmin", "dependiente"],
   },
 

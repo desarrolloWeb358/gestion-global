@@ -25,9 +25,13 @@ import {
   Scale,
   MessageCircle,
   Pencil,
+  ChevronRight,
+  Plus,
 } from "lucide-react";
 
 import { actualizarDeudorDatos, getDeudorById, vincularDeudorConUsuario } from "../../services/deudorService";
+import { getDemandas } from "../../services/demandaService";
+import { Demanda, toDateSafe } from "../../models/demanda.model";
 
 
 import {
@@ -419,6 +423,29 @@ export default function DeudorDetailPage() {
     };
   }, [clienteId, deudorId]);
 
+  // Demandas del deudor (para el listado de la ficha)
+  const [demandas, setDemandas] = React.useState<Demanda[]>([]);
+  const [loadingDemandas, setLoadingDemandas] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!clienteId || !deudorId) return;
+    let canceled = false;
+    setLoadingDemandas(true);
+    getDemandas(clienteId, deudorId)
+      .then((ds) => {
+        if (!canceled) setDemandas(ds);
+      })
+      .catch(() => {
+        if (!canceled) setDemandas([]);
+      })
+      .finally(() => {
+        if (!canceled) setLoadingDemandas(false);
+      });
+    return () => {
+      canceled = true;
+    };
+  }, [clienteId, deudorId]);
+
   // ===========================
   // Estados de carga / error
   // ===========================
@@ -689,60 +716,110 @@ export default function DeudorDetailPage() {
           </div>
         </section>
 
-        {/* DATOS DE DEMANDA */}
+        {/* DEMANDAS DEL DEUDOR */}
         {(deudor.tipificacion === TipificacionDeuda.DEMANDA ||
           deudor.tipificacion === TipificacionDeuda.DEMANDA_ACUERDO ||
           (deudor.tipificacion as string) === "DEMANDA_TERMINADO" ||
           (deudor.tipificacion as string) === "DEMANDA_INSOLVENCIA") && (
           <section className="rounded-2xl border border-red-200 bg-white shadow-sm overflow-hidden">
-            <div className="bg-gradient-to-r from-red-50 to-orange-50 p-4 md:p-5 border-b border-red-100">
+            <div className="bg-gradient-to-r from-red-50 to-orange-50 p-4 md:p-5 border-b border-red-100 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <div className="p-1.5 rounded-lg bg-red-100">
                   <Gavel className="h-4 w-4 text-red-600" />
                 </div>
                 <Typography variant="h3" className="!text-red-700 font-semibold">
-                  Información judicial
+                  Demandas del deudor
                 </Typography>
+                {demandas.length > 0 && (
+                  <span className="inline-flex items-center rounded-full bg-red-100 text-red-700 px-2 py-0.5 text-xs font-semibold">
+                    {demandas.length}
+                  </span>
+                )}
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/deudores/${clienteId}/${deudor.id}/seguimiento?tab=demanda`)}
+                className="gap-1.5 border-red-200 text-red-700 hover:bg-red-50"
+              >
+                <Plus className="h-4 w-4" /> Gestionar
+              </Button>
             </div>
+
             <div className="p-4 md:p-5">
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="flex items-start gap-3 p-4 rounded-lg bg-red-50 border border-red-100">
-                  <div className="p-2 rounded-lg bg-white shadow-sm shrink-0">
-                    <Gavel className="h-4 w-4 text-red-600" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs text-gray-500 mb-1">Juzgado</p>
-                    <p className="text-sm font-semibold text-gray-800 break-words">
-                      {deudor.juzgado || "—"}
-                    </p>
-                  </div>
+              {loadingDemandas ? (
+                <div className="flex items-center justify-center py-6">
+                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-red-200 border-t-red-500" />
                 </div>
-
-                <div className="flex items-start gap-3 p-4 rounded-lg bg-orange-50 border border-orange-100">
-                  <div className="p-2 rounded-lg bg-white shadow-sm shrink-0">
-                    <Hash className="h-4 w-4 text-orange-600" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs text-gray-500 mb-1">Radicado</p>
-                    <p className="text-sm font-semibold text-gray-800 break-words">
-                      {deudor.numeroRadicado || "—"}
-                    </p>
-                  </div>
+              ) : demandas.length === 0 ? (
+                <div className="text-center py-6">
+                  <Typography variant="small" className="text-muted-foreground">
+                    Este deudor aún no tiene demandas registradas.
+                  </Typography>
                 </div>
-
-                <div className="flex items-start gap-3 p-4 rounded-lg bg-amber-50 border border-amber-100">
-                  <div className="p-2 rounded-lg bg-white shadow-sm shrink-0">
-                    <MapPin className="h-4 w-4 text-amber-600" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs text-gray-500 mb-1">Localidad</p>
-                    <p className="text-sm font-semibold text-gray-800 break-words">
-                      {deudor.localidad || "—"}
-                    </p>
-                  </div>
+              ) : (
+                <div className="space-y-2">
+                  {demandas.map((d) => {
+                    const rev = toDateSafe(d.fechaUltimaRevision);
+                    return (
+                      <button
+                        key={d.id}
+                        onClick={() =>
+                          navigate(`/clientes/${clienteId}/deudores/${deudor.id}/demandas/${d.id}`)
+                        }
+                        className="w-full text-left rounded-xl border border-red-100 bg-red-50/40 hover:bg-red-50 hover:border-red-200 transition-colors p-3 flex items-center gap-3"
+                      >
+                        <div className="p-2 rounded-lg bg-white shadow-sm shrink-0">
+                          <Scale className="h-4 w-4 text-red-600" />
+                        </div>
+                        <div className="min-w-0 flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <div className="min-w-0">
+                            <p className="text-[11px] text-gray-500 flex items-center gap-1">
+                              <Hash className="h-3 w-3" /> Radicado
+                            </p>
+                            <p className="text-sm font-semibold text-gray-800 truncate">
+                              {d.numeroRadicado || "—"}
+                            </p>
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[11px] text-gray-500 flex items-center gap-1">
+                              <Gavel className="h-3 w-3" /> Juzgado
+                            </p>
+                            <p className="text-sm text-gray-700 truncate">{d.juzgado || "—"}</p>
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[11px] text-gray-500 flex items-center gap-1">
+                              <MapPin className="h-3 w-3" /> Últ. revisión
+                            </p>
+                            <p className="text-sm text-gray-700 truncate">
+                              {rev ? rev.toLocaleDateString("es-CO") : "—"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span
+                            className={cn(
+                              "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold",
+                              d.estado === "terminada"
+                                ? "bg-gray-100 text-gray-700"
+                                : "bg-green-100 text-green-800"
+                            )}
+                          >
+                            {d.estado === "terminada" ? "Terminada" : "Activa"}
+                          </span>
+                          {!esCliente && !esDeudor && (d.etiquetas ?? []).length > 0 && (
+                            <span className="hidden md:inline-flex items-center gap-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 text-xs">
+                              <Tag className="h-3 w-3" />
+                              {d.etiquetas.length}
+                            </span>
+                          )}
+                          <ChevronRight className="h-4 w-4 text-gray-400" />
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
-              </div>
+              )}
             </div>
           </section>
         )}

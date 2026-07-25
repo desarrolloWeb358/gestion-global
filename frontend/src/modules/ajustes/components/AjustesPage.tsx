@@ -1,8 +1,10 @@
 import { useState } from "react";
-import { Phone } from "lucide-react";
+import { Phone, Tag } from "lucide-react";
 import { Button } from "@/shared/ui/button";
+import { cn } from "@/shared/lib/cn";
 import { obtenerClientes } from "@/modules/clientes/services/clienteService";
 import { obtenerDeudorPorCliente, actualizarDeudorDatos } from "@/modules/cobranza/services/deudorService";
+import EtiquetasDemandaPanel from "./EtiquetasDemandaPanel";
 
 /* ── Utilidades de teléfonos (réplica de DeudoresTable) ─────────────────── */
 
@@ -74,7 +76,10 @@ interface PhoneError {
 
 /* ── Componente ─────────────────────────────────────────────────────────── */
 
+type SeccionAjustes = "telefonos" | "etiquetas";
+
 export default function AjustesPage() {
+  const [seccion, setSeccion] = useState<SeccionAjustes>("telefonos");
   const [analizando, setAnalizando] = useState(false);
   const [ajustando, setAjustando] = useState(false);
   const [progreso, setProgreso] = useState("");
@@ -188,15 +193,36 @@ export default function AjustesPage() {
           Ajustes
         </p>
         <button
-          className="w-full text-left flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium bg-brand-primary/10 text-brand-primary"
+          onClick={() => setSeccion("telefonos")}
+          className={cn(
+            "w-full text-left flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium",
+            seccion === "telefonos"
+              ? "bg-brand-primary/10 text-brand-primary"
+              : "text-muted-foreground hover:bg-muted/50"
+          )}
         >
           <Phone className="h-4 w-4 flex-shrink-0" />
           Teléfonos de deudores
+        </button>
+        <button
+          onClick={() => setSeccion("etiquetas")}
+          className={cn(
+            "w-full text-left flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium",
+            seccion === "etiquetas"
+              ? "bg-brand-primary/10 text-brand-primary"
+              : "text-muted-foreground hover:bg-muted/50"
+          )}
+        >
+          <Tag className="h-4 w-4 flex-shrink-0" />
+          Etiquetas de demanda
         </button>
       </aside>
 
       {/* Contenido */}
       <main className="flex-1 p-6 overflow-auto">
+        {seccion === "etiquetas" ? (
+          <EtiquetasDemandaPanel />
+        ) : (
         <div className="max-w-5xl space-y-6">
           <div>
             <h1 className="text-2xl font-bold text-brand-primary">Ajustar números de teléfono</h1>
@@ -297,6 +323,7 @@ export default function AjustesPage() {
             </div>
           )}
         </div>
+        )}
       </main>
     </div>
   );
