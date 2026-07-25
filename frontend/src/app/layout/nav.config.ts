@@ -103,7 +103,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     to: "/reporte-demandas",
-    label: "Reporte Demandas",
+    label: "Demandas",
     icon: IconGavel,
     roles: ["admin", "supervisor", "ejecutivoAdmin", "dependiente"],
   },

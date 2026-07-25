@@ -183,6 +183,8 @@ export async function obtenerDemandasConSeguimientoCliente(
     })
   );
 
+  // Se recorren TODAS las demandas de cada deudor, pero cada una se muestra solo
+  // si tiene al menos un seguimiento visible en el mes consultado (restricción del corte).
   const items = itemsPorDeudor
     .flat()
     .filter((it) => it.seguimientos.length > 0);

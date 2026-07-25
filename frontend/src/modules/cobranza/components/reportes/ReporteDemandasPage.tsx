@@ -6,7 +6,7 @@ import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import {
   Gavel,
-  RefreshCw,
+  Search,
   Download,
   Filter as FilterIcon,
   Tag,
@@ -36,9 +36,12 @@ import { cn } from "@/shared/lib/cn";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import type { Rol } from "@/shared/constants/acl";
 import {
-  obtenerReporteDemandas,
+  buscarDemandas,
+  cargarOpcionesFiltroDemandas,
   type DemandaReporteRow,
+  type DemandaReporteFiltros,
 } from "../../services/reportes/demandaReporteGlobalService";
+import { getEtiquetasDemanda } from "../../services/etiquetaDemandaService";
 
 const fmt = new Intl.DateTimeFormat("es-CO", {
   year: "numeric",
@@ -55,16 +58,24 @@ export default function ReporteDemandasPage() {
   const roles = Array.isArray(acl.roles) ? acl.roles : [];
   const uid = getAuth().currentUser?.uid ?? null;
 
-  // Los roles de gestión global ven todo; el dependiente queda auto-restringido a lo suyo.
   const esGlobal =
     roles.includes("admin") ||
     roles.includes("supervisor") ||
     roles.includes("ejecutivoAdmin");
   const soloDependiente = !esGlobal && roles.includes("dependiente");
 
-  const [allRows, setAllRows] = React.useState<DemandaReporteRow[]>([]);
-  const [loading, setLoading] = React.useState(true);
+  // Opciones de filtro (cargadas al entrar, SIN leer demandas)
+  const [clientesOpts, setClientesOpts] = React.useState<{ id: string; nombre: string }[]>([]);
+  const [dependientesOpts, setDependientesOpts] = React.useState<{ id: string; nombre: string }[]>([]);
+  const [etiquetasOpts, setEtiquetasOpts] = React.useState<string[]>([]);
+  const [cargandoOpciones, setCargandoOpciones] = React.useState(true);
 
+  // Resultados (solo tras presionar Buscar)
+  const [rows, setRows] = React.useState<DemandaReporteRow[]>([]);
+  const [buscando, setBuscando] = React.useState(false);
+  const [buscado, setBuscado] = React.useState(false);
+
+  // Estado de filtros
   const [fCliente, setFCliente] = React.useState<string>("todos");
   const [fDependiente, setFDependiente] = React.useState<string>("todos");
   const [fEstado, setFEstado] = React.useState<string>("todos");
@@ -74,79 +85,70 @@ export default function ReporteDemandasPage() {
   const [desde, setDesde] = React.useState("");
   const [hasta, setHasta] = React.useState("");
 
-  const load = async () => {
-    try {
-      setLoading(true);
-      const rows = await obtenerReporteDemandas();
-      const scoped =
-        soloDependiente && uid
-          ? rows.filter((r) => r.ejecutivoDependienteId === uid)
-          : rows;
-      setAllRows(scoped);
-    } catch {
-      toast.error("⚠️ No se pudo cargar el reporte de demandas");
-      setAllRows([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   React.useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    (async () => {
+      try {
+        setCargandoOpciones(true);
+        const [op, etis] = await Promise.all([
+          cargarOpcionesFiltroDemandas(),
+          getEtiquetasDemanda(true),
+        ]);
+        setClientesOpts(op.clientes);
+        setDependientesOpts(op.dependientes);
+        setEtiquetasOpts(etis.map((e) => e.nombre).filter(Boolean));
+      } catch {
+        toast.error("⚠️ No se pudieron cargar los filtros");
+      } finally {
+        setCargandoOpciones(false);
+      }
+    })();
   }, []);
 
-  // Opciones de filtro derivadas de los datos cargados
-  const clientesOpts = React.useMemo(() => {
-    const m = new Map<string, string>();
-    allRows.forEach((r) => m.set(r.clienteId, r.clienteNombre));
-    return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1], "es"));
-  }, [allRows]);
+  // El dependiente siempre queda acotado a lo suyo (su uid).
+  const dependienteEfectivo = soloDependiente ? uid ?? undefined : undefined;
 
-  const dependientesOpts = React.useMemo(() => {
-    const m = new Map<string, string>();
-    allRows.forEach((r) => {
-      if (r.ejecutivoDependienteId)
-        m.set(r.ejecutivoDependienteId, r.ejecutivoDependienteNombre);
-    });
-    return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1], "es"));
-  }, [allRows]);
+  // ¿Hay al menos un filtro que permita buscar?
+  const hayFiltro =
+    fCliente !== "todos" ||
+    fDependiente !== "todos" ||
+    fEstado !== "todos" ||
+    fEtiqueta !== "todas" ||
+    fSinCoteje ||
+    !!desde ||
+    !!hasta ||
+    soloDependiente;
 
-  const etiquetasOpts = React.useMemo(() => {
-    const s = new Set<string>();
-    allRows.forEach((r) => r.etiquetas.forEach((e) => e.nombre && s.add(e.nombre)));
-    return [...s].sort((a, b) => a.localeCompare(b, "es"));
-  }, [allRows]);
+  // Acotable al servidor por cliente/dependiente (búsqueda liviana).
+  const busquedaAcotada =
+    fCliente !== "todos" || fDependiente !== "todos" || !!dependienteEfectivo;
 
-  const filtradas = React.useMemo(() => {
-    const dDesde = desde ? new Date(`${desde}T00:00:00`).getTime() : undefined;
-    const dHasta = hasta ? new Date(`${hasta}T23:59:59`).getTime() : undefined;
-
-    return allRows
-      .filter((r) => (fCliente !== "todos" ? r.clienteId === fCliente : true))
-      .filter((r) =>
-        fDependiente !== "todos" ? r.ejecutivoDependienteId === fDependiente : true
-      )
-      .filter((r) => (fEstado !== "todos" ? r.estado === fEstado : true))
-      .filter((r) =>
-        fEtiqueta !== "todas" ? r.etiquetas.some((e) => e.nombre === fEtiqueta) : true
-      )
-      .filter((r) => (fSinCoteje ? r.notificacionesSinCoteje > 0 : true))
-      .filter((r) => {
-        if (dDesde === undefined && dHasta === undefined) return true;
-        const d = r[campoFecha];
-        if (!d) return false;
-        const ms = d.getTime();
-        if (dDesde !== undefined && ms < dDesde) return false;
-        if (dHasta !== undefined && ms > dHasta) return false;
-        return true;
-      })
-      .sort((a, b) => {
-        const av = a.proximaAccionFecha?.getTime() ?? Infinity;
-        const bv = b.proximaAccionFecha?.getTime() ?? Infinity;
-        return av - bv;
-      });
-  }, [allRows, fCliente, fDependiente, fEstado, fEtiqueta, fSinCoteje, campoFecha, desde, hasta]);
+  const buscar = async () => {
+    if (!hayFiltro) {
+      toast.error("Selecciona al menos un filtro antes de buscar.");
+      return;
+    }
+    const filtros: DemandaReporteFiltros = {
+      clienteId: fCliente !== "todos" ? fCliente : undefined,
+      ejecutivoDependienteId:
+        dependienteEfectivo ?? (fDependiente !== "todos" ? fDependiente : undefined),
+      estado: fEstado !== "todos" ? (fEstado as DemandaReporteRow["estado"]) : undefined,
+      etiquetaNombre: fEtiqueta !== "todas" ? fEtiqueta : undefined,
+      soloSinCoteje: fSinCoteje,
+      campoFecha,
+      desde: desde ? new Date(`${desde}T00:00:00`) : undefined,
+      hasta: hasta ? new Date(`${hasta}T23:59:59`) : undefined,
+    };
+    try {
+      setBuscando(true);
+      const res = await buscarDemandas(filtros);
+      setRows(res);
+      setBuscado(true);
+    } catch {
+      toast.error("⚠️ No se pudo cargar el reporte de demandas");
+    } finally {
+      setBuscando(false);
+    }
+  };
 
   const resetFiltros = () => {
     setFCliente("todos");
@@ -157,14 +159,16 @@ export default function ReporteDemandasPage() {
     setCampoFecha("proximaAccionFecha");
     setDesde("");
     setHasta("");
+    setRows([]);
+    setBuscado(false);
   };
 
   const exportar = () => {
-    if (filtradas.length === 0) {
+    if (rows.length === 0) {
       toast.error("No hay filas para exportar.");
       return;
     }
-    const data = filtradas.map((r) => ({
+    const data = rows.map((r) => ({
       Cliente: r.clienteNombre,
       Deudor: r.deudorNombre,
       Ubicación: r.ubicacion,
@@ -203,19 +207,18 @@ export default function ReporteDemandasPage() {
                 Reporte de demandas
               </Typography>
               <Typography variant="small">
-                {loading ? "Cargando..." : `${filtradas.length} de ${allRows.length} demandas`}
+                {buscado
+                  ? `${rows.length} demanda(s)`
+                  : "Selecciona filtros y presiona Buscar"}
                 {soloDependiente && " · tus conjuntos asignados"}
               </Typography>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={load} disabled={loading} className="gap-2 border-brand-secondary/30">
-              <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} /> Actualizar
-            </Button>
+          {buscado && rows.length > 0 && (
             <Button variant="brand" onClick={exportar} className="gap-2">
               <Download className="h-4 w-4" /> Exportar Excel
             </Button>
-          </div>
+          )}
         </header>
 
         {/* Filtros */}
@@ -231,12 +234,12 @@ export default function ReporteDemandasPage() {
             {!soloDependiente && (
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Dependiente</Label>
-                <Select value={fDependiente} onValueChange={setFDependiente}>
+                <Select value={fDependiente} onValueChange={setFDependiente} disabled={cargandoOpciones}>
                   <SelectTrigger className="border-brand-secondary/30"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todos">Todos</SelectItem>
-                    {dependientesOpts.map(([id, nombre]) => (
-                      <SelectItem key={id} value={id}>{nombre}</SelectItem>
+                    {dependientesOpts.map((d) => (
+                      <SelectItem key={d.id} value={d.id}>{d.nombre}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -244,12 +247,12 @@ export default function ReporteDemandasPage() {
             )}
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Cliente / conjunto</Label>
-              <Select value={fCliente} onValueChange={setFCliente}>
+              <Select value={fCliente} onValueChange={setFCliente} disabled={cargandoOpciones}>
                 <SelectTrigger className="border-brand-secondary/30"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todos">Todos</SelectItem>
-                  {clientesOpts.map(([id, nombre]) => (
-                    <SelectItem key={id} value={id}>{nombre}</SelectItem>
+                  {clientesOpts.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -267,7 +270,7 @@ export default function ReporteDemandasPage() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Etiqueta</Label>
-              <Select value={fEtiqueta} onValueChange={setFEtiqueta}>
+              <Select value={fEtiqueta} onValueChange={setFEtiqueta} disabled={cargandoOpciones}>
                 <SelectTrigger className="border-brand-secondary/30"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todas">Todas</SelectItem>
@@ -303,14 +306,37 @@ export default function ReporteDemandasPage() {
               Solo con notificaciones sin coteje
             </label>
           </div>
+          <div className="px-4 md:px-5 pb-4 md:pb-5 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
+              {busquedaAcotada
+                ? "Búsqueda acotada por cliente/dependiente (rápida)."
+                : "Sugerencia: filtra por cliente o dependiente para una consulta más rápida."}
+            </p>
+            <Button
+              variant="brand"
+              onClick={buscar}
+              disabled={buscando || cargandoOpciones || !hayFiltro}
+              className="gap-2"
+            >
+              <Search className={cn("h-4 w-4", buscando && "animate-pulse")} />
+              {buscando ? "Buscando..." : "Buscar"}
+            </Button>
+          </div>
         </section>
 
-        {/* Tabla */}
-        {loading ? (
+        {/* Resultados */}
+        {!buscado ? (
+          <div className="rounded-2xl border border-dashed border-brand-secondary/30 bg-white p-12 text-center text-muted-foreground">
+            <Search className="h-10 w-10 mx-auto mb-3 opacity-30" />
+            <p className="text-sm">
+              Selecciona uno o más filtros y presiona <strong>Buscar</strong> para ver las demandas.
+            </p>
+          </div>
+        ) : buscando ? (
           <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm">
             <div className="h-12 w-12 mx-auto animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary" />
           </div>
-        ) : filtradas.length === 0 ? (
+        ) : rows.length === 0 ? (
           <div className="rounded-2xl border border-brand-secondary/20 bg-white p-12 text-center shadow-sm text-muted-foreground">
             No hay demandas que cumplan los filtros.
           </div>
@@ -333,7 +359,7 @@ export default function ReporteDemandasPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtradas.map((r, index) => (
+                  {rows.map((r, index) => (
                     <TableRow key={`${r.clienteId}-${r.deudorId}-${r.demandaId}`} className={cn("border-brand-secondary/5", index % 2 === 0 ? "bg-white" : "bg-brand-primary/[0.02]", "hover:bg-brand-primary/5")}>
                       <TableCell className="text-gray-700">{r.clienteNombre}</TableCell>
                       <TableCell className="font-medium text-gray-800">{r.deudorNombre || "—"}</TableCell>
