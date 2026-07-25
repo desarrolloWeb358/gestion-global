@@ -6,12 +6,14 @@ import {
   doc,
   getDoc,          // ⬅️ añadido
   getDocs,
+  onSnapshot,
   setDoc,
   updateDoc,
   deleteDoc,
   serverTimestamp,
   query,           // ⬅️ opcional (para búsqueda por documento)
   where,           // ⬅️ opcional (para búsqueda por documento)
+  type Unsubscribe,
 } from "firebase/firestore";
 import { UsuarioSistema } from "../models/usuarioSistema.model";
 import { Cliente } from "@/modules/clientes/models/cliente.model";
@@ -55,6 +57,43 @@ export const obtenerUsuariosPorRol = async (rol: string): Promise<UsuarioSistema
 export const obtenerEjecutivos = () => obtenerUsuariosPorRol("ejecutivo");
 export const obtenerAbogados = () => obtenerUsuariosPorRol("abogado");
 export const obtenerDependientes = () => obtenerUsuariosPorRol("dependiente");
+
+const ROLES_ASIGNABLES_TAREAS = new Set([
+  "admin",
+  "ejecutivoAdmin",
+  "ejecutivo",
+  "abogado",
+  "dependiente",
+]);
+
+export const obtenerUsuariosAsignablesTareas = async (): Promise<UsuarioSistema[]> => {
+  const usuarios = await obtenerUsuarios();
+  return usuarios
+    .filter((usuario) =>
+      usuario.activo !== false &&
+      usuario.roles?.some((rol) => ROLES_ASIGNABLES_TAREAS.has(rol))
+    )
+    .sort((a, b) => (a.nombre || a.email).localeCompare(b.nombre || b.email, "es"));
+};
+
+export const suscribirUsuariosAsignablesTareas = (
+  callback: (usuarios: UsuarioSistema[]) => void,
+  onError?: (error: unknown) => void
+): Unsubscribe =>
+  onSnapshot(
+    collection(db, "usuarios"),
+    (snapshot) => {
+      const usuarios = snapshot.docs
+        .map(mapDocToUsuario)
+        .filter((usuario) =>
+          usuario.activo !== false &&
+          usuario.roles?.some((rol) => ROLES_ASIGNABLES_TAREAS.has(rol))
+        )
+        .sort((a, b) => (a.nombre || a.email).localeCompare(b.nombre || b.email, "es"));
+      callback(usuarios);
+    },
+    onError
+  );
 
 
 

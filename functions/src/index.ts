@@ -183,12 +183,19 @@ export const crearUsuarioDesdeAdmin = onRequest(
           res.status(400).json({ error: "Faltan uid o activo" });
           return;
         }
-        await admin.auth().updateUser(uid, { disabled: !activo });
+        let authUserMissing = false;
+        try {
+          await admin.auth().updateUser(uid, { disabled: !activo });
+        } catch (error: any) {
+          if (error?.code !== "auth/user-not-found") throw error;
+          // El documento puede seguir en Firestore aunque la cuenta de Auth ya no exista.
+          authUserMissing = true;
+        }
         await admin.firestore().doc(`usuarios/${uid}`).set(
           { activo, updatedAt: admin.firestore.FieldValue.serverTimestamp() },
           { merge: true }
         );
-        res.status(200).json({ ok: true, uid, activo });
+        res.status(200).json({ ok: true, uid, activo, authUserMissing });
         return;
       }
 

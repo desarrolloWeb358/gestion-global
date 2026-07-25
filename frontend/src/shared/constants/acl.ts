@@ -95,8 +95,9 @@ export const PERMS = {
   // Seguimiento — edición de fecha (solo ejecutivoAdmin y admin)
   Seguimientos_Fecha_Edit: "seguimientos.fecha.edit",
 
-  // Tareas (asignación admin/ejecutivoAdmin → ejecutivo)
+  // Tareas
   Tareas_Read: "tareas.read",
+  Tareas_Assign: "tareas.assign",
   Tareas_Manage: "tareas.manage",
   Tareas_Estado_Edit: "tareas.estado.edit",
 } as const;
@@ -130,6 +131,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Whatsapp_Read,
     PERMS.Whatsapp_Write,
     PERMS.Tareas_Read,
+    PERMS.Tareas_Assign,
     PERMS.Tareas_Manage,
   ],
 
@@ -156,6 +158,8 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.RegistrosEliminados_Read,
     PERMS.Whatsapp_Read,
     PERMS.Whatsapp_Write,
+    PERMS.Tareas_Read,
+    PERMS.Tareas_Estado_Edit,
   ],
 
   ejecutivoAdmin: [    
@@ -181,6 +185,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Whatsapp_Read,
     PERMS.Whatsapp_Write,
     PERMS.Tareas_Read,
+    PERMS.Tareas_Assign,
     PERMS.Tareas_Manage,
   ],
 
@@ -203,6 +208,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Whatsapp_Read,
     PERMS.Whatsapp_Write,
     PERMS.Tareas_Read,
+    PERMS.Tareas_Assign,
     PERMS.Tareas_Estado_Edit,
   ],
 
@@ -219,6 +225,9 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Recaudos_Read,
     PERMS.Contratos_Read,
     PERMS.ReporteCliente_Download_Word,
+    PERMS.Tareas_Read,
+    PERMS.Tareas_Assign,
+    PERMS.Tareas_Estado_Edit,
   ],
 
   cliente: [
@@ -247,6 +256,9 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Contratos_Read,
     PERMS.Valores_agregados_Edit,
     PERMS.ReporteCliente_Download_Word,
+    PERMS.Tareas_Read,
+    PERMS.Tareas_Assign,
+    PERMS.Tareas_Estado_Edit,
   ],
 
   // Supervisión de franquicia: SOLO lectura + reportes, limitado a franquiciasAsignadas.
@@ -261,6 +273,8 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Valores_agregados_Read,
     PERMS.Contratos_Read,
     PERMS.ReporteCliente_Download_Word,
+    PERMS.Tareas_Read,
+    PERMS.Tareas_Estado_Edit,
   ],
 
   deudor: [

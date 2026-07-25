@@ -754,7 +754,13 @@ export default function UsuariosCrud() {
                                   );
                                   if (!res.ok) {
                                     const d = await res.json();
-                                    throw new Error(d.error ?? `Error ${res.status}`);
+                                    const mensaje = String(d.error ?? "");
+                                    const usuarioAuthNoExiste =
+                                      mensaje.includes("auth/user-not-found") ||
+                                      mensaje.includes("no user record");
+                                    if (!usuarioAuthNoExiste) {
+                                      throw new Error(mensaje || `Error ${res.status}`);
+                                    }
                                   }
                                   await toggleActivoUsuario(
                                     usuario.uid,

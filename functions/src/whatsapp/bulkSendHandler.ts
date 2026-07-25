@@ -16,6 +16,7 @@ const TIPS_JURIDICO = new Set([
 interface BulkItem {
   deudorId: string;
   deudorNombre: string;
+  deudorUbicacion?: string;
   tipificacion?: string;
   phone: string;
   parameters: Array<{ parameterName: string; value: string }>;
@@ -24,6 +25,7 @@ interface BulkItem {
 
 interface BulkResult {
   nombre: string;
+  ubicacion?: string;
   phone: string;
   status: "ok" | "error" | "no_phone";
   error?: string;
@@ -117,7 +119,7 @@ export const processBulkSendJob = onDocumentCreated(
       clienteId: string;
       agentId: string;
       items: BulkItem[];
-      noPhone: Array<{ nombre: string }>;
+      noPhone: Array<{ nombre: string; ubicacion?: string }>;
     };
 
     // Evitar reprocesar si ya fue tomado (retry de Cloud Functions)
@@ -162,6 +164,7 @@ export const processBulkSendJob = onDocumentCreated(
     // Arrancar con los deudores sin teléfono ya marcados
     const allResults: BulkResult[] = (job.noPhone ?? []).map((n) => ({
       nombre: n.nombre,
+      ubicacion: n.ubicacion,
       phone: "",
       status: "no_phone",
     }));
@@ -230,10 +233,16 @@ export const processBulkSendJob = onDocumentCreated(
               await deudorRef.update({ fechaUltimoSeguimiento: ahora });
             }
 
-            allResults.push({ nombre: item.deudorNombre, phone: item.phone, status: "ok" });
+            allResults.push({
+              nombre: item.deudorNombre,
+              ubicacion: item.deudorUbicacion,
+              phone: item.phone,
+              status: "ok",
+            });
           } catch (err) {
             allResults.push({
               nombre: item.deudorNombre,
+              ubicacion: item.deudorUbicacion,
               phone: item.phone,
               status: "error",
               error: err instanceof Error ? err.message : "Error desconocido",

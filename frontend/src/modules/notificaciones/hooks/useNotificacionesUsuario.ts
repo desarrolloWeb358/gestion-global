@@ -2,6 +2,8 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   collection,
+  doc,
+  getDoc,
   onSnapshot,
   orderBy,
   query,
@@ -9,8 +11,40 @@ import {
 } from "firebase/firestore";
 import { db } from "@/firebase";
 import type { NotificacionAlerta } from "@/modules/notificaciones/models/notificacion.model";
+import type { Rol } from "@/shared/constants/acl";
 
-export function useNotificacionesUsuario(usuarioId?: string) {
+async function filtrarValoresAgregadosTerminados(
+  notificaciones: NotificacionAlerta[],
+  roles: Rol[]
+): Promise<NotificacionAlerta[]> {
+  if (!roles.includes("admin")) return notificaciones;
+
+  const resultados = await Promise.all(
+    notificaciones.map(async (notificacion) => {
+      const esValorAgregado = notificacion.modulo?.toLowerCase().includes("valor agregado");
+      const match = notificacion.ruta?.match(
+        /^\/clientes\/([^/]+)\/valores-agregados\/([^/]+)$/
+      );
+      if (!esValorAgregado || !match) return notificacion;
+
+      try {
+        const valorSnap = await getDoc(
+          doc(db, `clientes/${match[1]}/valoresAgregados/${match[2]}`)
+        );
+        return valorSnap.exists() && valorSnap.data().completado === true
+          ? null
+          : notificacion;
+      } catch (error) {
+        console.error("[NOTIFS] Error consultando valor agregado:", error);
+        return notificacion;
+      }
+    })
+  );
+
+  return resultados.filter((n): n is NotificacionAlerta => n !== null);
+}
+
+export function useNotificacionesUsuario(usuarioId?: string, roles: Rol[] = []) {
   const [todas, setTodas] = useState<NotificacionAlerta[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,14 +73,14 @@ export function useNotificacionesUsuario(usuarioId?: string) {
 
     unsubDisplay = onSnapshot(
       qTodas,
-      (snap) => {
+      async (snap) => {
         const arr: NotificacionAlerta[] = snap.docs
           .map((d) => ({
             id: d.id,
             ...(d.data() as Omit<NotificacionAlerta, "id">),
           }))
           .filter((n) => n.resuelta !== true);
-        setTodas(arr);
+        setTodas(await filtrarValoresAgregadosTerminados(arr, roles));
         setLoading(false);
       },
       (err) => {
@@ -60,14 +94,14 @@ export function useNotificacionesUsuario(usuarioId?: string) {
           unsubDisplay?.();
           unsubDisplay = onSnapshot(
             qFallback,
-            (snap2) => {
+            async (snap2) => {
               const arr2: NotificacionAlerta[] = snap2.docs
                 .map((d) => ({
                   id: d.id,
                   ...(d.data() as Omit<NotificacionAlerta, "id">),
                 }))
                 .filter((n) => n.resuelta !== true);
-              setTodas(arr2);
+              setTodas(await filtrarValoresAgregadosTerminados(arr2, roles));
               setLoading(false);
             },
             (err2) => {
@@ -84,7 +118,7 @@ export function useNotificacionesUsuario(usuarioId?: string) {
     return () => {
       if (unsubDisplay) unsubDisplay();
     };
-  }, [usuarioId]);
+  }, [usuarioId, roles]);
 
   const noVistas = useMemo(() => todas.filter((n) => !n.visto), [todas]);
 

@@ -22,6 +22,7 @@ import { cn } from "@/shared/lib/cn";
 import { useNotificacionesUsuario } from "@/modules/notificaciones/hooks/useNotificacionesUsuario";
 import type { NotificacionAlerta } from "../models/notificacion.model";
 import { marcarNotificacionComoVista, marcarNotificacionComoNoVista } from "../services/notificacionService";
+import { useAcl } from "@/modules/auth/hooks/useAcl";
 
 const fmt = new Intl.DateTimeFormat("es-CO", {
   year: "numeric",
@@ -37,6 +38,7 @@ export default function NotificacionesPage() {
   const [authLoading, setAuthLoading] = React.useState(true);
   const [busqueda, setBusqueda] = React.useState("");
   const navigate = useNavigate();
+  const { roles } = useAcl();
 
   React.useEffect(() => {
     const unsub = onAuthStateChanged(auth, (firebaseUser) => {
@@ -54,7 +56,7 @@ export default function NotificacionesPage() {
   // ✅ IMPORTANTÍSIMO: solo pasar uid cuando exista
   const uid = user?.uid;
 
-  const { todas, totalNoVistas, loading, error } = useNotificacionesUsuario(uid);
+  const { todas, totalNoVistas, loading, error } = useNotificacionesUsuario(uid, roles);
 
   const notificacionesFiltradas = React.useMemo(() => {
     const texto = busqueda.trim().toLowerCase();

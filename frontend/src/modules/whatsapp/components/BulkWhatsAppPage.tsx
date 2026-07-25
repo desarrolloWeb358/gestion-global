@@ -40,6 +40,7 @@ interface VarSource {
 
 interface SendResult {
   nombre: string;
+  ubicacion?: string;
   phone: string;
   status: "ok" | "error" | "no_phone";
   error?: string;
@@ -295,17 +296,18 @@ export default function BulkWhatsAppPage() {
     const items: Array<{
       deudorId: string;
       deudorNombre: string;
+      deudorUbicacion: string;
       tipificacion: string;
       phone: string;
       parameters: Array<{ parameterName: string; value: string }>;
       messageText: string;
     }> = [];
-    const noPhone: Array<{ nombre: string }> = [];
+    const noPhone: Array<{ nombre: string; ubicacion: string }> = [];
 
     for (const deudor of filteredDeudores) {
       const phones = (deudor.telefonos ?? []).filter(Boolean);
       if (phones.length === 0) {
-        noPhone.push({ nombre: deudor.nombre });
+        noPhone.push({ nombre: deudor.nombre, ubicacion: deudor.ubicacion ?? "" });
       } else {
         for (const raw of phones) {
           const phone = normalizePhone(raw);
@@ -330,6 +332,7 @@ export default function BulkWhatsAppPage() {
           items.push({
             deudorId: deudor.id!,
             deudorNombre: deudor.nombre,
+            deudorUbicacion: deudor.ubicacion ?? "",
             tipificacion: deudor.tipificacion ?? "",
             phone,
             parameters,
@@ -349,14 +352,14 @@ export default function BulkWhatsAppPage() {
       items,
       noPhone,
       progress: { current: 0, total: items.length },
-      results: noPhone.map((n) => ({ nombre: n.nombre, phone: "", status: "no_phone" })),
+      results: noPhone.map((n) => ({ nombre: n.nombre, ubicacion: n.ubicacion, phone: "", status: "no_phone" })),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
 
     setJobId(jobRef.id);
     setProgress({ current: 0, total: items.length });
-    setResults(noPhone.map((n) => ({ nombre: n.nombre, phone: "", status: "no_phone" as const })));
+    setResults(noPhone.map((n) => ({ nombre: n.nombre, ubicacion: n.ubicacion, phone: "", status: "no_phone" as const })));
     setStep("sending");
   };
 
@@ -466,7 +469,12 @@ export default function BulkWhatsAppPage() {
                         : <XCircle className="h-4 w-4 text-red-400 flex-shrink-0 mt-0.5" />
                       }
                       <div>
-                        <p className="text-sm font-medium text-gray-700">{r.nombre}</p>
+                        <p className="text-sm font-medium text-gray-700">
+                          {r.nombre}
+                          {r.ubicacion && (
+                            <span className="text-gray-400 font-normal"> · {r.ubicacion}</span>
+                          )}
+                        </p>
                         <p className="text-xs text-gray-400">
                           {r.status === "no_phone"
                             ? "Sin número de teléfono asignado"
