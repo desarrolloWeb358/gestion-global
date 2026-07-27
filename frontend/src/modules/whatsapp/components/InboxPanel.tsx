@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { IconMessage, IconTemplate, IconEdit, IconSearch, IconX, IconChevronLeft } from "@tabler/icons-react";
-import { useInboxConversations } from "../hooks/useInboxConversations";
+import { useInboxConversations, type InboxScope } from "../hooks/useInboxConversations";
+import { useMiCartera } from "../hooks/useMiCartera";
 import { useConversationSearch, type SearchMode } from "../hooks/useConversationSearch";
 import { isMetaWindowOpen } from "../services/conversationsService";
 import { NewMessageDialog } from "./NewMessageDialog";
@@ -31,14 +32,66 @@ function formatTime(ts: { toDate?: () => Date } | undefined): string {
   return d.toLocaleDateString("es-CO", { day: "2-digit", month: "short" });
 }
 
+const SCOPES: { key: InboxScope; label: string; title: string }[] = [
+  { key: "mine",       label: "Mías",        title: "Conversaciones de mis conjuntos" },
+  { key: "all",        label: "Todas",       title: "Todas las conversaciones del número" },
+  { key: "unassigned", label: "Sin asignar", title: "Conversaciones sin conjunto vinculado" },
+];
+
+// Posición del scroll de la lista, guardada FUERA de React a propósito: abrir
+// una conversación cambia la ruta y el panel se vuelve a montar, con lo que el
+// scrollTop del contenedor se pierde. Un useRef se perdería con él.
+const scrollMemory = new Map<string, number>();
+
 export function InboxPanel({ numberId, activeConvId }: Props) {
   const { usuario, roles, loading: rolesLoading } = useUsuarioActual();
   const uid = rolesLoading ? "" : (usuario?.uid ?? "");
-  const { conversations, loading } = useInboxConversations(numberId, uid, roles);
   const navigate = useNavigate();
   const [newMsgOpen, setNewMsgOpen] = useState(false);
 
   const isEjecutivoAdmin = roles.includes("ejecutivoAdmin");
+  const isFullAccess =
+    roles.includes("admin") || roles.includes("supervisor") || isEjecutivoAdmin;
+
+  // ── Alcance de la bandeja ─────────────────────────────────────────────
+  // Solo elige quien tiene acceso total Y cartera propia. Un ejecutivo puro
+  // ve lo suyo; un admin sin conjuntos a cargo ve todo, como hasta ahora.
+  const { tieneCartera, loading: carteraLoading } = useMiCartera(uid);
+  const puedeElegirScope = isFullAccess && tieneCartera;
+
+  // Siempre arranca en "Mías". No se recuerda entre visitas a propósito: lo
+  // normal al entrar es atender lo propio, y encontrarse la bandeja completa
+  // sin haberla pedido desorienta.
+  const [scopePref, setScopePref] = useState<InboxScope>("mine");
+
+  const handleScopeChange = (s: InboxScope) => {
+    setScopePref(s);
+    // El alcance gobierna la bandeja, no los resultados de una búsqueda: si
+    // había una activa se cierra, que es lo que el usuario está pidiendo al
+    // tocar el chip.
+    resetSearch("phone");
+  };
+
+  const scope: InboxScope | null = carteraLoading
+    ? null
+    : puedeElegirScope
+    ? scopePref
+    : isFullAccess
+    ? "all"
+    : "mine";
+
+  const { conversations, loading } = useInboxConversations(numberId, uid, scope);
+
+  const activeRowRef = useRef<HTMLButtonElement | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
+
+  // ── Filtro "solo sin leer" (aplica a la bandeja, no a las búsquedas) ──
+  const [onlyUnread, setOnlyUnread] = useState(false);
+  const unreadTotal = conversations.filter((c) => (c.unreadCount ?? 0) > 0).length;
+
+  useEffect(() => {
+    if (unreadTotal === 0) setOnlyUnread(false);
+  }, [unreadTotal]);
 
   const MODES: { key: SearchMode; label: string }[] = [
     { key: "phone",   label: "Número"   },
@@ -105,8 +158,8 @@ export function InboxPanel({ numberId, activeConvId }: Props) {
     return () => { cancelled = true; };
   }, [selectedEjecutivo, numberId, mode]);
 
-  // Al cambiar de modo limpiar estado
-  const handleModeChange = (m: SearchMode) => {
+  // Deja la búsqueda en blanco y vuelve a mostrar la bandeja
+  function resetSearch(m: SearchMode) {
     setMode(m);
     setSearchInput("");
     setDebouncedTerm("");
@@ -114,7 +167,9 @@ export function InboxPanel({ numberId, activeConvId }: Props) {
     setSelectedCliente(null);
     setEjecutivoSearch("");
     setSelectedEjecutivo(null);
-  };
+  }
+
+  const handleModeChange = (m: SearchMode) => resetSearch(m);
 
   const { results: searchResults, loading: searchLoading } = useConversationSearch(
     numberId,
@@ -137,6 +192,8 @@ export function InboxPanel({ numberId, activeConvId }: Props) {
       ? ejecutivoFilteredConvs
       : isSearchActive
       ? searchResults
+      : onlyUnread
+      ? conversations.filter((c) => (c.unreadCount ?? 0) > 0)
       : conversations;
 
   const isLoading =
@@ -145,6 +202,33 @@ export function InboxPanel({ numberId, activeConvId }: Props) {
       : isSearchActive
       ? searchLoading
       : loading;
+
+  // ── Conservación del scroll de la lista ───────────────────────────────
+  // Una entrada por cada lista distinta: cambiar de alcance o de modo de
+  // búsqueda muestra otro contenido y merece su propia posición.
+  const scrollKey = `${numberId}|${scope ?? ""}|${mode}|${onlyUnread ? "unread" : "all"}`;
+
+  const saveScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    scrollMemory.set(scrollKey, e.currentTarget.scrollTop);
+  };
+
+  // Antes de pintar, para que no se vea el salto. Depende del número de filas
+  // porque en el primer render la lista aún está vacía y no hay a dónde bajar.
+  useLayoutEffect(() => {
+    const el = listRef.current;
+    if (!el || displayConversations.length === 0) return;
+
+    const guardado = scrollMemory.get(scrollKey);
+    if (guardado != null && el.scrollTop !== guardado) el.scrollTop = guardado;
+  }, [scrollKey, displayConversations.length]);
+
+  // Red de seguridad para cuando se abre una conversación sin haberla clicado
+  // en la lista (enlace directo, recarga del navegador). block:"nearest" no
+  // hace nada si ya quedó visible tras restaurar el scroll.
+  useEffect(() => {
+    if (!activeConvId) return;
+    activeRowRef.current?.scrollIntoView({ block: "nearest" });
+  }, [activeConvId]);
 
   // Lista de clientes filtrada por lo que escribe el usuario
   const filteredClientes = clientes.filter((c) =>
@@ -165,9 +249,27 @@ export function InboxPanel({ numberId, activeConvId }: Props) {
           <div>
             <p className="text-sm font-semibold text-foreground">Conversaciones</p>
             {!loading && !isSearchActive && (
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {conversations.length} activa{conversations.length !== 1 ? "s" : ""}
-              </p>
+              <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                <span>
+                  {conversations.length} cargada{conversations.length !== 1 ? "s" : ""}
+                </span>
+                {unreadTotal > 0 && (
+                  <>
+                    <span>·</span>
+                    <button
+                      onClick={() => setOnlyUnread((v) => !v)}
+                      title={onlyUnread ? "Ver todas" : "Ver solo sin leer"}
+                      className={`rounded px-1 -mx-0.5 font-semibold transition-colors ${
+                        onlyUnread
+                          ? "bg-[#004B87] text-white"
+                          : "text-[#004B87] hover:bg-[#004B87]/10"
+                      }`}
+                    >
+                      {unreadTotal} sin leer
+                    </button>
+                  </>
+                )}
+              </div>
             )}
             {isSearchActive && !isLoading && (
               <p className="text-xs text-muted-foreground mt-0.5">
@@ -192,6 +294,28 @@ export function InboxPanel({ numberId, activeConvId }: Props) {
             </button>
           </div>
         </div>
+
+        {/* Selector de alcance (solo acceso total + cartera propia) */}
+        {puedeElegirScope && (
+          <div className="flex gap-1">
+            {SCOPES.map((s) => (
+              <button
+                key={s.key}
+                onClick={() => handleScopeChange(s.key)}
+                title={s.title}
+                className={`flex-1 text-[11px] py-1 px-1 rounded-md border font-medium transition-colors ${
+                  // Durante una búsqueda ningún alcance está gobernando la
+                  // lista: dejarlo marcado hace creer que sí.
+                  !isSearchActive && scope === s.key
+                    ? "border-[#004B87] bg-[#004B87] text-white"
+                    : "border-border text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                }`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Selector de modo */}
         <div className="flex gap-1 bg-muted/50 rounded-md p-0.5">
@@ -348,7 +472,7 @@ export function InboxPanel({ numberId, activeConvId }: Props) {
 
       {/* Lista de conversaciones */}
       {(mode === "phone" || (mode === "cliente" && !!selectedCliente) || (mode === "ejecutivo" && !!selectedEjecutivo)) && (
-        <div className="flex-1 overflow-y-auto">
+        <div ref={listRef} onScroll={saveScroll} className="flex-1 overflow-y-auto">
           {isLoading && (
             <div className="flex items-center justify-center py-10">
               <p className="text-xs text-muted-foreground">Cargando...</p>
@@ -359,7 +483,15 @@ export function InboxPanel({ numberId, activeConvId }: Props) {
             <div className="flex flex-col items-center justify-center py-10 px-4 text-muted-foreground">
               <IconMessage className="w-7 h-7 opacity-20 mb-2" />
               <p className="text-xs text-center">
-                {isSearchActive ? "Sin conversaciones para esta búsqueda" : "Sin conversaciones aún"}
+                {isSearchActive
+                  ? "Sin conversaciones para esta búsqueda"
+                  : onlyUnread
+                  ? "No hay conversaciones sin leer"
+                  : scope === "unassigned"
+                  ? "No hay conversaciones sin asignar"
+                  : scope === "mine"
+                  ? "No tienes conversaciones en tus conjuntos"
+                  : "Sin conversaciones aún"}
               </p>
             </div>
           )}
@@ -374,39 +506,74 @@ export function InboxPanel({ numberId, activeConvId }: Props) {
             return (
               <button
                 key={conv.id}
+                ref={isActive ? activeRowRef : undefined}
                 onClick={() => navigate(`/whatsapp/${numberId}/${conv.id}`)}
-                className={`w-full text-left px-4 py-3 border-b border-border/60 transition-colors hover:bg-muted/40 ${
-                  isActive ? "bg-[#004B87]/8 border-l-2 border-l-[#004B87]" : ""
-                } ${!windowOpen ? "opacity-60" : ""}`}
+                className={`w-full text-left px-4 py-3 border-b border-border/60 transition-colors ${
+                  isActive
+                    ? "bg-[#004B87] border-l-4 border-l-[#00305a] pl-3 shadow-sm"
+                    : "border-l-4 border-l-transparent pl-3 hover:bg-muted/40"
+                } ${!windowOpen && !isActive ? "opacity-60" : ""}`}
               >
                 <div className="flex items-center justify-between gap-2 mb-0.5">
                   <div className="flex flex-col min-w-0">
-                    <span className={`text-sm truncate ${hasUnread ? "font-semibold text-foreground" : "font-medium text-foreground"}`}>
+                    <span
+                      className={`text-sm truncate ${
+                        isActive
+                          ? "font-bold text-white"
+                          : hasUnread
+                          ? "font-semibold text-foreground"
+                          : "font-medium text-foreground"
+                      }`}
+                    >
                       {conv.deudorNombre ?? `+${conv.userAddress}`}
                     </span>
                     {conv.deudorNombre && (
-                      <span className="text-[10px] text-muted-foreground font-mono truncate">
+                      <span
+                        className={`text-[10px] font-mono truncate ${
+                          isActive ? "text-white/70" : "text-muted-foreground"
+                        }`}
+                      >
                         +{conv.userAddress}
                       </span>
                     )}
                   </div>
-                  <span className="text-[10px] text-muted-foreground flex-shrink-0 whitespace-nowrap self-start">
+                  <span
+                    className={`text-[10px] flex-shrink-0 whitespace-nowrap self-start ${
+                      isActive ? "text-white/70" : "text-muted-foreground"
+                    }`}
+                  >
                     {formatTime(conv.lastMessageAt as any)}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between gap-2">
-                  <p className={`text-xs truncate ${hasUnread ? "text-foreground" : "text-muted-foreground"}`}>
+                  <p
+                    className={`text-xs truncate ${
+                      isActive
+                        ? "text-white/85"
+                        : hasUnread
+                        ? "text-foreground"
+                        : "text-muted-foreground"
+                    }`}
+                  >
                     {lastMsg
                       ? `${lastMsg.source === "AGENT" ? "Tú: " : ""}${lastMsg.text}`
                       : "Sin mensajes"}
                   </p>
                   {hasUnread ? (
-                    <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[#004B87] text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 leading-none">
+                    <span
+                      className={`min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0 leading-none ${
+                        isActive ? "bg-white text-[#004B87]" : "bg-[#004B87] text-white"
+                      }`}
+                    >
                       {unread > 99 ? "99+" : unread}
                     </span>
                   ) : !windowOpen ? (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0 bg-muted text-muted-foreground whitespace-nowrap">
+                    <span
+                      className={`text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0 whitespace-nowrap ${
+                        isActive ? "bg-white/20 text-white/90" : "bg-muted text-muted-foreground"
+                      }`}
+                    >
                       Solo plantilla
                     </span>
                   ) : null}

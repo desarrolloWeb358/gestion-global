@@ -1,7 +1,12 @@
 import { getFirestore, Timestamp, FieldValue } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 
-const MAX_LAST_MESSAGES = 20;
+// Solo se conserva el último mensaje: es lo único que consume la bandeja
+// (InboxPanel usa lastMessages.at(-1) para la vista previa). El historial
+// completo vive en la subcolección messages, que es lo que lee el hilo.
+// Con 20 el array pesaba el 83% del documento y viajaba entero en cada
+// carga del inbox sin que nadie lo mostrara.
+const MAX_LAST_MESSAGES = 1;
 
 function convRef(numberId: string, conversationId: string) {
   return getFirestore().collection(`numbers/${numberId}/conversations`).doc(conversationId);

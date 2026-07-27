@@ -17,6 +17,8 @@ export function NavMain({
     path: string;
     icon?: SidebarIcon;
     badge?: number | string;
+    /** Contador secundario (gris): lo que no es del usuario. */
+    badge2?: number;
   }[];
 }) {
   return (
@@ -42,9 +44,21 @@ export function NavMain({
 
                     <span className="flex-1 !text-white">{item.title}</span>
 
-                    {shouldShowBadge && (
-                      <span className="ml-auto shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center">
-                        {item.badge}
+                    {(shouldShowBadge || !!item.badge2) && (
+                      <span className="ml-auto shrink-0 flex items-center gap-1">
+                        {shouldShowBadge && (
+                          <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center">
+                            {item.badge}
+                          </span>
+                        )}
+                        {!!item.badge2 && (
+                          <span
+                            title="Sin leer del resto del equipo"
+                            className="min-w-[18px] h-[18px] px-1 rounded-full bg-white/25 text-white text-[10px] font-bold flex items-center justify-center"
+                          >
+                            {item.badge2}
+                          </span>
+                        )}
                       </span>
                     )}
                   </SidebarMenuButton>

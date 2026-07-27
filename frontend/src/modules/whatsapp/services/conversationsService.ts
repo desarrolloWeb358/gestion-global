@@ -48,6 +48,19 @@ function mapConversation(id: string, data: Record<string, any>): WaConversation 
   };
 }
 
+// Orden de bandeja: por fecha del último mensaje, más reciente arriba.
+//
+// A propósito NO se priorizan las no leídas. Hacerlo mueve la conversación de
+// lugar en el instante en que se marca como leída, o sea justo cuando el
+// usuario acaba de hacerle clic: la lista salta bajo el cursor y pierde el
+// punto donde iba. Para encontrar las pendientes está el filtro "sin leer"
+// del encabezado, que no altera el orden.
+export function compareInbox(a: WaConversation, b: WaConversation): number {
+  const aMs = (a.lastMessageAt as any)?.toMillis?.() ?? 0;
+  const bMs = (b.lastMessageAt as any)?.toMillis?.() ?? 0;
+  return bMs - aMs;
+}
+
 export function listenInbox(
   numberId: string,
   callback: (conversations: WaConversation[]) => void
@@ -57,12 +70,7 @@ export function listenInbox(
 
   function emit() {
     const merged = new Map<string, WaConversation>([...recentMap, ...unreadMap]);
-    const sorted = [...merged.values()].sort((a, b) => {
-      const aMs = (a.lastMessageAt as any)?.toMillis?.() ?? 0;
-      const bMs = (b.lastMessageAt as any)?.toMillis?.() ?? 0;
-      return bMs - aMs;
-    });
-    callback(sorted);
+    callback([...merged.values()].sort(compareInbox));
   }
 
   const qRecent = query(
@@ -89,6 +97,107 @@ export function listenInbox(
   return () => {
     unsubRecent();
     unsubUnread();
+  };
+}
+
+// Máximo de valores admitidos por Firestore en un filtro "in"
+const IN_CHUNK = 30;
+
+// Conjuntos a cargo de un ejecutivo. Se cachea por uid porque la asignación
+// cambia poco y lo consultan a la vez la bandeja y el badge del menú.
+const carteraCache = new Map<string, Promise<string[]>>();
+
+export function getClienteIdsByEjecutivo(uid: string): Promise<string[]> {
+  const cached = carteraCache.get(uid);
+  if (cached) return cached;
+
+  const p = getDocs(
+    query(collection(db, "clientes"), where("ejecutivoPrejuridicoId", "==", uid))
+  )
+    .then((snap) => snap.docs.map((d) => d.id))
+    .catch((e) => {
+      carteraCache.delete(uid); // no dejar cacheado un fallo
+      throw e;
+    });
+
+  carteraCache.set(uid, p);
+  return p;
+}
+
+// Conversaciones que no están vinculadas a ningún conjunto: nadie las tiene
+// a cargo y hoy solo las ve quien mira la bandeja completa.
+export function listenUnassignedInbox(
+  numberId: string,
+  callback: (conversations: WaConversation[]) => void
+): () => void {
+  return onSnapshot(
+    query(
+      collection(db, `numbers/${numberId}/conversations`),
+      where("clienteId", "==", null)
+    ),
+    (snap) => {
+      callback(
+        snap.docs.map((d) => mapConversation(d.id, d.data())).sort(compareInbox)
+      );
+    }
+  );
+}
+
+// Bandeja en tiempo real para un ejecutivo: sus clientes asignados y todas las
+// conversaciones de esos clientes. Los clienteIds se resuelven una sola vez
+// (la asignación cambia poco) y se escuchan en lotes de 30 con "in".
+export function listenInboxByEjecutivo(
+  numberId: string,
+  ejecutivoId: string,
+  callback: (conversations: WaConversation[]) => void
+): () => void {
+  const chunkMaps: Map<string, WaConversation>[] = [];
+  const unsubs: (() => void)[] = [];
+  let cancelled = false;
+
+  function emit() {
+    const merged = new Map<string, WaConversation>();
+    for (const m of chunkMaps) {
+      for (const [id, conv] of m) merged.set(id, conv);
+    }
+    callback([...merged.values()].sort(compareInbox));
+  }
+
+  getClienteIdsByEjecutivo(ejecutivoId)
+    .then((clienteIds) => {
+      if (cancelled) return;
+      if (clienteIds.length === 0) {
+        callback([]);
+        return;
+      }
+
+      for (let i = 0; i < clienteIds.length; i += IN_CHUNK) {
+        const chunk = clienteIds.slice(i, i + IN_CHUNK);
+        const map = new Map<string, WaConversation>();
+        chunkMaps.push(map);
+
+        unsubs.push(
+          onSnapshot(
+            query(
+              collection(db, `numbers/${numberId}/conversations`),
+              where("clienteId", "in", chunk)
+            ),
+            (convSnap) => {
+              map.clear();
+              convSnap.docs.forEach((d) => map.set(d.id, mapConversation(d.id, d.data())));
+              emit();
+            }
+          )
+        );
+      }
+    })
+    .catch(() => {
+      if (!cancelled) callback([]);
+    });
+
+  return () => {
+    cancelled = true;
+    unsubs.forEach((u) => u());
   };
 }
 
@@ -230,6 +339,18 @@ export async function markConversationRead(
   });
 }
 
+// Devuelve la conversación a estado pendiente. Se pone 1 y no el conteo que
+// tenía antes porque ese dato se perdió al leerla; lo que importa es que
+// vuelva a aparecer como pendiente en la bandeja y en el badge del menú.
+export async function markConversationUnread(
+  numberId: string,
+  convId: string
+): Promise<void> {
+  await updateDoc(doc(db, `numbers/${numberId}/conversations/${convId}`), {
+    unreadCount: 1,
+  });
+}
+
 // Busca todas las conversaciones de todos los clientes de un ejecutivo
 // Va directo a Firestore, no depende del límite del inbox
 export async function searchConversationsByEjecutivoId(
@@ -263,11 +384,7 @@ export async function searchConversationsByEjecutivoId(
       }
     }
   }
-  return convs.sort((a, b) => {
-    const aMs = (a.lastMessageAt as any)?.toMillis?.() ?? 0;
-    const bMs = (b.lastMessageAt as any)?.toMillis?.() ?? 0;
-    return bMs - aMs;
-  });
+  return convs.sort(compareInbox);
 }
 
 // Busca todas las conversaciones de un cliente específico
@@ -283,11 +400,7 @@ export async function searchConversationsByClienteId(
   );
   return snap.docs
     .map((d) => mapConversation(d.id, d.data() as Record<string, any>))
-    .sort((a, b) => {
-      const aMs = (a.lastMessageAt as any)?.toMillis?.() ?? 0;
-      const bMs = (b.lastMessageAt as any)?.toMillis?.() ?? 0;
-      return bMs - aMs;
-    });
+    .sort(compareInbox);
 }
 
 // Busca conversaciones por número de teléfono (prefix match, sin límite del inbox)
@@ -328,5 +441,5 @@ export async function searchConversationsByPhone(
       }
     }
   }
-  return convs;
+  return convs.sort(compareInbox);
 }

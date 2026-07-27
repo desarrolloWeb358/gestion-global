@@ -25,6 +25,7 @@ export default function WhatsAppLayout() {
           <InboxPanel numberId={numberId} activeConvId={convId} />
         ) : (
           <ConversationThread
+            key={convId}
             numberId={numberId}
             convId={convId}
             showInbox={false}
@@ -38,7 +39,7 @@ export default function WhatsAppLayout() {
         <Drawer direction="bottom" open={detailsDrawerOpen} onOpenChange={setDetailsDrawerOpen}>
           <DrawerContent>
             <div className="flex flex-col h-[70vh]">
-              <LeadPanel numberId={numberId} convId={convId} />
+              <LeadPanel key={convId} numberId={numberId} convId={convId} />
             </div>
           </DrawerContent>
         </Drawer>
@@ -46,7 +47,13 @@ export default function WhatsAppLayout() {
     );
   }
 
-  // DESKTOP: layout de 3 paneles (sin cambios)
+  // DESKTOP: layout de 3 paneles.
+  //
+  // El key={convId} en los paneles derechos es deliberado: la bandeja de la
+  // izquierda debe conservar su filtro y su scroll al cambiar de conversación,
+  // pero el hilo y la ficha del contacto sí tienen que arrancar limpios —
+  // HumanReplyBox guarda el borrador y el adjunto en estado, y sin remontar se
+  // arrastrarían al siguiente contacto.
   return (
     <div className="-m-4 md:-m-6 flex h-[calc(100vh-74px)] overflow-hidden border-t border-border">
 
@@ -61,6 +68,7 @@ export default function WhatsAppLayout() {
       <main className="flex-1 flex flex-col overflow-hidden bg-background min-w-0">
         {convId ? (
           <ConversationThread
+            key={convId}
             numberId={numberId}
             convId={convId}
             showInbox={showInbox}
@@ -79,7 +87,7 @@ export default function WhatsAppLayout() {
       {/* Panel derecho — Datos del contacto */}
       {showDetails && (
         <aside className="w-64 border-l border-border flex-shrink-0 bg-background hidden lg:flex flex-col overflow-hidden">
-          <LeadPanel numberId={numberId} convId={convId} />
+          <LeadPanel key={convId} numberId={numberId} convId={convId} />
         </aside>
       )}
     </div>

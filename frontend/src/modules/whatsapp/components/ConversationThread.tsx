@@ -7,10 +7,15 @@ import {
   IconLayoutSidebarLeftExpand,
   IconLayoutSidebarRightCollapse,
   IconLayoutSidebarRightExpand,
+  IconMailOff,
 } from "@tabler/icons-react";
 import { useConversationMessages } from "../hooks/useConversationMessages";
 import { useConversation } from "../hooks/useConversation";
-import { markConversationRead, isMetaWindowOpen } from "../services/conversationsService";
+import {
+  markConversationRead,
+  markConversationUnread,
+  isMetaWindowOpen,
+} from "../services/conversationsService";
 import { ChatBubble } from "./ChatBubble";
 import { HumanReplyBox } from "./HumanReplyBox";
 import { Button } from "@/shared/ui/button";
@@ -22,7 +27,13 @@ function getDateLabel(timestampMs: number): string {
   yesterday.setDate(yesterday.getDate() - 1);
   if (date.toDateString() === today.toDateString()) return "Hoy";
   if (date.toDateString() === yesterday.toDateString()) return "Ayer";
-  return date.toLocaleDateString("es-CO", { weekday: "short", day: "numeric", month: "short" });
+  // es-CO devuelve el día en minúscula ("mar, 30 de jun")
+  const etiqueta = date.toLocaleDateString("es-CO", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+  return etiqueta.charAt(0).toUpperCase() + etiqueta.slice(1);
 }
 
 function sameDay(a: number, b: number): boolean {
@@ -59,10 +70,47 @@ export function ConversationThread({
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastIdRef = useRef<string>("");
 
-  // Marcar como leída al abrir
+  // Marcar como leída al abrir y también cuando llega un mensaje nuevo con el
+  // hilo ya abierto. Si la pestaña está oculta se deja sin leer y se marca al
+  // volver (efecto de abajo).
+  const unread = conversation?.unreadCount ?? 0;
+  const unreadRef = useRef(0);
+
+  // Si el usuario la marcó como no leída a mano, el automatismo de abajo no
+  // debe deshacerlo. El componente lleva key={convId}, así que esta bandera se
+  // reinicia sola al abrir otra conversación.
+  const marcadaNoLeidaRef = useRef(false);
+
   useEffect(() => {
-    markConversationRead(numberId, convId).catch(() => {});
+    unreadRef.current = unread;
+    if (marcadaNoLeidaRef.current) return;
+    if (unread > 0 && !document.hidden) {
+      markConversationRead(numberId, convId).catch(() => {});
+    }
+  }, [numberId, convId, unread]);
+
+  useEffect(() => {
+    const onVisibility = () => {
+      if (marcadaNoLeidaRef.current) return;
+      if (!document.hidden && unreadRef.current > 0) {
+        markConversationRead(numberId, convId).catch(() => {});
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
   }, [numberId, convId]);
+
+  // Dejarla pendiente y salir a la bandeja: quedarse dentro de una
+  // conversación "no leída" no tiene sentido y además el automatismo de
+  // arriba la volvería a marcar en cuanto llegara cualquier actualización.
+  const handleMarcarNoLeida = async () => {
+    marcadaNoLeidaRef.current = true;
+    try {
+      await markConversationUnread(numberId, convId);
+    } finally {
+      navigate(`/whatsapp/${numberId}`);
+    }
+  };
 
   // Auto-scroll solo cuando llega un mensaje nuevo
   const lastMsgId = messages.at(-1)?.id ?? "";
@@ -112,6 +160,18 @@ export function ConversationThread({
           )}
         </div>
 
+        {/* Dejar pendiente: vuelve a la bandeja con la conversación sin leer */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleMarcarNoLeida}
+          title="Marcar como no leída y volver a la bandeja"
+          className="gap-1.5 text-xs h-8 flex-shrink-0"
+        >
+          <IconMailOff className="w-4 h-4" />
+          <span className="hidden sm:inline">No leída</span>
+        </Button>
+
         {/* Botón detalles: siempre visible en mobile, solo lg en desktop */}
         <Button
           variant="outline"
@@ -153,12 +213,10 @@ export function ConversationThread({
         {messages.map((msg, i) => (
           <Fragment key={msg.id}>
             {(i === 0 || !sameDay(messages[i - 1].timestampMs, msg.timestampMs)) && (
-              <div className="flex items-center gap-2 my-2">
-                <div className="flex-1 h-px bg-border" />
-                <span className="text-[11px] text-muted-foreground font-medium px-1 select-none">
+              <div className="flex items-center justify-center my-4 select-none">
+                <span className="text-xs font-semibold text-foreground/80 bg-muted border border-border rounded-full px-3 py-1 shadow-sm">
                   {getDateLabel(msg.timestampMs)}
                 </span>
-                <div className="flex-1 h-px bg-border" />
               </div>
             )}
             <ChatBubble message={msg} />

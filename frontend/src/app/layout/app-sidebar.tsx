@@ -99,8 +99,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     icon: it.icon,
     badge:
       it.to === "/notificaciones" ? totalNoVistas :
-      it.to === "/whatsapp"       ? waUnread       :
+      it.to === "/whatsapp"       ? waUnread.primary :
       undefined,
+    badge2: it.to === "/whatsapp" ? waUnread.secondary : undefined,
   }));
 
   const onLogout = async () => {

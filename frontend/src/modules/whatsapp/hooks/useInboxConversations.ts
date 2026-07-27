@@ -1,41 +1,41 @@
 import { useEffect, useState } from "react";
-import { listenInbox, searchConversationsByEjecutivoId } from "../services/conversationsService";
+import {
+  listenInbox,
+  listenInboxByEjecutivo,
+  listenUnassignedInbox,
+} from "../services/conversationsService";
 import type { WaConversation } from "../models/waConversation.model";
-import type { Rol } from "@/shared/constants/acl";
 
-export function useInboxConversations(numberId: string, uid: string, roles: Rol[]) {
+/**
+ * mine       → conversaciones de los conjuntos a cargo del usuario
+ * all        → todas las del número (solo acceso total)
+ * unassigned → las que no están vinculadas a ningún conjunto
+ * null       → aún no se sabe el alcance (no se suscribe nada)
+ */
+export type InboxScope = "mine" | "all" | "unassigned";
+
+export function useInboxConversations(
+  numberId: string,
+  uid: string,
+  scope: InboxScope | null
+) {
   const [conversations, setConversations] = useState<WaConversation[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!numberId || !uid) return;
+    if (!numberId || !uid || !scope) return;
     setLoading(true);
 
-    const isSuperAdmin =
-      roles.includes("admin") ||
-      roles.includes("supervisor") ||
-      roles.includes("ejecutivoAdmin");
+    const handle = (convs: WaConversation[]) => {
+      setConversations(convs);
+      setLoading(false);
+    };
 
-    if (isSuperAdmin) {
-      const unsub = listenInbox(numberId, (convs) => {
-        setConversations(convs);
-        setLoading(false);
-      });
-      return unsub;
-    }
-
-    // Para ejecutivos normales, usar searchConversationsByEjecutivoId sin limite de 50
-    let cancelled = false;
-    searchConversationsByEjecutivoId(numberId, uid).then((convs) => {
-      if (!cancelled) {
-        setConversations(convs);
-        setLoading(false);
-      }
-    });
-
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [numberId, uid, roles.join(",")]);
+    // Los tres caminos son listeners en vivo.
+    if (scope === "all") return listenInbox(numberId, handle);
+    if (scope === "unassigned") return listenUnassignedInbox(numberId, handle);
+    return listenInboxByEjecutivo(numberId, uid, handle);
+  }, [numberId, uid, scope]);
 
   return { conversations, loading };
 }

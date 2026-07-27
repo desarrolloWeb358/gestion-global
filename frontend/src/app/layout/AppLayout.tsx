@@ -4,6 +4,21 @@ import { SidebarProvider, SidebarTrigger, useSidebar } from "@/shared/ui/sidebar
 import { AppSidebar } from "@/app/layout/app-sidebar";
 import { Toaster } from "sonner";
 
+/**
+ * Key del <Outlet>: cambiarla remonta la pantalla. Se hace a propósito en cada
+ * cambio de ruta para evitar crashes con el DOM alterado por extensiones.
+ *
+ * Excepción: la bandeja de WhatsApp es maestro-detalle. La conversación abierta
+ * viaja en la URL, pero el usuario sigue en la misma pantalla; remontar ahí le
+ * borra el filtro por ejecutivo/conjunto, el alcance y la posición del scroll
+ * en cada clic. Todas las rutas de un mismo número comparten key.
+ */
+function outletKey(pathname: string): string {
+  const m = pathname.match(/^\/whatsapp\/([^/]+)/);
+  if (m && !/\/templates\/?$/.test(pathname)) return `whatsapp:${m[1]}`;
+  return pathname;
+}
+
 const LayoutContent: React.FC = () => {
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
   const location = useLocation();
@@ -28,8 +43,7 @@ const LayoutContent: React.FC = () => {
         </header>
 
         <div className="p-4 mx-auto w-full max-w-screen-2xl md:p-6">
-          {/* remount por ruta para evitar crashes raros con DOM alterado */}
-          <Outlet key={location.pathname} />
+          <Outlet key={outletKey(location.pathname)} />
         </div>
       </main>
     </div>
