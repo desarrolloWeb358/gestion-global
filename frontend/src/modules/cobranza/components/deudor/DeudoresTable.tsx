@@ -851,6 +851,7 @@ export default function DeudoresTable() {
   const esSupervisor = roles.includes("supervisor");
   const canView = esDeudor ? true : can(PERMS.Deudores_Read);
   const canEdit = !esDeudor && can(PERMS.Deudores_Edit);
+  const canViewAcuerdos = can(PERMS.Acuerdos_Read);
   const readOnly = !canEdit && canView;
 
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
@@ -2094,23 +2095,6 @@ export default function DeudoresTable() {
                                     <Button
                                       size="icon"
                                       variant="ghost"
-                                      onClick={() => navigate(`/clientes/${clienteId}/deudores/${deudor.id}/AcuerdoPago`)}
-                                      className="hover:bg-green-50 transition-colors"
-                                      disabled={saving}
-                                    >
-                                      <FileText className="h-4 w-4 text-green-600" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent className="bg-brand-secondary text-white">
-                                    Acuerdo de pago
-                                  </TooltipContent>
-                                </Tooltip>
-
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
                                       onClick={() => {
                                         setDeudorAEliminar(deudor);
                                         setConfirmDeleteOpen(true);
@@ -2127,6 +2111,25 @@ export default function DeudoresTable() {
                                   </TooltipContent>
                                 </Tooltip>
                               </>
+                            )}
+
+                            {canViewAcuerdos && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => navigate(`/clientes/${clienteId}/deudores/${deudor.id}/AcuerdoPago`)}
+                                    className="hover:bg-green-50 transition-colors"
+                                    disabled={saving}
+                                  >
+                                    <FileText className="h-4 w-4 text-green-600" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent className="bg-brand-secondary text-white">
+                                  Acuerdo de pago
+                                </TooltipContent>
+                              </Tooltip>
                             )}
                           </TooltipProvider>
                         </div>

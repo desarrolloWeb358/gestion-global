@@ -125,10 +125,11 @@ export default function AcuerdoPagoPage() {
     const navigate = useNavigate();
     const { can, loading: aclLoading } = useAcl();
 
-    const puedeEditar = can(PERMS.Deudores_Edit); // admin/ejecutivo normalmente
-    const puedeVerHistorial = puedeEditar || esCliente || esDeudor; // cliente sí
+    const puedeVer = can(PERMS.Acuerdos_Read);
+    const puedeEditar = can(PERMS.Acuerdos_Edit);
+    const puedeVerHistorial = puedeVer;
     const puedeMarcarIncumplido = puedeEditar; // cliente NO
-    const canEdit = can(PERMS.Deudores_Edit);
+    const canEdit = puedeEditar;
 
     const MAX_FILE_MB = 15;
     const ACCEPT_ARCHIVOS_ACUERDO =
@@ -927,7 +928,7 @@ export default function AcuerdoPagoPage() {
         );
     }
 
-    if (!puedeEditar && !esCliente && !esDeudor) {
+    if (!puedeVer) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-blue-50/30 via-white to-blue-50/30 flex items-center justify-center">
                 <div className="text-center">
