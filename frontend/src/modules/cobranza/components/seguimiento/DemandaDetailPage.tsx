@@ -638,7 +638,7 @@ export default function DemandaDetailPage() {
                         </span>
                         {sinCoteje > 0 && (
                           <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-[11px] font-semibold">
-                            {sinCoteje} sin coteje
+                            {sinCoteje} sin cotejo
                           </span>
                         )}
                         {totalNotif > 0 && sinCoteje === 0 && (
@@ -689,7 +689,7 @@ export default function DemandaDetailPage() {
                                 )}
                               </div>
                               <div className="space-y-1">
-                                <p className="text-[11px] text-muted-foreground">Coteje</p>
+                                <p className="text-[11px] text-muted-foreground">Cotejo</p>
                                 <Select value={n.coteje ? "si" : "no"} onValueChange={(v) => updateNotificacion(di, ni, { coteje: v === "si" })} disabled={readOnly}>
                                   <SelectTrigger className={cn("h-9 border-brand-secondary/30", n.coteje ? "text-green-700" : "text-amber-700")}>
                                     <SelectValue />

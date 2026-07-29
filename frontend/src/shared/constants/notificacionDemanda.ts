@@ -11,9 +11,9 @@ export const TIPOS_NOTIFICACION_DEMANDA: {
   value: TipoNotificacionDemanda;
   label: string;
 }[] = [
-  { value: TipoNotificacionDemanda.TIPO1, label: "Tipo 1" },
-  { value: TipoNotificacionDemanda.TIPO2, label: "Tipo 2" },
-  { value: TipoNotificacionDemanda.TIPO3, label: "Tipo 3" },
+  { value: TipoNotificacionDemanda.TIPO1, label: "291" },
+  { value: TipoNotificacionDemanda.TIPO2, label: "292" },
+  { value: TipoNotificacionDemanda.TIPO3, label: "2213" },
 ];
 
 export function labelTipoNotificacion(value?: string): string {
