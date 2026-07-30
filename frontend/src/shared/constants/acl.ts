@@ -96,6 +96,10 @@ export const PERMS = {
   Whatsapp_Read:  "whatsapp.read",
   Whatsapp_Write: "whatsapp.write",
 
+  // Correo
+  Email_Read: "email.read",
+  Email_Write: "email.write",
+
   // Seguimiento — edición de fecha (solo ejecutivoAdmin y admin)
   Seguimientos_Fecha_Edit: "seguimientos.fecha.edit",
 
@@ -138,6 +142,8 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Whatsapp_Write,
     PERMS.Tareas_Read,
     PERMS.Tareas_Assign,
+    PERMS.Email_Read,
+    PERMS.Email_Write,
     PERMS.Tareas_Manage,
   ],
 
@@ -271,6 +277,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Abonos_Read,
     PERMS.Valores_agregados_Read,
     PERMS.Contratos_Read,
+    PERMS.Contratos_Edit,
     PERMS.Valores_agregados_Edit,
     PERMS.ReporteCliente_Download_Word,
     PERMS.Tareas_Read,
