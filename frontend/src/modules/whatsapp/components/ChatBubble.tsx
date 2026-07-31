@@ -1,4 +1,4 @@
-import { IconFile, IconPlayerPlay, IconVolume } from "@tabler/icons-react";
+import { IconFile, IconPlayerPlay } from "@tabler/icons-react";
 import type { WaMessage, WaMediaType } from "../models/waMessage.model";
 
 interface Props {
@@ -72,7 +72,13 @@ function MediaPreview({
 
 export function ChatBubble({ message }: Props) {
   const isUser = message.role === "user";
-  const time = new Date(message.timestampMs).toLocaleTimeString("es-CO", {
+  const messageDate = new Date(message.timestampMs);
+  const date = messageDate.toLocaleDateString("es-CO", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+  const time = messageDate.toLocaleTimeString("es-CO", {
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -107,7 +113,7 @@ export function ChatBubble({ message }: Props) {
           }`}
         >
           {message.source === "AGENT" ? "Asesor · " : ""}
-          {time}
+          {date} · {time}
         </p>
       </div>
     </div>

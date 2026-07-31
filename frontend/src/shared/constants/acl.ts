@@ -54,6 +54,10 @@ export const PERMS = {
   Deudores_Edit: "deudores.edit",
   //Deudores_Obs_Create: "deudores.observaciones.create", 
 
+  // Acuerdos de pago
+  Acuerdos_Read: "acuerdos.read",
+  Acuerdos_Edit: "acuerdos.edit",
+
   // Valores Agregados
   Valores_Read: "valores.read",
   Valores_Obs_Create: "valores.observaciones.create", 
@@ -92,6 +96,10 @@ export const PERMS = {
   Whatsapp_Read:  "whatsapp.read",
   Whatsapp_Write: "whatsapp.write",
 
+  // Correo
+  Email_Read: "email.read",
+  Email_Write: "email.write",
+
   // Seguimiento — edición de fecha (solo ejecutivoAdmin y admin)
   Seguimientos_Fecha_Edit: "seguimientos.fecha.edit",
 
@@ -113,6 +121,8 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Clientes_Edit,
     PERMS.Deudores_Read,
     PERMS.Deudores_Edit,
+    PERMS.Acuerdos_Read,
+    PERMS.Acuerdos_Edit,
     PERMS.Valores_Read,
     PERMS.Seguimientos_Ejecutivos_Read,
     PERMS.Seguimientos_Ejecutivos_Edit,
@@ -132,6 +142,8 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Whatsapp_Write,
     PERMS.Tareas_Read,
     PERMS.Tareas_Assign,
+    PERMS.Email_Read,
+    PERMS.Email_Write,
     PERMS.Tareas_Manage,
   ],
 
@@ -142,6 +154,8 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Clientes_Edit,
     PERMS.Deudores_Read,
     PERMS.Deudores_Edit,
+    PERMS.Acuerdos_Read,
+    PERMS.Acuerdos_Edit,
     PERMS.Seguimientos_Ejecutivos_Read,
     PERMS.Seguimientos_Ejecutivos_Edit,
     PERMS.Seguimientos_Dependientes_Read,
@@ -167,6 +181,8 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Clientes_Edit,
     PERMS.Deudores_Read,
     PERMS.Deudores_Edit,
+    PERMS.Acuerdos_Read,
+    PERMS.Acuerdos_Edit,
     PERMS.Seguimientos_Ejecutivos_Read,
     PERMS.Seguimientos_Ejecutivos_Edit,
     PERMS.Seguimientos_Dependientes_Read,
@@ -194,6 +210,8 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Clientes_Edit,
     PERMS.Deudores_Read,
     PERMS.Deudores_Edit,
+    PERMS.Acuerdos_Read,
+    PERMS.Acuerdos_Edit,
     PERMS.Seguimientos_Ejecutivos_Read,
     PERMS.Seguimientos_Dependientes_Read,
     PERMS.Seguimientos_Ejecutivos_Edit,
@@ -217,6 +235,8 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Clientes_Edit,
     PERMS.Deudores_Read, 
     PERMS.Deudores_Edit,  
+    PERMS.Acuerdos_Read,
+    PERMS.Acuerdos_Edit,
     PERMS.Seguimientos_Ejecutivos_Read,
     PERMS.Seguimientos_Dependientes_Read,
     PERMS.Seguimientos_Dependientes_Edit,
@@ -233,6 +253,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
   cliente: [
     PERMS.Clientes_Read,
     PERMS.Deudores_Read,
+    PERMS.Acuerdos_Read,
     PERMS.Seguimientos_Observaciones_Create,
     PERMS.Seguimientos_Ejecutivos_Read,
     PERMS.Seguimientos_Dependientes_Read,
@@ -249,11 +270,14 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Valores_Read,          
     PERMS.Clientes_Read,
     PERMS.Deudores_Read,
+    PERMS.Acuerdos_Read,
+    PERMS.Acuerdos_Edit,
     PERMS.Seguimientos_Ejecutivos_Read,
     PERMS.Seguimientos_Dependientes_Read,
     PERMS.Abonos_Read,
     PERMS.Valores_agregados_Read,
     PERMS.Contratos_Read,
+    PERMS.Contratos_Edit,
     PERMS.Valores_agregados_Edit,
     PERMS.ReporteCliente_Download_Word,
     PERMS.Tareas_Read,
@@ -279,6 +303,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
 
   deudor: [
     PERMS.Deudores_Read,
+    PERMS.Acuerdos_Read,
   ],
 };
 

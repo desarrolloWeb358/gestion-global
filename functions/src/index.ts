@@ -408,6 +408,8 @@ export const cambiarCorreoUsuarioDesdeAdmin = onCall(async (request) => {
 export { waWebhook }              from "./whatsapp/webhookController";
 export { sendWhatsAppMessage }    from "./whatsapp/sendMessageHandler";
 export { sendMetaTemplate }       from "./whatsapp/sendTemplateHandler";
+export { sendEmailCampaign }      from "./email/sendEmailCampaignHandler";
+export { getEmailCampaignHistory } from "./email/sendEmailCampaignHandler";
 export { processBulkSendJob }     from "./whatsapp/bulkSendHandler";
 
 /*

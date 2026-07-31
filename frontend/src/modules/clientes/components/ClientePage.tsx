@@ -11,6 +11,7 @@ import {
     Building2,
     MessageSquare,
     MessageCircle,
+    Mail,
     ScrollText,
     Pencil,
 } from "lucide-react";
@@ -52,6 +53,7 @@ export default function ClientePage() {
     const { roles, loading: userLoading } = useUsuarioActual();
     const isCliente = roles?.includes("cliente");
     const canViewWhatsappMasivo = can(PERMS.Whatsapp_Write);
+    const canSendEmail = can(PERMS.Email_Write);
     const canViewContratos = can(PERMS.Contratos_Read);
 
     // Obtener nombre del cliente desde usuarios
@@ -343,6 +345,26 @@ export default function ClientePage() {
                                         </Typography>
                                         <Typography variant="small">
                                             Envía una plantilla a todos los deudores del cliente
+                                        </Typography>
+                                    </div>
+                                </button>
+                            )}
+
+                            {canSendEmail && (
+                                <button
+                                    onClick={() => navigate(`/clientes/${cliente.id}/enviar-correos`)}
+                                    className="group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-6 text-left transition-all hover:border-blue-500 hover:shadow-lg hover:-translate-y-1"
+                                >
+                                    <div className="absolute top-0 right-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-blue-500/5 transition-transform group-hover:scale-150" />
+                                    <div className="relative">
+                                        <div className="mb-4 inline-flex rounded-lg bg-blue-500/10 p-3 transition-colors group-hover:bg-blue-500/20">
+                                            <Mail className="h-6 w-6 text-blue-600" />
+                                        </div>
+                                        <Typography variant="h3" className="!text-brand-secondary mb-2">
+                                            Correos masivos
+                                        </Typography>
+                                        <Typography variant="small">
+                                            Envía comunicaciones con plantilla a los deudores del conjunto
                                         </Typography>
                                     </div>
                                 </button>

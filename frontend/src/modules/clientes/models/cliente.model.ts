@@ -5,6 +5,7 @@ export interface Cliente {
   nombre?: string;
   direccion?: string;
   administrador?: string;
+  correoContacto?: string;
   formaPago?: string;  
   
   // referencias (uids) a usuarios del sistema

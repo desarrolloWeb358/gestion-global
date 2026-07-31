@@ -13,6 +13,7 @@ import {
   IconBriefcase,
   IconTrash,
   IconBrandWhatsapp,
+  IconMail,
   IconSettings,
   IconSearch,
   IconEye,
@@ -134,6 +135,17 @@ export const NAV_ITEMS: NavItem[] = [
     label: "WhatsApp",
     icon: IconBrandWhatsapp,
     roles: ["admin", "ejecutivo", "ejecutivoAdmin", "supervisor"],
+  },
+
+  // ========================================
+  // CORREOS
+  // ========================================
+  {
+    to: "/correos",
+    label: "Correos",
+    icon: IconMail,
+    roles: ["admin"],
+    perm: PERMS.Email_Write,
   },
 
   // ========================================
