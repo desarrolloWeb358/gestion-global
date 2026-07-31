@@ -147,6 +147,7 @@ export default function DemandaDetailPage() {
   const [obsCliente, setObsCliente] = React.useState("");
   const [catalogo, setCatalogo] = React.useState<EtiquetaDemanda[]>([]);
   const [procesoJudicial, setProcesoJudicial] = React.useState<any>(null);
+  const [demandadosOpen, setDemandadosOpen] = React.useState(false);
 
   // ── Seguimiento ────────────────────────────────────────────────
   const [segRows, setSegRows] = React.useState<SeguimientoDemanda[]>([]);
@@ -578,22 +579,28 @@ export default function DemandaDetailPage() {
             </div>
 
             {/* ── Demandados con notificaciones ── */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <Label className="text-brand-secondary font-medium flex items-center gap-2">
-                  <Users className="h-4 w-4" /> Demandados
-                  {demandados.length > 0 && (
-                    <span className="inline-flex items-center rounded-full bg-brand-primary/10 text-brand-primary px-2 py-0.5 text-xs font-semibold">
-                      {demandados.length}
-                    </span>
+            <div className="space-y-3 border border-brand-secondary/15 rounded-xl overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setDemandadosOpen(!demandadosOpen)}
+                className="w-full flex items-center gap-2 px-4 py-3 bg-brand-primary/[0.02] hover:bg-brand-primary/[0.05] transition-colors"
+              >
+                <Users className="h-4 w-4 text-brand-secondary shrink-0" />
+                <span className="text-sm font-medium text-brand-secondary">Demandados</span>
+                {demandados.length > 0 && (
+                  <span className="inline-flex items-center rounded-full bg-brand-primary/10 text-brand-primary px-2 py-0.5 text-xs font-semibold">
+                    {demandados.length}
+                  </span>
+                )}
+                <ChevronDown className={cn("h-4 w-4 text-brand-secondary ml-auto transition-transform", demandadosOpen && "rotate-180")} />
+              </button>
+              {demandadosOpen && (
+                <div className="px-4 pb-4 pt-2 space-y-3">
+                  {demandados.length === 0 && (
+                    <p className="text-sm text-muted-foreground py-1">
+                      {readOnly ? "Sin demandados registrados." : "Agrega al menos un demandado."}
+                    </p>
                   )}
-                </Label>
-              </div>
-              {demandados.length === 0 && (
-                <p className="text-sm text-muted-foreground py-1">
-                  {readOnly ? "Sin demandados registrados." : "Agrega al menos un demandado."}
-                </p>
-              )}
               <div className="space-y-2.5">
                 {demandados.map((dem, di) => {
                   const abierto = expandidos.has(di);
@@ -723,6 +730,8 @@ export default function DemandaDetailPage() {
                   <Plus className="h-4 w-4" /> Agregar demandado
                 </Button>
               )}
+                </div>
+              )}
             </div>
 
             {/* ── Etiquetas (uso interno; ocultas para cliente/deudor) ── */}
@@ -788,14 +797,6 @@ export default function DemandaDetailPage() {
             </div>
             )}
 
-            {puedeEditar && (
-              <div className="flex justify-end pt-1">
-                <Button onClick={guardar} disabled={saving} variant="brand" className="gap-2 shadow-md">
-                  <Save className="h-4 w-4" />
-                  {saving ? "Guardando..." : "Guardar cambios"}
-                </Button>
-              </div>
-            )}
           </div>
         </section>
 
@@ -957,15 +958,6 @@ export default function DemandaDetailPage() {
             <Textarea value={obsCliente} onChange={(e) => setObsCliente(e.target.value)} readOnly={!puedeEditar} className="min-h-32 border-brand-secondary/30" placeholder={puedeEditar ? "Escribe tu observación..." : ""} />
           </div>
         </section>
-
-        {puedeEditar && (
-          <div className="flex justify-end">
-            <Button onClick={guardar} disabled={saving} variant="brand" className="gap-2 shadow-md">
-              <Save className="h-4 w-4" />
-              {saving ? "Guardando..." : "Guardar cambios"}
-            </Button>
-          </div>
-        )}
       </div>
 
       {/* Dialog seguimiento */}
