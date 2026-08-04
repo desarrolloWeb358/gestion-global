@@ -2,6 +2,7 @@
 import { db } from "@/firebase";
 import { collection, getDocs, Timestamp, query, where, orderBy, limit } from "firebase/firestore";
 import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
+import { calcularPorRecuperar, type EstadoMensualPorRecuperar } from "./porRecuperar";
 
 export type TipificacionKey = TipificacionDeuda;
 
@@ -149,7 +150,8 @@ export async function contarTipificacionPorCliente(
  * Resumen por tipificación:
  * - inmuebles: cantidad de deudores cuya tipificación (vigente a fechaCorte) coincide
  * - recaudoTotal: suma recaudos del año consultado desde enero hasta month (incluido)
- * - porRecuperar: última deuda != 0 dentro del rango enero..month del año consultado
+ * - porRecuperar: última deuda conocida (!= 0) menos los recaudos de ese mes en
+ *   adelante, dentro del rango enero..month del año consultado. Ver calcularPorRecuperar.
  */
 export async function obtenerResumenPorTipificacion(
   clienteId: string,
@@ -210,8 +212,7 @@ export async function obtenerResumenPorTipificacion(
       let recaudoTotalDeudor = 0;
       let honorariosRecaudoTotalDeudor = 0;
 
-      let ultimoMesConDeuda: string | null = null;
-      let deudaUltimoMesNoCero = 0;
+      const estadosDeudor: EstadoMensualPorRecuperar[] = [];
 
       estadosSnap.forEach((mDoc) => {
         const data = mDoc.data() as {
@@ -235,25 +236,18 @@ export async function obtenerResumenPorTipificacion(
         const h = Number(data.honorariosRecaudo ?? 0);
         if (Number.isFinite(h)) honorariosRecaudoTotalDeudor += h;
 
-        const d = Number(data.deuda ?? 0);
-        const deudaValida = Number.isFinite(d) && d !== 0;
-
-        // "Por recuperar" = último registro con deuda (deuda + honorarios de la deuda)
-        // menos el recaudo de ESE mismo mes. La deuda NO es acumulativa: el último
-        // mes con deuda es el saldo real vigente.
-        if (deudaValida && (!ultimoMesConDeuda || rawMes > ultimoMesConDeuda)) {
-          ultimoMesConDeuda = rawMes;
-          const honDeuda = Number(data.honorariosDeuda ?? 0);
-          const deudaConHonorarios = d + (Number.isFinite(honDeuda) ? honDeuda : 0);
-          const rec = Number.isFinite(recaudo) ? recaudo : 0;
-          deudaUltimoMesNoCero = Math.max(0, deudaConHonorarios - rec);
-        }
+        estadosDeudor.push({
+          mes: rawMes,
+          deuda: data.deuda,
+          recaudo: data.recaudo,
+          honorariosDeuda: data.honorariosDeuda,
+        });
       });
 
       const acc = acumulado.get(cat)!;
       acc.recaudoTotal += recaudoTotalDeudor;
       acc.honorariosRecaudoTotal += honorariosRecaudoTotalDeudor;
-      acc.porRecuperar += deudaUltimoMesNoCero;
+      acc.porRecuperar += calcularPorRecuperar(estadosDeudor);
     })
   );
 
@@ -329,8 +323,7 @@ export async function obtenerDetalleDeudoresPorTipificacion(
       let recaudoTotal = 0;
       let honorariosRecaudoTotal = 0;
 
-      let ultimoMesConDeudaNoCero: string | null = null;
-      let deudaUltimaNoCero = 0;
+      const estadosDeudor: EstadoMensualPorRecuperar[] = [];
 
       estadosSnap.forEach((mDoc) => {
         const data = mDoc.data() as { mes?: string; recaudo?: number; deuda?: number; honorariosRecaudo?: number; honorariosDeuda?: number };
@@ -348,24 +341,23 @@ export async function obtenerDetalleDeudoresPorTipificacion(
         const h = Number(data.honorariosRecaudo ?? 0);
         if (Number.isFinite(h)) honorariosRecaudoTotal += h;
 
-        const d = Number(data.deuda ?? 0);
-        const deudaValida = Number.isFinite(d) && d !== 0;
-
-        // "Por recuperar" = último registro con deuda (deuda + honorarios de la deuda)
-        // menos el recaudo de ESE mismo mes. La deuda NO es acumulativa: el último
-        // mes con deuda es el saldo real vigente.
-        if (deudaValida && (!ultimoMesConDeudaNoCero || rawMes > ultimoMesConDeudaNoCero)) {
-          ultimoMesConDeudaNoCero = rawMes;
-          const honDeuda = Number(data.honorariosDeuda ?? 0);
-          const deudaConHonorarios = d + (Number.isFinite(honDeuda) ? honDeuda : 0);
-          const rec = Number.isFinite(r) ? r : 0;
-          deudaUltimaNoCero = Math.max(0, deudaConHonorarios - rec);
-        }
+        estadosDeudor.push({
+          mes: rawMes,
+          deuda: data.deuda,
+          recaudo: data.recaudo,
+          honorariosDeuda: data.honorariosDeuda,
+        });
       });
 
       const ingresoConjunto = recaudoTotal - honorariosRecaudoTotal;
 
-      return { ...item, recaudoTotal, honorariosRecaudoTotal, ingresoConjunto, porRecuperar: deudaUltimaNoCero };
+      return {
+        ...item,
+        recaudoTotal,
+        honorariosRecaudoTotal,
+        ingresoConjunto,
+        porRecuperar: calcularPorRecuperar(estadosDeudor),
+      };
     })
   );
 

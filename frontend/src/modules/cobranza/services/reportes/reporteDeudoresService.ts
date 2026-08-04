@@ -3,6 +3,7 @@ import { db } from "@/firebase";
 import { collection, getDocs, Timestamp, query, where, orderBy, limit } from "firebase/firestore";
 import type { FilaReporte } from "./tipos";
 import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
+import { calcularPorRecuperar, type EstadoMensualPorRecuperar } from "./porRecuperar";
 
 function toDateSafe(v: any): Date | null {
   if (!v) return null;
@@ -98,8 +99,7 @@ export async function obtenerReporteDeudoresPorPeriodo(
     const rec: Record<string, number> = {};
     for (let m = 1; m <= 12; m++) rec[String(m).padStart(2, "0")] = 0;
 
-    let porRecaudar = 0;
-    let ultimoMesConDeuda: string | null = null;
+    const estadosDeudor: EstadoMensualPorRecuperar[] = [];
 
     estadosSnap.forEach((mDoc) => {
       const data = mDoc.data() as { mes?: string; deuda?: number; recaudo?: number; honorariosDeuda?: number };
@@ -111,20 +111,18 @@ export async function obtenerReporteDeudoresPorPeriodo(
       const mm = Number(mmStr);
       if (!Number.isFinite(mm) || mm < 1 || mm > month) return; // ✅ solo hasta el mes consultado
 
-      const deudaNum = Number(data.deuda ?? 0);
       const recVal = Number(data.recaudo ?? 0);
-      const honDeuda = Number(data.honorariosDeuda ?? 0);
-
       if (Number.isFinite(recVal)) rec[mmStr] = (rec[mmStr] ?? 0) + recVal;
 
-      const deudaValida = Number.isFinite(deudaNum) && deudaNum !== 0;
-      if (deudaValida && (!ultimoMesConDeuda || mesId > ultimoMesConDeuda)) {
-        ultimoMesConDeuda = mesId;
-        const deudaConHonorarios = deudaNum + (Number.isFinite(honDeuda) ? honDeuda : 0);
-        const rec = Number.isFinite(recVal) ? recVal : 0;
-        porRecaudar = Math.max(0, deudaConHonorarios - rec);
-      }
+      estadosDeudor.push({
+        mes: mesId,
+        deuda: data.deuda,
+        recaudo: data.recaudo,
+        honorariosDeuda: data.honorariosDeuda,
+      });
     });
+
+    const porRecaudar = calcularPorRecuperar(estadosDeudor);
 
     // ✅ total solo hasta el mes consultado
     let recaudoTotal = 0;
