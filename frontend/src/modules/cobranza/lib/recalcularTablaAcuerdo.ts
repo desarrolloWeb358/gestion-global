@@ -1,7 +1,52 @@
+import { Timestamp } from "firebase/firestore";
 import type { CuotaAcuerdo } from "@/modules/cobranza/models/acuerdoPago.model";
 
 const round = (x: number) => Math.round(x);
 const n = (v: any) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+
+/** Freno de seguridad: nunca generar más filas que esto. */
+const MAX_CUOTAS = 240;
+
+/**
+ * Si la última cuota queda por debajo de este valor, se suma a la cuota anterior
+ * en vez de dejar una "cola" muy pequeña.
+ * (Único lugar donde se cambia el umbral).
+ */
+const MIN_ULTIMA_CUOTA = 50000;
+
+export type BaseRecalculo = {
+  capitalInicial: number;
+  porcentajeHonorarios: number;
+  /**
+   * Cuota mensual pactada.
+   *
+   * Cuando se envía, la tabla se comporta como "viva":
+   *  - la última fila (que siempre es residual) se vuelve a llenar con la cuota base
+   *    si al cobrarla todavía quedaría saldo,
+   *  - se agregan filas nuevas mientras quede saldo por cubrir,
+   *  - se fusiona la cola si queda por debajo de MIN_ULTIMA_CUOTA.
+   *
+   * Si NO se envía, se respetan tal cual las filas recibidas (modo consulta/carga).
+   */
+  valorCuotaBase?: number;
+};
+
+const addMonths = (d: Date, months: number) => {
+  const x = new Date(d);
+  const day = x.getDate();
+  x.setMonth(x.getMonth() + months);
+
+  // evita saltos raros (31 -> feb)
+  if (x.getDate() < day) x.setDate(0);
+  return x;
+};
+
+const toDate = (v: any): Date => {
+  if (!v) return new Date();
+  if (v instanceof Date) return v;
+  if (typeof v?.toDate === "function") return v.toDate();
+  return new Date(v);
+};
 
 function buildRow(
   c: CuotaAcuerdo,
@@ -69,6 +114,28 @@ function buildRow(
   };
 }
 
+/** Recorre filas existentes tal cual vienen (sin extender ni recortar). */
+function calcularFilas(
+  cuotas: CuotaAcuerdo[],
+  porcentaje: number,
+  capInicial: number,
+  honInicial: number
+): { rows: CuotaAcuerdo[]; capSaldo: number; honSaldo: number } {
+  let capSaldo = capInicial;
+  let honSaldo = honInicial;
+
+  const rows: CuotaAcuerdo[] = [];
+
+  for (let i = 0; i < cuotas.length; i++) {
+    const r = buildRow(cuotas[i], i, porcentaje, capSaldo, honSaldo);
+    rows.push(r.row);
+    capSaldo = r.capSaldo;
+    honSaldo = r.honSaldo;
+  }
+
+  return { rows, capSaldo, honSaldo };
+}
+
 // ✅ Limpieza: elimina filas finales sobrantes (saldo 0 + cuota 0)
 function trimTrailingZeroRows(rows: CuotaAcuerdo[]) {
   const out = [...rows];
@@ -99,59 +166,135 @@ function trimTrailingZeroRows(rows: CuotaAcuerdo[]) {
 }
 
 /**
- * Recalcula TODA la tabla (y ahora SÍ recorta filas sobrantes en 0 al final).
+ * ✅ Si la última cuota quedó muy pequeña, se suma a la anterior.
+ * Ej: ... 230.000 / 230.000 / 24.990  ->  ... 230.000 / 254.990
  */
-export function recalcularTablaDesdeValorCuota(
+function fusionarColaPequena(rows: CuotaAcuerdo[]): CuotaAcuerdo[] {
+  if (rows.length < 2) return rows;
+
+  const last = rows[rows.length - 1];
+  const valorUltima = round(n(last.valorCuota));
+
+  if (valorUltima <= 0 || valorUltima >= MIN_ULTIMA_CUOTA) return rows;
+
+  const out = rows.slice(0, -1).map((c) => ({ ...c }));
+  const prev = out[out.length - 1];
+
+  prev.capitalCuota = round(n(prev.capitalCuota) + n(last.capitalCuota));
+  prev.honorariosCuota = round(n(prev.honorariosCuota) + n(last.honorariosCuota));
+  prev.valorCuota = round(prev.capitalCuota + prev.honorariosCuota);
+  prev.capitalSaldoDespues = round(n(last.capitalSaldoDespues));
+  prev.honorariosSaldoDespues = round(n(last.honorariosSaldoDespues));
+
+  return out.map((c, i) => ({ ...c, numero: i + 1 }));
+}
+
+/**
+ * Recalcula desde `startIdx` hacia abajo:
+ *  - respeta las filas anteriores (el usuario ya las fijó),
+ *  - vuelve a llenar la última fila residual con la cuota base si falta saldo,
+ *  - agrega filas nuevas mientras quede saldo,
+ *  - recorta filas sobrantes en 0 y fusiona la cola pequeña.
+ */
+function recalcular(
   cuotas: CuotaAcuerdo[],
-  base: { capitalInicial: number; porcentajeHonorarios: number }
+  startIdx: number,
+  base: BaseRecalculo
 ): CuotaAcuerdo[] {
   const cap0 = round(n(base.capitalInicial));
   const porcentaje = n(base.porcentajeHonorarios);
+  const hon0 = round(cap0 * (porcentaje / 100));
+  const cuotaBase = round(n(base.valorCuotaBase));
 
-  let capSaldo = cap0;
-  let honSaldo = round(cap0 * (porcentaje / 100));
+  if (cuotas.length === 0) return [];
 
-  const out: CuotaAcuerdo[] = [];
+  const idx = Math.max(0, Math.min(startIdx, cuotas.length));
 
-  for (let i = 0; i < cuotas.length; i++) {
-    const r = buildRow(cuotas[i], i, porcentaje, capSaldo, honSaldo);
+  // 1) prefijo: filas anteriores al cambio (sin extender ni recortar)
+  const pre = calcularFilas(cuotas.slice(0, idx), porcentaje, cap0, hon0);
+
+  let capSaldo = pre.capSaldo;
+  let honSaldo = pre.honSaldo;
+  const out: CuotaAcuerdo[] = [...pre.rows];
+
+  // ancla para fechar las filas nuevas: la última fila que ya existe
+  const anclaIdx = cuotas.length - 1;
+  const anclaFecha = toDate(cuotas[anclaIdx]?.fechaPago);
+
+  const tope = Math.max(cuotas.length, MAX_CUOTAS);
+
+  // 2) desde la fila editada en adelante
+  for (let i = idx; i < tope; i++) {
+    const existente = cuotas[i];
+
+    // --- fila nueva (extensión de la tabla) ---
+    if (!existente) {
+      if (cuotaBase <= 0) break;              // sin cuota base no sabemos cuánto cobrar
+      if (capSaldo <= 0 && honSaldo <= 0) break;
+
+      const nueva: CuotaAcuerdo = {
+        numero: i + 1,
+        fechaPago: Timestamp.fromDate(addMonths(anclaFecha, i - anclaIdx)),
+        valorCuota: cuotaBase,
+        honorariosCuota: 0,
+        capitalCuota: 0,
+        honorariosSaldoAntes: 0,
+        honorariosSaldoDespues: 0,
+        capitalSaldoAntes: 0,
+        capitalSaldoDespues: 0,
+        pagado: false,
+      };
+
+      const r = buildRow(nueva, i, porcentaje, capSaldo, honSaldo);
+      out.push(r.row);
+      capSaldo = r.capSaldo;
+      honSaldo = r.honSaldo;
+      continue;
+    }
+
+    // --- fila existente ---
+    let solicitado = round(n(existente.valorCuota));
+
+    // La última fila siempre es residual ("lo que falte"). Si al cobrarla todavía
+    // quedaría saldo, hay que volver a llevarla a la cuota base y seguir generando.
+    const esUltimaExistente = i === anclaIdx;
+    if (
+      esUltimaExistente &&
+      cuotaBase > 0 &&
+      solicitado < cuotaBase &&
+      capSaldo + honSaldo > solicitado
+    ) {
+      solicitado = cuotaBase;
+    }
+
+    const r = buildRow({ ...existente, valorCuota: solicitado }, i, porcentaje, capSaldo, honSaldo);
     out.push(r.row);
     capSaldo = r.capSaldo;
     honSaldo = r.honSaldo;
   }
 
-  // ✅ AQUÍ: recorta filas finales en 0
-  return trimTrailingZeroRows(out);
+  const limpia = trimTrailingZeroRows(out);
+
+  return cuotaBase > 0 ? fusionarColaPequena(limpia) : limpia;
 }
 
 /**
- * Recalcula DESDE una fila hacia abajo (y ahora SÍ recorta filas sobrantes en 0 al final).
+ * Recalcula TODA la tabla.
+ */
+export function recalcularTablaDesdeValorCuota(
+  cuotas: CuotaAcuerdo[],
+  base: BaseRecalculo
+): CuotaAcuerdo[] {
+  return recalcular(cuotas, 0, base);
+}
+
+/**
+ * Recalcula DESDE una fila hacia abajo.
  */
 export function recalcularTablaDesdeValorCuotaDesdeIndice(
   cuotas: CuotaAcuerdo[],
   startIdx: number,
-  base: { capitalInicial: number; porcentajeHonorarios: number }
+  base: BaseRecalculo
 ): CuotaAcuerdo[] {
-  if (startIdx <= 0) return recalcularTablaDesdeValorCuota(cuotas, base);
-
-  const porcentaje = n(base.porcentajeHonorarios);
-
-  // recalculamos todo hasta startIdx-1 para obtener saldos correctos
-  const prefix = recalcularTablaDesdeValorCuota(cuotas.slice(0, startIdx), base);
-  const lastPrefix = prefix[prefix.length - 1];
-
-  let capSaldo = round(n(lastPrefix?.capitalSaldoDespues ?? 0));
-  let honSaldo = round(n(lastPrefix?.honorariosSaldoDespues ?? 0));
-
-  const out: CuotaAcuerdo[] = [...prefix];
-
-  for (let i = startIdx; i < cuotas.length; i++) {
-    const r = buildRow(cuotas[i], i, porcentaje, capSaldo, honSaldo);
-    out.push(r.row);
-    capSaldo = r.capSaldo;
-    honSaldo = r.honSaldo;
-  }
-
-  // ✅ AQUÍ: recorta filas finales en 0
-  return trimTrailingZeroRows(out);
+  return recalcular(cuotas, startIdx, base);
 }

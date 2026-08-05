@@ -24,7 +24,7 @@ import {
   upsertEstadoMensualPorMes,
   eliminarEstadoMensual,
 } from "../../services/estadoMensualService";
-import { EstadoMensual } from "../../models/estadoMensual.model";
+import { EstadoMensual, ModoHonorariosRecaudo } from "../../models/estadoMensual.model";
 import {
   Dialog,
   DialogTrigger,
@@ -55,6 +55,13 @@ import {
   AlertDialogTitle,
 } from "@/shared/ui/alert-dialog";
 import { Textarea } from "@/shared/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/ui/select";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { PERMS } from "@/shared/constants/acl";
 import { Typography } from "@/shared/design-system/components/Typography";
@@ -103,6 +110,82 @@ function aplicarFiltros(items: EstadoMensual[], f: Filtros): EstadoMensual[] {
   });
 }
 
+/* ─── Formato de moneda en los inputs ─── */
+/** Muestra el número con separador de miles; vacío si no hay valor. */
+const formatMiles = (n?: number | null) =>
+  n == null || Number.isNaN(n) ? "" : Math.trunc(n).toLocaleString();
+
+/** Deja solo los dígitos de lo digitado y lo vuelve número (o undefined). */
+const parseMiles = (texto: string): number | undefined => {
+  const digitos = texto.replace(/\D/g, "");
+  if (!digitos) return undefined;
+  return Math.min(Number(digitos), 1e15);
+};
+
+/* ─── Honorarios del recaudo: 3 formas de calcularlo ─── */
+const fmtPct = (p: number) => String(Number((p ?? 0).toFixed(2)));
+
+const MODOS_HONORARIOS: Array<{
+  value: ModoHonorariosRecaudo;
+  titulo: string;
+  frase: (pct: number) => string;
+}> = [
+  {
+    value: "porcentaje_recaudo",
+    titulo: "% sobre el total del recaudo",
+    frase: (p) =>
+      `Se cobra el ${fmtPct(p)}% del valor total del recaudo. Hon. Recaudo = Recaudo × ${fmtPct(p)}%.`,
+  },
+  {
+    value: "incluido_en_recaudo",
+    titulo: "El recaudo ya incluye los honorarios",
+    frase: (p) =>
+      `El ${fmtPct(p)}% se cobra solo sobre el capital. Hon. Recaudo = Recaudo × ${fmtPct(p)} ÷ ${fmtPct(100 + p)}.`,
+  },
+  {
+    value: "fijo",
+    titulo: "Valor fijo (sin porcentaje)",
+    frase: () =>
+      "No se aplica ningún porcentaje.",
+  },
+];
+
+const MODO_HONORARIOS_POR_VALOR = Object.fromEntries(
+  MODOS_HONORARIOS.map((m) => [m.value, m])
+) as Record<ModoHonorariosRecaudo, (typeof MODOS_HONORARIOS)[number]>;
+
+/** Calcula los honorarios del recaudo según el modo elegido. */
+function calcularHonorariosRecaudo(
+  recaudo: number | null | undefined,
+  pct: number | null | undefined,
+  modo: ModoHonorariosRecaudo,
+  valorFijo: number | null | undefined
+): number | undefined {
+  if (modo === "fijo") {
+    return valorFijo != null ? Math.round(Number(valorFijo)) : undefined;
+  }
+  const r = Number(recaudo ?? 0);
+  if (!(r > 0)) return undefined;
+  const p = Number(pct ?? 0);
+  return modo === "incluido_en_recaudo"
+    ? Math.round(r * (p / (100 + p)))
+    : Math.round(r * (p / 100));
+}
+
+/** Registros anteriores no traen el modo: se deduce del valor guardado. */
+function inferirModoHonorarios(estado: EstadoMensual): ModoHonorariosRecaudo {
+  if (estado.modoHonorariosRecaudo) return estado.modoHonorariosRecaudo;
+  const r = Number(estado.recaudo ?? 0);
+  const hr = estado.honorariosRecaudo;
+  if (!(r > 0) || hr == null) return "porcentaje_recaudo";
+  const p = Number(estado.porcentajeHonorarios ?? 0);
+  const coincideSobreRecaudo = Math.abs(Number(hr) - Math.round(r * (p / 100))) <= 1;
+  const coincideIncluido = Math.abs(Number(hr) - Math.round(r * (p / (100 + p)))) <= 1;
+  if (coincideSobreRecaudo) return "porcentaje_recaudo";
+  if (coincideIncluido) return "incluido_en_recaudo";
+  return "fijo";
+}
+
 /* ─── Componente ─── */
 export default function EstadosMensualesTable() {
   const { clienteId, deudorId } = useParams();
@@ -145,8 +228,6 @@ export default function EstadosMensualesTable() {
   const [deleting, setDeleting] = React.useState(false);
 
   const hoyYYYYMM = new Date().toISOString().slice(0, 7);
-  const clamp = (n: number, min: number, max: number) =>
-    Math.min(max, Math.max(min, n));
   const round0 = (n: number) => Math.round(n);
 
   const [nuevoEstadoMensual, setNuevoEstadoMensual] =
@@ -158,9 +239,13 @@ export default function EstadosMensualesTable() {
       porcentajeHonorarios: 15,
       honorariosDeuda: undefined,
       honorariosRecaudo: undefined,
+      modoHonorariosRecaudo: "porcentaje_recaudo",
       recibo: "",
       observaciones: "",
     });
+
+  const modoHonorarios: ModoHonorariosRecaudo =
+    nuevoEstadoMensual.modoHonorariosRecaudo ?? "porcentaje_recaudo";
 
   useUnsavedChanges(open);
 
@@ -169,11 +254,16 @@ export default function EstadosMensualesTable() {
     setNuevoEstadoMensual((s) => {
       const pctNumber = s.porcentajeHonorarios ?? 15;
       const deudaVal = s.deuda ?? undefined;
-      const recaudoVal = s.recaudo ?? undefined;
+      const modo = s.modoHonorariosRecaudo ?? "porcentaje_recaudo";
+      // Hon. Deuda siempre es el % sobre la deuda
       const hd = deudaVal != null ? round0(deudaVal * (pctNumber / 100)) : undefined;
-      const recaudoNum = recaudoVal != null ? Number(recaudoVal) : 0;
-      // Honorarios del Recaudo = Recaudo × (% / (100 + %))
-      const hr = recaudoNum > 0 ? round0(recaudoNum * (pctNumber / (100 + pctNumber))) : undefined;
+      // Hon. Recaudo depende del modo elegido (en "fijo" se respeta lo digitado)
+      const hr = calcularHonorariosRecaudo(
+        s.recaudo,
+        pctNumber,
+        modo,
+        s.honorariosRecaudo
+      );
       if (hd === s.honorariosDeuda && hr === s.honorariosRecaudo) return s;
       return { ...s, honorariosDeuda: hd, honorariosRecaudo: hr };
     });
@@ -181,6 +271,7 @@ export default function EstadosMensualesTable() {
     nuevoEstadoMensual.deuda,
     nuevoEstadoMensual.recaudo,
     nuevoEstadoMensual.porcentajeHonorarios,
+    nuevoEstadoMensual.modoHonorariosRecaudo,
   ]);
 
   const { can, roles = [], loading: aclLoading } = useAcl();
@@ -241,6 +332,7 @@ export default function EstadosMensualesTable() {
       porcentajeHonorarios: porcentajeDefault,
       honorariosDeuda: undefined,
       honorariosRecaudo: undefined,
+      modoHonorariosRecaudo: "porcentaje_recaudo",
       recibo: "",
       observaciones: "",
     });
@@ -258,6 +350,7 @@ export default function EstadosMensualesTable() {
       porcentajeHonorarios: estado.porcentajeHonorarios ?? 15,
       honorariosDeuda: estado.honorariosDeuda ?? undefined,
       honorariosRecaudo: estado.honorariosRecaudo ?? undefined,
+      modoHonorariosRecaudo: inferirModoHonorarios(estado),
       recibo: estado.recibo ?? "",
       observaciones: estado.observaciones ?? "",
     });
@@ -280,7 +373,13 @@ export default function EstadosMensualesTable() {
         deuda,
         recaudo,
         honorariosDeuda: deuda != null ? Math.round(deuda * (pctNumber / 100)) : undefined,
-        honorariosRecaudo: recaudo != null ? Math.round(recaudo * (pctNumber / (100 + pctNumber))) : undefined,
+        honorariosRecaudo: calcularHonorariosRecaudo(
+          recaudo,
+          pctNumber,
+          modoHonorarios,
+          nuevoEstadoMensual.honorariosRecaudo
+        ),
+        modoHonorariosRecaudo: modoHonorarios,
       };
       await upsertEstadoMensualPorMes(clienteId, deudorId, payload);
       toast.success(editing ? "Estado mensual actualizado" : "Estado mensual guardado");
@@ -458,17 +557,16 @@ export default function EstadosMensualesTable() {
                           </Label>
                           <Input
                             id="deuda"
-                            type="number"
-                            step="0.01"
-                            value={nuevoEstadoMensual.deuda ?? ""}
-                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            onChange={(e) => {
-                              const val = e.target.value
-                                ? clamp(parseFloat(e.target.value), 0, 1e15)
-                                : undefined;
-                              setNuevoEstadoMensual((s) => ({ ...s, deuda: val }));
-                            }}
-                            placeholder="0.00"
+                            type="text"
+                            inputMode="numeric"
+                            value={formatMiles(nuevoEstadoMensual.deuda)}
+                            onChange={(e) =>
+                              setNuevoEstadoMensual((s) => ({
+                                ...s,
+                                deuda: parseMiles(e.target.value),
+                              }))
+                            }
+                            placeholder="0"
                             className="border-brand-secondary/30"
                           />
                         </div>
@@ -480,17 +578,16 @@ export default function EstadosMensualesTable() {
                           </Label>
                           <Input
                             id="recaudo"
-                            type="number"
-                            step="0.01"
-                            value={nuevoEstadoMensual.recaudo ?? ""}
-                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            onChange={(e) => {
-                              const val = e.target.value
-                                ? clamp(parseFloat(e.target.value), 0, 1e15)
-                                : undefined;
-                              setNuevoEstadoMensual((s) => ({ ...s, recaudo: val }));
-                            }}
-                            placeholder="0.00"
+                            type="text"
+                            inputMode="numeric"
+                            value={formatMiles(nuevoEstadoMensual.recaudo)}
+                            onChange={(e) =>
+                              setNuevoEstadoMensual((s) => ({
+                                ...s,
+                                recaudo: parseMiles(e.target.value),
+                              }))
+                            }
+                            placeholder="0"
                             className="border-brand-secondary/30"
                           />
                         </div>
@@ -516,11 +613,39 @@ export default function EstadosMensualesTable() {
                         </div>
                       </div>
 
-                      {/* Honorarios (solo lectura) */}
-                      <div className="rounded-xl border border-brand-secondary/20 bg-brand-primary/5 p-4 space-y-3">
-                        <Typography variant="small" className="font-semibold text-brand-secondary">
-                          Honorarios calculados automáticamente
-                        </Typography>
+                      {/* Honorarios */}
+                      <div className="rounded-xl border border-brand-secondary/20 bg-brand-primary/5 p-4 space-y-4">
+                        <div className="space-y-2">
+                          <Label className="text-brand-secondary font-medium">
+                            Forma de cálculo de los honorarios
+                          </Label>
+                          <Select
+                            value={modoHonorarios}
+                            onValueChange={(v) =>
+                              setNuevoEstadoMensual((s) => ({
+                                ...s,
+                                modoHonorariosRecaudo: v as ModoHonorariosRecaudo,
+                              }))
+                            }
+                          >
+                            <SelectTrigger className="w-full bg-white border-brand-secondary/30">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {MODOS_HONORARIOS.map((m) => (
+                                <SelectItem key={m.value} value={m.value}>
+                                  {m.titulo}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Typography variant="small" className="text-brand-secondary/70 leading-snug">
+                            {MODO_HONORARIOS_POR_VALOR[modoHonorarios].frase(
+                              nuevoEstadoMensual.porcentajeHonorarios ?? 0
+                            )}
+                          </Typography>
+                        </div>
+
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label className="text-brand-secondary font-medium">Hon. Deuda</Label>
@@ -533,14 +658,36 @@ export default function EstadosMensualesTable() {
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label className="text-brand-secondary font-medium">Hon. Recaudo</Label>
-                            <Input
-                              readOnly
-                              value={nuevoEstadoMensual.honorariosRecaudo != null
-                                ? `$${nuevoEstadoMensual.honorariosRecaudo.toLocaleString()}`
-                                : ""}
-                              className="bg-white border-brand-secondary/30 cursor-not-allowed"
-                            />
+                            <Label htmlFor="honorariosRecaudo" className="text-brand-secondary font-medium">
+                              Hon. Recaudo{" "}
+                              <span className="text-xs font-normal text-brand-secondary/60">
+                                {modoHonorarios === "fijo" ? "(valor fijo)" : "(calculado)"}
+                              </span>
+                            </Label>
+                            {modoHonorarios === "fijo" ? (
+                              <Input
+                                id="honorariosRecaudo"
+                                type="text"
+                                inputMode="numeric"
+                                value={formatMiles(nuevoEstadoMensual.honorariosRecaudo)}
+                                onChange={(e) =>
+                                  setNuevoEstadoMensual((s) => ({
+                                    ...s,
+                                    honorariosRecaudo: parseMiles(e.target.value),
+                                  }))
+                                }
+                                placeholder="0"
+                                className="bg-white border-brand-secondary/30"
+                              />
+                            ) : (
+                              <Input
+                                readOnly
+                                value={nuevoEstadoMensual.honorariosRecaudo != null
+                                  ? `$${nuevoEstadoMensual.honorariosRecaudo.toLocaleString()}`
+                                  : ""}
+                                className="bg-white border-brand-secondary/30 cursor-not-allowed"
+                              />
+                            )}
                           </div>
                         </div>
                       </div>

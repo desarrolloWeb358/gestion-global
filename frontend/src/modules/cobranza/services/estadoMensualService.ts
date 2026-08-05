@@ -32,6 +32,7 @@ export function normalizeEstado(
     porcentajeHonorarios: input.porcentajeHonorarios,
     honorariosDeuda: input.honorariosDeuda,    
     honorariosRecaudo: input.honorariosRecaudo,
+    modoHonorariosRecaudo: input.modoHonorariosRecaudo ?? "porcentaje_recaudo",
     recibo: input.recibo ?? "",
     observaciones: input.observaciones ?? "",
   };

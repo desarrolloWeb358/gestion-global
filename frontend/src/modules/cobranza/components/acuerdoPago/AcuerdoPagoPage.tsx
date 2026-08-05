@@ -750,6 +750,7 @@ export default function AcuerdoPagoPage() {
         const recalculada = recalcularTablaDesdeValorCuota(gen, {
             capitalInicial: form.capitalInicial,
             porcentajeHonorarios: form.porcentajeHonorarios,
+            valorCuotaBase: form.valorCuotaBase,
         });
 
         // ✅ regla: última cuota de honorarios no puede quedar < 20.000
@@ -772,6 +773,8 @@ export default function AcuerdoPagoPage() {
         const base = {
             capitalInicial: form.capitalInicial,
             porcentajeHonorarios: form.porcentajeHonorarios,
+            // ✅ necesario para que la tabla crezca/decrezca cuando el usuario baja o sube una cuota
+            valorCuotaBase: form.valorCuotaBase,
         };
 
         const idx = meta?.changedIndex ?? 0;
