@@ -9,7 +9,7 @@ import {
   Table,
   TableCell,
   TableRow,
-  TextRun,
+  TextRun as DocxTextRun,
   WidthType,
   TableLayoutType,
   BorderStyle,
@@ -21,6 +21,34 @@ import { buildHeaderGG, buildFooterGG, cm, formatCOP, formatFechaLargaES } from 
 
 import numeroALetras from "@/shared/numeroALetras";
 import { normalizeDemandados, demandadosToString } from "../../models/deudores.model";
+
+/**
+ * XML 1.0 no admite caracteres de control (salvo tab/LF/CR). Si uno de ellos llega
+ * desde los datos (nombres importados de Excel suelen traer \x02, \x1F, etc.) el
+ * document.xml queda mal formado y Word rechaza TODO el archivo con
+ * "Word detectó un error al intentar abrir el archivo".
+ */
+export function limpiarTextoXml(v: unknown): string {
+  return String(v ?? "")
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, "")
+    // pares surrogate huérfanos: también rompen la serialización XML
+    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, "")
+    .replace(/(^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "$1")
+    .replace(/[￾￿]/g, "");
+}
+
+/** TextRun que sanea el texto antes de serializarlo. Ver limpiarTextoXml. */
+class TextRun extends DocxTextRun {
+  constructor(options: ConstructorParameters<typeof DocxTextRun>[0]) {
+    if (typeof options === "string") {
+      super(limpiarTextoXml(options));
+      return;
+    }
+    const texto = (options as { text?: unknown }).text;
+    super(texto === undefined ? options : { ...options, text: limpiarTextoXml(texto) });
+  }
+}
 
 const PURPLE = "4F46E5";
 const LIGHT = "EEF2FF";
