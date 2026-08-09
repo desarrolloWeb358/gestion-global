@@ -5,6 +5,8 @@ export const TIPO_SEGUIMIENTO = [
   { code: "whatsapp",            label: "Whatsapp" },
   { code: "correo_certificado",  label: "Correo Certificado" },
   { code: "sms",                 label: "Sms" },
+  { code: "jornada_normalizacion", label: "Jornada de normalización" },
+  { code: "reunion",             label: "Reunión" },
   { code: "otro",                label: "Otro" },
 ] as const;
 

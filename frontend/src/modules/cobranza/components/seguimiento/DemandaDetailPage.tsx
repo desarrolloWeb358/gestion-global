@@ -24,6 +24,7 @@ import {
   AlertCircle,
   ShieldAlert,
   ChevronDown,
+  MessageSquare,
 } from "lucide-react";
 
 import { Button } from "@/shared/ui/button";
@@ -148,6 +149,8 @@ export default function DemandaDetailPage() {
   const [catalogo, setCatalogo] = React.useState<EtiquetaDemanda[]>([]);
   const [procesoJudicial, setProcesoJudicial] = React.useState<any>(null);
   const [demandadosOpen, setDemandadosOpen] = React.useState(false);
+  const [datosOpen, setDatosOpen] = React.useState(false);
+  const [obsOpen, setObsOpen] = React.useState(false);
 
   // ── Seguimiento ────────────────────────────────────────────────
   const [segRows, setSegRows] = React.useState<SeguimientoDemanda[]>([]);
@@ -505,22 +508,28 @@ export default function DemandaDetailPage() {
 
         {/* ── Datos principales ── */}
         <section className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
-          <div className="bg-gradient-to-r from-red-50 to-orange-50 p-4 md:p-5 border-b border-red-100 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Gavel className="h-5 w-5 text-red-600" />
-              <Typography variant="h3" className="!text-red-700 font-semibold">
+          <div className="bg-gradient-to-r from-red-50 to-orange-50 p-4 md:p-5 border-b border-red-100 flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => setDatosOpen(!datosOpen)}
+              className="flex-1 flex items-center gap-2 hover:opacity-80 transition-opacity"
+            >
+              <Gavel className="h-5 w-5 text-red-600 shrink-0" />
+              <Typography variant="h3" className="!text-red-700 font-semibold text-left">
                 Datos de la demanda
               </Typography>
-            </div>
+              <ChevronDown className={cn("h-5 w-5 text-red-600 shrink-0 transition-transform ml-auto", datosOpen && "rotate-180")} />
+            </button>
             {puedeEditar && (
-              <Button onClick={guardar} disabled={saving} variant="brand" className="gap-2">
+              <Button onClick={guardar} disabled={saving} variant="brand" className="gap-2 shrink-0">
                 <Save className="h-4 w-4" />
                 {saving ? "Guardando..." : "Guardar cambios"}
               </Button>
             )}
           </div>
 
-          <div className="p-4 md:p-5 space-y-6">
+          {datosOpen && (
+            <div className="p-4 md:p-5 space-y-6">
             <div className="grid gap-4 md:grid-cols-2">
               <FieldInput label="Número de radicado" icon={Hash} value={form.numeroRadicado} readOnly={readOnly} onChange={(v) => setForm((s) => ({ ...s, numeroRadicado: v }))} />
               <FieldInput label="Juzgado" icon={Building2} value={form.juzgado} readOnly={readOnly} onChange={(v) => setForm((s) => ({ ...s, juzgado: v }))} />
@@ -796,8 +805,8 @@ export default function DemandaDetailPage() {
               )}
             </div>
             )}
-
-          </div>
+            </div>
+          )}
         </section>
 
         {/* ── Seguimiento de la demanda ── */}
@@ -938,17 +947,7 @@ export default function DemandaDetailPage() {
           </section>
         )}
 
-        {/* ── Observaciones ── */}
-        {!isExterno && (
-          <section className="rounded-2xl border border-orange-200 bg-white shadow-sm overflow-hidden">
-            <div className="bg-gradient-to-r from-orange-50 to-orange-100/50 p-4 md:p-5 border-b border-orange-200/50">
-              <Typography variant="h3" className="!text-orange-900 font-semibold">Observaciones internas</Typography>
-            </div>
-            <div className="p-4 md:p-5">
-              <Textarea value={obsInterna} onChange={(e) => setObsInterna(e.target.value)} readOnly={!puedeEditar} className="min-h-32 border-brand-secondary/30" />
-            </div>
-          </section>
-        )}
+        
 
         <section className="rounded-2xl border border-green-200 bg-white shadow-sm overflow-hidden">
           <div className="bg-gradient-to-r from-green-50 to-green-100/50 p-4 md:p-5 border-b border-green-200/50">
@@ -958,6 +957,28 @@ export default function DemandaDetailPage() {
             <Textarea value={obsCliente} onChange={(e) => setObsCliente(e.target.value)} readOnly={!puedeEditar} className="min-h-32 border-brand-secondary/30" placeholder={puedeEditar ? "Escribe tu observación..." : ""} />
           </div>
         </section>
+
+        {/* ── Observaciones internas ── */}
+        {!isExterno && (
+          <section className="rounded-2xl border border-orange-200 bg-white shadow-sm overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setObsOpen(!obsOpen)}
+              className="w-full flex items-center gap-2 px-4 md:px-5 py-4 md:py-5 bg-gradient-to-r from-orange-50 to-orange-100/50 border-b border-orange-200/50 hover:from-orange-100 hover:to-orange-200/50 transition-colors"
+            >
+              <MessageSquare className="h-5 w-5 text-orange-600 shrink-0" />
+              <Typography variant="h3" className="!text-orange-900 font-semibold flex-1 text-left">
+                Observaciones internas
+              </Typography>
+              <ChevronDown className={cn("h-5 w-5 text-orange-600 shrink-0 transition-transform", obsOpen && "rotate-180")} />
+            </button>
+            {obsOpen && (
+              <div className="p-4 md:p-5 border-t border-orange-200/50">
+                <Textarea value={obsInterna} onChange={(e) => setObsInterna(e.target.value)} readOnly={!puedeEditar} className="min-h-32 border-brand-secondary/30" />
+              </div>
+            )}
+          </section>
+        )}
       </div>
 
       {/* Dialog seguimiento */}

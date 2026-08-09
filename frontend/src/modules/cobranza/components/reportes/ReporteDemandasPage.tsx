@@ -50,8 +50,6 @@ const fmt = new Intl.DateTimeFormat("es-CO", {
 });
 const fmtD = (d: Date | null) => (d ? fmt.format(d) : "—");
 
-type CampoFecha = "fechaUltimaRevision" | "fechaCreacion" | "proximaAccionFecha";
-
 export default function ReporteDemandasPage() {
   const navigate = useNavigate();
   const acl = useAcl() as { roles: Rol[] };
@@ -65,7 +63,6 @@ export default function ReporteDemandasPage() {
   const soloDependiente = !esGlobal && roles.includes("dependiente");
 
   // Opciones de filtro (cargadas al entrar, SIN leer demandas)
-  const [clientesOpts, setClientesOpts] = React.useState<{ id: string; nombre: string }[]>([]);
   const [dependientesOpts, setDependientesOpts] = React.useState<{ id: string; nombre: string }[]>([]);
   const [etiquetasOpts, setEtiquetasOpts] = React.useState<string[]>([]);
   const [cargandoOpciones, setCargandoOpciones] = React.useState(true);
@@ -76,14 +73,8 @@ export default function ReporteDemandasPage() {
   const [buscado, setBuscado] = React.useState(false);
 
   // Estado de filtros
-  const [fCliente, setFCliente] = React.useState<string>("todos");
-  const [fDependiente, setFDependiente] = React.useState<string>("todos");
-  const [fEstado, setFEstado] = React.useState<string>("todos");
+  const [fDependiente, setFDependiente] = React.useState<string>("");
   const [fEtiqueta, setFEtiqueta] = React.useState<string>("todas");
-  const [fSinCoteje, setFSinCoteje] = React.useState(false);
-  const [campoFecha, setCampoFecha] = React.useState<CampoFecha>("proximaAccionFecha");
-  const [desde, setDesde] = React.useState("");
-  const [hasta, setHasta] = React.useState("");
 
   React.useEffect(() => {
     (async () => {
@@ -93,9 +84,12 @@ export default function ReporteDemandasPage() {
           cargarOpcionesFiltroDemandas(),
           getEtiquetasDemanda(true),
         ]);
-        setClientesOpts(op.clientes);
         setDependientesOpts(op.dependientes);
         setEtiquetasOpts(etis.map((e) => e.nombre).filter(Boolean));
+        // Si es un dependiente solo, establecer su dependiente automáticamente
+        if (soloDependiente && uid) {
+          setFDependiente(uid);
+        }
       } catch {
         toast.error("⚠️ No se pudieron cargar los filtros");
       } finally {
@@ -104,39 +98,29 @@ export default function ReporteDemandasPage() {
     })();
   }, []);
 
-  // El dependiente siempre queda acotado a lo suyo (su uid).
-  const dependienteEfectivo = soloDependiente ? uid ?? undefined : undefined;
+  // Obtener el nombre del dependiente seleccionado
+  const nombreDependienteSeleccionado = dependientesOpts.find((d) => d.id === fDependiente)?.nombre ?? "";
 
-  // ¿Hay al menos un filtro que permita buscar?
-  const hayFiltro =
-    fCliente !== "todos" ||
-    fDependiente !== "todos" ||
-    fEstado !== "todos" ||
-    fEtiqueta !== "todas" ||
-    fSinCoteje ||
-    !!desde ||
-    !!hasta ||
-    soloDependiente;
+  // Dependiente es obligatorio para buscar
+  const hayFiltro = !!fDependiente;
 
   // Acotable al servidor por cliente/dependiente (búsqueda liviana).
-  const busquedaAcotada =
-    fCliente !== "todos" || fDependiente !== "todos" || !!dependienteEfectivo;
+  const busquedaAcotada = !!fDependiente;
 
   const buscar = async () => {
     if (!hayFiltro) {
-      toast.error("Selecciona al menos un filtro antes de buscar.");
+      toast.error("Debes seleccionar un dependiente para buscar.");
       return;
     }
     const filtros: DemandaReporteFiltros = {
-      clienteId: fCliente !== "todos" ? fCliente : undefined,
-      ejecutivoDependienteId:
-        dependienteEfectivo ?? (fDependiente !== "todos" ? fDependiente : undefined),
-      estado: fEstado !== "todos" ? (fEstado as DemandaReporteRow["estado"]) : undefined,
+      clienteId: undefined,
+      ejecutivoDependienteId: fDependiente || undefined,
+      estado: undefined,
       etiquetaNombre: fEtiqueta !== "todas" ? fEtiqueta : undefined,
-      soloSinCoteje: fSinCoteje,
-      campoFecha,
-      desde: desde ? new Date(`${desde}T00:00:00`) : undefined,
-      hasta: hasta ? new Date(`${hasta}T23:59:59`) : undefined,
+      soloSinCoteje: false,
+      campoFecha: "proximaAccionFecha",
+      desde: undefined,
+      hasta: undefined,
     };
     try {
       setBuscando(true);
@@ -151,14 +135,12 @@ export default function ReporteDemandasPage() {
   };
 
   const resetFiltros = () => {
-    setFCliente("todos");
-    setFDependiente("todos");
-    setFEstado("todos");
+    if (soloDependiente && uid) {
+      setFDependiente(uid);
+    } else {
+      setFDependiente("");
+    }
     setFEtiqueta("todas");
-    setFSinCoteje(false);
-    setCampoFecha("proximaAccionFecha");
-    setDesde("");
-    setHasta("");
     setRows([]);
     setBuscado(false);
   };
@@ -171,27 +153,21 @@ export default function ReporteDemandasPage() {
     const data = rows.map((r) => ({
       Cliente: r.clienteNombre,
       Deudor: r.deudorNombre,
-      Ubicación: r.ubicacion,
       Radicado: r.numeroRadicado,
       Juzgado: r.juzgado,
-      Localidad: r.localidad,
-      Estado: r.estado,
-      Dependiente: r.ejecutivoDependienteNombre,
-      Demandados: r.totalDemandados,
-      "Notif. sin coteje": r.notificacionesSinCoteje,
       Etiquetas: r.etiquetas.map((e) => e.nombre).join(", "),
+      Estado: r.estado,
+      "Notif. sin coteje": r.notificacionesSinCoteje,
       "Próxima acción": r.proximaAccionFecha ? fmt.format(r.proximaAccionFecha) : "",
-      "Última revisión": r.fechaUltimaRevision ? fmt.format(r.fechaUltimaRevision) : "",
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     ws["!cols"] = [
-      { wch: 24 }, { wch: 26 }, { wch: 12 }, { wch: 26 }, { wch: 22 },
-      { wch: 14 }, { wch: 10 }, { wch: 20 }, { wch: 11 }, { wch: 14 },
-      { wch: 28 }, { wch: 14 }, { wch: 14 },
+      { wch: 30 }, { wch: 30 }, { wch: 25 }, { wch: 22 },
+      { wch: 28 }, { wch: 12 }, { wch: 15 }, { wch: 14 },
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Demandas");
-    XLSX.writeFile(wb, `Reporte_Demandas_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.writeFile(wb, `Reporte_Demandas_${nombreDependienteSeleccionado}_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   return (
@@ -231,40 +207,14 @@ export default function ReporteDemandasPage() {
             <Button variant="ghost" size="sm" onClick={resetFiltros}>Limpiar</Button>
           </div>
           <div className="p-4 md:p-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {!soloDependiente && (
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Dependiente</Label>
-                <Select value={fDependiente} onValueChange={setFDependiente} disabled={cargandoOpciones}>
-                  <SelectTrigger className="border-brand-secondary/30"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todos</SelectItem>
-                    {dependientesOpts.map((d) => (
-                      <SelectItem key={d.id} value={d.id}>{d.nombre}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Cliente / conjunto</Label>
-              <Select value={fCliente} onValueChange={setFCliente} disabled={cargandoOpciones}>
-                <SelectTrigger className="border-brand-secondary/30"><SelectValue /></SelectTrigger>
+              <Label className="text-xs text-muted-foreground">Dependiente</Label>
+              <Select value={fDependiente} onValueChange={setFDependiente} disabled={cargandoOpciones}>
+                <SelectTrigger className="border-brand-secondary/30"><SelectValue placeholder="Selecciona un dependiente" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="todos">Todos</SelectItem>
-                  {clientesOpts.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
+                  {dependientesOpts.map((d) => (
+                    <SelectItem key={d.id} value={d.id}>{d.nombre}</SelectItem>
                   ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Estado</Label>
-              <Select value={fEstado} onValueChange={setFEstado}>
-                <SelectTrigger className="border-brand-secondary/30"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos</SelectItem>
-                  <SelectItem value="activa">Activa</SelectItem>
-                  <SelectItem value="terminada">Terminada</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -280,31 +230,6 @@ export default function ReporteDemandasPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Filtrar fechas por</Label>
-              <Select value={campoFecha} onValueChange={(v) => setCampoFecha(v as CampoFecha)}>
-                <SelectTrigger className="border-brand-secondary/30"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="proximaAccionFecha">Próxima acción (etiqueta)</SelectItem>
-                  <SelectItem value="fechaUltimaRevision">Última revisión</SelectItem>
-                  <SelectItem value="fechaCreacion">Creación</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Desde</Label>
-                <Input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} className="border-brand-secondary/30" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Hasta</Label>
-                <Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} className="border-brand-secondary/30" />
-              </div>
-            </div>
-            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer self-end pb-2">
-              <input type="checkbox" checked={fSinCoteje} onChange={(e) => setFSinCoteje(e.target.checked)} className="h-4 w-4 rounded border-brand-secondary/40" />
-              Solo con notificaciones sin coteje
-            </label>
           </div>
           <div className="px-4 md:px-5 pb-4 md:pb-5 flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs text-muted-foreground">
@@ -342,35 +267,30 @@ export default function ReporteDemandasPage() {
           </div>
         ) : (
           <div className="rounded-2xl border border-brand-secondary/20 bg-white shadow-sm overflow-hidden">
+            <div className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 p-4 md:p-5 border-b border-brand-secondary/10">
+              <Typography variant="h3" className="!text-brand-secondary font-semibold">
+                Demandas de {nombreDependienteSeleccionado}
+              </Typography>
+            </div>
             <div className="overflow-x-auto">
-              <Table className="min-w-[1100px]">
+              <Table className="w-full">
                 <TableHeader className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5">
                   <TableRow className="border-brand-secondary/10 hover:bg-transparent">
-                    <TableHead className="text-brand-secondary font-semibold">Cliente</TableHead>
-                    <TableHead className="text-brand-secondary font-semibold">Deudor</TableHead>
-                    <TableHead className="text-brand-secondary font-semibold">Radicado</TableHead>
-                    <TableHead className="text-brand-secondary font-semibold">Juzgado</TableHead>
-                    <TableHead className="w-[90px] text-center text-brand-secondary font-semibold">Estado</TableHead>
-                    <TableHead className="text-brand-secondary font-semibold">Dependiente</TableHead>
-                    <TableHead className="text-brand-secondary font-semibold">Etiquetas</TableHead>
-                    <TableHead className="w-[90px] text-center text-brand-secondary font-semibold">Sin coteje</TableHead>
-                    <TableHead className="w-[120px] text-brand-secondary font-semibold">Próx. acción</TableHead>
-                    <TableHead className="w-[60px] text-center text-brand-secondary font-semibold">Ir</TableHead>
+                    <TableHead className="w-[22%] text-brand-secondary font-semibold">Cliente</TableHead>
+                    <TableHead className="w-[22%] text-brand-secondary font-semibold">Deudor</TableHead>
+                    <TableHead className="w-[16%] text-brand-secondary font-semibold">Radicado</TableHead>
+                    <TableHead className="w-[18%] text-brand-secondary font-semibold">Juzgado</TableHead>
+                    <TableHead className="w-[16%] text-brand-secondary font-semibold">Etiquetas</TableHead>
+                    <TableHead className="w-[6%] text-center text-brand-secondary font-semibold">Ir</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {rows.map((r, index) => (
                     <TableRow key={`${r.clienteId}-${r.deudorId}-${r.demandaId}`} className={cn("border-brand-secondary/5", index % 2 === 0 ? "bg-white" : "bg-brand-primary/[0.02]", "hover:bg-brand-primary/5")}>
-                      <TableCell className="text-gray-700">{r.clienteNombre}</TableCell>
-                      <TableCell className="font-medium text-gray-800">{r.deudorNombre || "—"}</TableCell>
-                      <TableCell className="text-gray-700 font-mono text-xs">{r.numeroRadicado || "—"}</TableCell>
-                      <TableCell className="text-gray-700">{r.juzgado || "—"}</TableCell>
-                      <TableCell className="text-center">
-                        <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold", r.estado === "terminada" ? "bg-gray-100 text-gray-700" : "bg-green-100 text-green-800")}>
-                          {r.estado === "terminada" ? "Term." : "Activa"}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-gray-700">{r.ejecutivoDependienteNombre || "—"}</TableCell>
+                      <TableCell className="text-gray-700 w-[22%] truncate">{r.clienteNombre}</TableCell>
+                      <TableCell className="font-medium text-gray-800 w-[22%] truncate">{r.deudorNombre || "—"}</TableCell>
+                      <TableCell className="text-gray-700 font-mono text-xs w-[16%]">{r.numeroRadicado || "—"}</TableCell>
+                      <TableCell className="text-gray-700 w-[18%] truncate">{r.juzgado || "—"}</TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
                           {r.etiquetas.length === 0 ? (
@@ -385,16 +305,6 @@ export default function ReporteDemandasPage() {
                           {r.etiquetas.length > 3 && <span className="text-xs text-muted-foreground">+{r.etiquetas.length - 3}</span>}
                         </div>
                       </TableCell>
-                      <TableCell className="text-center">
-                        {r.notificacionesSinCoteje > 0 ? (
-                          <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-xs font-semibold">
-                            {r.notificacionesSinCoteje}
-                          </span>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-gray-700">{fmtD(r.proximaAccionFecha)}</TableCell>
                       <TableCell className="text-center">
                         <Button size="sm" variant="ghost" onClick={() => navigate(`/clientes/${r.clienteId}/deudores/${r.deudorId}/demandas/${r.demandaId}`)} className="hover:bg-brand-primary/10" title="Abrir demanda">
                           <ExternalLink className="h-4 w-4 text-brand-primary" />
