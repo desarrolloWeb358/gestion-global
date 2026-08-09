@@ -23,6 +23,17 @@ import type { Payload as LegendPayload } from "recharts/types/component/DefaultL
 // shadcn/ui
 import { Separator } from "@/shared/ui/separator";
 import { Button } from "@/shared/ui/button";
+import { Checkbox } from "@/shared/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/shared/ui/alert-dialog";
 import {
   Loader2,
   PieChart as PieChartIcon,
@@ -35,6 +46,7 @@ import {
   Filter,
   Download,
   FileDown,
+  Mail,
 } from "lucide-react";
 import { toPng } from "html-to-image";
 
@@ -85,6 +97,7 @@ import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 
 import { obtenerRecaudosMensuales, MesTotal, existeEstadoMensualClienteEnPeriodo } from "../../services/reportes/recaudosService";
 import { actualizarCliente } from "@/modules/clientes/services/clienteService";
+import { enviarCorreoReporteDisponible } from "../../services/reportes/reporteHabilitadoEmail";
 
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { PERMS } from "@/shared/constants/acl";
@@ -430,6 +443,11 @@ export default function ReporteClientePage() {
   const [clienteCargado, setClienteCargado] = useState(false);
   const [togglingReporte, setTogglingReporte] = useState(false);
 
+  // Confirmación al habilitar el reporte + aviso por correo
+  const [correoCliente, setCorreoCliente] = useState<string>("");
+  const [confirmHabilitarOpen, setConfirmHabilitarOpen] = useState(false);
+  const [enviarCorreoCheck, setEnviarCorreoCheck] = useState(true);
+
   const [gestionandoDetalle, setGestionandoDetalle] = useState<DeudorTipificacionDetalle[]>([]);
   const [recomMin, setRecomMin] = useState<number>(2_000_000);
   const [recomInputStr, setRecomInputStr] = useState<string>("2000000");
@@ -554,6 +572,17 @@ export default function ReporteClientePage() {
         setReportesHabilitados(habMap);
         reportesHabilitadosRef.current = habMap;
         setClienteCargado(true);
+
+        // ✅ correo asignado al cliente: contacto del conjunto y, si no hay, el del usuario
+        const correoContacto = c?.correoContacto?.trim() || "";
+        if (correoContacto) {
+          setCorreoCliente(correoContacto);
+        } else {
+          const usuarioCliente = await getUsuarioByUid(clienteId).catch(() => null);
+          if (!alive) return;
+          setCorreoCliente(usuarioCliente?.email?.trim() || "");
+        }
+
         // ✅ ejecutivo prejurídico (viene en Cliente)
         const ejecutivoId = c?.ejecutivoPrejuridicoId ?? null;
 
@@ -663,10 +692,9 @@ export default function ReporteClientePage() {
   };
 
 
-  const handleToggleReporte = async () => {
+  const aplicarToggleReporte = async (nuevoValor: boolean, enviarCorreo: boolean) => {
     if (!clienteId) return;
     const mesKey = `${yearTabla}-${String(monthTabla).padStart(2, "0")}`;
-    const nuevoValor = !(reportesHabilitados[mesKey] === true);
     setTogglingReporte(true);
     try {
       await actualizarCliente(clienteId, {
@@ -678,12 +706,103 @@ export default function ReporteClientePage() {
         return updated;
       });
       toast.success(nuevoValor ? "Reporte habilitado para el cliente" : "Reporte deshabilitado para el cliente");
+
+      // ✅ Al habilitar, avisamos al correo asignado del cliente (no revierte la habilitación si falla)
+      if (nuevoValor && enviarCorreo) {
+        try {
+          const correo = await enviarCorreoReporteDisponible({
+            clienteId,
+            year: yearTabla,
+            month: monthTabla,
+            clienteNombre: clienteNombre?.trim() || undefined,
+            correoDestino: correoCliente || undefined,
+          });
+          toast.success(`Correo enviado a ${correo}`);
+        } catch (err) {
+          console.error("[reporte habilitado] Error enviando correo:", err);
+          toast.error(
+            err instanceof Error && err.message.includes("correo electrónico asignado")
+              ? "El reporte quedó habilitado, pero el cliente no tiene correo asignado"
+              : "El reporte quedó habilitado, pero no se pudo enviar el correo"
+          );
+        }
+      }
     } catch {
       toast.error("Error al actualizar el permiso del reporte");
     } finally {
       setTogglingReporte(false);
     }
   };
+
+  const handleToggleReporte = () => {
+    if (!clienteId) return;
+    const mesKey = `${yearTabla}-${String(monthTabla).padStart(2, "0")}`;
+    const habilitado = reportesHabilitados[mesKey] === true;
+
+    // Al habilitar pedimos confirmación (y ahí se decide si se envía el correo)
+    if (!habilitado) {
+      setEnviarCorreoCheck(Boolean(correoCliente));
+      setConfirmHabilitarOpen(true);
+      return;
+    }
+
+    void aplicarToggleReporte(false, false);
+  };
+
+  const periodoLabel = useMemo(() => {
+    const mes = new Date(2024, monthTabla - 1, 1).toLocaleDateString("es-CO", { month: "long" });
+    return `${mes.charAt(0).toUpperCase() + mes.slice(1)} ${yearTabla}`;
+  }, [monthTabla, yearTabla]);
+
+  const confirmHabilitarDialog = (
+    <AlertDialog open={confirmHabilitarOpen} onOpenChange={setConfirmHabilitarOpen}>
+      <AlertDialogContent className="w-[calc(100vw-2rem)] sm:max-w-md">
+        <AlertDialogHeader>
+          <AlertDialogTitle className="text-brand-secondary">
+            ¿Habilitar reporte al cliente?
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            Se habilitará el reporte de <strong>{periodoLabel}</strong> para que{" "}
+            <strong>{clienteNombre}</strong> pueda consultarlo en la plataforma.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        {correoCliente ? (
+          <label className="flex items-start gap-3 rounded-xl border border-brand-secondary/15 bg-brand-primary/[0.03] px-3 py-3 cursor-pointer">
+            <Checkbox
+              checked={enviarCorreoCheck}
+              onCheckedChange={(v) => setEnviarCorreoCheck(Boolean(v))}
+              className="mt-0.5"
+            />
+            <span className="text-sm text-brand-secondary">
+              <span className="flex items-center gap-1.5 font-medium">
+                <Mail className="h-4 w-4 text-brand-primary" />
+                Enviar correo de aviso a:
+              </span>
+              <span className="block mt-0.5 break-all text-muted-foreground">{correoCliente}</span>
+            </span>
+          </label>
+        ) : (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-800">
+            El cliente no tiene un correo electrónico asignado, por lo que no se enviará el aviso.
+          </div>
+        )}
+
+        <AlertDialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+          <AlertDialogCancel disabled={togglingReporte} className="w-full sm:w-auto">
+            Cancelar
+          </AlertDialogCancel>
+          <AlertDialogAction
+            disabled={togglingReporte}
+            onClick={() => void aplicarToggleReporte(true, enviarCorreoCheck && Boolean(correoCliente))}
+            className="w-full sm:w-auto bg-brand-primary text-white hover:bg-brand-600 focus-visible:ring-brand-primary/30"
+          >
+            Aceptar
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
 
   const handleDownloadPdf = async () => {
     if (!clienteId) return;
@@ -1120,6 +1239,8 @@ export default function ReporteClientePage() {
             </Typography>
           </div>
         </section>
+
+        {confirmHabilitarDialog}
       </div>
     );
   }
@@ -1739,6 +1860,8 @@ export default function ReporteClientePage() {
         grupos={valoresAgregadosGrupos}
         mostrarPendientes={canDownloadWord}
       />
+
+      {confirmHabilitarDialog}
 
     </div>
   );
