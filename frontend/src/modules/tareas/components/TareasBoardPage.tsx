@@ -6,7 +6,7 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { Plus } from "lucide-react";
+import { Archive, LayoutDashboard, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/ui/button";
@@ -24,8 +24,23 @@ import type { Tarea, TareaEstado } from "../models/tarea.model";
 import { cambiarEstadoTarea } from "../services/tareaService";
 import { TareaColumn } from "./TareaColumn";
 import { TareaFormModal } from "./TareaFormModal";
+import { TareaCard } from "./TareaCard";
 
 const TODOS = "__TODOS__";
+const DIAS_VISIBLES_FINALIZADAS = 30;
+
+function fechaEnMilisegundos(fecha: Tarea["fechaFinalizacion"]): number | null {
+  if (!fecha || typeof (fecha as any).toDate !== "function") return null;
+  return (fecha as any).toDate().getTime();
+}
+
+function estaArchivada(tarea: Tarea, ahora: number): boolean {
+  if (tarea.estado !== "finalizada") return false;
+  const fechaFinalizacion = fechaEnMilisegundos(tarea.fechaFinalizacion);
+  if (fechaFinalizacion === null) return false;
+  const antiguedadMaxima = DIAS_VISIBLES_FINALIZADAS * 24 * 60 * 60 * 1000;
+  return ahora - fechaFinalizacion >= antiguedadMaxima;
+}
 
 export default function TareasBoardPage() {
   const { can, roles, loading: aclLoading } = useAcl();
@@ -39,6 +54,7 @@ export default function TareasBoardPage() {
   const uid = usuario?.uid;
   const nombreActor = usuarioSistema?.nombre ?? usuario?.displayName ?? "";
   const puedeVerTodas = roles.includes("admin") || roles.includes("ejecutivoAdmin");
+  const esAdmin = roles.includes("admin");
 
   const { tareas, loading } = useTareas(uid, canManage && puedeVerTodas);
 
@@ -46,6 +62,7 @@ export default function TareasBoardPage() {
   const [filtroEjecutivo, setFiltroEjecutivo] = React.useState<string>(TODOS);
   const [tareaSeleccionada, setTareaSeleccionada] = React.useState<Tarea | null>(null);
   const [mostrarNuevaTarea, setMostrarNuevaTarea] = React.useState(false);
+  const [vista, setVista] = React.useState<"tablero" | "historico">("tablero");
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -59,13 +76,26 @@ export default function TareasBoardPage() {
     );
   }, [canAssign]);
 
-  const tareasFiltradas = React.useMemo(() => {
+  const tareasPorAgente = React.useMemo(() => {
     if (!canManage || filtroEjecutivo === TODOS) return tareas;
     return tareas.filter((t) => t.asignadoA === filtroEjecutivo);
   }, [tareas, canManage, filtroEjecutivo]);
 
+  const { tareasTablero, tareasHistoricas } = React.useMemo(() => {
+    const ahora = Date.now();
+    return {
+      tareasTablero: tareasPorAgente.filter((t) => !estaArchivada(t, ahora)),
+      tareasHistoricas: tareasPorAgente
+        .filter((t) => estaArchivada(t, ahora))
+        .sort((a, b) =>
+          (fechaEnMilisegundos(b.fechaFinalizacion) ?? 0) -
+          (fechaEnMilisegundos(a.fechaFinalizacion) ?? 0)
+        ),
+    };
+  }, [tareasPorAgente]);
+
   function tareasParaColumna(estado: TareaEstado) {
-    return tareasFiltradas.filter((t) => t.estado === estado);
+    return tareasTablero.filter((t) => t.estado === estado);
   }
 
   function puedeArrastrar(tarea: Tarea): boolean {
@@ -109,8 +139,33 @@ export default function TareasBoardPage() {
   return (
     <div className="p-4 md:p-6 space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <h1 className="text-xl font-bold">Tareas</h1>
-        <div className="flex items-center gap-2">
+        <div>
+          <h1 className="text-xl font-bold">Tareas</h1>
+          <p className="text-sm text-muted-foreground">
+            Las tareas finalizadas permanecen 30 días en el tablero.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {esAdmin && (
+            <div className="flex rounded-md border p-0.5">
+              <Button
+                type="button"
+                size="sm"
+                variant={vista === "tablero" ? "default" : "ghost"}
+                onClick={() => setVista("tablero")}
+              >
+                <LayoutDashboard className="h-4 w-4 mr-1" /> Tablero
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={vista === "historico" ? "default" : "ghost"}
+                onClick={() => setVista("historico")}
+              >
+                <Archive className="h-4 w-4 mr-1" /> Histórico
+              </Button>
+            </div>
+          )}
           {canManage && (
             <Select value={filtroEjecutivo} onValueChange={setFiltroEjecutivo}>
               <SelectTrigger className="w-[220px]">
@@ -124,7 +179,7 @@ export default function TareasBoardPage() {
               </SelectContent>
             </Select>
           )}
-          {canRead && (
+          {canRead && vista === "tablero" && (
             <Button onClick={() => setMostrarNuevaTarea(true)}>
               <Plus className="h-4 w-4 mr-1" /> Nueva tarea
             </Button>
@@ -132,20 +187,48 @@ export default function TareasBoardPage() {
         </div>
       </div>
 
-      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {TAREA_ESTADOS.map((col) => (
-            <TareaColumn
-              key={col.id}
-              id={col.id}
-              titulo={col.titulo}
-              tareas={tareasParaColumna(col.id)}
-              puedeArrastrar={puedeArrastrar}
-              onTareaClick={setTareaSeleccionada}
-            />
-          ))}
+      {vista === "tablero" ? (
+        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {TAREA_ESTADOS.map((col) => (
+              <TareaColumn
+                key={col.id}
+                id={col.id}
+                titulo={col.titulo}
+                tareas={tareasParaColumna(col.id)}
+                puedeArrastrar={puedeArrastrar}
+                onTareaClick={setTareaSeleccionada}
+              />
+            ))}
+          </div>
+        </DndContext>
+      ) : (
+        <div className="rounded-lg border bg-muted/20 p-4">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="font-semibold">Histórico de tareas finalizadas</h2>
+              <p className="text-sm text-muted-foreground">Tareas cerradas hace 30 días o más.</p>
+            </div>
+            <span className="text-sm text-muted-foreground">{tareasHistoricas.length} tareas</span>
+          </div>
+          {tareasHistoricas.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+              {tareasHistoricas.map((tarea) => (
+                <TareaCard
+                  key={tarea.id}
+                  tarea={tarea}
+                  puedeArrastrar={false}
+                  onClick={() => setTareaSeleccionada(tarea)}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="py-12 text-center text-sm text-muted-foreground">
+              No hay tareas históricas para este filtro.
+            </p>
+          )}
         </div>
-      </DndContext>
+      )}
 
       {tareaSeleccionada && (
         <TareaFormModal

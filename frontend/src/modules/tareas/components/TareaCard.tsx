@@ -1,5 +1,5 @@
 import { useDraggable } from "@dnd-kit/core";
-import { CalendarIcon, User } from "lucide-react";
+import { CalendarCheck, CalendarIcon, User } from "lucide-react";
 import { Badge } from "@/shared/ui/badge";
 import { cn } from "@/shared/lib/cn";
 import type { Tarea } from "../models/tarea.model";
@@ -69,6 +69,12 @@ export function TareaCard({ tarea, puedeArrastrar, onClick }: TareaCardProps) {
         <User className="h-3 w-3" />
         {tarea.asignadoNombre || "Sin asignar"}
       </div>
+      {tarea.estado === "finalizada" && tarea.fechaFinalizacion && (
+        <div className="flex items-center gap-1 text-xs text-emerald-700">
+          <CalendarCheck className="h-3 w-3" />
+          Finalizada el {formatFechaCorta(tarea.fechaFinalizacion)}
+        </div>
+      )}
     </div>
   );
 }
