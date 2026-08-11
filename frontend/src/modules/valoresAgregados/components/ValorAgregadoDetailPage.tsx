@@ -105,6 +105,7 @@ export default function ValorAgregadoDetailPage() {
   const canView = can(PERMS.Valores_Read);
   const rolesPuedeEditar = ["admin", "ejecutivoAdmin", "abogado", "dependiente"];
   const canEdit = roles.some((rol) => rolesPuedeEditar.includes(rol));
+  const canPostMessage = canEdit || roles.includes("cliente");
   // ===== Detalle principal
   const [item, setItem] = React.useState<ValorAgregado | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -579,7 +580,7 @@ export default function ValorAgregadoDetailPage() {
             )}
 
             {/* Nuevo mensaje — solo abogado, admin, ejecutivoAdmin y cliente */}
-            {canEdit && <div className="pt-4 border-t border-gray-200">
+            {canPostMessage && <div className="pt-4 border-t border-gray-200">
               <Typography variant="body" className="font-semibold text-brand-secondary mb-3">
                 Agregar mensaje
               </Typography>

@@ -302,12 +302,17 @@ export default function BulkWhatsAppPage() {
       parameters: Array<{ parameterName: string; value: string }>;
       messageText: string;
     }> = [];
-    const noPhone: Array<{ nombre: string; ubicacion: string }> = [];
+    const noPhone: Array<{ nombre: string; ubicacion: string; deudorId: string; tipificacion: string }> = [];
 
     for (const deudor of filteredDeudores) {
       const phones = (deudor.telefonos ?? []).filter(Boolean);
       if (phones.length === 0) {
-        noPhone.push({ nombre: deudor.nombre, ubicacion: deudor.ubicacion ?? "" });
+        noPhone.push({
+          nombre: deudor.nombre,
+          ubicacion: deudor.ubicacion ?? "",
+          deudorId: deudor.id!,
+          tipificacion: deudor.tipificacion ?? "",
+        });
       } else {
         for (const raw of phones) {
           const phone = normalizePhone(raw);

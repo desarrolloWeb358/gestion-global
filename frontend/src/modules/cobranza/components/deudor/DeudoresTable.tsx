@@ -1544,7 +1544,7 @@ export default function DeudoresTable() {
             Cédula: d.cedula ?? "",
             Teléfonos: (d.telefonos ?? []).join(", "),
             "Ubicación / Apto": d.ubicacion ?? "",
-            Dirección: (d as any).direccion ?? "",
+            Correo: (d.correos ?? []).join(", "),
             Tipificación: d.tipificacion ?? "",
             "Deuda (último mes)": fmt(deuda),
             "Honorarios (último mes)": fmt(honorarios),

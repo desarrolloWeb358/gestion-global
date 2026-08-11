@@ -5,7 +5,6 @@ import * as React from "react";
 import {
   IconLogout,
   IconLoader2,
-  IconSettings,
 } from "@tabler/icons-react";
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
@@ -188,20 +187,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  onClick={() => {/* Acción de configuración */}}
-                  className={cn(
-                    "w-full !text-white/80 hover:!bg-white/10 hover:!text-white transition-all duration-200",
-                    "data-[slot=sidebar-menu-button]:justify-start data-[slot=sidebar-menu-button]:gap-3",
-                    "group"
-                  )}
-                >
-                  <IconSettings className="!size-5 !text-white/80 group-hover:!text-white" />
-                  <span className="font-medium">Configuración</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-
-              <SidebarMenuItem>
-                <SidebarMenuButton
                   onClick={onLogout}
                   className={cn(
                     "w-full !text-white/80 hover:!bg-red-500/20 hover:!text-white transition-all duration-200",
@@ -231,20 +216,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
             {/* Botones de acción - Colapsado */}
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={() => {/* Acción de configuración */}}
-                  className={cn(
-                    "w-full !text-white/80 hover:!bg-white/10 hover:!text-white transition-all duration-200",
-                    "data-[slot=sidebar-menu-button]:justify-center",
-                    "group"
-                  )}
-                  tooltip="Configuración"
-                >
-                  <IconSettings className="!size-5 !text-white/80 group-hover:!text-white" />
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-
               <SidebarMenuItem>
                 <SidebarMenuButton
                   onClick={onLogout}

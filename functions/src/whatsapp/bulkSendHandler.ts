@@ -6,6 +6,9 @@ import { getOrCreateConversation, appendMessage } from "./conversationService";
 const BATCH_SIZE = 10;
 const BATCH_DELAY_MS = 600;
 
+const NO_PHONE_SEGUIMIENTO_TEXT =
+  "Se intentó enviar un mensaje por WhatsApp al deudor, pero no fue posible ya que no contamos con la información del número telefónico.";
+
 const TIPS_JURIDICO = new Set([
   "Demanda",
   "Demanda/Acuerdo",
@@ -119,7 +122,7 @@ export const processBulkSendJob = onDocumentCreated(
       clienteId: string;
       agentId: string;
       items: BulkItem[];
-      noPhone: Array<{ nombre: string; ubicacion?: string }>;
+      noPhone: Array<{ nombre: string; ubicacion?: string; deudorId?: string; tipificacion?: string }>;
     };
 
     // Evitar reprocesar si ya fue tomado (retry de Cloud Functions)
@@ -168,6 +171,38 @@ export const processBulkSendJob = onDocumentCreated(
       phone: "",
       status: "no_phone",
     }));
+
+    // Dejar constancia en el seguimiento de los deudores a los que no se pudo
+    // enviar el mensaje por falta de número de teléfono
+    await Promise.allSettled(
+      (job.noPhone ?? [])
+        .filter((n) => !!n.deudorId)
+        .map(async (n) => {
+          const esJuridico = TIPS_JURIDICO.has(n.tipificacion ?? "");
+          const seguimientoCol = esJuridico ? "seguimientoJuridico" : "seguimiento";
+          const ahora = Timestamp.now();
+
+          await db
+            .collection(
+              `clientes/${job.clienteId}/deudores/${n.deudorId}/${seguimientoCol}`
+            )
+            .add({
+              fecha: ahora,
+              fechaCreacion: ahora,
+              clienteUID: job.clienteId,
+              ejecutivoUID: job.agentId,
+              tipoSeguimiento: "whatsapp",
+              descripcion: NO_PHONE_SEGUIMIENTO_TEXT,
+            });
+
+          const deudorRef = db.doc(`clientes/${job.clienteId}/deudores/${n.deudorId}`);
+          const deudorSnap = await deudorRef.get();
+          const fechaActual = deudorSnap.data()?.fechaUltimoSeguimiento as Timestamp | undefined;
+          if (!fechaActual || ahora.toMillis() > (fechaActual.toMillis?.() ?? 0)) {
+            await deudorRef.update({ fechaUltimoSeguimiento: ahora });
+          }
+        })
+    );
 
     const items = job.items ?? [];
 

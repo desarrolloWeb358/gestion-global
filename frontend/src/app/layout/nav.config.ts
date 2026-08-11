@@ -159,13 +159,13 @@ export const NAV_ITEMS: NavItem[] = [
   },
 
   // ========================================
-  // AJUSTES (solo ejecutivoAdmin)
+  // AJUSTES
   // ========================================
   {
     to: "/ajustes",
     label: "Ajustes",
     icon: IconSettings,
-    roles: ["supervisor"],
+    roles: ["admin"],
   },
 
   // ========================================
