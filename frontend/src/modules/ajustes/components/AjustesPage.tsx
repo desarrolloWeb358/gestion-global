@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Phone, Tag } from "lucide-react";
+import { Phone, Tag, Scale } from "lucide-react";
 import { Button } from "@/shared/ui/button";
 import { cn } from "@/shared/lib/cn";
 import { obtenerClientes } from "@/modules/clientes/services/clienteService";
 import { obtenerDeudorPorCliente, actualizarDeudorDatos } from "@/modules/cobranza/services/deudorService";
 import EtiquetasDemandaPanel from "./EtiquetasDemandaPanel";
+import TiposCasoPanel from "./TiposCasoPanel";
 
 /* ── Utilidades de teléfonos (réplica de DeudoresTable) ─────────────────── */
 
@@ -76,7 +77,7 @@ interface PhoneError {
 
 /* ── Componente ─────────────────────────────────────────────────────────── */
 
-type SeccionAjustes = "telefonos" | "etiquetas";
+type SeccionAjustes = "telefonos" | "etiquetas" | "tiposCaso";
 
 export default function AjustesPage() {
   const [seccion, setSeccion] = useState<SeccionAjustes>("telefonos");
@@ -216,12 +217,26 @@ export default function AjustesPage() {
           <Tag className="h-4 w-4 flex-shrink-0" />
           Etiquetas de demanda
         </button>
+        <button
+          onClick={() => setSeccion("tiposCaso")}
+          className={cn(
+            "w-full text-left flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium",
+            seccion === "tiposCaso"
+              ? "bg-brand-primary/10 text-brand-primary"
+              : "text-muted-foreground hover:bg-muted/50"
+          )}
+        >
+          <Scale className="h-4 w-4 flex-shrink-0" />
+          Tipos de caso
+        </button>
       </aside>
 
       {/* Contenido */}
       <main className="flex-1 p-6 overflow-auto">
         {seccion === "etiquetas" ? (
           <EtiquetasDemandaPanel />
+        ) : seccion === "tiposCaso" ? (
+          <TiposCasoPanel />
         ) : (
         <div className="max-w-5xl space-y-6">
           <div>

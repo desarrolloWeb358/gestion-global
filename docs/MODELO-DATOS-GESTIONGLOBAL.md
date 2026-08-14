@@ -67,12 +67,20 @@ clientes/{clienteId}                    → Cliente   (+ franquiciaId, ciudad �
   │    ├─ observacionesCliente/{id}     → ObservacionCliente (scope "deudor")
   │    └─ cuotas_acuerdo/{id}           → (LEGADO, amortización visual)
 
-etiquetasDemanda/{id}                   → EtiquetaDemanda  (catálogo raíz ← NUEVO)
   ├─ valoresAgregados/{valorId}         → ValorAgregado
   │    └─ observacionesCliente/{id}     → ObservacionCliente (scope "valor")
   ├─ contratos/{contratoId}             → Contrato
   ├─ observacionesCliente/{id}          → ObservacionClienteGlobal (nivel cliente)
   └─ notasInternasEjecutivo/{id}        → Nota interna del ejecutivo
+
+configuracion/{docCatalogo}             → Catálogos internos (documento con { items: [...] })
+                                          · etiquetasDemanda → EtiquetaDemanda[]
+                                          · tiposCaso        → TipoCaso[]
+
+tareas/{id}                             → Tarea (tablero kanban, tiempo real)
+
+clientesParticulares/{uid}              → Clientes persona natural/jurídica con CASOS
+  └─ casos/{casoId}                       (línea de negocio aparte, ver MODELO-DATOS-CASOS.md)
 
 numbers/{numberId}                      → WaNumber (línea WhatsApp Meta)
   └─ conversations/{convId}             → WaConversation  (convId = número del contacto)
@@ -187,7 +195,7 @@ enum TipificacionDeuda {
 
 **`demandas/{demandaId}`** → `Demanda` (`NUEVO`, [demanda.model.ts](../frontend/src/modules/cobranza/models/demanda.model.ts)). Un deudor puede tener **varias** demandas. Reemplaza los campos judiciales planos del deudor (`numeroRadicado`, `juzgado`, `localidad`, `demandados`, `demandaSustituto`, `observacionesDemanda*`, `procesoJudicial`), que quedan como **legado** (no se borran en la migración). Campos: `numeroRadicado`, `juzgado`, `localidad`, `demandaSustituto`, `estado` (`activa | terminada`, independiente de la tipificación del deudor), `demandados: [{ nombre, numeroDocumento, notificaciones: [{ tipo, fecha, coteje }] }]`, `etiquetas: [{ etiquetaId, nombre, detalle, fecha }]`, `proximaAccionFecha` (min de `etiquetas[].fecha`, denormalizada para ordenar), `observacionesDemanda`, `observacionesDemandaCliente`, `fechaUltimaRevision`, `procesoJudicial` (monitoreo CPNU), y denormalizados `clienteId/deudorId/deudorNombre/ubicacion` para `collectionGroup("demandas")`.
 - **`demandas/{id}/seguimientoDemanda/{id}`** → `SeguimientoDemanda`: `fecha`, `descripcion`, `esInterno`, `archivoUrl?`. Al crear uno se actualiza `demanda.fechaUltimaRevision` **y** se denormaliza `deudor.fechaUltimaRevision` (última revisión entre todas sus demandas, para los dashboards por deudor).
-- El **catálogo de etiquetas** vive en la colección raíz `etiquetasDemanda/{id}` (`nombre`, `color?`, `activo`). El `ejecutivoDependiente` sigue asignándose por **cliente** (`cliente.ejecutivoDependienteId`); el reporte global lo resuelve con un mapa `clienteId → dependiente` en memoria.
+- El **catálogo de etiquetas** vive en el documento `configuracion/etiquetasDemanda` (`{ items: EtiquetaDemanda[] }`), **no** en una colección raíz. Convención: todo catálogo interno nuevo es un documento más de `configuracion` (así se agregó `configuracion/tiposCaso`). El `ejecutivoDependiente` sigue asignándose por **cliente** (`cliente.ejecutivoDependienteId`); el reporte global lo resuelve con un mapa `clienteId → dependiente` en memoria.
 
 > **Legado `seguimientoDemanda` del deudor:** antes de la migración el seguimiento colgaba directo del deudor (`deudores/{id}/seguimientoDemanda`). El script `migracion/migrar-demandas.js` crea una demanda por deudor y copia esos docs (conservando ids) a `demandas/{demandaId}/seguimientoDemanda`. El reporte mensual del cliente ([demandaReporteService.ts](../frontend/src/modules/cobranza/services/reportes/demandaReporteService.ts)) lee la subcolección `demandas` y cae al legado si un deudor aún no fue migrado.
 

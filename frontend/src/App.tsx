@@ -63,6 +63,13 @@ import AjustesPage from "./modules/ajustes/components/AjustesPage";
 import ContratosPage from "./modules/contratos/components/ContratosPage";
 import TareasBoardPage from "./modules/tareas/components/TareasBoardPage";
 
+// Casos (clientes particulares: personas naturales/jurídicas con procesos)
+import ClientesParticularesTable from "./modules/casos/components/ClientesParticularesTable";
+import ClienteParticularPage from "./modules/casos/components/ClienteParticularPage";
+import CasoDetailPage from "./modules/casos/components/CasoDetailPage";
+import MisCasosPage from "./modules/casos/components/MisCasosPage";
+import ReporteCasosPage from "./modules/casos/components/ReporteCasosPage";
+
 
 export default function App() {
   return (
@@ -120,6 +127,14 @@ export default function App() {
             <Route path="/clientes/:clienteId/deudores/:deudorId/demandas/:demandaId" element={<DemandaDetailPage />} />
             <Route path="/reporte-demandas" element={<ReporteDemandasPage />} />
             <Route path="/ajustes" element={<AjustesPage />} />
+
+            {/* Casos de clientes particulares */}
+            <Route path="/clientes-particulares" element={<ClientesParticularesTable />} />
+            <Route path="/clientes-particulares/:clienteParticularId" element={<ClienteParticularPage />} />
+            <Route path="/clientes-particulares/:clienteParticularId/casos/:casoId" element={<CasoDetailPage />} />
+            <Route path="/mis-casos" element={<MisCasosPage />} />
+            <Route path="/mis-casos/:casoId" element={<CasoDetailPage />} />
+            <Route path="/reporte-casos" element={<ReporteCasosPage />} />
             <Route path="/tareas" element={<TareasBoardPage />} />
             <Route path="/clientes/:clienteId/contratos" element={<ContratosPage />} />
 

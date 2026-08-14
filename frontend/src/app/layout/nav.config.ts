@@ -19,6 +19,8 @@ import {
   IconEye,
   IconLayoutKanban,
   IconGavel,
+  IconScale,
+  IconUserSearch,
 } from "@tabler/icons-react";
 import { PERMS } from "@/shared/constants/acl";
 
@@ -109,6 +111,30 @@ export const NAV_ITEMS: NavItem[] = [
   },
 
   // ========================================
+  // CASOS (clientes particulares)
+  // ========================================
+  {
+    to: "/mis-casos",
+    label: "Mis casos",
+    icon: IconScale,
+    roles: ["clienteCaso"],
+  },
+  {
+    to: "/clientes-particulares",
+    label: "Clientes particulares",
+    icon: IconUserSearch,
+    roles: ["admin", "supervisor", "ejecutivoAdmin", "dependiente", "abogado", "adminFranquicia"],
+    perm: PERMS.ClientesParticulares_Read,
+  },
+  {
+    to: "/reporte-casos",
+    label: "Casos",
+    icon: IconScale,
+    roles: ["admin", "supervisor", "ejecutivoAdmin", "dependiente", "abogado", "adminFranquicia"],
+    perm: PERMS.Casos_Read,
+  },
+
+  // ========================================
   // TAREAS
   // ========================================
   {
@@ -155,7 +181,7 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/notificaciones",
     label: "Notificaciones",
     icon: IconBell,
-    roles: ["admin", "ejecutivo", "ejecutivoAdmin", "supervisor", "dependiente", "abogado", "cliente", "deudor", "adminFranquicia"]
+    roles: ["admin", "ejecutivo", "ejecutivoAdmin", "supervisor", "dependiente", "abogado", "cliente", "clienteCaso", "deudor", "adminFranquicia"]
   },
 
   // ========================================

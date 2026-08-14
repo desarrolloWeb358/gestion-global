@@ -2,6 +2,8 @@
 import { useEffect, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { crearUsuarioDesdeAdmin } from "@/shared/services/crearUsuarioService";
+import { crearClienteParticularConUid } from "@/modules/casos/services/clienteParticularService";
+import type { TipoPersona } from "@/modules/casos/models/clienteParticular.model";
 import { getAuth } from "firebase/auth";
 import {
   Check,
@@ -130,6 +132,9 @@ export default function UsuariosCrud() {
 
   const esCliente = rolesSeleccionados.includes("cliente");
   const esAdminFranquicia = rolesSeleccionados.includes("adminFranquicia");
+  // Cliente de casos: persona natural o jurídica con procesos (no cartera)
+  const esClienteCaso = rolesSeleccionados.includes("clienteCaso");
+  const [tipoPersonaSel, setTipoPersonaSel] = useState<TipoPersona>("natural");
   const ciudadesDisponibles =
     franquicias.find((f) => f.id === franquiciaSel)?.ciudades ?? [];
 
@@ -896,6 +901,14 @@ export default function UsuariosCrud() {
                   return;
                 }
 
+                // Cliente de casos nuevo: franquicia + ciudad obligatorias
+                if (!usuarioEditando && esClienteCaso && (!franquiciaSel || !ciudadSel)) {
+                  toast.error(
+                    "Para un cliente de casos debes seleccionar franquicia y ciudad."
+                  );
+                  return;
+                }
+
                 // adminFranquicia: debe tener al menos una franquicia asignada
                 if (esAdminFranquicia && franquiciasAsignadasSel.length === 0) {
                   toast.error("Para 'adminFranquicia' debes asignar al menos una franquicia.");
@@ -957,6 +970,59 @@ export default function UsuariosCrud() {
                       // adminFranquicia: franquicias que podrá ver
                       franquiciasAsignadas: esAdminFranquicia ? franquiciasAsignadasSel : [],
                     });
+
+                    // Cliente de casos: la Function solo crea el doc de `clientes`
+                    // para el rol `cliente`, así que su ficha se crea aquí con el
+                    // mismo id del usuario (clientesParticulares/{uid}).
+                    if (esClienteCaso) {
+                      await crearClienteParticularConUid(res.uid, {
+                        tipoPersona: tipoPersonaSel,
+                        nombre,
+                        tipoDocumento,
+                        numeroDocumento,
+                        representanteLegal: "",
+                        correos: [email.trim().toLowerCase()],
+                        telefonos: telefonoUsuario ? [telefonoUsuario] : [],
+                        direccion: "",
+                        franquiciaId: franquiciaSel || undefined,
+                        ciudad: ciudadSel || undefined,
+                        abogadoId: null,
+                        dependienteId: null,
+                        activo: Boolean(activoControl),
+                      });
+
+                      enviarEmail({
+                        nombreDestino: nombre ?? "Cliente",
+                        correoDestino: email,
+                        subject: "Bienvenido a GESGLO – Seguimiento de tus casos",
+                        titulo: "¡Bienvenido a GESGLO!",
+                        cuerpoHtml: `
+                          <p>Tu cuenta en <strong>GESGLO</strong>, la plataforma de <strong>Gestión Global ACG SAS</strong>, ya está lista.</p>
+                          <h3 style="margin-top:20px;margin-bottom:8px;font-size:15px;color:#111827;">⚖️ ¿Qué puedes hacer en GESGLO?</h3>
+                          <ul style="margin:0 0 16px;padding-left:18px;color:#374151;">
+                            <li>Consultar el avance de tus casos en tiempo real</li>
+                            <li>Revisar cada actuación registrada por tu abogado</li>
+                            <li>Descargar y aportar documentos del proceso</li>
+                            <li>Dejar observaciones y recibir respuesta del equipo</li>
+                          </ul>
+                          <h3 style="margin-top:20px;margin-bottom:8px;font-size:15px;color:#111827;">🔑 Tus datos de acceso</h3>
+                          <p>Ingresa desde el siguiente enlace:</p>
+                          <p>👉 <a href="https://www.gestionglobalacg.com" style="color:#2563eb;text-decoration:none;font-weight:600;" target="_blank">https://www.gestionglobalacg.com</a></p>
+                          <table cellpadding="0" cellspacing="0" style="margin-top:8px;margin-bottom:16px;background:#f9fafb;padding:12px;border-radius:6px;width:100%;font-size:14px;color:#374151;">
+                            <tr><td style="padding:4px 0;"><strong>Usuario:</strong></td><td style="padding:4px 0;">${email}</td></tr>
+                            <tr><td style="padding:4px 0;"><strong>Contraseña:</strong></td><td style="padding:4px 0;">${password}</td></tr>
+                          </table>
+                          <p style="margin-top:20px;">
+                            Cordialmente,<br/>
+                            <strong>Equipo Gestión Global A.C.G.</strong><br/>
+                            📧 gestionglobalacg@gestionglobalacg.com<br/>
+                            📞 (601) 4631148 · 57 316 6936088
+                          </p>
+                        `,
+                      }).catch((err) =>
+                        console.error("[bienvenida clienteCaso] Error enviando correo:", err)
+                      );
+                    }
 
                     if (rolesSeleccionados?.includes("cliente")) {
                       enviarEmail({
@@ -1114,8 +1180,27 @@ export default function UsuariosCrud() {
                   </div>
                 </div>
 
-                {/* Cliente (solo al crear): franquicia + ciudad */}
-                {!usuarioEditando && esCliente && (
+                {/* Cliente de casos (solo al crear): tipo de persona */}
+                {!usuarioEditando && esClienteCaso && (
+                  <div>
+                    <Label className="text-brand-secondary font-medium">Tipo de persona</Label>
+                    <Select
+                      value={tipoPersonaSel}
+                      onValueChange={(v) => setTipoPersonaSel(v as TipoPersona)}
+                    >
+                      <SelectTrigger className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20">
+                        <SelectValue placeholder="Selecciona el tipo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="natural">Persona natural</SelectItem>
+                        <SelectItem value="juridica">Persona jurídica</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Cliente / cliente de casos (solo al crear): franquicia + ciudad */}
+                {!usuarioEditando && (esCliente || esClienteCaso) && (
                   <>
                     <div>
                       <Label className="text-brand-secondary font-medium">Franquicia</Label>

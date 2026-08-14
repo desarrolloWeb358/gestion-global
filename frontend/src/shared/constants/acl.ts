@@ -6,6 +6,7 @@ export const ROLES = [
   "ejecutivoAdmin",
   "dependiente",
   "cliente",
+  "clienteCaso",
   "abogado",
   "deudor",
 ] as const;
@@ -21,6 +22,7 @@ export const ROL_PRIORITY: Rol[] = [
   "dependiente",
   "abogado",
   "cliente",
+  "clienteCaso",
   "deudor",
 ];
 
@@ -36,6 +38,7 @@ export const ROLE_HOME: Record<Rol, string> = {
   dependiente: "/clientes-tables",
   abogado: "/dashboard/abogado",
   cliente: "/dashboard/cliente",
+  clienteCaso: "/mis-casos",
   deudor: "/dashboard/deudor",
 };
 
@@ -103,6 +106,16 @@ export const PERMS = {
   // Seguimiento — edición de fecha (solo ejecutivoAdmin y admin)
   Seguimientos_Fecha_Edit: "seguimientos.fecha.edit",
 
+  // Casos (clientes particulares: personas naturales/jurídicas con procesos).
+  // Línea de negocio independiente de la cartera de conjuntos.
+  ClientesParticulares_Read: "clientesParticulares.read",
+  ClientesParticulares_Edit: "clientesParticulares.edit",
+  Casos_Read: "casos.read",
+  Casos_Edit: "casos.edit",
+  Casos_Seguimiento_Edit: "casos.seguimiento.edit",
+  Casos_Documentos_Edit: "casos.documentos.edit",
+  Casos_Obs_Create: "casos.observaciones.create",
+
   // Tareas
   Tareas_Read: "tareas.read",
   Tareas_Assign: "tareas.assign",
@@ -145,6 +158,13 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Email_Read,
     PERMS.Email_Write,
     PERMS.Tareas_Manage,
+    PERMS.ClientesParticulares_Read,
+    PERMS.ClientesParticulares_Edit,
+    PERMS.Casos_Read,
+    PERMS.Casos_Edit,
+    PERMS.Casos_Seguimiento_Edit,
+    PERMS.Casos_Documentos_Edit,
+    PERMS.Casos_Obs_Create,
   ],
 
   supervisor: [
@@ -174,6 +194,13 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Whatsapp_Write,
     PERMS.Tareas_Read,
     PERMS.Tareas_Estado_Edit,
+    PERMS.ClientesParticulares_Read,
+    PERMS.ClientesParticulares_Edit,
+    PERMS.Casos_Read,
+    PERMS.Casos_Edit,
+    PERMS.Casos_Seguimiento_Edit,
+    PERMS.Casos_Documentos_Edit,
+    PERMS.Casos_Obs_Create,
   ],
 
   ejecutivoAdmin: [    
@@ -203,6 +230,13 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Tareas_Read,
     PERMS.Tareas_Assign,
     PERMS.Tareas_Manage,
+    PERMS.ClientesParticulares_Read,
+    PERMS.ClientesParticulares_Edit,
+    PERMS.Casos_Read,
+    PERMS.Casos_Edit,
+    PERMS.Casos_Seguimiento_Edit,
+    PERMS.Casos_Documentos_Edit,
+    PERMS.Casos_Obs_Create,
   ],
 
   ejecutivo: [
@@ -248,6 +282,13 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Tareas_Read,
     PERMS.Tareas_Assign,
     PERMS.Tareas_Estado_Edit,
+    PERMS.ClientesParticulares_Read,
+    PERMS.ClientesParticulares_Edit,
+    PERMS.Casos_Read,
+    PERMS.Casos_Edit,
+    PERMS.Casos_Seguimiento_Edit,
+    PERMS.Casos_Documentos_Edit,
+    PERMS.Casos_Obs_Create,
   ],
 
   cliente: [
@@ -283,6 +324,13 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Tareas_Read,
     PERMS.Tareas_Assign,
     PERMS.Tareas_Estado_Edit,
+    PERMS.ClientesParticulares_Read,
+    PERMS.ClientesParticulares_Edit,
+    PERMS.Casos_Read,
+    PERMS.Casos_Edit,
+    PERMS.Casos_Seguimiento_Edit,
+    PERMS.Casos_Documentos_Edit,
+    PERMS.Casos_Obs_Create,
   ],
 
   // Supervisión de franquicia: SOLO lectura + reportes, limitado a franquiciasAsignadas.
@@ -299,6 +347,16 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.ReporteCliente_Download_Word,
     PERMS.Tareas_Read,
     PERMS.Tareas_Estado_Edit,
+    PERMS.ClientesParticulares_Read,
+    PERMS.Casos_Read,
+  ],
+
+  // Cliente persona natural/jurídica: ve SUS casos, escribe observaciones y
+  // aporta documentos. No tiene nada de la cartera de conjuntos.
+  clienteCaso: [
+    PERMS.Casos_Read,
+    PERMS.Casos_Obs_Create,
+    PERMS.Casos_Documentos_Edit,
   ],
 
   deudor: [

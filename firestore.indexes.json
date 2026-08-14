@@ -71,6 +71,14 @@
         { "fieldPath": "estado", "order": "ASCENDING" },
         { "fieldPath": "proximaAccionFecha", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "casos",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "estado", "order": "ASCENDING" },
+        { "fieldPath": "proximaAccionFecha", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [
@@ -232,6 +240,36 @@
     },
     {
       "collectionGroup": "demandas",
+      "fieldPath": "estado",
+      "ttl": false,
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "casos",
+      "fieldPath": "clienteParticularId",
+      "ttl": false,
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "casos",
       "fieldPath": "estado",
       "ttl": false,
       "indexes": [

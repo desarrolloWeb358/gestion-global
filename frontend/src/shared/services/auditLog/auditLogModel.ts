@@ -14,7 +14,14 @@ export type ModuloApp =
   | "cliente"
   | "usuario"
   | "deudor"
-  | "tarea";
+  | "tarea"
+  // Casos de clientes particulares
+  | "clienteParticular"
+  | "caso"
+  | "seguimientoCaso"
+  | "observacionCaso"
+  | "documentoCaso"
+  | "tiposCaso";
 
 export interface RegistroEliminado {
   id?: string;
