@@ -412,6 +412,11 @@ export { sendEmailCampaign }      from "./email/sendEmailCampaignHandler";
 export { getEmailCampaignHistory } from "./email/sendEmailCampaignHandler";
 export { processBulkSendJob }     from "./whatsapp/bulkSendHandler";
 
+// =====================================================
+// 📌 MÓDULO VALORES AGREGADOS — Notificaciones desde backend
+// =====================================================
+export { notificarValorAgregadoCreado, notificarValorAgregadoActualizado } from "./valoresAgregados/notificaciones";
+
 /*
 export const pruebaCorreo = onRequest({ secrets: [SENDGRID_API_KEY, SENDGRID_SENDER_EMAIL] }, async (req, res) => {
   try {

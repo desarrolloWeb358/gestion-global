@@ -221,61 +221,10 @@ export async function crearValorAgregado(
     await updateDoc(docRef(clienteId, valorId), updateData);
   }
 
-  // 3️⃣ Notificar al ABOGADO y al DEPENDIENTE ABOGADO del cliente (si aplican)
-  try {
-    const clienteInfo = await obtenerClienteInfoParaNotificacion(clienteId);
-    const abogadoId = clienteInfo.abogadoId;
-    const dependienteAbogadoId = clienteInfo.dependienteAbogadoId;
-
-    const nombreCliente = clienteInfo.nombreCliente;
-    const tipoLabel = TipoValorAgregadoLabels[data.tipo];
-    const nombreValor = data.titulo || "Documento";
-    const ruta = `/clientes/${clienteId}/valores-agregados/${valorId}`;
-
-    const descripcionAlerta = `Nuevo valor agregado (${tipoLabel}) para el cliente ${nombreCliente}: ${nombreValor}`;
-
-    const cuerpoHtmlCorreo = `
-      <p>Se ha registrado un nuevo <strong>valor agregado</strong> en la plataforma.</p>
-      <ul>
-        <li><strong>Cliente:</strong> ${nombreCliente}</li>
-        <li><strong>Tipo:</strong> ${tipoLabel}</li>
-        <li><strong>Nombre:</strong> ${nombreValor}</li>
-      </ul>
-      <p>Tienes una nueva actualización. Ingresa a la plataforma para revisar el detalle completo.</p>
-    `;
-
-    if (abogadoId) {
-      await notificarUsuarioConAlertaYCorreo({
-        usuarioId: abogadoId,
-        modulo: "valor agregado",
-        ruta,
-        descripcionAlerta,
-        nombreDestino: clienteInfo.nombreAbogado ?? "Abogado",
-        correoDestino: clienteInfo.correoAbogado ?? "",
-        subject: `Nuevo valor agregado: ${tipoLabel}`,
-        tituloCorreo: "Se ha registrado un nuevo valor agregado",
-        cuerpoHtmlCorreo,
-      });
-    } else {
-      console.warn(`[crearValorAgregado] Cliente ${clienteId} sin abogadoId; no se notifica al abogado.`);
-    }
-
-    if (dependienteAbogadoId) {
-      await notificarUsuarioConAlertaYCorreo({
-        usuarioId: dependienteAbogadoId,
-        modulo: "valor agregado",
-        ruta,
-        descripcionAlerta,
-        nombreDestino: clienteInfo.nombreDepAbogado ?? "Asistente Jurídico",
-        correoDestino: clienteInfo.correoDepAbogado ?? "",
-        subject: `Nuevo valor agregado: ${tipoLabel}`,
-        tituloCorreo: "Se ha registrado un nuevo valor agregado",
-        cuerpoHtmlCorreo,
-      });
-    }
-  } catch (err) {
-    console.error("[crearValorAgregado] Error al notificar:", err);
-  }
+  // La notificación (alerta + correo) al abogado/dependiente la dispara el
+  // backend (Cloud Function notificarValorAgregadoCreado) al detectar la
+  // creación del documento, para no depender de que el navegador siga
+  // abierto hasta completar el envío del correo.
 
   return valorId;
 }
@@ -344,9 +293,6 @@ export async function actualizarValorAgregado(
   nuevosArchivos?: File[]
 ): Promise<void> {
 
-  // 0️⃣ Obtener datos actuales ANTES de actualizar (para armar la notificación)
-  const prev = await obtenerValorAgregado(clienteId, valorId);
-
   const basePatch: any = {};
   if (patch.tipo !== undefined) basePatch.tipo = patch.tipo;
   if (patch.titulo !== undefined) basePatch.titulo = patch.titulo;
@@ -371,71 +317,10 @@ export async function actualizarValorAgregado(
   // 2️⃣ Actualizar el documento en Firestore
   await updateDoc(docRef(clienteId, valorId), basePatch);
 
-  // 3️⃣ Enviar notificación de "valor agregado modificado"
-  try {
-    const clienteInfo = await obtenerClienteInfoParaNotificacion(clienteId);
-    const abogadoId = clienteInfo.abogadoId;
-    const dependienteAbogadoId = clienteInfo.dependienteAbogadoId;
-
-    const nombreCliente = clienteInfo.nombreCliente || clienteId;
-
-    // Determinar valores FINALES (usando patch o, si no, lo que había antes)
-    const tipoFinal: TipoValorAgregado =
-      patch.tipo ?? prev?.tipo ?? TipoValorAgregado.DERECHO_DE_PETICION;
-
-    const tipoLabel = TipoValorAgregadoLabels[tipoFinal];
-    const nombreValor = patch.titulo ?? prev?.titulo ?? "Documento";
-    const ruta = `/clientes/${clienteId}/valores-agregados/${valorId}`;
-
-    const descripcionAlerta = `Se ha modificado el valor agregado (${tipoLabel}) del cliente ${nombreCliente}: ${nombreValor}`;
-
-    const cuerpoHtmlCorreo = `
-      <p>Se ha <strong>modificado</strong> un valor agregado en la plataforma.</p>
-      <ul>
-        <li><strong>Cliente:</strong> ${nombreCliente}</li>
-        <li><strong>Tipo:</strong> ${tipoLabel}</li>
-        <li><strong>Nombre:</strong> ${nombreValor}</li>
-      </ul>
-      <p>Tienes una actualización. Ingresa a la plataforma para revisar el detalle completo.</p>
-      ${
-        nuevosArchivos && nuevosArchivos.length > 0
-          ? `<p>Nota: Se han agregado ${nuevosArchivos.length} archivo(s) adjunto(s).</p>`
-          : ""
-      }
-    `;
-
-    if (abogadoId) {
-      await notificarUsuarioConAlertaYCorreo({
-        usuarioId: abogadoId,
-        modulo: "valor agregado",
-        ruta,
-        descripcionAlerta,
-        nombreDestino: clienteInfo.nombreAbogado ?? "Abogado",
-        correoDestino: clienteInfo.correoAbogado ?? "",
-        subject: `Valor agregado modificado: ${tipoLabel} - ${nombreCliente}`,
-        tituloCorreo: "Se ha modificado un valor agregado",
-        cuerpoHtmlCorreo,
-      });
-    } else {
-      console.warn(`[actualizarValorAgregado] Cliente ${clienteId} sin abogadoId.`);
-    }
-
-    if (dependienteAbogadoId) {
-      await notificarUsuarioConAlertaYCorreo({
-        usuarioId: dependienteAbogadoId,
-        modulo: "valor agregado",
-        ruta,
-        descripcionAlerta,
-        nombreDestino: clienteInfo.nombreDepAbogado ?? "Asistente Jurídico",
-        correoDestino: clienteInfo.correoDepAbogado ?? "",
-        subject: `Valor agregado modificado: ${tipoLabel} - ${nombreCliente}`,
-        tituloCorreo: "Se ha modificado un valor agregado",
-        cuerpoHtmlCorreo,
-      });
-    }
-  } catch (err) {
-    console.error("[actualizarValorAgregado] Error al notificar:", err);
-  }
+  // La notificación de "valor agregado modificado" la dispara el backend
+  // (Cloud Function notificarValorAgregadoActualizado) cuando detecta un
+  // cambio real en tipo/titulo/descripcion/fecha, por la misma razón que
+  // en crearValorAgregado.
 }
 
 export async function eliminarValorAgregado(
