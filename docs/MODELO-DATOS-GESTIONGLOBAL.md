@@ -30,6 +30,7 @@
 11. [Impacto por Pantalla](#11-impacto-por-pantalla)
 12. [Estrategia para No Afectar Producción](#12-estrategia-para-no-afectar-producción)
 13. [Estado de Implementación](#13-estado-de-implementación)
+14. [Reasignación de Cartera entre Usuarios](#14-reasignación-de-cartera-entre-usuarios)
 
 ---
 
@@ -492,3 +493,60 @@ El ajuste debe ser **casi transparente** para los usuarios actuales. Reglas que 
 ### Pendiente opcional / a futuro
 - Blindar el scope en backend (reglas de Firestore / Functions); hoy es visual (ver [§6.4](#64-alcance-por-franquicia-segundo-eje-de-seguridad)).
 - Filtro de franquicia en dashboards de ejecutivo/dependiente, si se desea (no es necesario por su alcance por cliente).
+
+---
+
+## 14. Reasignación de Cartera entre Usuarios
+
+> **Fecha:** Agosto 2026 · **Pantalla:** Ajustes → *Reasignar usuarios* (solo rol `admin`).
+> Servicio: [reasignacionService.ts](../frontend/src/modules/usuarios/services/reasignacionService.ts) ·
+> Panel: [ReasignacionUsuariosPanel.tsx](../frontend/src/modules/ajustes/components/ReasignacionUsuariosPanel.tsx)
+
+Cuando alguien del equipo se va y llega un reemplazo, hay que pasarle todo lo que tenía asignado.
+
+### 14.1 La unidad de migración es la FUNCIÓN, no el usuario ni el rol
+
+Un mismo rol ocupa **varios** campos y una persona puede tener **varios** roles:
+
+- `ejecutivo` → `ejecutivoPrejuridicoId` **y** `ejecutivoJuridicoId`
+- `dependiente` → `ejecutivoDependienteId`, `dependienteAbogadoId` **y** `clientesParticulares.dependienteId`
+- `abogado` → `clientes.abogadoId` **y** `clientesParticulares.abogadoId`
+
+Por eso migrar "todo lo de una persona" rompería las funciones que sí conserva. La pantalla escanea al saliente, muestra el desglose por función con conteos, y se elige qué bloques mover.
+
+### 14.2 Qué se migra (asignación viva)
+
+| Colección | Campo | Rol requerido en el entrante |
+|---|---|---|
+| `clientes` | `ejecutivoPrejuridicoId` | `ejecutivo` |
+| `clientes` | `ejecutivoJuridicoId` | `ejecutivo` |
+| `clientes` | `ejecutivoDependienteId` | `dependiente` |
+| `clientes` | `abogadoId` | `abogado` |
+| `clientes` | `dependienteAbogadoId` | `dependiente` |
+| `clientesParticulares` | `abogadoId` | `abogado` |
+| `clientesParticulares` | `dependienteId` | `dependiente` |
+| `tareas` | `asignadoA` + `asignadoNombre` (solo estado ≠ `finalizada`) | — |
+| `usuarios/{uid}/notificaciones` | se **copian** las de `visto: false` y `resuelta ≠ true` | — |
+
+**Ambos selectores listan solo usuarios activos** (`activo !== false`) → el flujo sano es **reasignar antes de desactivar** al saliente. Para el arrastre histórico (alguien a quien ya desactivaron sin reasignar) el selector de saliente tiene una casilla **"Ver usuarios inactivos con cartera"**, que aparece solo si existe al menos uno y revela únicamente a los que conservan asignaciones.
+
+El entrante debe tener además **todos** los roles que exigen las funciones marcadas; si no, no aparece en el selector. Nota: un usuario que solo tenga `ejecutivoAdmin` **no** es candidato para las funciones de ejecutivo (coherente con [ClienteEditDialog](../frontend/src/modules/clientes/components/ClienteEditDialog.tsx), cuyos desplegables cargan `obtenerEjecutivos()` = rol `ejecutivo` estricto).
+
+### 14.3 Qué NO se migra
+
+**Se resuelve solo** (deriva del cliente en cada lectura, no guarda el UID del gestor):
+
+- **Deudores y todas sus subcolecciones** (acuerdos, estados mensuales, seguimientos, demandas, tipificaciones).
+- WhatsApp (`getClienteIdsByEjecutivo` consulta `clientes` por `ejecutivoPrejuridicoId`), dashboards de ejecutivo/dependiente, Panel Gerencial, reportes de demandas y de casos.
+- Cloud Functions `notificarValorAgregadoCreado/Actualizado` y `recordatorioPlazosLegales`, que leen `cliente.abogadoId` / `dependienteAbogadoId` en cada ejecución.
+
+**Se conserva a propósito** (es auditoría: debe seguir diciendo quién hizo cada cosa):
+`acuerdos.creadoPor/actualizadoPor`, `archivoFirmado.subidoPor`, `contratos.creadoPor`, `observacionesCliente(Global).usuarioId`, `casos/seguimiento.creadoPor`, `casos/observaciones.autorUid`, `documentos[].subidoPor`, `bulkSendJobs.agentId`, `tareas.creadoPor`, `auditLogs`, `registrosEliminados`.
+
+### 14.4 Ejecución
+
+- Se lee el índice completo de una vez (`clientes` + `clientesParticulares` + `tareas`; las tres son pequeñas) para mostrar conteos ya en el selector, sin una consulta por usuario.
+- Escrituras en lotes de 400 con `writeBatch`. Si un lote falla, los anteriores quedan aplicados: **la operación es reintentable**, volver a correrla sobre el mismo saliente solo mueve lo que aún quede.
+- Cada reasignación deja un documento en `auditLogs` con `accion: "reasignacionUsuario"`, origen, destino, funciones y conteos.
+
+> ⚠️ **Ojo:** `obtenerClientesPorUsuario` ([clienteService.ts:99](../frontend/src/modules/clientes/services/clienteService.ts#L99)) sigue devolviendo **todos** los clientes (filtro por rol comentado). Tras reasignar, el saliente deja de ver su cartera en dashboards, WhatsApp, reportes y notificaciones, pero **la lista de Clientes le sigue mostrando todos los conjuntos**. Eso depende de destapar ese filtro, no de esta pantalla.

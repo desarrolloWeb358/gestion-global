@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Phone, Tag, Scale } from "lucide-react";
+import { Phone, Tag, Scale, UserCog } from "lucide-react";
 import { Button } from "@/shared/ui/button";
 import { cn } from "@/shared/lib/cn";
 import { obtenerClientes } from "@/modules/clientes/services/clienteService";
 import { obtenerDeudorPorCliente, actualizarDeudorDatos } from "@/modules/cobranza/services/deudorService";
 import EtiquetasDemandaPanel from "./EtiquetasDemandaPanel";
 import TiposCasoPanel from "./TiposCasoPanel";
+import ReasignacionUsuariosPanel from "./ReasignacionUsuariosPanel";
 
 /* ── Utilidades de teléfonos (réplica de DeudoresTable) ─────────────────── */
 
@@ -77,7 +78,7 @@ interface PhoneError {
 
 /* ── Componente ─────────────────────────────────────────────────────────── */
 
-type SeccionAjustes = "telefonos" | "etiquetas" | "tiposCaso";
+type SeccionAjustes = "telefonos" | "etiquetas" | "tiposCaso" | "reasignacion";
 
 export default function AjustesPage() {
   const [seccion, setSeccion] = useState<SeccionAjustes>("telefonos");
@@ -229,6 +230,18 @@ export default function AjustesPage() {
           <Scale className="h-4 w-4 flex-shrink-0" />
           Tipos de caso
         </button>
+        <button
+          onClick={() => setSeccion("reasignacion")}
+          className={cn(
+            "w-full text-left flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium",
+            seccion === "reasignacion"
+              ? "bg-brand-primary/10 text-brand-primary"
+              : "text-muted-foreground hover:bg-muted/50"
+          )}
+        >
+          <UserCog className="h-4 w-4 flex-shrink-0" />
+          Reasignar usuarios
+        </button>
       </aside>
 
       {/* Contenido */}
@@ -237,6 +250,8 @@ export default function AjustesPage() {
           <EtiquetasDemandaPanel />
         ) : seccion === "tiposCaso" ? (
           <TiposCasoPanel />
+        ) : seccion === "reasignacion" ? (
+          <ReasignacionUsuariosPanel />
         ) : (
         <div className="max-w-5xl space-y-6">
           <div>
