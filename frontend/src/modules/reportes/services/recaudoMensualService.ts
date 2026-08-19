@@ -17,6 +17,31 @@ export async function obtenerDeudoresActivosPorCliente(): Promise<Map<string, nu
   });
   return map;
 }
+
+const MES_VALIDO_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/** Último mes ("YYYY-MM") con estadoMensual guardado, agrupado por clienteUID. */
+export async function obtenerUltimoMesActivadoPorCliente(): Promise<Map<string, string>> {
+  const snap = await getDocs(collectionGroup(db, "estadosMensuales"));
+  const map = new Map<string, string>();
+  snap.forEach((docSnap) => {
+    const d: any = docSnap.data() || {};
+    const clienteUID: string | undefined = d.clienteUID || docSnap.ref.parent.parent?.id;
+    const mes: string | undefined = d.mes || docSnap.id;
+    if (!clienteUID || !mes) return;
+    // El formato "YYYY-MM" es ancho fijo: la comparación de máximo es lexicográfica,
+    // así que un valor corrupto (ej. "203-02") con menos dígitos rompe el orden.
+    if (!MES_VALIDO_RE.test(mes)) {
+      console.warn(
+        `[obtenerUltimoMesActivadoPorCliente] mes inválido "${mes}" en ${docSnap.ref.path}, se ignora`
+      );
+      return;
+    }
+    const actual = map.get(clienteUID);
+    if (!actual || mes > actual) map.set(clienteUID, mes);
+  });
+  return map;
+}
 import {
   EstadoMensualItem,
   ResumenMesSeleccionado,

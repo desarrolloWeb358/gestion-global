@@ -118,7 +118,7 @@ export function TareaFormModal({ tarea, canManage, canAssign, usuariosAsignables
   }
 
   async function onDelete() {
-    if (!tarea?.id) return;
+    if (!tarea?.id || !canManage) return;
     setSaving(true);
     try {
       await eliminarTarea(tarea.id, tarea.titulo);
@@ -262,7 +262,7 @@ export function TareaFormModal({ tarea, canManage, canAssign, usuariosAsignables
               </DialogFooter>
             ) : (
               <DialogFooter className="flex items-center justify-between sm:justify-between">
-                {esEdicion ? (
+                {esEdicion && canManage ? (
                   <Button type="button" variant="destructive" onClick={() => setConfirmDelete(true)} disabled={saving}>
                     <Trash2 className="h-4 w-4 mr-1" /> Eliminar
                   </Button>

@@ -16,6 +16,7 @@ import {
   ExternalLink,
   Handshake,
   UserCog,
+  CalendarClock,
 } from "lucide-react";
 import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 import { db } from "@/firebase";
@@ -36,7 +37,10 @@ import {
   SelectValue,
 } from "@/shared/ui/select";
 import { Label } from "@/shared/ui/label";
-import { obtenerResumenMesConNombres } from "@/modules/reportes/services/recaudoMensualService";
+import {
+  obtenerResumenMesConNombres,
+  obtenerUltimoMesActivadoPorCliente,
+} from "@/modules/reportes/services/recaudoMensualService";
 import {
   ResumenMesSeleccionado,
   ResumenPorCliente,
@@ -65,6 +69,22 @@ function currentYM() {
     year: String(d.getFullYear()),
     month: String(d.getMonth() + 1).padStart(2, "0"),
   };
+}
+
+const ROLES_EJECUTIVA = new Set(["ejecutivo", "ejecutivoAdmin"]);
+
+/** Diferencia en meses entre dos claves "YYYY-MM" (mesA - mesB). */
+function mesesDiferencia(mesA: string, mesB: string) {
+  const [ya, ma] = mesA.split("-").map(Number);
+  const [yb, mb] = mesB.split("-").map(Number);
+  return (ya - yb) * 12 + (ma - mb);
+}
+
+function formatMes(mes: string | null) {
+  if (!mes) return "—";
+  const [y, m] = mes.split("-");
+  const label = MONTH_LABELS.find((mm) => mm.v === m)?.l ?? m;
+  return `${label} ${y}`;
 }
 
 const MONTH_LABELS = [
@@ -123,6 +143,18 @@ interface DependienteStat {
   totalConjuntos: number;
   totalDeudoresEnDemanda: number;
   sinGestion: number;
+}
+
+interface EjecutivaConjuntoDetalle {
+  clienteId: string;
+  clienteNombre: string;
+  ultimoMes: string | null;
+}
+
+interface EjecutivaReporteRow {
+  ejecutivoId: string;
+  ejecutivoNombre: string;
+  conjuntos: EjecutivaConjuntoDetalle[];
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -238,6 +270,43 @@ function AcuerdoBadge({ value }: { value: number }) {
   );
 }
 
+function EstadoMesBadge({
+  ultimoMes,
+  mesActual,
+}: {
+  ultimoMes: string | null;
+  mesActual: string;
+}) {
+  if (!ultimoMes) {
+    return (
+      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-700">
+        Sin activar
+      </span>
+    );
+  }
+  // El mes se activa DESPUÉS de cerrado: en agosto, tener julio guardado es "al día".
+  const diff = mesesDiferencia(mesActual, ultimoMes);
+  if (diff <= 1) {
+    return (
+      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-700">
+        Al día
+      </span>
+    );
+  }
+  if (diff === 2) {
+    return (
+      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-amber-100 text-amber-700">
+        Pendiente
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-700">
+      Atrasado ({diff}m)
+    </span>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AdminDashboardPage() {
@@ -264,6 +333,8 @@ export default function AdminDashboardPage() {
   const [usuariosMap, setUsuariosMap] = useState<Map<string, string>>(new Map());
   const [excludedEjecutivoIds] = useState<Set<string>>(new Set());
   const [dependientesUsers, setDependientesUsers] = useState<Map<string, string>>(new Map());
+  const [ejecutivasUsers, setEjecutivasUsers] = useState<Map<string, string>>(new Map());
+  const [ultimoMesPorCliente, setUltimoMesPorCliente] = useState<Map<string, string>>(new Map());
   const [acuerdosEnFirmeMap, setAcuerdosEnFirmeMap] = useState<Map<string, number>>(
     new Map()
   );
@@ -283,6 +354,15 @@ export default function AdminDashboardPage() {
   const [ejecutivosExpanded, setEjecutivosExpanded] = useState(false);
   const [dependientesExpanded, setDependientesExpanded] = useState(false);
   const [conjuntosExpanded, setConjuntosExpanded] = useState(false);
+  const [ultimoMesExpanded, setUltimoMesExpanded] = useState(false);
+  const [expandedEjecutivaIds, setExpandedEjecutivaIds] = useState<Set<string>>(new Set());
+  const toggleEjecutivaExpanded = (id: string) =>
+    setExpandedEjecutivaIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   // ── Filtro sin gestión dependientes
   const [depSinGestionFilter, setDepSinGestionFilter] = useState<SinGestionThreshold>("1m");
@@ -346,15 +426,17 @@ export default function AdminDashboardPage() {
           }
         });
 
-        const [clientesResult, usuariosResult] = await Promise.allSettled([
+        const [clientesResult, usuariosResult, ultimoMesResult] = await Promise.allSettled([
           getDocs(query(collection(db, "clientes"), where("activo", "==", true))),
           getDocs(collection(db, "usuarios")),
+          obtenerUltimoMesActivadoPorCliente(),
         ]);
 
         // 1. Resolver usuarios
         if (usuariosResult.status === "fulfilled") {
           const usersMap = new Map<string, string>();
           const depUsersMap = new Map<string, string>();
+          const ejecUsersMap = new Map<string, string>();
           usuariosResult.value.docs.forEach((doc) => {
             const data = doc.data();
             const nombre = (data.nombre as string) ?? (data.email as string) ?? doc.id;
@@ -363,9 +445,18 @@ export default function AdminDashboardPage() {
             if (roles.includes("dependiente") && data.activo !== false) {
               depUsersMap.set(doc.id, nombre);
             }
+            if (roles.some((r) => ROLES_EJECUTIVA.has(r)) && data.activo !== false) {
+              ejecUsersMap.set(doc.id, nombre);
+            }
           });
           setUsuariosMap(usersMap);
           setDependientesUsers(depUsersMap);
+          setEjecutivasUsers(ejecUsersMap);
+        }
+
+        // 1b. Resolver último mes activado por cliente
+        if (ultimoMesResult.status === "fulfilled") {
+          setUltimoMesPorCliente(ultimoMesResult.value);
         }
 
         // 2. Resolver clientes activos
@@ -582,6 +673,38 @@ export default function AdminDashboardPage() {
 
     return resultado;
   }, [clientesListView, usuariosMap, deudoresPorCliente, acuerdosEnFirmeMap, excludedEjecutivoIds, sinGestion15dMap]);
+
+  const mesActualReal = useMemo(() => {
+    const { year: yy, month: mm } = currentYM();
+    return `${yy}-${mm}`;
+  }, []);
+
+  // ── Último estado mensual activado: conjuntos por ejecutiva prejurídico
+  const ejecutivaReporte = useMemo<EjecutivaReporteRow[]>(() => {
+    const map = new Map<string, EjecutivaReporteRow>();
+    for (const [id, nombre] of ejecutivasUsers) {
+      map.set(id, { ejecutivoId: id, ejecutivoNombre: nombre, conjuntos: [] });
+    }
+
+    for (const cliente of clientesListView) {
+      const ejId = cliente.ejecutivoPrejuridicoId;
+      if (!ejId || !map.has(ejId)) continue;
+      map.get(ejId)!.conjuntos.push({
+        clienteId: cliente.id,
+        clienteNombre: cliente.nombre,
+        ultimoMes: ultimoMesPorCliente.get(cliente.id) ?? null,
+      });
+    }
+
+    return Array.from(map.values())
+      .map((ej) => ({
+        ...ej,
+        conjuntos: [...ej.conjuntos].sort((a, b) =>
+          a.clienteNombre.localeCompare(b.clienteNombre, "es")
+        ),
+      }))
+      .sort((a, b) => a.ejecutivoNombre.localeCompare(b.ejecutivoNombre, "es"));
+  }, [ejecutivasUsers, clientesListView, ultimoMesPorCliente]);
 
   // ── Sin gestión dependientes: recalcula según el filtro seleccionado
   const sinGestionDemandaMap = useMemo(() => {
@@ -1093,6 +1216,131 @@ export default function AdminDashboardPage() {
                   </table>
                 )}
               </div>
+            </div>
+          )}
+        </section>
+
+        {/* ── ÚLTIMO ESTADO MENSUAL ACTIVADO POR EJECUTIVA ── */}
+        <section className="rounded-2xl border bg-white shadow-sm overflow-hidden">
+          <button
+            className="w-full text-left bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5 px-5 py-4 border-b hover:bg-slate-50 transition-colors"
+            onClick={() => setUltimoMesExpanded((v) => !v)}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CalendarClock className="h-5 w-5 text-brand-primary" />
+                <Typography variant="h3" className="!text-brand-secondary font-semibold">
+                  Último estado mensual activado por ejecutiva
+                </Typography>
+              </div>
+              {ultimoMesExpanded ? (
+                <ChevronUp className="h-5 w-5 text-muted-foreground shrink-0" />
+              ) : (
+                <ChevronDown className="h-5 w-5 text-muted-foreground shrink-0" />
+              )}
+            </div>
+            <Typography variant="small" className="text-muted-foreground">
+              {ultimoMesExpanded
+                ? "Conjuntos asignados a cada ejecutiva y el último mes con estado mensual guardado (activado manualmente)"
+                : loadingKpis
+                ? "Cargando datos…"
+                : `${ejecutivaReporte.length} ejecutivas · Clic para ver detalle`}
+            </Typography>
+          </button>
+
+          {ultimoMesExpanded && (
+            <div className="divide-y">
+              {loadingKpis ? (
+                <div className="h-48 flex items-center justify-center">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : ejecutivaReporte.length === 0 ? (
+                <div className="h-48 flex items-center justify-center">
+                  <p className="text-sm text-muted-foreground">
+                    Sin ejecutivas registradas (rol "ejecutivo" o "ejecutivoAdmin").
+                  </p>
+                </div>
+              ) : (
+                ejecutivaReporte.map((ej) => {
+                  const isOpen = expandedEjecutivaIds.has(ej.ejecutivoId);
+                  const atrasados = ej.conjuntos.filter(
+                    (c) => !c.ultimoMes || mesesDiferencia(mesActualReal, c.ultimoMes) >= 2
+                  ).length;
+                  return (
+                    <div key={ej.ejecutivoId}>
+                      <button
+                        className="w-full text-left px-5 py-3 flex items-center justify-between gap-2 hover:bg-slate-50/70 transition-colors"
+                        onClick={() => toggleEjecutivaExpanded(ej.ejecutivoId)}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          {isOpen ? (
+                            <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                          )}
+                          <span className="font-medium text-sm truncate">{ej.ejecutivoNombre}</span>
+                          <span className="text-xs text-muted-foreground shrink-0">
+                            ({ej.conjuntos.length} conjuntos)
+                          </span>
+                        </div>
+                        {atrasados > 0 && (
+                          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-700 shrink-0">
+                            {atrasados} conjunto{atrasados === 1 ? "" : "s"} atrasado{atrasados === 1 ? "" : "s"}
+                          </span>
+                        )}
+                      </button>
+
+                      {isOpen && (
+                        <div className="overflow-x-auto pb-2">
+                          {ej.conjuntos.length === 0 ? (
+                            <p className="px-5 pb-3 text-xs text-muted-foreground">
+                              Sin conjuntos asignados.
+                            </p>
+                          ) : (
+                            <table className="w-full text-sm">
+                              <thead className="bg-slate-50 border-b">
+                                <tr>
+                                  <th className="py-2 px-5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                                    Conjunto
+                                  </th>
+                                  <th className="py-2 px-5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">
+                                    Último mes activado
+                                  </th>
+                                  <th className="py-2 px-5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                                    Estado
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {ej.conjuntos.map((c) => (
+                                  <tr key={c.clienteId} className="border-t hover:bg-slate-50/50">
+                                    <td className="py-2 px-5">
+                                      <button
+                                        className="text-brand-primary hover:underline text-left"
+                                        onClick={() =>
+                                          navigate(`/clientes/${c.clienteId}/estado-mensual`)
+                                        }
+                                      >
+                                        {c.clienteNombre}
+                                      </button>
+                                    </td>
+                                    <td className="py-2 px-5 tabular-nums whitespace-nowrap">
+                                      {formatMes(c.ultimoMes)}
+                                    </td>
+                                    <td className="py-2 px-5">
+                                      <EstadoMesBadge ultimoMes={c.ultimoMes} mesActual={mesActualReal} />
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
             </div>
           )}
         </section>
