@@ -30,7 +30,7 @@ import { PERMS } from "@/shared/constants/acl";
 import { Deudor } from "@/modules/cobranza/models/deudores.model";
 import { obtenerDeudorPorCliente } from "@/modules/cobranza/services/deudorService";
 import { useUsuarioActual } from "@/modules/auth/hooks/useUsuarioActual";
-import { obtenerUltimoContrato } from "@/modules/contratos/services/contratoService";
+import { listarContratos } from "@/modules/contratos/services/contratoService";
 import type { Contrato } from "@/modules/contratos/models/contrato.model";
 
 
@@ -48,7 +48,7 @@ export default function ClientePage() {
     const [ejecutivos, setEjecutivos] = useState<UsuarioSistema[]>([]);
     const [usuarios, setUsuarios] = useState<UsuarioSistema[]>([]);
     const [loading, setLoading] = useState(true);
-    const [ultimoContrato, setUltimoContrato] = useState<Contrato | null>(null);
+    const [contratos, setContratos] = useState<Contrato[]>([]);
     const [editOpen, setEditOpen] = useState(false);
     const { roles, loading: userLoading } = useUsuarioActual();
     const isCliente = roles?.includes("cliente");
@@ -101,7 +101,7 @@ export default function ClientePage() {
                 const deudoresData = await obtenerDeudorPorCliente(clienteId);
                 setDeudores(deudoresData);
 
-                obtenerUltimoContrato(clienteId).then(setUltimoContrato).catch(() => {});
+                listarContratos(clienteId).then(setContratos).catch(() => {});
 
                 const todosUsuarios = await obtenerUsuarios();
                 setUsuarios(todosUsuarios);
@@ -234,7 +234,7 @@ export default function ClientePage() {
                             ejecutivos={ejecutivos}
                             usuarios={usuarios}
                             totalDeudores={deudoresActivos.length}
-                            ultimoContrato={ultimoContrato}
+                            contratos={contratos}
                             canViewContratos={canViewContratos}
                         />
                     </div>

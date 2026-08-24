@@ -14,11 +14,11 @@ interface Props {
   ejecutivos?: UsuarioSistema[];
   usuarios?: UsuarioSistema[];
   totalDeudores?: number;
-  ultimoContrato?: Contrato | null;
+  contratos?: Contrato[];
   canViewContratos?: boolean;
 }
 
-export function ClienteInfoCard({ cliente, ejecutivos = [], usuarios = [], totalDeudores = 0, ultimoContrato, canViewContratos = false }: Props) {
+export function ClienteInfoCard({ cliente, ejecutivos = [], usuarios = [], totalDeudores = 0, contratos = [], canViewContratos = false }: Props) {
   const navigate = useNavigate();
   // Normaliza IDs: si vienen como "", null o solo espacios => null
   const ejecutivoPreId =
@@ -129,6 +129,16 @@ export function ClienteInfoCard({ cliente, ejecutivos = [], usuarios = [], total
 
   const show = (v?: string | null) => (v && String(v).trim() !== "" ? String(v) : "—");
 
+  const formatFecha = (timestamp: any) => {
+    if (!timestamp) return "—";
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return date.toLocaleDateString("es-CO", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  };
+
   const nombreCliente =
     (usuarioCliente as any)?.nombre ??
     (usuarioCliente as any)?.displayName ??
@@ -229,41 +239,65 @@ export function ClienteInfoCard({ cliente, ejecutivos = [], usuarios = [], total
 
       </div>
 
-      {/* Último contrato — debajo de Forma de pago */}
-      {canViewContratos && ultimoContrato && (
-        <div className="flex flex-wrap items-center gap-3 pt-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <ScrollText className="h-4 w-4 text-indigo-600 shrink-0" />
-            <div className="min-w-0">
-              <span className="text-sm text-gray-500">Último contrato · </span>
-              <span className="text-sm font-semibold text-gray-800 truncate">
-                {ultimoContrato.titulo}
+      {/* Historial de contratos — debajo de Forma de pago */}
+      {canViewContratos && (
+        <div className="pt-2 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <ScrollText className="h-4 w-4 text-indigo-600 shrink-0" />
+              <span className="text-sm font-semibold text-gray-800">
+                Historial de contratos
               </span>
             </div>
+            <button
+              onClick={() => navigate(`/clientes/${cliente.id}/contratos`)}
+              className="text-sm text-indigo-600 hover:underline shrink-0"
+            >
+              Gestionar contratos
+            </button>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {ultimoContrato.archivos.length > 0 ? (
-              ultimoContrato.archivos.map((a, i) => (
-                <a
-                  key={i}
-                  href={a.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1 text-sm text-indigo-700 hover:bg-indigo-100 transition-colors max-w-[180px]"
+
+          {contratos.length === 0 ? (
+            <div className="text-sm text-gray-500">
+              Aún no se han registrado contratos para este cliente.
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+              {contratos.map((c) => (
+                <div
+                  key={c.id}
+                  className="rounded-lg border border-gray-200 bg-white p-3 flex flex-wrap items-center justify-between gap-2"
                 >
-                  <Download className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{a.nombre}</span>
-                </a>
-              ))
-            ) : (
-              <button
-                onClick={() => navigate(`/clientes/${cliente.id}/contratos`)}
-                className="text-sm text-indigo-600 hover:underline"
-              >
-                Ver contrato
-              </button>
-            )}
-          </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-gray-900 truncate">
+                      {c.titulo}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {formatFecha(c.fechaCreacion)}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {c.archivos.length > 0 ? (
+                      c.archivos.map((a, i) => (
+                        <a
+                          key={i}
+                          href={a.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1 text-sm text-indigo-700 hover:bg-indigo-100 transition-colors max-w-[180px]"
+                        >
+                          <Download className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{a.nombre}</span>
+                        </a>
+                      ))
+                    ) : (
+                      <span className="text-xs text-gray-400">Sin archivos</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
