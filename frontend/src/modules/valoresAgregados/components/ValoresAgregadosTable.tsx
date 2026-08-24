@@ -142,7 +142,10 @@ export default function ValoresAgregadosTable() {
   const { can, roles = [], loading: aclLoading } = useAcl();
 const canView = can(PERMS.Valores_agregados_Read);
 
-const rolesPuedeEditar = ["admin", "ejecutivoAdmin", "abogado", "dependiente"];
+// Abogado y dependiente responden por el hilo de conversación (ver ValorAgregadoDetailPage),
+// no editando la solicitud original: hacerlo sobrescribe el texto/adjuntos que radicó el
+// cliente y deja el caso marcado como no completado.
+const rolesPuedeEditar = ["admin", "ejecutivoAdmin"];
 const canCreate = canView && roles.includes("cliente");
 const canEdit =
   canView && roles.some((rol) => rolesPuedeEditar.includes(rol));
