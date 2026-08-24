@@ -21,7 +21,11 @@ export interface ClienteParticular {
   /** Solo aplica a personas jurídicas */
   representanteLegal?: string;
 
-  correos: string[];
+  /**
+   * El correo del cliente NO se guarda aquí: la fuente única es
+   * `usuarios/{uid}.email`, que es el correo de acceso real y el que cambia
+   * el botón "Cambiar correo" de Usuarios. Léelo con `getUsuarioByUid(id)`.
+   */
   telefonos: string[];
   direccion?: string;
 

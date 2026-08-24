@@ -80,6 +80,10 @@ configuracion/{docCatalogo}             → Catálogos internos (documento con {
 
 tareas/{id}                             → Tarea (tablero kanban, tiempo real)
 
+eventos/{eventoId}                      → Evento (agenda del equipo)          ← NUEVO
+recordatoriosEventos/{id}               → Cola de avisos que barre el scheduler ← NUEVO
+                                          (ver MODULO-CALENDARIO-EVENTOS.md)
+
 clientesParticulares/{uid}              → Clientes persona natural/jurídica con CASOS
   └─ casos/{casoId}                       (línea de negocio aparte, ver MODELO-DATOS-CASOS.md)
 
@@ -220,6 +224,8 @@ enum TipificacionDeuda {
 ### 3.6 Notificaciones
 
 `usuarios/{uid}/notificaciones/{id}` → `NotificacionAlerta` ([notificacion.model.ts](../frontend/src/modules/notificaciones/models/notificacion.model.ts)): `fecha`, `descripcion`, `ruta` (deep-link interno), `modulo`, `visto`, `resuelta?`. Se generan, por ejemplo, cuando un cliente deja una observación sobre un deudor o un valor agregado.
+
+Es un **transporte genérico, no un dominio**: cualquier módulo escribe aquí con su propio `modulo` y su `ruta`. Lo usan Tareas (`modulo: "tarea"`), Valores Agregados y el Calendario (`modulo: "evento"`, `ruta: "/calendario?evento={id}"`).
 
 ### 3.7 WhatsApp
 

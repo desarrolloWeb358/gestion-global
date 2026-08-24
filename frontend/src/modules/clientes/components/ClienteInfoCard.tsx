@@ -14,11 +14,11 @@ interface Props {
   ejecutivos?: UsuarioSistema[];
   usuarios?: UsuarioSistema[];
   totalDeudores?: number;
-  ultimoContrato?: Contrato | null;
+  contratos?: Contrato[];
   canViewContratos?: boolean;
 }
 
-export function ClienteInfoCard({ cliente, ejecutivos = [], usuarios = [], totalDeudores = 0, ultimoContrato, canViewContratos = false }: Props) {
+export function ClienteInfoCard({ cliente, ejecutivos = [], usuarios = [], totalDeudores = 0, contratos = [], canViewContratos = false }: Props) {
   const navigate = useNavigate();
   // Normaliza IDs: si vienen como "", null o solo espacios => null
   const ejecutivoPreId =
@@ -229,41 +229,45 @@ export function ClienteInfoCard({ cliente, ejecutivos = [], usuarios = [], total
 
       </div>
 
-      {/* Último contrato — debajo de Forma de pago */}
-      {canViewContratos && ultimoContrato && (
-        <div className="flex flex-wrap items-center gap-3 pt-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <ScrollText className="h-4 w-4 text-indigo-600 shrink-0" />
-            <div className="min-w-0">
-              <span className="text-sm text-gray-500">Último contrato · </span>
-              <span className="text-sm font-semibold text-gray-800 truncate">
-                {ultimoContrato.titulo}
-              </span>
+      {/* Contratos — debajo de Forma de pago, del más reciente al más antiguo */}
+      {canViewContratos && contratos.length > 0 && (
+        <div className="flex flex-col gap-2 pt-2">
+          {contratos.map((contrato) => (
+            <div key={contrato.id} className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <ScrollText className="h-4 w-4 text-indigo-600 shrink-0" />
+                <span className="text-sm font-semibold text-gray-800 truncate">
+                  {contrato.titulo}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {contrato.archivos.length > 0 ? (
+                  contrato.archivos.map((a, i) => (
+                    <a
+                      key={i}
+                      href={a.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      title={a.nombre}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1 text-sm text-indigo-700 hover:bg-indigo-100 transition-colors"
+                    >
+                      <Download className="h-3.5 w-3.5 shrink-0" />
+                      <span>
+                        {contrato.archivos.length > 1 ? `Descargar ${i + 1}` : "Descargar"}
+                      </span>
+                    </a>
+                  ))
+                ) : (
+                  <button
+                    onClick={() => navigate(`/clientes/${cliente.id}/contratos`)}
+                    className="text-sm text-indigo-600 hover:underline"
+                  >
+                    Ver contrato
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {ultimoContrato.archivos.length > 0 ? (
-              ultimoContrato.archivos.map((a, i) => (
-                <a
-                  key={i}
-                  href={a.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1 text-sm text-indigo-700 hover:bg-indigo-100 transition-colors max-w-[180px]"
-                >
-                  <Download className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{a.nombre}</span>
-                </a>
-              ))
-            ) : (
-              <button
-                onClick={() => navigate(`/clientes/${cliente.id}/contratos`)}
-                className="text-sm text-indigo-600 hover:underline"
-              >
-                Ver contrato
-              </button>
-            )}
-          </div>
+          ))}
         </div>
       )}
 

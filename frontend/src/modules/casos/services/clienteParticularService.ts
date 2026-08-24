@@ -43,7 +43,6 @@ function mapDoc(id: string, data: any): ClienteParticular {
     tipoDocumento: data.tipoDocumento ?? undefined,
     numeroDocumento: data.numeroDocumento ?? "",
     representanteLegal: data.representanteLegal ?? "",
-    correos: Array.isArray(data.correos) ? data.correos : [],
     telefonos: Array.isArray(data.telefonos) ? data.telefonos : [],
     direccion: data.direccion ?? "",
     franquiciaId: data.franquiciaId ?? undefined,

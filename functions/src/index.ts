@@ -417,6 +417,15 @@ export { processBulkSendJob }     from "./whatsapp/bulkSendHandler";
 // =====================================================
 export { notificarValorAgregadoCreado, notificarValorAgregadoActualizado } from "./valoresAgregados/notificaciones";
 
+// =====================================================
+// 📅 MÓDULO CALENDARIO — Eventos y recordatorios del equipo
+// =====================================================
+// sincronizarEvento: mantiene la cola `recordatoriosEventos` y manda los avisos
+//   inmediatos (invitación / reprogramación / cancelación).
+// barrerRecordatoriosEventos: cada 5 min entrega lo que ya vence en la cola.
+export { sincronizarEvento } from "./eventos/sincronizarEvento";
+export { barrerRecordatoriosEventos } from "./eventos/barrerRecordatorios";
+
 /*
 export const pruebaCorreo = onRequest({ secrets: [SENDGRID_API_KEY, SENDGRID_SENDER_EMAIL] }, async (req, res) => {
   try {

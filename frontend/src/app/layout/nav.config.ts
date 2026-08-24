@@ -21,6 +21,7 @@ import {
   IconGavel,
   IconScale,
   IconUserSearch,
+  IconCalendarEvent,
 } from "@tabler/icons-react";
 import { PERMS } from "@/shared/constants/acl";
 
@@ -151,6 +152,25 @@ export const NAV_ITEMS: NavItem[] = [
       "abogado",
     ],
     perm: PERMS.Tareas_Read,
+  },
+
+  // ========================================
+  // CALENDARIO (agenda y eventos del equipo)
+  // ========================================
+  {
+    to: "/calendario",
+    label: "Calendario",
+    icon: IconCalendarEvent,
+    roles: [
+      "admin",
+      "supervisor",
+      "adminFranquicia",
+      "ejecutivo",
+      "ejecutivoAdmin",
+      "dependiente",
+      "abogado",
+    ],
+    perm: PERMS.Eventos_Read,
   },
 
   // ========================================

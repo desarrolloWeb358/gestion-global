@@ -62,6 +62,7 @@ import DetalleProcesoJudicialPage from "./modules/cobranza/components/DetallePro
 import AjustesPage from "./modules/ajustes/components/AjustesPage";
 import ContratosPage from "./modules/contratos/components/ContratosPage";
 import TareasBoardPage from "./modules/tareas/components/TareasBoardPage";
+import CalendarioPage from "./modules/eventos/components/CalendarioPage";
 
 // Casos (clientes particulares: personas naturales/jurídicas con procesos)
 import ClientesParticularesTable from "./modules/casos/components/ClientesParticularesTable";
@@ -136,6 +137,7 @@ export default function App() {
             <Route path="/mis-casos/:casoId" element={<CasoDetailPage />} />
             <Route path="/reporte-casos" element={<ReporteCasosPage />} />
             <Route path="/tareas" element={<TareasBoardPage />} />
+            <Route path="/calendario" element={<CalendarioPage />} />
             <Route path="/clientes/:clienteId/contratos" element={<ContratosPage />} />
 
             {/* WhatsApp */}

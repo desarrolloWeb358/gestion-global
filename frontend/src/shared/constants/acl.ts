@@ -121,6 +121,11 @@ export const PERMS = {
   Tareas_Assign: "tareas.assign",
   Tareas_Manage: "tareas.manage",
   Tareas_Estado_Edit: "tareas.estado.edit",
+
+  // Calendario / Eventos (agenda interna del equipo)
+  Eventos_Read: "eventos.read",     // ver el calendario
+  Eventos_Create: "eventos.create", // crear y editar los eventos propios
+  Eventos_Manage: "eventos.manage", // editar/cancelar cualquier evento y ver los privados
 } as const;
 export type Perm = (typeof PERMS)[keyof typeof PERMS];
 
@@ -165,6 +170,9 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Casos_Seguimiento_Edit,
     PERMS.Casos_Documentos_Edit,
     PERMS.Casos_Obs_Create,
+    PERMS.Eventos_Read,
+    PERMS.Eventos_Create,
+    PERMS.Eventos_Manage,
   ],
 
   supervisor: [
@@ -201,6 +209,9 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Casos_Seguimiento_Edit,
     PERMS.Casos_Documentos_Edit,
     PERMS.Casos_Obs_Create,
+    PERMS.Eventos_Read,
+    PERMS.Eventos_Create,
+    PERMS.Eventos_Manage,
   ],
 
   ejecutivoAdmin: [    
@@ -237,6 +248,9 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Casos_Seguimiento_Edit,
     PERMS.Casos_Documentos_Edit,
     PERMS.Casos_Obs_Create,
+    PERMS.Eventos_Read,
+    PERMS.Eventos_Create,
+    PERMS.Eventos_Manage,
   ],
 
   ejecutivo: [
@@ -262,6 +276,8 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Tareas_Read,
     PERMS.Tareas_Assign,
     PERMS.Tareas_Estado_Edit,
+    PERMS.Eventos_Read,
+    PERMS.Eventos_Create,
   ],
 
   dependiente: [
@@ -289,6 +305,8 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Casos_Seguimiento_Edit,
     PERMS.Casos_Documentos_Edit,
     PERMS.Casos_Obs_Create,
+    PERMS.Eventos_Read,
+    PERMS.Eventos_Create,
   ],
 
   cliente: [
@@ -331,6 +349,8 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Casos_Seguimiento_Edit,
     PERMS.Casos_Documentos_Edit,
     PERMS.Casos_Obs_Create,
+    PERMS.Eventos_Read,
+    PERMS.Eventos_Create,
   ],
 
   // Supervisión de franquicia: SOLO lectura + reportes, limitado a franquiciasAsignadas.
@@ -349,6 +369,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Tareas_Estado_Edit,
     PERMS.ClientesParticulares_Read,
     PERMS.Casos_Read,
+    PERMS.Eventos_Read,
   ],
 
   // Cliente persona natural/jurídica: ve SUS casos, escribe observaciones y

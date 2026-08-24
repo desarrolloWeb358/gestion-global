@@ -2,80 +2,12 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import { getOrCreateConversation, appendMessage } from "./conversationService";
-
-interface TemplateParameter {
-  parameterName: string;
-  value: string;
-}
-
-// Normaliza teléfono: quita +, espacios y guiones → deja solo dígitos
-function normalizePhone(raw: string): string {
-  return raw.replace(/[^\d]/g, "");
-}
-
-// Limpia parámetros para Meta: elimina saltos de línea, tabs, y espacios múltiples
-function sanitizeParameterValue(value: string): string {
-  if (!value || typeof value !== "string") return "";
-  return value
-    .replace(/[\n\r\t]/g, " ") // Reemplaza newlines y tabs con espacio
-    .replace(/  +/g, " ")       // Reduce espacios múltiples a uno solo
-    .trim();                     // Elimina espacios al inicio y final
-}
-
-// Retorna el wamid asignado por Meta ("wamid.xxx...") o "" si no viene
-async function callMetaTemplateApi(
-  phoneNumberId: string,
-  token: string,
-  to: string,
-  templateName: string,
-  parameters: TemplateParameter[]
-): Promise<string> {
-  const url = `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`;
-
-  const components =
-    parameters.length > 0
-      ? [
-          {
-            type: "body",
-            parameters: parameters.map((p) => ({
-              type: "text",
-              parameter_name: p.parameterName,
-              text: p.value,
-            })),
-          },
-        ]
-      : [];
-
-  const body: Record<string, unknown> = {
-    messaging_product: "whatsapp",
-    to,
-    type: "template",
-    template: {
-      name: templateName,
-      language: { code: "es_CO" },
-      ...(components.length > 0 && { components }),
-    },
-  };
-
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!resp.ok) {
-    const error = await resp.json().catch(() => null);
-    throw new Error(
-      `META_TEMPLATE_SEND_FAILED status=${resp.status} body=${JSON.stringify(error)}`
-    );
-  }
-
-  const data = await resp.json().catch(() => ({}));
-  return (data as any)?.messages?.[0]?.id ?? "";
-}
+import {
+  callMetaTemplateApi,
+  normalizePhone,
+  sanitizeParameterValue,
+  type TemplateParameter,
+} from "./metaApi";
 
 export const sendMetaTemplate = onCall(
   { region: "us-central1", invoker: "public" },

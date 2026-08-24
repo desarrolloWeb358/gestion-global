@@ -90,7 +90,7 @@ export default function EmailComposePage() {
       getUsuarioByUid(clienteId).catch(() => null),
     ]).then(([cliente, debtors, clienteUsuario]) => {
       setConjunto(cliente?.nombre ?? "");
-      setConjuntoEmail(cliente?.correoContacto ?? clienteUsuario?.email ?? "");
+      setConjuntoEmail(clienteUsuario?.email ?? "");
       setDeudores(debtors);
       if (deudorId) setSelectedEmail((debtors[0]?.correos ?? []).find((email) => EMAIL_RE.test(email)) ?? "");
     }).finally(() => setLoading(false));

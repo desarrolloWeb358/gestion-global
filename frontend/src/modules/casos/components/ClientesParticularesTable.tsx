@@ -28,6 +28,7 @@ import { PERMS } from "@/shared/constants/acl";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { useUsuarioActual } from "@/modules/auth/hooks/useUsuarioActual";
 import { obtenerFranquicias } from "@/modules/franquicias/services/franquiciaService";
+import { obtenerUsuariosPorRol } from "@/modules/usuarios/services/usuarioService";
 import type { Franquicia } from "@/modules/franquicias/models/franquicia.model";
 import {
   obtenerClientesParticulares,
@@ -49,6 +50,8 @@ export default function ClientesParticularesTable() {
   const [franquicias, setFranquicias] = React.useState<Franquicia[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [busqueda, setBusqueda] = React.useState("");
+  // El correo vive solo en `usuarios/{uid}`; el id del cliente ES ese uid.
+  const [correosPorUid, setCorreosPorUid] = React.useState<Record<string, string>>({});
   const [franquiciaFiltro, setFranquiciaFiltro] = React.useState(TODAS);
 
   React.useEffect(() => {
@@ -59,15 +62,19 @@ export default function ClientesParticularesTable() {
       }
       try {
         setLoading(true);
-        const [clientes, frs] = await Promise.all([
+        const [clientes, frs, usuarios] = await Promise.all([
           obtenerClientesParticulares({
             roles,
             franquiciasAsignadas: usuarioSistema?.franquiciasAsignadas,
           }),
           obtenerFranquicias(),
+          obtenerUsuariosPorRol("clienteCaso"),
         ]);
         setRows(clientes);
         setFranquicias(frs);
+        setCorreosPorUid(
+          Object.fromEntries(usuarios.map((u) => [u.uid, u.email ?? ""]))
+        );
       } catch {
         toast.error("⚠️ No se pudieron cargar los clientes");
       } finally {
@@ -97,11 +104,11 @@ export default function ClientesParticularesTable() {
       .filter((c) =>
         !q
           ? true
-          : [c.nombre, c.numeroDocumento, c.ciudad, ...(c.correos ?? [])]
+          : [c.nombre, c.numeroDocumento, c.ciudad, correosPorUid[c.id ?? ""]]
               .filter(Boolean)
               .some((v) => String(v).toLowerCase().includes(q))
       );
-  }, [rows, busqueda, franquiciaFiltro]);
+  }, [rows, busqueda, franquiciaFiltro, correosPorUid]);
 
   const eliminar = async (cliente: ClienteParticular) => {
     if (
@@ -234,7 +241,7 @@ export default function ClientesParticularesTable() {
                         {c.numeroDocumento || "—"}
                       </TableCell>
                       <TableCell className="text-gray-700 text-sm">
-                        {c.correos?.[0] || c.telefonos?.[0] || "—"}
+                        {correosPorUid[c.id ?? ""] || c.telefonos?.[0] || "—"}
                       </TableCell>
                       <TableCell className="text-gray-700">
                         {nombreFranquicia(c.franquiciaId)}

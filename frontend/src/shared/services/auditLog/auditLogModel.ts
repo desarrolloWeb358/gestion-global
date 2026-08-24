@@ -15,6 +15,7 @@ export type ModuloApp =
   | "usuario"
   | "deudor"
   | "tarea"
+  | "evento"
   // Casos de clientes particulares
   | "clienteParticular"
   | "caso"

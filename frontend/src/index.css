@@ -647,7 +647,7 @@ span.flatpickr-weekday,
   @apply rounded-lg py-2.5 pl-4 pr-3;
 }
 .event-fc-color .fc-event-title {
-  @apply p-0 text-sm font-normal text-gray-700;
+  @apply p-0 text-sm font-normal text-gray-700 dark:text-gray-200;
 }
 .fc-daygrid-event-dot {
   @apply w-1 h-5 ml-0 mr-3 border-none rounded-sm;
@@ -681,6 +681,28 @@ span.flatpickr-weekday,
 }
 .event-fc-color.fc-bg-warning .fc-daygrid-event-dot {
   @apply bg-orange-500;
+}
+/* Quinta categoría del calendario ("Otro"): la paleta del template solo traía cuatro. */
+.event-fc-color.fc-bg-neutral {
+  @apply border-gray-100 bg-gray-100 dark:border-white/10 dark:bg-white/10;
+}
+.event-fc-color.fc-bg-neutral .fc-daygrid-event-dot {
+  @apply bg-gray-500;
+}
+/* Evento cancelado: se conserva en el calendario pero tachado y atenuado. */
+.event-fc-color.fc-evento-cancelado {
+  @apply opacity-50;
+}
+.event-fc-color.fc-evento-cancelado .fc-event-title {
+  @apply line-through;
+}
+/* El template fuerza min-h-screen en .fc; dentro de una página con cabecera
+   propia el calendario debe ocupar su contenedor, no la pantalla completa. */
+.custom-calendar .fc.fc-media-screen {
+  @apply min-h-0;
+}
+.custom-calendar .fc-h-event {
+  @apply dark:text-white;
 }
 .fc-direction-ltr .fc-timegrid-slot-label-frame {
   @apply px-3 py-1.5 text-left text-sm font-medium text-gray-500 dark:text-gray-400;

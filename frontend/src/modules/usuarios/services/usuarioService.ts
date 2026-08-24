@@ -97,6 +97,41 @@ export const suscribirUsuariosAsignablesTareas = (
 
 
 
+/**
+ * Personal interno de la empresa. Es más amplio que ROLES_ASIGNABLES_TAREAS
+ * porque a una reunión sí se puede convocar a un supervisor o a un
+ * adminFranquicia, aunque no se les asignen tareas del tablero.
+ * Quedan fuera cliente, clienteCaso y deudor: son externos.
+ */
+const ROLES_EQUIPO_INTERNO = new Set([
+  "admin",
+  "supervisor",
+  "adminFranquicia",
+  "ejecutivoAdmin",
+  "ejecutivo",
+  "dependiente",
+  "abogado",
+]);
+
+export const suscribirUsuariosEquipoInterno = (
+  callback: (usuarios: UsuarioSistema[]) => void,
+  onError?: (error: unknown) => void
+): Unsubscribe =>
+  onSnapshot(
+    collection(db, "usuarios"),
+    (snapshot) => {
+      const usuarios = snapshot.docs
+        .map(mapDocToUsuario)
+        .filter((usuario) =>
+          usuario.activo !== false &&
+          usuario.roles?.some((rol) => ROLES_EQUIPO_INTERNO.has(rol))
+        )
+        .sort((a, b) => (a.nombre || a.email).localeCompare(b.nombre || b.email, "es"));
+      callback(usuarios);
+    },
+    onError
+  );
+
 export const getUsuarioByUid = async (uid: string): Promise<UsuarioSistema | null> => {
   const ref = doc(db, "usuarios", uid);
   const snap = await getDoc(ref);
@@ -241,7 +276,9 @@ export const actualizarUsuario = async (usuario: UsuarioSistema): Promise<void> 
   // 1) actualiza usuarios/{uid}
   await updateDoc(usuarioRef, updateUsuario as any);
 
-  // 2) si es cliente, sincroniza clientes/{uid}.nombre y activo
+  // 2) los docs de negocio usan el uid como id, así que los datos que también
+  //    viven allí (nombre, documento, activo) se sincronizan aquí. El correo NO:
+  //    su única fuente es usuarios/{uid}.email (ver cambiarCorreoUsuarioDesdeAdmin).
   const roles = (usuario.roles ?? []) as string[];
   if (roles.includes("cliente")) {
     const clienteRef = doc(db, "clientes", usuario.uid);
@@ -254,11 +291,26 @@ export const actualizarUsuario = async (usuario: UsuarioSistema): Promise<void> 
       { merge: true }
     );
   }
+
+  if (roles.includes("clienteCaso")) {
+    const clienteParticularRef = doc(db, "clientesParticulares", usuario.uid);
+    await setDoc(
+      clienteParticularRef,
+      sanitize({
+        nombre: usuario.nombre ?? "",
+        tipoDocumento: usuario.tipoDocumento,
+        numeroDocumento: usuario.numeroDocumento,
+        activo: usuario.activo ?? true,
+        fechaActualizacion: serverTimestamp(),
+      }),
+      { merge: true }
+    );
+  }
 };
 
 
 /* ============================================
-   Toggle activo: sincroniza usuarios + clientes (si aplica)
+   Toggle activo: sincroniza usuarios + clientes / clientesParticulares
    ============================================ */
 export const toggleActivoUsuario = async (
   uid: string,
@@ -269,6 +321,10 @@ export const toggleActivoUsuario = async (
 
   if (roles.includes("cliente")) {
     await setDoc(doc(db, "clientes", uid), { activo }, { merge: true });
+  }
+
+  if (roles.includes("clienteCaso")) {
+    await setDoc(doc(db, "clientesParticulares", uid), { activo }, { merge: true });
   }
 };
 

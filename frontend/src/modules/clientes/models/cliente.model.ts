@@ -5,7 +5,8 @@ export interface Cliente {
   nombre?: string;
   direccion?: string;
   administrador?: string;
-  correoContacto?: string;
+  // El correo del conjunto es el de acceso del usuario (`usuarios/{id}.email`);
+  // no se duplica aquí para que "Cambiar correo" no deje copias obsoletas.
   formaPago?: string;  
   
   // referencias (uids) a usuarios del sistema

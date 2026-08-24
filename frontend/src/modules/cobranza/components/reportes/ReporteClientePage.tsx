@@ -573,15 +573,10 @@ export default function ReporteClientePage() {
         reportesHabilitadosRef.current = habMap;
         setClienteCargado(true);
 
-        // ✅ correo asignado al cliente: contacto del conjunto y, si no hay, el del usuario
-        const correoContacto = c?.correoContacto?.trim() || "";
-        if (correoContacto) {
-          setCorreoCliente(correoContacto);
-        } else {
-          const usuarioCliente = await getUsuarioByUid(clienteId).catch(() => null);
-          if (!alive) return;
-          setCorreoCliente(usuarioCliente?.email?.trim() || "");
-        }
+        // ✅ correo del cliente: siempre el de acceso del usuario (`usuarios/{id}.email`)
+        const usuarioCliente = await getUsuarioByUid(clienteId).catch(() => null);
+        if (!alive) return;
+        setCorreoCliente(usuarioCliente?.email?.trim() || "");
 
         // ✅ ejecutivo prejurídico (viene en Cliente)
         const ejecutivoId = c?.ejecutivoPrejuridicoId ?? null;

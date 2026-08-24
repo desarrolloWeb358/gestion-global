@@ -29,7 +29,8 @@ export const obtenerContactoCliente = async (
     getUsuarioByUid(clienteId).catch(() => null),
   ]);
 
-  const correo = (cliente?.correoContacto || usuario?.email || "").trim();
+  // El correo del conjunto es el de acceso del usuario: única fuente de verdad.
+  const correo = (usuario?.email || "").trim();
   const nombre = (cliente?.nombre || usuario?.nombre || "Cliente").trim();
 
   return { correo, nombre };

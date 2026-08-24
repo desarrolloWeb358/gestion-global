@@ -50,6 +50,7 @@ import { cn } from "@/shared/lib/cn";
 import { PERMS } from "@/shared/constants/acl";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import {
+  getUsuarioByUid,
   obtenerAbogados,
   obtenerDependientes,
 } from "@/modules/usuarios/services/usuarioService";
@@ -88,6 +89,9 @@ export default function ClienteParticularPage() {
   const [cliente, setCliente] = React.useState<ClienteParticular | null>(null);
   const [casos, setCasos] = React.useState<Caso[]>([]);
   const [franquiciaNombre, setFranquiciaNombre] = React.useState("—");
+  // El correo no vive en `clientesParticulares`: es el de acceso del usuario
+  // (`usuarios/{uid}.email`) y solo cambia desde Usuarios → "Cambiar correo".
+  const [correoAcceso, setCorreoAcceso] = React.useState("");
   const [abogados, setAbogados] = React.useState<UsuarioSistema[]>([]);
   const [dependientes, setDependientes] = React.useState<UsuarioSistema[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -100,7 +104,6 @@ export default function ClienteParticularPage() {
     tipoPersona: "natural" as ClienteParticular["tipoPersona"],
     numeroDocumento: "",
     representanteLegal: "",
-    correos: "",
     telefonos: "",
     direccion: "",
     abogadoId: SIN_ASIGNAR,
@@ -112,16 +115,18 @@ export default function ClienteParticularPage() {
     if (!clienteParticularId) return;
     try {
       setLoading(true);
-      const [c, cs, abg, dep] = await Promise.all([
+      const [c, cs, abg, dep, usuario] = await Promise.all([
         getClienteParticularById(clienteParticularId),
         getCasos(clienteParticularId),
         obtenerAbogados(),
         obtenerDependientes(),
+        getUsuarioByUid(clienteParticularId),
       ]);
       setCliente(c);
       setCasos(cs);
       setAbogados(abg);
       setDependientes(dep);
+      setCorreoAcceso(usuario?.email ?? "");
       if (c?.franquiciaId) {
         const f = await getFranquiciaById(c.franquiciaId);
         setFranquiciaNombre(f?.nombre ?? "—");
@@ -144,7 +149,6 @@ export default function ClienteParticularPage() {
       tipoPersona: cliente.tipoPersona ?? "natural",
       numeroDocumento: cliente.numeroDocumento ?? "",
       representanteLegal: cliente.representanteLegal ?? "",
-      correos: (cliente.correos ?? []).join(", "),
       telefonos: (cliente.telefonos ?? []).join(", "),
       direccion: cliente.direccion ?? "",
       abogadoId: cliente.abogadoId || SIN_ASIGNAR,
@@ -166,7 +170,6 @@ export default function ClienteParticularPage() {
         tipoPersona: form.tipoPersona,
         numeroDocumento: form.numeroDocumento.trim(),
         representanteLegal: form.representanteLegal.trim(),
-        correos: splitLista(form.correos),
         telefonos: splitLista(form.telefonos),
         direccion: form.direccion.trim(),
         abogadoId: form.abogadoId === SIN_ASIGNAR ? null : form.abogadoId,
@@ -278,7 +281,7 @@ export default function ClienteParticularPage() {
             </Typography>
           </div>
           <div className="p-4 md:p-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Dato icon={Mail} label="Correos" valor={(cliente.correos ?? []).join(", ")} />
+            <Dato icon={Mail} label="Correo de acceso" valor={correoAcceso} />
             <Dato icon={Phone} label="Teléfonos" valor={(cliente.telefonos ?? []).join(", ")} />
             <Dato icon={MapPin} label="Dirección" valor={cliente.direccion} />
             <Dato icon={Building} label="Franquicia" valor={franquiciaNombre} />
@@ -526,14 +529,17 @@ export default function ClienteParticularPage() {
               </div>
 
               <div>
-                <Label className="text-brand-secondary font-medium">Correos</Label>
+                <Label className="text-brand-secondary font-medium">Correo de acceso</Label>
                 <Input
-                  value={form.correos}
-                  onChange={(e) => setForm((s) => ({ ...s, correos: e.target.value }))}
-                  placeholder="correo1@example.com, correo2@example.com"
-                  className="mt-1.5 border-brand-secondary/30"
+                  value={correoAcceso}
+                  readOnly
+                  disabled
+                  className="mt-1.5 border-brand-secondary/30 bg-gray-50"
                 />
-                <p className="text-xs mt-1 text-muted-foreground">Separa múltiples correos con comas.</p>
+                <p className="text-xs mt-1 text-muted-foreground">
+                  Es el correo con el que el cliente inicia sesión. Se cambia desde
+                  Usuarios → editar usuario → «Cambiar correo».
+                </p>
               </div>
 
               <div>

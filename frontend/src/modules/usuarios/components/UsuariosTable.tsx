@@ -981,7 +981,6 @@ export default function UsuariosCrud() {
                         tipoDocumento,
                         numeroDocumento,
                         representanteLegal: "",
-                        correos: [email.trim().toLowerCase()],
                         telefonos: telefonoUsuario ? [telefonoUsuario] : [],
                         direccion: "",
                         franquiciaId: franquiciaSel || undefined,
