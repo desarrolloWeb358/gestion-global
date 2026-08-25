@@ -7,7 +7,6 @@ import {
   Calendar as CalendarIcon,
   X,
   Plus,
-  Edit,
   Eye,
   FileText,
   Filter as FilterIcon,
@@ -40,7 +39,6 @@ import { ValorAgregado } from "../models/valorAgregado.model";
 import {
   listarValoresAgregados,
   crearValorAgregado,
-  actualizarValorAgregado,
   formatFechaCO as formatFechaCOOriginal,
 } from "../services/valorAgregadoService";
 
@@ -142,22 +140,17 @@ export default function ValoresAgregadosTable() {
   const { can, roles = [], loading: aclLoading } = useAcl();
 const canView = can(PERMS.Valores_agregados_Read);
 
-// Abogado y dependiente responden por el hilo de conversación (ver ValorAgregadoDetailPage),
-// no editando la solicitud original: hacerlo sobrescribe el texto/adjuntos que radicó el
-// cliente y deja el caso marcado como no completado.
-const rolesPuedeEditar = ["admin", "ejecutivoAdmin"];
+// Nadie puede editar la solicitud original que radica el conjunto: hacerlo
+// sobrescribiría el texto/adjuntos que envió el cliente. Abogado y dependiente
+// responden por el hilo de conversación (ver ValorAgregadoDetailPage).
 const canCreate = canView && roles.includes("cliente");
-const canEdit =
-  canView && roles.some((rol) => rolesPuedeEditar.includes(rol));
-const canOpenForm = canCreate || canEdit;
 
   const [clienteNombre, setClienteNombre] = React.useState("Cliente");
   const [items, setItems] = React.useState<ValorAgregado[]>([]);
   const [loading, setLoading] = React.useState(false);
 
-  // Crear / Editar
+  // Crear
   const [open, setOpen] = React.useState(false);
-  const [editando, setEditando] = React.useState<ValorAgregado | null>(null);
   const [formData, setFormData] = React.useState<Partial<ValorAgregado>>({});
   const [archivoFiles, setArchivoFiles] = React.useState<File[]>([]);
   const [fecha, setFecha] = React.useState<Date | undefined>();
@@ -277,20 +270,9 @@ const canOpenForm = canCreate || canEdit;
   // =======================
   const iniciarCrear = () => {
     if (!canCreate) return;
-    setEditando(null);
     setFormData({ tipo: TipoValorAgregado.DERECHO_DE_PETICION, titulo: "", descripcion: "" });
     setArchivoFiles([]);
     setFecha(new Date());
-    setOpen(true);
-  };
-
-  const iniciarEditar = (it: ValorAgregado) => {
-    if (!canEdit) return;
-    setEditando(it || null);
-    setFormData({ ...(it || {}) });
-    const f: any = (it as any)?.fecha;
-    setFecha(f?.toDate ? f.toDate() : undefined);
-    setArchivoFiles([]);
     setOpen(true);
   };
 
@@ -300,34 +282,22 @@ const canOpenForm = canCreate || canEdit;
   };
 
   const onSubmit = async () => {
-    if (!clienteId || saving) return;
-    if (editando?.id && !canEdit) return;
-    if (!editando?.id && !canCreate) return;
+    if (!clienteId || saving || !canCreate) return;
     setSaving(true);
     try {
       const fechaTs = fecha ? Timestamp.fromDate(fecha) : undefined;
 
-      if (editando?.id) {
-        await actualizarValorAgregado(
-          clienteId,
-          editando.id,
-          { ...formData, fechaTs },
-          archivoFiles.length > 0 ? archivoFiles : undefined
-        );
-        toast.success("✓ Valor agregado actualizado");
-      } else {
-        await crearValorAgregado(
-          clienteId,
-          {
-            tipo: (formData.tipo as TipoValorAgregado) ?? TipoValorAgregado.DERECHO_DE_PETICION,
-            titulo: formData.titulo ?? "",
-            descripcion: formData.descripcion ?? "",
-            fechaTs,
-          },
-          archivoFiles.length > 0 ? archivoFiles : undefined
-        );
-        toast.success("✓ Valor agregado creado");
-      }
+      await crearValorAgregado(
+        clienteId,
+        {
+          tipo: (formData.tipo as TipoValorAgregado) ?? TipoValorAgregado.DERECHO_DE_PETICION,
+          titulo: formData.titulo ?? "",
+          descripcion: formData.descripcion ?? "",
+          fechaTs,
+        },
+        archivoFiles.length > 0 ? archivoFiles : undefined
+      );
+      toast.success("✓ Valor agregado creado");
 
       setOpen(false);
       await fetchData();
@@ -399,7 +369,7 @@ const canOpenForm = canCreate || canEdit;
             </Typography>
           </div>
 
-          {canOpenForm && (
+          {canCreate && (
             <Dialog open={open} onOpenChange={setOpen}>
               {canCreate && (
                 <DialogTrigger asChild>
@@ -419,7 +389,7 @@ const canOpenForm = canCreate || canEdit;
                 <DialogHeader>
                   <DialogTitle className="text-brand-primary text-xl font-bold flex items-center gap-2">
                     <FileText className="h-5 w-5" />
-                    {editando ? "Editar valor agregado" : "Crear valor agregado"}
+                    Crear valor agregado
                   </DialogTitle>
                 </DialogHeader>
 
@@ -484,24 +454,6 @@ const canOpenForm = canCreate || canEdit;
                       <Upload className="h-4 w-4" />
                       Archivos adjuntos
                     </Label>
-
-                    {/* Archivos ya guardados (al editar) */}
-                    {editando && editando.archivos && editando.archivos.length > 0 && (
-                      <div className="p-3 rounded-lg bg-blue-50 border border-blue-100 space-y-1">
-                        <p className="text-xs font-medium text-blue-800">
-                          Archivos actuales ({editando.archivos.length}):
-                        </p>
-                        {editando.archivos.map((a, i) => (
-                          <div key={i} className="flex items-center gap-2 text-xs text-blue-700">
-                            <FileText className="h-3 w-3 shrink-0" />
-                            <span className="truncate">{a.nombre}</span>
-                          </div>
-                        ))}
-                        <p className="text-xs text-blue-600 pt-1">
-                          Los archivos nuevos que selecciones se agregarán a los existentes.
-                        </p>
-                      </div>
-                    )}
 
                     <div className="flex items-center gap-2">
                       <Input
@@ -826,16 +778,6 @@ const canOpenForm = canCreate || canEdit;
                           >
                             <Eye className="h-4 w-4 text-brand-primary" />
                           </Button>
-                          {canEdit && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => iniciarEditar(it)}
-                              className="hover:bg-brand-primary/10"
-                            >
-                              <Edit className="h-4 w-4 text-brand-primary" />
-                            </Button>
-                          )}
                         </div>
                       </TableCell>
                     </TableRow>
