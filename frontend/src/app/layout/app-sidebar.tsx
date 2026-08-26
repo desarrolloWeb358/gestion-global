@@ -31,6 +31,7 @@ import { cn } from "@/shared/lib/cn";
 import { Earth } from "lucide-react";
 import { useNotificacionesUsuario } from "@/modules/notificaciones/hooks/useNotificacionesUsuario";
 import { useWaUnreadCount } from "@/modules/whatsapp/hooks/useWaUnreadCount";
+import { useValoresAgregadosAbiertos } from "@/modules/valoresAgregados/hooks/useValoresAgregadosAbiertos";
 
 function useFilteredNav(items: NavItem[]) {
   const { roles, can, loading, canConsultarPersonas } = useAcl();
@@ -52,8 +53,9 @@ function useFilteredNav(items: NavItem[]) {
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { usuario, roles } = useAcl();
   const { usuarioSistema } = useUsuarioActual();
-  const { totalNoVistas } = useNotificacionesUsuario(usuario?.uid, roles);
+  const { totalNoVistas } = useNotificacionesUsuario(usuario?.uid);
   const waUnread = useWaUnreadCount(usuario?.uid, roles);
+  const vaAbiertos = useValoresAgregadosAbiertos(usuario?.uid, roles);
   const navigate = useNavigate();
   const { items, loading } = useFilteredNav(NAV_ITEMS);
   const { state } = useSidebar();
@@ -97,10 +99,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     path: it.to,
     icon: it.icon,
     badge:
-      it.to === "/notificaciones" ? totalNoVistas :
-      it.to === "/whatsapp"       ? waUnread.primary :
+      it.to === "/notificaciones"            ? totalNoVistas :
+      it.to === "/whatsapp"                  ? waUnread.primary :
+      it.to === "/reporte-valores-agregados" ? vaAbiertos.primary :
       undefined,
-    badge2: it.to === "/whatsapp" ? waUnread.secondary : undefined,
+    badge2:
+      it.to === "/whatsapp"                  ? waUnread.secondary :
+      it.to === "/reporte-valores-agregados" ? vaAbiertos.secondary :
+      undefined,
   }));
 
   const onLogout = async () => {

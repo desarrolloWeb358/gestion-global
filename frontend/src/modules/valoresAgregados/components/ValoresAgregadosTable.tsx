@@ -128,6 +128,31 @@ function formatFechaCO(value: any) {
 }
 
 
+/** El cliente también necesita ver en qué va su solicitud: antes esta tabla no
+ *  mostraba estado por ningún lado. */
+function EstadoBadge({ item }: { item: ValorAgregado }) {
+  const resuelto = item?.estado === "resuelto";
+  if (resuelto) {
+    return (
+      <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+        Resuelto
+      </span>
+    );
+  }
+  return (
+    <span
+      className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800"
+      title={
+        item?.esperaRespuestaDe === "cliente"
+          ? "Está en tu cancha: el área jurídica espera tu respuesta"
+          : "El área jurídica lo está atendiendo"
+      }
+    >
+      {item?.esperaRespuestaDe === "cliente" ? "Esperando tu respuesta" : "En trámite"}
+    </span>
+  );
+}
+
 const ALL = "__ALL__";
 
 // =======================
@@ -740,6 +765,7 @@ const canCreate = canView && roles.includes("cliente");
                         Últ. actualización <SortIcon field="fechaUltimaActualizacion" />
                       </div>
                     </TableHead>
+                    <TableHead className="text-brand-secondary font-semibold">Estado</TableHead>
                     <TableHead className="w-[180px] text-center text-brand-secondary font-semibold">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -767,6 +793,9 @@ const canCreate = canView && roles.includes("cliente");
                       </TableCell>
                       <TableCell className="text-gray-500 text-sm">
                         {formatFechaCO((it as any)?.fechaUltimaActualizacion) || "—"}
+                      </TableCell>
+                      <TableCell>
+                        <EstadoBadge item={it} />
                       </TableCell>
                       <TableCell>
                         <div className="flex justify-center gap-2">

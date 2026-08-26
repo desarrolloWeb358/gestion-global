@@ -110,6 +110,13 @@ export const NAV_ITEMS: NavItem[] = [
     icon: IconGavel,
     roles: ["admin", "supervisor", "ejecutivoAdmin", "dependiente"],
   },
+  {
+    to: "/reporte-valores-agregados",
+    label: "Valores agregados",
+    icon: IconScale,
+    roles: ["admin", "supervisor", "ejecutivoAdmin", "abogado", "dependiente"],
+    perm: PERMS.Valores_agregados_Read,
+  },
 
   // ========================================
   // CASOS (clientes particulares)

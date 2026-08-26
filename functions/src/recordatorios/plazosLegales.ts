@@ -52,9 +52,13 @@ export const recordatorioPlazosLegales = onSchedule(
     const inicioVentana = startOfDayColombiaAsUTC(ayer);
     const finVentana = endOfDayColombiaAsUTC(manana);
 
+    // El filtro va por `fechaResolucion == null` (nunca se ha resuelto) y NO por
+    // `estado == "abierto"`: si fuera por estado, un cliente que escribe "gracias"
+    // semanas después reabre el trámite y le vuelve a llegar al abogado un correo
+    // de "VENCIDO" por un plazo que ya se cumplió. Reabrir no reinicia el plazo.
     const snap = await db
       .collectionGroup("valoresAgregados")
-      .where("completado", "==", false)
+      .where("fechaResolucion", "==", null)
       .where("fechaLimite", ">=", admin.firestore.Timestamp.fromDate(inicioVentana))
       .where("fechaLimite", "<=", admin.firestore.Timestamp.fromDate(finVentana))
       .get();

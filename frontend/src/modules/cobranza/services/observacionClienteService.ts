@@ -21,7 +21,10 @@ import type { ObservacionCliente } from "../models/observacionCliente.model";
 import type { Cliente } from "@/modules/clientes/models/cliente.model";
 import { notificarUsuarioConAlerta } from "../../notificaciones/services/notificacionService";
 
-type Scope = "deudor" | "valor";
+// El scope "valor" (observaciones colgadas de un valor agregado) era el canal de
+// mensajes anterior a la subcolección `conversacion`. Ningún caller lo usaba ya;
+// se retira el tipo para que no vuelva a entrar por accidente.
+type Scope = "deudor";
 
 // Estructura exacta que se guarda en Firestore
 type ObservacionClienteDoc = {
@@ -93,9 +96,8 @@ async function obtenerNombreDeudorPorId(
 
 
 function colPath(clienteId: string, parentId: string, scope: Scope): string {
-  return scope === "deudor"
-    ? `clientes/${clienteId}/deudores/${parentId}/observacionesCliente`
-    : `clientes/${clienteId}/valoresAgregados/${parentId}/observacionesCliente`;
+  void scope;
+  return `clientes/${clienteId}/deudores/${parentId}/observacionesCliente`;
 }
 
 function colRef(
@@ -144,7 +146,7 @@ export async function addObservacionClienteGeneric(
   let archivoNombre: string | undefined;
 
   if (archivo) {
-    const path = `clientes/${clienteId}/${scope === "deudor" ? "deudores" : "valoresAgregados"}/${parentId}/observacionesCliente/${Date.now()}_${archivo.name}`;
+    const path = `clientes/${clienteId}/deudores/${parentId}/observacionesCliente/${Date.now()}_${archivo.name}`;
 
     const storageRef = ref(storage, path);
 
@@ -235,12 +237,12 @@ export async function deleteObservacionClienteGeneric(
   await deleteDoc(ref);
   await registrarEliminacion({
     modulo: "observacionCliente",
-    descripcion: scope === "valor" ? "Observación valor" : "Observación deudor",
+    descripcion: "Observación deudor",
     coleccionPath: colPath(clienteId, parentId, scope),
   });
 }
 
-/* ===== Facades por scope (deudor / valor) ===== */
+/* ===== Facades ===== */
 export async function getObservacionesCliente(
   clienteId: string,
   deudorId: string
@@ -261,21 +263,6 @@ export async function addObservacionCliente(
     "deudor",
     archivo
   );
-}
-
-export async function getObservacionesClienteValor(
-  clienteId: string,
-  valorId: string
-): Promise<ObservacionCliente[]> {
-  return getObservacionesClienteGeneric(clienteId, valorId, "valor");
-}
-
-export async function addObservacionClienteValor(
-  clienteId: string,
-  valorId: string,
-  texto: string
-): Promise<string> {
-  return addObservacionClienteGeneric(clienteId, valorId, texto, "valor");
 }
 
 export async function updateObservacionCliente(

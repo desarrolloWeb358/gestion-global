@@ -1684,7 +1684,7 @@ export default function DeudoresTable() {
                           />
                         </div>
                         <div>
-                          <Label className="text-brand-secondary font-medium">Cédula</Label>
+                          <Label className="text-brand-secondary font-medium">Documento</Label>
                           <Input
                             name="cedula"
                             value={formData.cedula ?? ""}

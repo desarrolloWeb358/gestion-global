@@ -14,15 +14,20 @@ import {
     Mail,
     ScrollText,
     Pencil,
+    Lock,
+    Unlock,
 } from "lucide-react";
 
 import { Cliente } from "@/modules/clientes/models/cliente.model";
 import { ClienteInfoCard } from "./ClienteInfoCard";
 import { ClienteEditDialog } from "./ClienteEditDialog";
+import { ClienteBloqueoPagoDialog } from "./ClienteBloqueoPagoDialog";
+import { AvisoBloqueoPagoDialog } from "./AvisoBloqueoPagoDialog";
 import { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 import { obtenerUsuarios } from "@/modules/usuarios/services/usuarioService";
 import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 import { Button } from "@/shared/ui/button";
+import { cn } from "@/shared/lib/cn";
 import { Typography } from "@/shared/design-system/components/Typography";
 import { BackButton } from "@/shared/design-system/components/BackButton";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
@@ -42,6 +47,7 @@ export default function ClientePage() {
 
     const canViewRecaudos = can(PERMS.Recaudos_Read);
     const canEdit = can(PERMS.Clientes_Edit);
+    const canBloquearPorPago = can(PERMS.Clientes_Bloqueo_Pago_Edit);
 
     const [cliente, setCliente] = useState<Cliente | null>(null);
     const [deudores, setDeudores] = useState<Deudor[]>([]);
@@ -50,7 +56,9 @@ export default function ClientePage() {
     const [loading, setLoading] = useState(true);
     const [contratos, setContratos] = useState<Contrato[]>([]);
     const [editOpen, setEditOpen] = useState(false);
-    const { roles, loading: userLoading } = useUsuarioActual();
+    const [bloqueoOpen, setBloqueoOpen] = useState(false);
+    const [avisoBloqueoOpen, setAvisoBloqueoOpen] = useState(false);
+    const { usuario, usuarioSistema, roles, loading: userLoading } = useUsuarioActual();
     const isCliente = roles?.includes("cliente");
     const canViewWhatsappMasivo = can(PERMS.Whatsapp_Write);
     const canSendEmail = can(PERMS.Email_Write);
@@ -64,6 +72,30 @@ export default function ClientePage() {
         const usuario = usuarios.find(u => u.uid === clienteId);
         return usuario?.nombre ?? usuario?.email ?? "Cliente";
     }, [cliente, clienteId, usuarios]);
+
+    // === Bloqueo por no pago del servicio ===
+    // El interno lo ve como una advertencia; al cliente le cierra los accesos rápidos.
+    const bloqueadoPorPago = cliente?.bloqueadoPorPago === true;
+    const accesosBloqueados = !!isCliente && bloqueadoPorPago;
+
+    // Ejecutivo de cuenta al que debe escribir el cliente para reactivarse.
+    const ejecutivoDeCuenta = useMemo(() => {
+        const uid = cliente?.ejecutivoPrejuridicoId || cliente?.ejecutivoJuridicoId;
+        if (!uid) return null;
+        return usuarios.find((u) => u.uid === uid) ?? null;
+    }, [cliente, usuarios]);
+
+    const abrirAcceso = (ruta: string) => {
+        if (accesosBloqueados) {
+            setAvisoBloqueoOpen(true);
+            return;
+        }
+        navigate(ruta);
+    };
+
+    const cardBloqueadaCls = accesosBloqueados
+        ? "cursor-not-allowed opacity-60 grayscale hover:border-brand-secondary/20 hover:shadow-none hover:translate-y-0"
+        : "";
 
     const EXCLUIR_EN_ACTIVOS = new Set<TipificacionDeuda>([
         TipificacionDeuda.INACTIVO,
@@ -205,20 +237,99 @@ export default function ClientePage() {
                                 <Typography variant="h2" className="!text-brand-primary font-bold">
                                     {nombreCliente}
                                 </Typography>
+                                {bloqueadoPorPago && !isCliente && (
+                                    <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">
+                                        <Lock className="h-3 w-3" />
+                                        Inhabilitado por no pago
+                                    </span>
+                                )}
                             </div>
                         </div>
-                        {canEdit && (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setEditOpen(true)}
-                                className="flex items-center gap-2 border-brand-secondary/30 text-brand-secondary hover:text-brand-primary hover:border-brand-primary"
-                            >
-                                <Pencil className="h-4 w-4" />
-                                Editar
-                            </Button>
-                        )}
+                        <div className="flex items-center gap-2">
+                            {canBloquearPorPago && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setBloqueoOpen(true)}
+                                    className={cn(
+                                        "flex items-center gap-2",
+                                        bloqueadoPorPago
+                                            ? "border-green-600/40 text-green-700 hover:border-green-600 hover:text-green-800"
+                                            : "border-red-500/40 text-red-600 hover:border-red-600 hover:text-red-700"
+                                    )}
+                                >
+                                    {bloqueadoPorPago ? (
+                                        <>
+                                            <Unlock className="h-4 w-4" />
+                                            Reactivar acceso
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Lock className="h-4 w-4" />
+                                            Inhabilitar por no pago
+                                        </>
+                                    )}
+                                </Button>
+                            )}
+                            {canEdit && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setEditOpen(true)}
+                                    className="flex items-center gap-2 border-brand-secondary/30 text-brand-secondary hover:text-brand-primary hover:border-brand-primary"
+                                >
+                                    <Pencil className="h-4 w-4" />
+                                    Editar
+                                </Button>
+                            )}
+                        </div>
                     </div>
+
+                    {/* Aviso permanente cuando el conjunto está inhabilitado por no pago */}
+                    {bloqueadoPorPago && (
+                        <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4">
+                            <span className="inline-flex rounded-lg bg-amber-100 p-2">
+                                <Lock className="h-5 w-5 text-amber-600" />
+                            </span>
+                            <div className="space-y-1">
+                                <Typography variant="h3" className="!text-amber-800 !text-base font-semibold">
+                                    {isCliente
+                                        ? "Acceso temporalmente suspendido"
+                                        : "Cliente inhabilitado por no pago"}
+                                </Typography>
+                                <p className="text-sm text-amber-800/90">
+                                    {isCliente ? (
+                                        <>
+                                            No hemos recibido el pago de los honorarios del servicio, por lo
+                                            que la consulta de tu información está suspendida. Si ya
+                                            realizaste el pago, comunícate con tu ejecutivo de cuenta en
+                                            Gestión Global para reactivar tu usuario.
+                                        </>
+                                    ) : (
+                                        <>
+                                            El cliente puede iniciar sesión, pero no tiene acceso a sus
+                                            consultas.
+                                            {cliente.bloqueoPagoMotivo
+                                                ? ` Motivo: ${cliente.bloqueoPagoMotivo}`
+                                                : ""}
+                                            {cliente.bloqueoPagoPorNombre
+                                                ? ` — Inhabilitado por ${cliente.bloqueoPagoPorNombre}.`
+                                                : ""}
+                                        </>
+                                    )}
+                                </p>
+                                {isCliente && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setAvisoBloqueoOpen(true)}
+                                        className="text-sm font-semibold text-amber-900 underline underline-offset-2 hover:text-amber-950"
+                                    >
+                                        Ver datos de contacto
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </header>
 
                 {/* INFORMACIÓN DEL CLIENTE */}
@@ -255,10 +366,19 @@ export default function ClientePage() {
                             {/* Tarjeta: Estado Mensual (solo para admin / ejecutivo / ejecutivoAdmin) */}
                             {canViewRecaudos && (
                                 <button
-                                    onClick={() => navigate("estado-mensual")}
-                                    className="group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-6 text-left transition-all hover:border-brand-primary hover:shadow-lg hover:-translate-y-1"
+                                    onClick={() => abrirAcceso("estado-mensual")}
+                                    className={cn(
+                                    "group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-6 text-left transition-all hover:border-brand-primary hover:shadow-lg hover:-translate-y-1",
+                                    cardBloqueadaCls
+                                )}
                                 >
                                     <div className="absolute top-0 right-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-brand-primary/5 transition-transform group-hover:scale-150" />
+                                    {accesosBloqueados && (
+                                        <span className="absolute top-3 right-3 z-10 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-700">
+                                            <Lock className="h-3 w-3" />
+                                            Bloqueado
+                                        </span>
+                                    )}
                                     <div className="relative">
                                         <div className="mb-4 inline-flex rounded-lg bg-brand-primary/10 p-3 transition-colors group-hover:bg-brand-primary/20">
                                             <DollarSign className="h-6 w-6 text-brand-primary" />
@@ -275,10 +395,19 @@ export default function ClientePage() {
 
                             {/* Tarjeta: Ver Deudores */}
                             <button
-                                onClick={() => navigate(`/deudores/${cliente.id}`)}
-                                className="group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-6 text-left transition-all hover:border-blue-500 hover:shadow-lg hover:-translate-y-1"
+                                onClick={() => abrirAcceso(`/deudores/${cliente.id}`)}
+                                className={cn(
+                                    "group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-6 text-left transition-all hover:border-blue-500 hover:shadow-lg hover:-translate-y-1",
+                                    cardBloqueadaCls
+                                )}
                             >
                                 <div className="absolute top-0 right-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-blue-500/5 transition-transform group-hover:scale-150" />
+                                {accesosBloqueados && (
+                                    <span className="absolute top-3 right-3 z-10 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-700">
+                                        <Lock className="h-3 w-3" />
+                                        Bloqueado
+                                    </span>
+                                )}
                                 <div className="relative">
                                     <div className="mb-4 inline-flex rounded-lg bg-blue-500/10 p-3 transition-colors group-hover:bg-blue-500/20">
                                         <Users className="h-6 w-6 text-blue-600" />
@@ -294,10 +423,19 @@ export default function ClientePage() {
 
                             {/* Tarjeta: Valores Agregados */}
                             <button
-                                onClick={() => navigate(`/valores-agregados/${cliente.id}`)}
-                                className="group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-6 text-left transition-all hover:border-green-500 hover:shadow-lg hover:-translate-y-1"
+                                onClick={() => abrirAcceso(`/valores-agregados/${cliente.id}`)}
+                                className={cn(
+                                    "group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-6 text-left transition-all hover:border-green-500 hover:shadow-lg hover:-translate-y-1",
+                                    cardBloqueadaCls
+                                )}
                             >
                                 <div className="absolute top-0 right-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-green-500/5 transition-transform group-hover:scale-150" />
+                                {accesosBloqueados && (
+                                    <span className="absolute top-3 right-3 z-10 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-700">
+                                        <Lock className="h-3 w-3" />
+                                        Bloqueado
+                                    </span>
+                                )}
                                 <div className="relative">
                                     <div className="mb-4 inline-flex rounded-lg bg-green-500/10 p-3 transition-colors group-hover:bg-green-500/20">
                                         <TrendingUp className="h-6 w-6 text-green-600" />
@@ -313,10 +451,19 @@ export default function ClientePage() {
 
                             {/* Tarjeta: Ver Reporte */}
                             <button
-                                onClick={() => navigate(`/clientes/${cliente.id}/reporte`)}
-                                className="group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-6 text-left transition-all hover:border-orange-500 hover:shadow-lg hover:-translate-y-1"
+                                onClick={() => abrirAcceso(`/clientes/${cliente.id}/reporte`)}
+                                className={cn(
+                                    "group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-6 text-left transition-all hover:border-orange-500 hover:shadow-lg hover:-translate-y-1",
+                                    cardBloqueadaCls
+                                )}
                             >
                                 <div className="absolute top-0 right-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-orange-500/5 transition-transform group-hover:scale-150" />
+                                {accesosBloqueados && (
+                                    <span className="absolute top-3 right-3 z-10 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-700">
+                                        <Lock className="h-3 w-3" />
+                                        Bloqueado
+                                    </span>
+                                )}
                                 <div className="relative">
                                     <div className="mb-4 inline-flex rounded-lg bg-orange-500/10 p-3 transition-colors group-hover:bg-orange-500/20">
                                         <FileText className="h-6 w-6 text-orange-600" />
@@ -332,10 +479,19 @@ export default function ClientePage() {
                             {/* Tarjeta: WhatsApp masivo (solo ejecutivo, ejecutivoadmin, admin) */}
                             {canViewWhatsappMasivo && (
                                 <button
-                                    onClick={() => navigate(`/clientes/${cliente.id}/enviar-whatsapp-masivo`)}
-                                    className="group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-6 text-left transition-all hover:border-green-500 hover:shadow-lg hover:-translate-y-1"
+                                    onClick={() => abrirAcceso(`/clientes/${cliente.id}/enviar-whatsapp-masivo`)}
+                                    className={cn(
+                                    "group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-6 text-left transition-all hover:border-green-500 hover:shadow-lg hover:-translate-y-1",
+                                    cardBloqueadaCls
+                                )}
                                 >
                                     <div className="absolute top-0 right-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-green-500/5 transition-transform group-hover:scale-150" />
+                                    {accesosBloqueados && (
+                                        <span className="absolute top-3 right-3 z-10 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-700">
+                                            <Lock className="h-3 w-3" />
+                                            Bloqueado
+                                        </span>
+                                    )}
                                     <div className="relative">
                                         <div className="mb-4 inline-flex rounded-lg bg-green-500/10 p-3 transition-colors group-hover:bg-green-500/20">
                                             <MessageCircle className="h-6 w-6 text-green-600" />
@@ -352,10 +508,19 @@ export default function ClientePage() {
 
                             {canSendEmail && (
                                 <button
-                                    onClick={() => navigate(`/clientes/${cliente.id}/enviar-correos`)}
-                                    className="group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-6 text-left transition-all hover:border-blue-500 hover:shadow-lg hover:-translate-y-1"
+                                    onClick={() => abrirAcceso(`/clientes/${cliente.id}/enviar-correos`)}
+                                    className={cn(
+                                    "group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-6 text-left transition-all hover:border-blue-500 hover:shadow-lg hover:-translate-y-1",
+                                    cardBloqueadaCls
+                                )}
                                 >
                                     <div className="absolute top-0 right-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-blue-500/5 transition-transform group-hover:scale-150" />
+                                    {accesosBloqueados && (
+                                        <span className="absolute top-3 right-3 z-10 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-700">
+                                            <Lock className="h-3 w-3" />
+                                            Bloqueado
+                                        </span>
+                                    )}
                                     <div className="relative">
                                         <div className="mb-4 inline-flex rounded-lg bg-blue-500/10 p-3 transition-colors group-hover:bg-blue-500/20">
                                             <Mail className="h-6 w-6 text-blue-600" />
@@ -371,10 +536,19 @@ export default function ClientePage() {
                             )}
 
                             <button
-                                onClick={() => navigate(`/clientes/${cliente.id}/seguimiento-conjunto`)}
-                                className="group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-6 text-left transition-all hover:border-purple-500 hover:shadow-lg hover:-translate-y-1"
+                                onClick={() => abrirAcceso(`/clientes/${cliente.id}/seguimiento-conjunto`)}
+                                className={cn(
+                                    "group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-6 text-left transition-all hover:border-purple-500 hover:shadow-lg hover:-translate-y-1",
+                                    cardBloqueadaCls
+                                )}
                             >
                                 <div className="absolute top-0 right-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-purple-500/5 transition-transform group-hover:scale-150" />
+                                {accesosBloqueados && (
+                                    <span className="absolute top-3 right-3 z-10 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-700">
+                                        <Lock className="h-3 w-3" />
+                                        Bloqueado
+                                    </span>
+                                )}
 
                                 <div className="relative">
 
@@ -396,10 +570,19 @@ export default function ClientePage() {
                             {/* Tarjeta: Contratos */}
                             {canViewContratos && (
                                 <button
-                                    onClick={() => navigate(`/clientes/${cliente.id}/contratos`)}
-                                    className="group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-6 text-left transition-all hover:border-indigo-500 hover:shadow-lg hover:-translate-y-1"
+                                    onClick={() => abrirAcceso(`/clientes/${cliente.id}/contratos`)}
+                                    className={cn(
+                                    "group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-6 text-left transition-all hover:border-indigo-500 hover:shadow-lg hover:-translate-y-1",
+                                    cardBloqueadaCls
+                                )}
                                 >
                                     <div className="absolute top-0 right-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-indigo-500/5 transition-transform group-hover:scale-150" />
+                                    {accesosBloqueados && (
+                                        <span className="absolute top-3 right-3 z-10 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-700">
+                                            <Lock className="h-3 w-3" />
+                                            Bloqueado
+                                        </span>
+                                    )}
                                     <div className="relative">
                                         <div className="mb-4 inline-flex rounded-lg bg-indigo-500/10 p-3 transition-colors group-hover:bg-indigo-500/20">
                                             <ScrollText className="h-6 w-6 text-indigo-600" />
@@ -424,6 +607,26 @@ export default function ClientePage() {
                 open={editOpen}
                 onClose={() => setEditOpen(false)}
                 onSaved={recargarCliente}
+            />
+
+            {canBloquearPorPago && (
+                <ClienteBloqueoPagoDialog
+                    cliente={cliente}
+                    open={bloqueoOpen}
+                    bloquear={!bloqueadoPorPago}
+                    actor={{
+                        uid: usuario?.uid ?? "",
+                        nombre: usuarioSistema?.nombre ?? usuarioSistema?.email ?? "",
+                    }}
+                    onClose={() => setBloqueoOpen(false)}
+                    onSaved={recargarCliente}
+                />
+            )}
+
+            <AvisoBloqueoPagoDialog
+                open={avisoBloqueoOpen}
+                onClose={() => setAvisoBloqueoOpen(false)}
+                ejecutivo={ejecutivoDeCuenta}
             />
         </div>
     );

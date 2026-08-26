@@ -2,8 +2,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   collection,
-  doc,
-  getDoc,
   onSnapshot,
   orderBy,
   query,
@@ -11,40 +9,18 @@ import {
 } from "firebase/firestore";
 import { db } from "@/firebase";
 import type { NotificacionAlerta } from "@/modules/notificaciones/models/notificacion.model";
-import type { Rol } from "@/shared/constants/acl";
 
-async function filtrarValoresAgregadosTerminados(
-  notificaciones: NotificacionAlerta[],
-  roles: Rol[]
-): Promise<NotificacionAlerta[]> {
-  if (!roles.includes("admin")) return notificaciones;
-
-  const resultados = await Promise.all(
-    notificaciones.map(async (notificacion) => {
-      const esValorAgregado = notificacion.modulo?.toLowerCase().includes("valor agregado");
-      const match = notificacion.ruta?.match(
-        /^\/clientes\/([^/]+)\/valores-agregados\/([^/]+)$/
-      );
-      if (!esValorAgregado || !match) return notificacion;
-
-      try {
-        const valorSnap = await getDoc(
-          doc(db, `clientes/${match[1]}/valoresAgregados/${match[2]}`)
-        );
-        return valorSnap.exists() && valorSnap.data().completado === true
-          ? null
-          : notificacion;
-      } catch (error) {
-        console.error("[NOTIFS] Error consultando valor agregado:", error);
-        return notificacion;
-      }
-    })
-  );
-
-  return resultados.filter((n): n is NotificacionAlerta => n !== null);
-}
-
-export function useNotificacionesUsuario(usuarioId?: string, roles: Rol[] = []) {
+/**
+ * Lee las notificaciones del usuario y ya. Antes este hook además consultaba, solo
+ * para el rol admin, el documento de cada valor agregado para esconder los que
+ * estaban "completados" — un getDoc por notificación en CADA emisión del snapshot,
+ * y una semántica distinta según quién mirara la misma pantalla.
+ *
+ * Eso se fue: la bandeja de pendientes de valores agregados es ahora una pantalla
+ * propia (ReporteValoresAgregadosPage). Aquí una notificación significa una sola
+ * cosa — "pasó algo, ve a verlo" — y `visto` es lo único que la apaga.
+ */
+export function useNotificacionesUsuario(usuarioId?: string) {
   const [todas, setTodas] = useState<NotificacionAlerta[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -64,44 +40,33 @@ export function useNotificacionesUsuario(usuarioId?: string, roles: Rol[] = []) 
 
     const baseCol = collection(db, `usuarios/${usuarioId}/notificaciones`);
 
+    const mapear = (snap: { docs: any[] }): NotificacionAlerta[] =>
+      snap.docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as Omit<NotificacionAlerta, "id">),
+      }));
+
     // Todas las notificaciones, no vistas primero luego más recientes
-    const qTodas = query(
-      baseCol,
-      orderBy("visto", "asc"),
-      orderBy("fecha", "desc")
-    );
+    const qTodas = query(baseCol, orderBy("visto", "asc"), orderBy("fecha", "desc"));
 
     unsubDisplay = onSnapshot(
       qTodas,
-      async (snap) => {
-        const arr: NotificacionAlerta[] = snap.docs
-          .map((d) => ({
-            id: d.id,
-            ...(d.data() as Omit<NotificacionAlerta, "id">),
-          }))
-          .filter((n) => n.resuelta !== true);
-        setTodas(await filtrarValoresAgregadosTerminados(arr, roles));
+      (snap) => {
+        setTodas(mapear(snap));
         setLoading(false);
       },
       (err) => {
         console.error("[NOTIFS] onSnapshot error:", err);
+        setError((err as any)?.message || "Error desconocido");
 
-        const msg = (err as any)?.message || "Error desconocido";
-        setError(msg);
-
+        // Fallback sin el orderBy compuesto, por si falta el índice.
         try {
           const qFallback = query(baseCol, orderBy("fecha", "desc"));
           unsubDisplay?.();
           unsubDisplay = onSnapshot(
             qFallback,
-            async (snap2) => {
-              const arr2: NotificacionAlerta[] = snap2.docs
-                .map((d) => ({
-                  id: d.id,
-                  ...(d.data() as Omit<NotificacionAlerta, "id">),
-                }))
-                .filter((n) => n.resuelta !== true);
-              setTodas(await filtrarValoresAgregadosTerminados(arr2, roles));
+            (snap2) => {
+              setTodas(mapear(snap2));
               setLoading(false);
             },
             (err2) => {
@@ -118,7 +83,7 @@ export function useNotificacionesUsuario(usuarioId?: string, roles: Rol[] = []) 
     return () => {
       if (unsubDisplay) unsubDisplay();
     };
-  }, [usuarioId, roles]);
+  }, [usuarioId]);
 
   const noVistas = useMemo(() => todas.filter((n) => !n.visto), [todas]);
 

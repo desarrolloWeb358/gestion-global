@@ -8,6 +8,8 @@ import {
   deleteDoc,
   doc,
   setDoc,
+  serverTimestamp,
+  deleteField,
   or, where,
   getDoc, orderBy, query
 } from "firebase/firestore";
@@ -238,6 +240,38 @@ export async function actualizarCliente(id: string, data: Partial<Cliente>) {
       await updateDoc(usuarioRef, { activo: data.activo });
     }
   }
+}
+
+// ===============================
+// Bloqueo del portal por no pago del servicio
+// Solo lo mueven ejecutivo / ejecutivoAdmin (PERMS.Clientes_Bloqueo_Pago_Edit).
+// No toca `activo`: el cliente sigue pudiendo entrar, pero sin accesos rápidos.
+// ===============================
+export async function setBloqueoPorPago(
+  clienteId: string,
+  bloqueado: boolean,
+  actor: { uid: string; nombre?: string; motivo?: string }
+): Promise<void> {
+  const ref = doc(db, "clientes", clienteId);
+
+  if (bloqueado) {
+    await updateDoc(ref, {
+      bloqueadoPorPago: true,
+      bloqueoPagoMotivo: actor.motivo?.trim() || "",
+      bloqueoPagoFecha: serverTimestamp(),
+      bloqueoPagoPor: actor.uid,
+      bloqueoPagoPorNombre: actor.nombre || "",
+    });
+    return;
+  }
+
+  await updateDoc(ref, {
+    bloqueadoPorPago: false,
+    bloqueoPagoMotivo: deleteField(),
+    bloqueoPagoFecha: deleteField(),
+    bloqueoPagoPor: deleteField(),
+    bloqueoPagoPorNombre: deleteField(),
+  });
 }
 
 // ===============================

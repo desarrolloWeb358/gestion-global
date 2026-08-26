@@ -415,7 +415,12 @@ export { processBulkSendJob }     from "./whatsapp/bulkSendHandler";
 // =====================================================
 // 📌 MÓDULO VALORES AGREGADOS — Notificaciones desde backend
 // =====================================================
+// `notificarValorAgregadoActualizado` es el único trigger onUpdate de la ruta:
+// cubre tanto la edición del formulario como resolver/reabrir. La antigua
+// `notificarCambioEstadoValorAgregado` se fusionó dentro y estado.ts pasó a ser
+// un módulo normal (ya no exporta Cloud Function).
 export { notificarValorAgregadoCreado, notificarValorAgregadoActualizado } from "./valoresAgregados/notificaciones";
+export { procesarMensajeValorAgregado } from "./valoresAgregados/conversacion";
 
 // =====================================================
 // 📅 MÓDULO CALENDARIO — Eventos y recordatorios del equipo

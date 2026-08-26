@@ -43,6 +43,9 @@ noche a las 8:00 p. m.
   siguiente por correo y WhatsApp.
 - **Recordatorios configurables**: hasta 4 por evento, cada uno con su antelación
   (10 min a 1 semana) y sus canales (plataforma / correo / WhatsApp).
+  **Un evento nuevo no trae ninguno**: se agregan a mano cuando hacen falta.
+- **Notificar es opt-in**: los canales del aviso al guardar vienen sin marcar.
+  Agendar a alguien no le manda nada salvo que se pida explícitamente.
 - Avisos automáticos de **reprogramación** y **cancelación**.
 - **Visibilidad**: hoy todo evento es público para el equipo. El campo existe en
   el modelo pero no tiene UI (ver §11).

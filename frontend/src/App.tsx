@@ -26,6 +26,7 @@ import ReporteClientePage from "./modules/cobranza/components/reportes/ReporteCl
 /// valores agregados
 import ValorAgregadoDetailPage from "./modules/valoresAgregados/components/ValorAgregadoDetailPage";
 import ValoresAgregadosTable from "./modules/valoresAgregados/components/ValoresAgregadosTable";
+import ReporteValoresAgregadosPage from "./modules/valoresAgregados/components/ReporteValoresAgregadosPage";
 
 // WhatsApp
 import NumberSelectPage from "./modules/whatsapp/components/NumberSelectPage";
@@ -46,6 +47,7 @@ import DeudorDashboardPage from "@/modules/dashboard/pages/DeudorDashboardPage";
 import { ThemeProvider } from "./app/providers/ThemeContext";
 import AcuerdoPagoPage from "./modules/cobranza/components/acuerdoPago/AcuerdoPagoPage";
 import ProtectedRoute from "@/modules/auth/components/ProtectedRoute";
+import BloqueoPagoGuard from "@/modules/auth/components/BloqueoPagoGuard";
 import NotificacionesPage from "./modules/notificaciones/components/NotificacionesPage";
 import RootRedirect from "./modules/auth/pages/RootRedirect";
 import AuthLayout from "./modules/auth/components/AuthLayout";
@@ -94,7 +96,9 @@ export default function App() {
           <Route
             element={
               <ProtectedRoute>
-                <AppLayout />
+                <BloqueoPagoGuard>
+                  <AppLayout />
+                </BloqueoPagoGuard>
               </ProtectedRoute>
             }
           >
@@ -127,6 +131,7 @@ export default function App() {
             <Route path="/clientes/:clienteId/deudores/:deudorId/informacion-demanda" element={<InformacionDemandaPage />} />
             <Route path="/clientes/:clienteId/deudores/:deudorId/demandas/:demandaId" element={<DemandaDetailPage />} />
             <Route path="/reporte-demandas" element={<ReporteDemandasPage />} />
+            <Route path="/reporte-valores-agregados" element={<ReporteValoresAgregadosPage />} />
             <Route path="/ajustes" element={<AjustesPage />} />
 
             {/* Casos de clientes particulares */}

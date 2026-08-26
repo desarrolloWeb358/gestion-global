@@ -144,7 +144,7 @@ export function EventoFormModal({
     evento?.canalesAviso ?? CANALES_AVISO_POR_DEFECTO
   );
   const [recordatorios, setRecordatorios] = React.useState<RecordatorioEvento[]>(
-    evento?.recordatorios?.length ? evento.recordatorios : RECORDATORIOS_POR_DEFECTO
+    evento?.recordatorios ?? RECORDATORIOS_POR_DEFECTO
   );
 
   const [guardando, setGuardando] = React.useState(false);
@@ -683,8 +683,8 @@ export function EventoFormModal({
                 })}
               </div>
               {canalesAviso.length === 0 && (
-                <p className="text-xs text-amber-600">
-                  No se avisará a nadie ahora. Los recordatorios sí saldrán a su hora.
+                <p className="text-xs text-muted-foreground">
+                  Nadie será notificado al guardar. Marca un canal si quieres avisar.
                 </p>
               )}
             </div>

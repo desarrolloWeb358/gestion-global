@@ -58,7 +58,12 @@ export async function obtenerValoresAgregadosReporte(
     )
       return;
 
-    const completado = !!data.completado || !!toDate(data.fechaCompletado);
+    // La entrega la marca `fechaResolucion` (la fija el botón Resolver). Antes
+    // esto leía `completado`, que oscilaba con cada mensaje de la conversación.
+    const fechaEntregado = toDate(data.fechaResolucion) ?? toDate(data.fechaCompletado);
+    const completado = data.estado
+      ? data.estado === "resuelto"
+      : !!data.completado || !!fechaEntregado;
     if (soloEntregados && !completado) return;
 
     const archivosRaw: any[] = data.archivos ?? [];
@@ -75,7 +80,7 @@ export async function obtenerValoresAgregadosReporte(
       tipo: data.tipo as TipoValorAgregado,
       tipoLabel: TipoValorAgregadoLabels[data.tipo as TipoValorAgregado] ?? data.tipo,
       fechaSolicitado,
-      fechaEntregado: toDate(data.fechaCompletado),
+      fechaEntregado,
       archivos,
       completado,
     });

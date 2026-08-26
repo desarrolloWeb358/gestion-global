@@ -58,7 +58,7 @@ export function RecordatoriosEditor({
     <div className="space-y-2">
       {recordatorios.length === 0 && (
         <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
-          Sin recordatorios. Los participantes solo recibiran la invitacion inicial.
+          Sin recordatorios. Agrega uno si quieres que se avise antes del evento.
         </p>
       )}
 

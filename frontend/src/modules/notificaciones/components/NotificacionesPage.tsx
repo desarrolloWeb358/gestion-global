@@ -6,6 +6,7 @@ import {
   Bell,
   BellOff,
   Check,
+  CheckCheck,
   ChevronRight,
   Calendar,
   Package,
@@ -19,10 +20,23 @@ import { auth } from "@/firebase";
 import { Typography } from "@/shared/design-system/components/Typography";
 import { Button } from "@/shared/ui/button";
 import { cn } from "@/shared/lib/cn";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/shared/ui/alert-dialog";
 import { useNotificacionesUsuario } from "@/modules/notificaciones/hooks/useNotificacionesUsuario";
 import type { NotificacionAlerta } from "../models/notificacion.model";
-import { marcarNotificacionComoVista, marcarNotificacionComoNoVista } from "../services/notificacionService";
-import { useAcl } from "@/modules/auth/hooks/useAcl";
+import {
+  marcarNotificacionComoVista,
+  marcarNotificacionComoNoVista,
+  marcarTodasNotificacionesComoVistas,
+} from "../services/notificacionService";
 
 const fmt = new Intl.DateTimeFormat("es-CO", {
   year: "numeric",
@@ -37,8 +51,9 @@ export default function NotificacionesPage() {
   const [user, setUser] = React.useState<User | null>(() => auth.currentUser);
   const [authLoading, setAuthLoading] = React.useState(true);
   const [busqueda, setBusqueda] = React.useState("");
+  const [confirmarMarcarTodas, setConfirmarMarcarTodas] = React.useState(false);
+  const [marcandoTodas, setMarcandoTodas] = React.useState(false);
   const navigate = useNavigate();
-  const { roles } = useAcl();
 
   React.useEffect(() => {
     const unsub = onAuthStateChanged(auth, (firebaseUser) => {
@@ -56,7 +71,7 @@ export default function NotificacionesPage() {
   // ✅ IMPORTANTÍSIMO: solo pasar uid cuando exista
   const uid = user?.uid;
 
-  const { todas, totalNoVistas, loading, error } = useNotificacionesUsuario(uid, roles);
+  const { todas, totalNoVistas, loading } = useNotificacionesUsuario(uid);
 
   const notificacionesFiltradas = React.useMemo(() => {
     const texto = busqueda.trim().toLowerCase();
@@ -92,6 +107,19 @@ export default function NotificacionesPage() {
       await marcarNotificacionComoNoVista(uid, notif.id);
     } catch (err) {
       console.error("[NotificacionesPage] marcar no vista error:", err);
+    }
+  };
+
+  const handleMarcarTodasLeidas = async () => {
+    if (!uid) return;
+    setMarcandoTodas(true);
+    try {
+      await marcarTodasNotificacionesComoVistas(uid);
+      setConfirmarMarcarTodas(false);
+    } catch (err) {
+      console.error("[NotificacionesPage] marcar todas vistas error:", err);
+    } finally {
+      setMarcandoTodas(false);
     }
   };
 
@@ -182,11 +210,23 @@ export default function NotificacionesPage() {
             </div>
 
             {totalNoVistas > 0 && (
-              <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-50 border border-blue-200">
-                <div className="h-2.5 w-2.5 rounded-full bg-blue-500 animate-pulse" />
-                <Typography variant="small" className="font-semibold text-blue-700">
-                  {totalNoVistas} {totalNoVistas === 1 ? "nueva" : "nuevas"}
-                </Typography>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-50 border border-blue-200">
+                  <div className="h-2.5 w-2.5 rounded-full bg-blue-500 animate-pulse" />
+                  <Typography variant="small" className="font-semibold text-blue-700">
+                    {totalNoVistas} {totalNoVistas === 1 ? "nueva" : "nuevas"}
+                  </Typography>
+                </div>
+
+                <Button
+                  variant="outline"
+                  onClick={() => setConfirmarMarcarTodas(true)}
+                  disabled={marcandoTodas}
+                  className="gap-2 border-brand-secondary/20 text-brand-secondary hover:text-brand-primary hover:bg-brand-primary/10"
+                >
+                  <CheckCheck className="h-4 w-4" />
+                  Marcar todas como leídas
+                </Button>
               </div>
             )}
           </div>
@@ -342,6 +382,37 @@ export default function NotificacionesPage() {
           })}
         </div>
       )}
+
+      <AlertDialog
+        open={confirmarMarcarTodas}
+        onOpenChange={(v) => !marcandoTodas && setConfirmarMarcarTodas(v)}
+      >
+        <AlertDialogContent className="w-[calc(100vw-2rem)] sm:max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Marcar todas como leídas?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Todas tus notificaciones van a quedar como leídas
+              {totalNoVistas > 0 ? ` (${totalNoVistas} sin leer)` : ""}. Después puedes
+              volver a marcar una como no leída desde la lista.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+            <AlertDialogCancel disabled={marcandoTodas} className="w-full sm:w-auto">
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleMarcarTodasLeidas();
+              }}
+              disabled={marcandoTodas}
+              className="w-full sm:w-auto"
+            >
+              {marcandoTodas ? "Marcando…" : "Sí, marcar todas"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

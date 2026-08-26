@@ -52,6 +52,9 @@ export const PERMS = {
 
   Clientes_Read: "clientes.read",
   Clientes_Edit: "clientes.edit",
+  // Inhabilitar / reactivar el portal del cliente por no pago del servicio.
+  // Solo ejecutivo y ejecutivoAdmin: es una decisión comercial, no administrativa.
+  Clientes_Bloqueo_Pago_Edit: "clientes.bloqueoPago.edit",
 
   Deudores_Read: "deudores.read",
   Deudores_Edit: "deudores.edit",
@@ -217,6 +220,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
   ejecutivoAdmin: [    
     PERMS.Clientes_Read,
     PERMS.Clientes_Edit,
+    PERMS.Clientes_Bloqueo_Pago_Edit,
     PERMS.Deudores_Read,
     PERMS.Deudores_Edit,
     PERMS.Acuerdos_Read,
@@ -256,6 +260,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
   ejecutivo: [
     PERMS.Clientes_Read,
     PERMS.Clientes_Edit,
+    PERMS.Clientes_Bloqueo_Pago_Edit,
     PERMS.Deudores_Read,
     PERMS.Deudores_Edit,
     PERMS.Acuerdos_Read,
@@ -292,6 +297,9 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Seguimientos_Dependientes_Edit,
     PERMS.Abonos_Read,
     PERMS.Valores_Read,
+    // Recibe alertas de valores agregados y responde en el hilo: necesita poder
+    // abrir la lista y la pantalla de seguimiento.
+    PERMS.Valores_agregados_Read,
     PERMS.Recaudos_Read,
     PERMS.Contratos_Read,
     PERMS.ReporteCliente_Download_Word,

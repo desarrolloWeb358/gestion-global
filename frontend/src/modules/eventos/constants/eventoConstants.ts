@@ -89,17 +89,18 @@ export function etiquetaAntelacion(minutos: number): string {
   return `${minutos} minutos antes`;
 }
 
-/** Lo que trae un evento nuevo si el usuario no toca nada. */
-export const RECORDATORIOS_POR_DEFECTO: RecordatorioEvento[] = [
-  { minutosAntes: 1440, canales: ["app", "email"] },
-  { minutosAntes: 30, canales: ["app"] },
-];
+/**
+ * Un evento nuevo arranca SIN recordatorios: se agregan a mano cuando hacen
+ * falta. Antes venían dos precargados y terminaban mandando avisos que nadie
+ * había pedido.
+ */
+export const RECORDATORIOS_POR_DEFECTO: RecordatorioEvento[] = [];
 
 /**
- * Canales del aviso que sale al guardar el evento. WhatsApp queda fuera por
- * defecto porque cada plantilla enviada a Meta se cobra.
+ * Igual con el aviso al guardar: ningún canal viene marcado. Notificar es una
+ * decisión explícita de quien agenda, no algo que pase por omisión.
  */
-export const CANALES_AVISO_POR_DEFECTO: CanalAviso[] = ["app", "email"];
+export const CANALES_AVISO_POR_DEFECTO: CanalAviso[] = [];
 
 /** Los tres canales, en el orden en que se muestran. */
 export const CANALES: CanalAviso[] = ["app", "email", "whatsapp"];

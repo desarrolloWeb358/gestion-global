@@ -2,7 +2,6 @@
 import {
   addDoc,
   collection,
-  collectionGroup,
   doc,
   getDoc,
   getDocs,
@@ -12,6 +11,7 @@ import {
   serverTimestamp,
   updateDoc,
   where,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "@/firebase";
 import { sendNotification } from "@/shared/services/sendNotification";
@@ -99,9 +99,6 @@ export async function notificarUsuarioConAlertaYCorreo(
       err
     );
   }
-
-  console.log("correoDestino:", correoDestino);
-  console.log("nombreDestino:", nombreDestino);
 
   if (correoDestino === "") {
     try {
@@ -398,63 +395,27 @@ export async function marcarNotificacionComoNoVista(
 }
 
 /**
- * Busca la notificación más antigua (por fecha) del usuario para una ruta
- * de valor agregado que aún no esté resuelta, y la marca como resuelta.
- * Se llama cada vez que alguien envía un mensaje en la conversación del VA.
+ * Marca como vistas todas las notificaciones no vistas del usuario.
+ * Se escribe en lotes porque un writeBatch de Firestore admite máximo 500 operaciones.
+ * Devuelve cuántas quedaron marcadas.
  */
-export async function resolverNotificacionMasAntigua(
-  usuarioId: string,
-  ruta: string
-): Promise<void> {
-  try {
-    const colRef = collection(db, `usuarios/${usuarioId}/notificaciones`);
-    const q = query(colRef, where("ruta", "==", ruta));
-    const snap = await getDocs(q);
+export async function marcarTodasNotificacionesComoVistas(
+  usuarioId: string
+): Promise<number> {
+  const colRef = collection(db, `usuarios/${usuarioId}/notificaciones`);
+  const snap = await getDocs(query(colRef, where("visto", "==", false)));
 
-    if (snap.empty) return;
+  const pendientes = snap.docs;
+  if (pendientes.length === 0) return 0;
 
-    // Filtrar las no resueltas y ordenar por fecha ascendente (más antigua primero)
-    const noResueltas = snap.docs
-      .filter((d) => d.data().resuelta !== true)
-      .sort((a, b) => {
-        const fa = a.data().fecha?.seconds ?? 0;
-        const fb = b.data().fecha?.seconds ?? 0;
-        return fa - fb;
-      });
-
-    if (noResueltas.length === 0) return;
-
-    const masAntigua = noResueltas[0];
-    await updateDoc(masAntigua.ref, { resuelta: true, visto: true });
-  } catch (err) {
-    console.error("[resolverNotificacionMasAntigua] Error:", err);
+  const TAMANO_LOTE = 400;
+  for (let i = 0; i < pendientes.length; i += TAMANO_LOTE) {
+    const batch = writeBatch(db);
+    for (const d of pendientes.slice(i, i + TAMANO_LOTE)) {
+      batch.update(d.ref, { visto: true });
+    }
+    await batch.commit();
   }
-}
 
-/** Marca como resueltas las alertas de una ruta para todos los usuarios,
- * excepto quienes todavía deban recibir la respuesta recién creada. */
-export async function resolverNotificacionesPorRuta(
-  ruta: string,
-  excluirUsuarioIds: string[] = []
-): Promise<void> {
-  try {
-    const excluidos = new Set(excluirUsuarioIds);
-    const snap = await getDocs(
-      query(collectionGroup(db, "notificaciones"), where("ruta", "==", ruta))
-    );
-
-    const pendientes = snap.docs.filter((documento) => {
-      const usuarioId = documento.ref.parent.parent?.id;
-      return documento.data().resuelta !== true &&
-        (!usuarioId || !excluidos.has(usuarioId));
-    });
-
-    await Promise.all(
-      pendientes.map((documento) =>
-        updateDoc(documento.ref, { resuelta: true, visto: true })
-      )
-    );
-  } catch (err) {
-    console.error("[resolverNotificacionesPorRuta] Error:", err);
-  }
+  return pendientes.length;
 }

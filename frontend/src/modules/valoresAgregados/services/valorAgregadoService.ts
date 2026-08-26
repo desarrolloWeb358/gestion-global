@@ -11,14 +11,14 @@ import {
   serverTimestamp,
   Timestamp,
   updateDoc,
+  deleteField,
 } from "firebase/firestore";
 import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { db, storage } from "../../../firebase";
 import { registrarEliminacion } from "@/shared/services/auditLog/auditLogService";
-import { ArchivoAdjunto, ValorAgregado } from "../models/valorAgregado.model";
-import { TipoValorAgregado, TipoValorAgregadoLabels } from "../../../shared/constants/tipoValorAgregado";
+import { ArchivoAdjunto, EstadoValorAgregado, ValorAgregado } from "../models/valorAgregado.model";
+import { TipoValorAgregado } from "../../../shared/constants/tipoValorAgregado";
 import { MensajeValorAgregado, type AutorTipoValorAgregado } from "../models/mensajeValorAgregado.model";
-import { notificarUsuarioConAlertaYCorreo, notificarUsuarioConAlerta, resolverNotificacionMasAntigua, resolverNotificacionesPorRuta, enviarEmail } from "@/modules/notificaciones/services/notificacionService";
 
 
 
@@ -53,19 +53,6 @@ function normalizarAutorTipo(input: unknown): AutorTipoValorAgregado {
   return AUTOR_TIPOS.has(autorTipo) ? autorTipo : "abogado";
 }
 
-function etiquetaAutor(tipo: AutorTipoValorAgregado): string {
-  const etiquetas: Record<AutorTipoValorAgregado, string> = {
-    cliente: "Cliente",
-    abogado: "Abogado",
-    dependiente: "Dependiente",
-    admin: "Administrador",
-    ejecutivoAdmin: "Ejecutivo administrador",
-    ejecutivo: "Ejecutivo",
-    supervisor: "Supervisor",
-    adminFranquicia: "Administrador de franquicia",
-  };
-  return etiquetas[tipo];
-}
 
 function mapDocToValorAgregado(id: string, data: any): ValorAgregado {
   // Si ya tiene el array nuevo lo usa; si no, construye uno desde los campos planos (docs viejos)
@@ -81,15 +68,30 @@ function mapDocToValorAgregado(id: string, data: any): ValorAgregado {
     fecha: data.fecha,
     titulo: data.titulo ?? "",
     descripcion: data.descripcion ?? "",
+    clienteId: data.clienteId,
     archivoPath: data.archivoPath,
     archivoURL: data.archivoURL,
     archivoNombre: data.archivoNombre,
     archivos,
+    // Fallback a `completado` para documentos aún no migrados.
+    estado: normalizarEstado(data.estado, data.completado),
+    esperaRespuestaDe: data.esperaRespuestaDe === "cliente" ? "cliente" : "juridica",
+    fechaResolucion: data.fechaResolucion ?? data.fechaCompletado ?? null,
+    resueltoPor: data.resueltoPor ?? null,
+    estadoMigradoRevisar: data.estadoMigradoRevisar === true,
     completado: data.completado ?? false,
     fechaLimite: data.fechaLimite ?? null,
     fechaCompletado: data.fechaCompletado ?? null,
     fechaUltimaActualizacion: data.fechaUltimaActualizacion ?? null,
   };
+}
+
+function normalizarEstado(
+  estado: unknown,
+  completadoLegacy: unknown
+): EstadoValorAgregado {
+  if (estado === "abierto" || estado === "resuelto") return estado;
+  return completadoLegacy === true ? "resuelto" : "abierto";
 }
 
 function calcularFechaLimite(tipo: TipoValorAgregado, fechaBase: Date): Date {
@@ -191,9 +193,18 @@ export async function crearValorAgregado(
     titulo: data.titulo,
     descripcion: data.descripcion ?? "",
     fecha: data.fechaTs ?? serverTimestamp(),
-    completado: false,
+    // Denormalizado para que la pantalla global pueda acotar por cliente/abogado.
+    clienteId,
+    estado: "abierto" as EstadoValorAgregado,
+    // Lo radica el cliente, así que el turno arranca en jurídica.
+    esperaRespuestaDe: "juridica",
+    fechaResolucion: null,
+    resueltoPor: null,
+    // Se calcula una sola vez: reabrir el trámite no reinicia el plazo legal.
     fechaLimite: Timestamp.fromDate(calcularFechaLimite(data.tipo, data.fechaTs?.toDate() ?? new Date())),
     archivos: [],
+    // @deprecated — se sigue escribiendo durante la transición (fase 5 lo elimina).
+    completado: false,
   };
 
   // 1️⃣ Crear doc base
@@ -229,61 +240,6 @@ export async function crearValorAgregado(
   return valorId;
 }
 
-type ClienteInfoParaNotificacion = {
-  abogadoId?: string;
-  correoAbogado?: string;
-  nombreAbogado?: string;
-  dependienteAbogadoId?: string;
-  correoDepAbogado?: string;
-  nombreDepAbogado?: string;
-  nombreCliente?: string;
-};
-
-async function obtenerClienteInfoParaNotificacion(
-  clienteId: string
-): Promise<ClienteInfoParaNotificacion> {
-  const cSnap = await getDoc(doc(db, `clientes/${clienteId}`));
-
-  if (!cSnap.exists()) {
-    console.warn(`[obtenerClienteInfoParaNotificacion] Cliente ${clienteId} no existe`);
-    return {};
-  }
-
-  const cData: any = cSnap.data() || {};
-  const abogadoId: string | undefined = cData.abogadoId;
-  const dependienteAbogadoId: string | undefined = cData.dependienteAbogadoId;
-  const nombreCliente: string | undefined = cData.nombre;
-
-  let correoAbogado: string | undefined;
-  let nombreAbogado = "Abogado";
-  if (abogadoId) {
-    const abSnap = await getDoc(doc(db, `usuarios/${abogadoId}`));
-    if (abSnap.exists()) {
-      const abData: any = abSnap.data();
-      correoAbogado = abData?.email;
-      nombreAbogado = abData?.nombre || "Abogado";
-    } else {
-      console.warn(`[obtenerClienteInfoParaNotificacion] Usuario abogado ${abogadoId} no existe`);
-    }
-  } else {
-    console.warn(`[obtenerClienteInfoParaNotificacion] Cliente ${clienteId} no tiene abogadoId definido`);
-  }
-
-  let correoDepAbogado: string | undefined;
-  let nombreDepAbogado = "Asistente Jurídico";
-  if (dependienteAbogadoId) {
-    const depSnap = await getDoc(doc(db, `usuarios/${dependienteAbogadoId}`));
-    if (depSnap.exists()) {
-      const depData: any = depSnap.data();
-      correoDepAbogado = depData?.email;
-      nombreDepAbogado = depData?.nombre || "Asistente Jurídico";
-    } else {
-      console.warn(`[obtenerClienteInfoParaNotificacion] Usuario dependiente ${dependienteAbogadoId} no existe`);
-    }
-  }
-
-  return { abogadoId, correoAbogado, nombreAbogado, dependienteAbogadoId, correoDepAbogado, nombreDepAbogado, nombreCliente };
-}
 
 
 export async function actualizarValorAgregado(
@@ -463,146 +419,11 @@ export async function crearMensajeConversacionValorAgregado(
     await updateDoc(docRefConversacion(clienteId, valorId, msgId), updateData);
   }
 
-  // 3️⃣ Actualizar completado y fechaUltimaActualizacion según quién responde
-  try {
-    const parentPatch: any = { fechaUltimaActualizacion: serverTimestamp() };
-    if (base.autorTipo === "cliente") {
-      parentPatch.completado = false;
-    } else {
-      parentPatch.completado = true;
-      parentPatch.fechaCompletado = serverTimestamp();
-    }
-    await updateDoc(docRef(clienteId, valorId), parentPatch);
-  } catch (err) {
-    console.error("[crearMensajeConversacionValorAgregado] Error actualizando completado:", err);
-  }
-
-  // 4️⃣ Notificar a la contraparte (cliente ↔ abogado)
-  try {
-    // Info del cliente (nombre y abogadoId)
-    const clienteInfo = await obtenerClienteInfoParaNotificacion(clienteId);
-    const nombreCliente = clienteInfo.nombreCliente || clienteId;
-
-    // Info del valor agregado (tipo y título)
-    const valor = await obtenerValorAgregado(clienteId, valorId);
-    const tipoValor = valor?.tipo ?? TipoValorAgregado.DERECHO_DE_PETICION;
-    const tipoLabel = TipoValorAgregadoLabels[tipoValor] ?? "Valor agregado";
-    const nombreValor = valor?.titulo || "Documento";
-
-    const resumenAdjuntos =
-      archivosFiles && archivosFiles.length > 0
-        ? archivosFiles.length === 1
-          ? "El mensaje incluye 1 archivo adjunto."
-          : `El mensaje incluye ${archivosFiles.length} archivos adjuntos.`
-        : "";
-
-    // Ruta interna hacia el detalle del valor agregado
-    const ruta = `/clientes/${clienteId}/valores-agregados/${valorId}`;
-
-    let usuarioDestinoId: string | undefined;
-    let subject = "";
-    let tituloCorreo = "";
-    let descripcionAlerta = "";
-    let cuerpoHtmlCorreo = "";
-
-
-    var nombreDestinatario = "";
-    var correoDestinatario = "";
-    if (base.autorTipo === "cliente") {
-      nombreDestinatario = clienteInfo.nombreAbogado ?? "Abogado";
-      correoDestinatario = clienteInfo.correoAbogado ?? "";
-      // 👉 Mensaje creado por el CLIENTE → se notifica al ABOGADO
-      const abogadoId = clienteInfo.abogadoId;
-      if (!abogadoId) {
-        console.warn(
-          `[crearMensajeConversacionValorAgregado] Cliente ${clienteId} sin abogadoId; se omite ese destinatario.`
-        );
-      } else {
-        usuarioDestinoId = abogadoId;
-      }
-
-      subject = `Nuevo mensaje del cliente en valor agregado: ${tipoLabel}`;
-      tituloCorreo = "Nuevo mensaje del cliente en un valor agregado";
-      descripcionAlerta = `Nuevo mensaje del cliente ${nombreCliente} en el valor agregado (${tipoLabel}): ${nombreValor}`;
-
-      cuerpoHtmlCorreo = `
-        <p>El cliente <strong>${nombreCliente}</strong> ha enviado un nuevo mensaje en la conversación de un <strong>valor agregado</strong>.</p>
-        <ul>
-          <li><strong>Cliente:</strong> ${nombreCliente}</li>
-          <li><strong>Tipo de valor agregado:</strong> ${tipoLabel}</li>
-          <li><strong>Título:</strong> ${nombreValor}</li>
-        </ul>
-        ${resumenAdjuntos ? `<p>${resumenAdjuntos}</p>` : ""}
-        <p>Tienes un nuevo mensaje. Ingresa a la plataforma para revisar el contenido completo y responder.</p>
-      `;
-    } else {
-      // Mensaje creado por un usuario interno → se notifica al cliente.
-      usuarioDestinoId = clienteId;
-      const autorLabel = etiquetaAutor(base.autorTipo);
-
-      subject = `Nuevo mensaje de ${autorLabel.toLowerCase()} en valor agregado: ${tipoLabel}`;
-      tituloCorreo = `Nuevo mensaje de ${autorLabel.toLowerCase()} en un valor agregado`;
-      descripcionAlerta = `Nuevo mensaje de ${autorLabel.toLowerCase()} en el valor agregado (${tipoLabel}) del cliente ${nombreCliente}: ${nombreValor}`;
-
-      cuerpoHtmlCorreo = `
-        <p>${autorLabel} ha enviado un nuevo mensaje en la conversación de un <strong>valor agregado</strong>.</p>
-        <ul>
-          <li><strong>Cliente:</strong> ${nombreCliente}</li>
-          <li><strong>Tipo de valor agregado:</strong> ${tipoLabel}</li>
-          <li><strong>Título:</strong> ${nombreValor}</li>
-        </ul>
-        ${resumenAdjuntos ? `<p>${resumenAdjuntos}</p>` : ""}
-        <p>Tienes un nuevo mensaje. Ingresa a la plataforma para revisar el contenido completo y responder.</p>
-      `;
-    }
-
-    if (usuarioDestinoId) {
-      await notificarUsuarioConAlertaYCorreo({
-        usuarioId: usuarioDestinoId,
-        modulo: "valor agregado conversacion",
-        ruta,
-        descripcionAlerta,
-        nombreDestino: nombreDestinatario,
-        correoDestino: correoDestinatario,
-        subject,
-        tituloCorreo,
-        cuerpoHtmlCorreo,
-      });
-    }
-
-    if (base.autorTipo === "cliente" && clienteInfo.correoDepAbogado) {
-      await enviarEmail({
-        nombreDestino: clienteInfo.nombreDepAbogado ?? "Asistente Jurídico",
-        correoDestino: clienteInfo.correoDepAbogado,
-        subject,
-        titulo: tituloCorreo,
-        cuerpoHtml: cuerpoHtmlCorreo,
-      });
-    }
-
-    const dependienteAbogadoId = clienteInfo.dependienteAbogadoId;
-
-    if (base.autorTipo === "cliente") {
-      // 👉 Cliente escribe → notificar al DEPENDIENTE ABOGADO también
-      if (dependienteAbogadoId) {
-        await notificarUsuarioConAlerta({
-          usuarioId: dependienteAbogadoId,
-          modulo: "valor agregado conversacion",
-          ruta,
-          descripcion: descripcionAlerta,
-        });
-      }
-
-      // 👉 Cliente escribe → resolver la notificación más antigua del CLIENTE
-      await resolverNotificacionMasAntigua(clienteId, ruta);
-    } else {
-      // Un usuario interno respondió: cerrar pendientes jurídicos de la ruta
-      // (incluido admin), conservando la nueva alerta enviada al cliente.
-      await resolverNotificacionesPorRuta(ruta, [clienteId]);
-    }
-  } catch (err) {
-    console.error("[crearMensajeConversacionValorAgregado] Error al notificar:", err);
-  }
+  // El resto lo hace la Cloud Function `procesarMensajeValorAgregado`:
+  // fija `esperaRespuestaDe`, reabre el trámite si el cliente escribe sobre uno
+  // ya resuelto, y reparte alertas y correos. Vive en el backend para que no
+  // dependa de que el navegador siga abierto (mismo incidente que movió la
+  // creación y la edición a Cloud Functions).
 
   return msgId;
 }
@@ -642,13 +463,46 @@ export async function actualizarMensajeConversacionValorAgregado(
 }
 
 
-export async function marcarValorAgregadoCompletado(
+// =====================================================
+// ✅ Estado del trámite
+//    Resolver y reabrir son decisiones explícitas de una persona. El ir y venir
+//    de la conversación NO las toca: eso vive en `esperaRespuestaDe`, que escribe
+//    la Cloud Function del hilo.
+// =====================================================
+
+/** Marca el trámite como resuelto. La notificación al cliente la dispara la
+ *  Cloud Function `notificarCambioEstadoValorAgregado` al ver el cambio. */
+export async function resolverValorAgregado(
+  clienteId: string,
+  valorId: string,
+  opciones: { resueltoPor: string }
+): Promise<void> {
+  await updateDoc(docRef(clienteId, valorId), {
+    estado: "resuelto" as EstadoValorAgregado,
+    // Se sobrescribe a propósito: si el trámite se resolvió, se reabrió y se
+    // volvió a resolver, la fecha de entrega válida es la última.
+    fechaResolucion: serverTimestamp(),
+    resueltoPor: opciones.resueltoPor,
+    // Ya lo revisó una persona: deja de ser un caso dudoso de la migración.
+    estadoMigradoRevisar: deleteField(),
+    // @deprecated — sincronizado mientras `completado` siga existiendo.
+    completado: true,
+    fechaCompletado: serverTimestamp(),
+  });
+}
+
+/** Reabre el trámite sin necesidad de que el cliente escriba. `fechaResolucion`
+ *  NO se limpia: el reporte mensual la usa como fecha de entrega y el trámite sí
+ *  llegó a entregarse alguna vez. */
+export async function reabrirValorAgregado(
   clienteId: string,
   valorId: string
 ): Promise<void> {
   await updateDoc(docRef(clienteId, valorId), {
-    completado: true,
-    fechaCompletado: serverTimestamp(),
+    estado: "abierto" as EstadoValorAgregado,
+    estadoMigradoRevisar: deleteField(),
+    // @deprecated
+    completado: false,
   });
 }
 

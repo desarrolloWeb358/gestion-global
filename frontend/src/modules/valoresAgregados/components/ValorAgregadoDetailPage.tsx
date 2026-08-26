@@ -6,7 +6,7 @@ import { Button } from "@/shared/ui/button";
 import { Label } from "@/shared/ui/label";
 import { Input } from "@/shared/ui/input";
 import { toast } from "sonner";
-import { Upload, FileText, User as UserIcon, Calendar, Tag, MessageSquare, Send, CheckCircle, Eye, Download, Edit, Save, X } from "lucide-react";
+import { Upload, FileText, User as UserIcon, Calendar, Tag, MessageSquare, Send, CheckCircle, Eye, Download, Edit, Save, X, RotateCcw, Clock } from "lucide-react";
 
 import { ref as storageRef, getBlob } from "firebase/storage";
 import { storage } from "@/firebase";
@@ -16,12 +16,15 @@ import {
   listarConversacionValorAgregado,
   crearMensajeConversacionValorAgregado,
   actualizarMensajeConversacionValorAgregado,
+  resolverValorAgregado,
+  reabrirValorAgregado,
 } from "../services/valorAgregadoService";
 
 import { ValorAgregado } from "../models/valorAgregado.model";
 import { MensajeValorAgregado, type AutorTipoValorAgregado } from "../models/mensajeValorAgregado.model";
 import { TipoValorAgregadoLabels } from "../../../shared/constants/tipoValorAgregado";
 
+import { getAuth } from "firebase/auth";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { PERMS } from "@/shared/constants/acl";
 import { Typography } from "@/shared/design-system/components/Typography";
@@ -106,6 +109,11 @@ export default function ValorAgregadoDetailPage() {
   const rolesPuedeEditar = ["admin", "ejecutivoAdmin", "abogado", "dependiente"];
   const canEdit = roles.some((rol) => rolesPuedeEditar.includes(rol));
   const canPostMessage = canEdit || roles.includes("cliente");
+  // Resolver y reabrir son decisiones del área jurídica, no del cliente.
+  const canResolver = canEdit;
+  const uid = getAuth().currentUser?.uid ?? "";
+
+  const [estadoSaving, setEstadoSaving] = React.useState(false);
   // ===== Detalle principal
   const [item, setItem] = React.useState<ValorAgregado | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -189,15 +197,54 @@ export default function ValorAgregadoDetailPage() {
 
       setTexto("");
       setArchivoFiles([]);
-      // Reflejar el nuevo estado de completado localmente
-      setItem(prev => prev ? { ...prev, completado: autorTipo !== "cliente" } : prev);
-      await fetchMensajes();
+      // El turno y la posible reapertura los escribe la Cloud Function del hilo;
+      // recargamos el detalle para reflejarlo en vez de adivinarlo aquí.
+      await Promise.all([fetchMensajes(), recargarDetalle()]);
       toast.success("✓ Mensaje enviado correctamente");
     } catch (e) {
       console.error(e);
       toast.error("⚠️ No se pudo guardar el mensaje");
     } finally {
       setMsgSaving(false);
+    }
+  }
+
+  const recargarDetalle = React.useCallback(async () => {
+    if (!clienteId || !valorId) return;
+    try {
+      setItem(await obtenerValorAgregado(clienteId, valorId));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [clienteId, valorId]);
+
+  async function onResolver() {
+    if (!clienteId || !valorId || estadoSaving) return;
+    setEstadoSaving(true);
+    try {
+      await resolverValorAgregado(clienteId, valorId, { resueltoPor: uid });
+      await recargarDetalle();
+      toast.success("✓ Valor agregado marcado como resuelto");
+    } catch (e) {
+      console.error(e);
+      toast.error("⚠️ No se pudo resolver el valor agregado");
+    } finally {
+      setEstadoSaving(false);
+    }
+  }
+
+  async function onReabrir() {
+    if (!clienteId || !valorId || estadoSaving) return;
+    setEstadoSaving(true);
+    try {
+      await reabrirValorAgregado(clienteId, valorId);
+      await recargarDetalle();
+      toast.success("✓ Valor agregado reabierto");
+    } catch (e) {
+      console.error(e);
+      toast.error("⚠️ No se pudo reabrir el valor agregado");
+    } finally {
+      setEstadoSaving(false);
     }
   }
 
@@ -308,12 +355,58 @@ export default function ValorAgregadoDetailPage() {
                 </Typography>
               </div>
             </div>
-            {item.completado && (
-              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5">
-                <CheckCircle className="h-4 w-4" />
-                Completado
-              </span>
-            )}
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {/* El badge refleja el estado del trámite, no quién escribió de último. */}
+              {item.estado === "resuelto" ? (
+                <span className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5">
+                  <CheckCircle className="h-4 w-4" />
+                  Resuelto
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-sm font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+                  <Clock className="h-4 w-4" />
+                  {item.esperaRespuestaDe === "cliente"
+                    ? "Abierto · esperando al cliente"
+                    : "Abierto"}
+                </span>
+              )}
+
+              {canResolver && item.estado !== "resuelto" && (
+                <Button
+                  variant="brand"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={onResolver}
+                  disabled={estadoSaving}
+                  title="Marcar el trámite como entregado al cliente"
+                >
+                  {estadoSaving ? (
+                    <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+                  ) : (
+                    <CheckCircle className="h-4 w-4" />
+                  )}
+                  Marcar resuelto
+                </Button>
+              )}
+
+              {canResolver && item.estado === "resuelto" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={onReabrir}
+                  disabled={estadoSaving}
+                  title="Reabrir sin esperar a que el cliente escriba"
+                >
+                  {estadoSaving ? (
+                    <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand-primary/20 border-t-brand-primary" />
+                  ) : (
+                    <RotateCcw className="h-4 w-4" />
+                  )}
+                  Reabrir
+                </Button>
+              )}
+            </div>
           </div>
         </header>
 

@@ -1,4 +1,6 @@
 // models/cliente.model.ts
+import type { Timestamp } from "firebase/firestore";
+
 export interface Cliente {
   id?: string;
 
@@ -26,4 +28,15 @@ export interface Cliente {
 
   // Meses habilitados para que el rol cliente pueda ver el reporte (formato "YYYY-MM")
   reportesHabilitados?: Record<string, boolean>;
+
+  // === Bloqueo del portal por no pago del servicio ===
+  // Lo activa/levanta el ejecutivo (o ejecutivoAdmin) desde la página del cliente.
+  // Con `true`, el rol `cliente` sigue entrando a su página pero no puede abrir
+  // ninguno de los accesos rápidos: ve un aviso para contactar a su ejecutivo.
+  // Es independiente de `activo` (ese sí bloquea el ingreso al sistema).
+  bloqueadoPorPago?: boolean;
+  bloqueoPagoMotivo?: string;
+  bloqueoPagoFecha?: Timestamp;
+  bloqueoPagoPor?: string;        // uid de quien lo bloqueó
+  bloqueoPagoPorNombre?: string;  // nombre para mostrarlo sin resolver el uid
 }
