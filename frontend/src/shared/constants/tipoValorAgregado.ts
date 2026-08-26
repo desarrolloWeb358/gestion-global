@@ -3,6 +3,7 @@ export enum TipoValorAgregado {
   TUTELA = "tutela",
   DESACATO = "desacato",
   ESTUDIOS_CONTRATOS = "estudios contratos",
+  OTROS = "otros",
 }
 
 // Etiquetas legibles (por si quieres mostrar otro texto)
@@ -11,4 +12,5 @@ export const TipoValorAgregadoLabels: Record<TipoValorAgregado, string> = {
   [TipoValorAgregado.TUTELA]: "Tutela",
   [TipoValorAgregado.DESACATO]: "Desacato",
   [TipoValorAgregado.ESTUDIOS_CONTRATOS]: "Estudios / Contratos",
+  [TipoValorAgregado.OTROS]: "Otros",
 };

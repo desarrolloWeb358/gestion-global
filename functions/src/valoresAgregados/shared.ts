@@ -16,6 +16,7 @@ const TIPO_LABELS: Record<string, string> = {
   tutela: "Tutela",
   desacato: "Desacato",
   "estudios contratos": "Estudios / Contratos",
+  otros: "Otros",
 };
 
 export function tipoLabel(tipo: unknown): string {
