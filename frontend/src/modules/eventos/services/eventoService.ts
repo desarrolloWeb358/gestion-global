@@ -3,6 +3,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDocs,
   onSnapshot,
   query,
   runTransaction,
@@ -15,6 +16,7 @@ import {
 import { db } from "@/firebase";
 import { registrarEliminacion } from "@/shared/services/auditLog/auditLogService";
 import type {
+  CanalAviso,
   Evento,
   EventoCategoria,
   EventoEstado,
@@ -34,6 +36,18 @@ function docRef(eventoId: string) {
   return doc(db, COLECCION, eventoId);
 }
 
+/**
+ * Los primeros eventos de prueba se guardaron con el esquema anterior
+ * ("pendiente" / "acepto"). Se normaliza al leer para no tener que migrar.
+ */
+function normalizarParticipantes(lista: any): ParticipanteEvento[] {
+  if (!Array.isArray(lista)) return [];
+  return lista.map((p: any) => ({
+    ...p,
+    respuesta: p?.respuesta === "rechazo" ? "rechazo" : "asiste",
+  }));
+}
+
 function mapDocToEvento(id: string, data: any): Evento {
   return {
     id,
@@ -45,13 +59,18 @@ function mapDocToEvento(id: string, data: any): Evento {
     enlaceReunion: data.enlaceReunion ?? "",
     inicio: data.inicio,
     fin: data.fin,
+    // Ausente = true: los eventos previos a esta opcion si tenian hora final.
+    tieneHoraFin: data.tieneHoraFin !== false,
     todoElDia: data.todoElDia === true,
     estado: (data.estado ?? "programado") as EventoEstado,
     visibilidad: (data.visibilidad ?? "publica") as EventoVisibilidad,
     organizadorId: data.organizadorId ?? "",
     organizadorNombre: data.organizadorNombre ?? "",
-    participantes: Array.isArray(data.participantes) ? data.participantes : [],
+    participantes: normalizarParticipantes(data.participantes),
     participantesUids: Array.isArray(data.participantesUids) ? data.participantesUids : [],
+    canalesAviso: Array.isArray(data.canalesAviso)
+      ? data.canalesAviso
+      : (["app", "email"] as CanalAviso[]),
     recordatorios: Array.isArray(data.recordatorios) ? data.recordatorios : [],
     clienteId: data.clienteId ?? null,
     clienteNombre: data.clienteNombre ?? null,
@@ -78,9 +97,10 @@ export type GuardarEventoInput = {
   enlaceReunion?: string;
   inicio: Date;
   fin: Date;
+  tieneHoraFin: boolean;
   todoElDia: boolean;
-  visibilidad: EventoVisibilidad;
   participantes: ParticipanteEvento[];
+  canalesAviso: CanalAviso[];
   recordatorios: RecordatorioEvento[];
   clienteId?: string | null;
   clienteNombre?: string | null;
@@ -106,13 +126,17 @@ export async function crearEvento(
     enlaceReunion: data.enlaceReunion?.trim() ?? "",
     inicio: Timestamp.fromDate(data.inicio),
     fin: Timestamp.fromDate(data.fin),
+    tieneHoraFin: data.tieneHoraFin,
     todoElDia: data.todoElDia,
     estado: "programado" as EventoEstado,
-    visibilidad: data.visibilidad,
+    // Hoy TODO evento es visible para el equipo. El campo se conserva para
+    // cuando se habiliten eventos privados (ver suscribirEventos).
+    visibilidad: "publica" as EventoVisibilidad,
     organizadorId: actor.uid,
     organizadorNombre: actor.nombre ?? "",
     participantes: data.participantes,
     participantesUids: data.participantes.map((p) => p.uid),
+    canalesAviso: data.canalesAviso,
     recordatorios: data.recordatorios,
     clienteId: data.clienteId ?? null,
     clienteNombre: data.clienteNombre ?? null,
@@ -140,10 +164,11 @@ export async function actualizarEvento(
     enlaceReunion: data.enlaceReunion?.trim() ?? "",
     inicio: Timestamp.fromDate(data.inicio),
     fin: Timestamp.fromDate(data.fin),
+    tieneHoraFin: data.tieneHoraFin,
     todoElDia: data.todoElDia,
-    visibilidad: data.visibilidad,
     participantes: data.participantes,
     participantesUids: data.participantes.map((p) => p.uid),
+    canalesAviso: data.canalesAviso,
     recordatorios: data.recordatorios,
     clienteId: data.clienteId ?? null,
     clienteNombre: data.clienteNombre ?? null,
@@ -157,14 +182,16 @@ export async function reprogramarEvento(
   eventoId: string,
   inicio: Date,
   fin: Date,
-  todoElDia?: boolean
+  opciones: { todoElDia?: boolean; defineHoraFin?: boolean } = {}
 ): Promise<void> {
   const patch: Record<string, any> = {
     inicio: Timestamp.fromDate(inicio),
     fin: Timestamp.fromDate(fin),
     fechaActualizacion: serverTimestamp(),
   };
-  if (todoElDia !== undefined) patch.todoElDia = todoElDia;
+  if (opciones.todoElDia !== undefined) patch.todoElDia = opciones.todoElDia;
+  // Estirar el bloque en el calendario es una forma de fijar la hora final.
+  if (opciones.defineHoraFin) patch.tieneHoraFin = true;
   await updateDoc(docRef(eventoId), patch);
 }
 
@@ -195,14 +222,16 @@ export async function eliminarEvento(
 }
 
 /**
- * RSVP. Se hace en transaccion porque hay que leer el arreglo de participantes,
- * cambiar un elemento y volverlo a escribir: dos personas respondiendo a la vez
- * se pisarian la respuesta.
+ * Marca que alguien no podra asistir (o revierte esa marca). Se hace en
+ * transaccion porque hay que leer el arreglo de participantes, cambiar un
+ * elemento y volverlo a escribir: dos personas respondiendo a la vez se
+ * pisarian la respuesta.
  */
-export async function responderInvitacion(
+export async function cambiarAsistencia(
   eventoId: string,
   uid: string,
-  respuesta: RespuestaParticipante
+  respuesta: RespuestaParticipante,
+  motivo?: string
 ): Promise<void> {
   await runTransaction(db, async (tx) => {
     const ref = docRef(eventoId);
@@ -214,13 +243,14 @@ export async function responderInvitacion(
       : [];
 
     const indice = participantes.findIndex((p) => p.uid === uid);
-    if (indice === -1) throw new Error("No estas invitado a este evento.");
+    if (indice === -1) throw new Error("No estas en la lista de este evento.");
 
     const actualizados = [...participantes];
     actualizados[indice] = {
       ...actualizados[indice],
       respuesta,
       respondidoEn: Timestamp.now(),
+      motivoRechazo: respuesta === "rechazo" ? motivo?.trim() || null : null,
     };
 
     tx.update(ref, {
@@ -231,15 +261,103 @@ export async function responderInvitacion(
 }
 
 // =====================================================
+// Disponibilidad de los asistentes
+// =====================================================
+
+export interface ConflictoAgenda {
+  uid: string;
+  nombre: string;
+  eventoId: string;
+  eventoTitulo: string;
+  inicio: Date;
+  fin: Date;
+  tieneHoraFin: boolean;
+}
+
+/** Margen hacia atras para alcanzar eventos que empezaron antes y siguen vigentes. */
+const VENTANA_ATRAS_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Busca a cuales de `uids` ya se les cruza otro evento con el rango dado.
+ *
+ * Un evento sin hora final ocupa igual su bloque implicito de 30 minutos (asi se
+ * guarda `fin`), de modo que la misma comparacion de solapamiento sirve para los
+ * dos casos: hay cruce cuando `nuevoInicio < existenteFin` y
+ * `existenteInicio < nuevoFin`.
+ *
+ * No cuenta como ocupado quien ya aviso que no asistira, ni los eventos
+ * cancelados.
+ */
+export async function buscarConflictos(params: {
+  inicio: Date;
+  fin: Date;
+  uids: string[];
+  /** Al editar, el propio evento no debe chocar consigo mismo. */
+  excluirEventoId?: string;
+}): Promise<ConflictoAgenda[]> {
+  const { inicio, fin, uids, excluirEventoId } = params;
+  if (uids.length === 0) return [];
+
+  // Firestore no permite un rango sobre `inicio` y a la vez array-contains-any
+  // sobre otro campo, asi que se trae la franja por fecha y se cruza en memoria.
+  // El volumen es de pocos eventos por dia, no hay problema de costo.
+  const q = query(
+    colRef(),
+    where("inicio", ">=", Timestamp.fromMillis(inicio.getTime() - VENTANA_ATRAS_MS)),
+    where("inicio", "<", Timestamp.fromDate(fin))
+  );
+
+  const snap = await getDocs(q);
+  const buscados = new Set(uids);
+  const conflictos: ConflictoAgenda[] = [];
+
+  snap.docs.forEach((d) => {
+    if (d.id === excluirEventoId) return;
+
+    const evento = mapDocToEvento(d.id, d.data());
+    if (evento.estado === "cancelado") return;
+
+    const eventoInicio = (evento.inicio as any)?.toDate?.();
+    const eventoFin = (evento.fin as any)?.toDate?.();
+    if (!eventoInicio || !eventoFin) return;
+
+    // Se solapan (el fin es exclusivo: 8-9 y 9-10 no chocan).
+    if (!(inicio.getTime() < eventoFin.getTime() && eventoInicio.getTime() < fin.getTime())) {
+      return;
+    }
+
+    evento.participantes.forEach((p) => {
+      if (!buscados.has(p.uid) || p.respuesta === "rechazo") return;
+      conflictos.push({
+        uid: p.uid,
+        nombre: p.nombre,
+        eventoId: evento.id!,
+        eventoTitulo: evento.titulo,
+        inicio: eventoInicio,
+        fin: eventoFin,
+        tieneHoraFin: evento.tieneHoraFin,
+      });
+    });
+  });
+
+  return conflictos;
+}
+
+// =====================================================
 // Suscripciones en tiempo real
 // =====================================================
 
 export type RangoFechas = { desde: Date; hasta: Date };
 
 /**
- * Firestore no sabe hacer OR entre "es publica" y "estoy invitado", asi que se
- * abren dos suscripciones y se fusionan por id. Quien administra usa una sola
- * consulta por rango porque lo ve todo.
+ * Todo evento es hoy visible para el equipo completo, asi que basta una consulta
+ * por rango de fechas y el `verTodas` deja de discriminar.
+ *
+ * Cuando se habiliten eventos privados habra que volver a partir esto en dos
+ * suscripciones (una por `visibilidad == "publica"` y otra por
+ * `participantesUids array-contains uid`) y fusionarlas por id, porque Firestore
+ * no sabe hacer OR entre dos condiciones distintas. Los indices para esa
+ * consulta ya estan desplegados.
  */
 export function suscribirEventos(
   params: {
@@ -250,71 +368,22 @@ export function suscribirEventos(
   callback: (eventos: Evento[]) => void,
   onError?: (err: unknown) => void
 ): Unsubscribe {
-  const { uid, verTodas, rango } = params;
-  const desde = Timestamp.fromDate(rango.desde);
-  const hasta = Timestamp.fromDate(rango.hasta);
+  const { rango } = params;
 
-  if (verTodas) {
-    const q = query(colRef(), where("inicio", ">=", desde), where("inicio", "<=", hasta));
-    return onSnapshot(
-      q,
-      (snap) => callback(snap.docs.map((d) => mapDocToEvento(d.id, d.data()))),
-      (err) => {
-        console.error("[suscribirEventos] onSnapshot error:", err);
-        onError?.(err);
-      }
-    );
-  }
-
-  const porVisibilidad = new Map<string, Evento>();
-  const porInvitacion = new Map<string, Evento>();
-
-  function emitir() {
-    const fusionados = new Map<string, Evento>();
-    porVisibilidad.forEach((e, id) => fusionados.set(id, e));
-    porInvitacion.forEach((e, id) => fusionados.set(id, e));
-    callback([...fusionados.values()]);
-  }
-
-  const manejarError = (etiqueta: string) => (err: unknown) => {
-    console.error(`[suscribirEventos:${etiqueta}] onSnapshot error:`, err);
-    onError?.(err);
-  };
-
-  const unsubPublicos = onSnapshot(
-    query(
-      colRef(),
-      where("visibilidad", "==", "publica"),
-      where("inicio", ">=", desde),
-      where("inicio", "<=", hasta)
-    ),
-    (snap) => {
-      porVisibilidad.clear();
-      snap.docs.forEach((d) => porVisibilidad.set(d.id, mapDocToEvento(d.id, d.data())));
-      emitir();
-    },
-    manejarError("publicos")
+  const q = query(
+    colRef(),
+    where("inicio", ">=", Timestamp.fromDate(rango.desde)),
+    where("inicio", "<=", Timestamp.fromDate(rango.hasta))
   );
 
-  const unsubInvitado = onSnapshot(
-    query(
-      colRef(),
-      where("participantesUids", "array-contains", uid),
-      where("inicio", ">=", desde),
-      where("inicio", "<=", hasta)
-    ),
-    (snap) => {
-      porInvitacion.clear();
-      snap.docs.forEach((d) => porInvitacion.set(d.id, mapDocToEvento(d.id, d.data())));
-      emitir();
-    },
-    manejarError("invitado")
+  return onSnapshot(
+    q,
+    (snap) => callback(snap.docs.map((d) => mapDocToEvento(d.id, d.data()))),
+    (err) => {
+      console.error("[suscribirEventos] onSnapshot error:", err);
+      onError?.(err);
+    }
   );
-
-  return () => {
-    unsubPublicos();
-    unsubInvitado();
-  };
 }
 
 /** Suscripcion a un unico evento (para el deep-link desde una notificacion). */

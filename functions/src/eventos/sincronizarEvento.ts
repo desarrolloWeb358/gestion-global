@@ -19,6 +19,7 @@ import {
   enviarAviso,
   eventoDesdeDoc,
   type CanalAviso,
+  type OpcionesAviso,
   type ParticipanteAviso,
   type TipoAviso,
 } from "./avisos";
@@ -32,6 +33,7 @@ interface ParticipanteDoc {
   email?: string | null;
   telefono?: string | null;
   respuesta?: string;
+  motivoRechazo?: string | null;
 }
 
 interface RecordatorioDoc {
@@ -135,20 +137,39 @@ async function generarCola(eventoId: string, data: any): Promise<number> {
   return pendientes.length;
 }
 
-/** Manda un aviso inmediato por app + correo a los destinatarios indicados. */
+/** Canales del aviso inmediato, elegidos al crear o editar el evento. */
+function canalesAvisoDe(data: any): CanalAviso[] {
+  // Los eventos creados antes de que el campo existiera conservan el
+  // comportamiento anterior: campanita y correo.
+  if (!Array.isArray(data?.canalesAviso)) return ["app", "email"];
+  return data.canalesAviso.filter((c: any): c is CanalAviso =>
+    c === "app" || c === "email" || c === "whatsapp"
+  );
+}
+
+/**
+ * Manda el aviso inmediato por los canales que eligio quien agendo. Una lista
+ * vacia significa "no avises a nadie ahora": sirve para armar la agenda sin
+ * molestar, y los recordatorios igual salen despues.
+ */
 async function avisarAhora(
   eventoId: string,
   data: any,
   destinatarios: ParticipanteAviso[],
-  tipo: TipoAviso
+  tipo: TipoAviso,
+  opciones: OpcionesAviso = {}
 ): Promise<void> {
   if (destinatarios.length === 0) return;
+
+  const canales = canalesAvisoDe(data);
+  if (canales.length === 0) return;
+
   const evento = eventoDesdeDoc(eventoId, data);
 
   await Promise.all(
     destinatarios.flatMap((participante) =>
-      (["app", "email"] as CanalAviso[]).map(async (canal) => {
-        const resultado = await enviarAviso(canal, participante, evento, tipo);
+      canales.map(async (canal) => {
+        const resultado = await enviarAviso(canal, participante, evento, tipo, opciones);
         if (!resultado.ok && !resultado.omitido) {
           logger.warn("[sincronizarEvento] Aviso inmediato fallido", {
             eventoId,
@@ -165,6 +186,63 @@ async function avisarAhora(
 
 function mismosMs(a?: Date, b?: Date): boolean {
   return (a?.getTime() ?? 0) === (b?.getTime() ?? 0);
+}
+
+interface Ausente {
+  uid: string;
+  nombre: string;
+  motivo?: string;
+}
+
+/**
+ * Quienes pasaron a "rechazo" en esta escritura. Se compara contra el estado
+ * anterior para no reenviar el aviso cada vez que se toque el evento por
+ * cualquier otra razon.
+ */
+function detectarNuevosAusentes(antes: any, despues: any): Ausente[] {
+  const listaAntes: ParticipanteDoc[] = Array.isArray(antes?.participantes)
+    ? antes.participantes
+    : [];
+  const listaDespues: ParticipanteDoc[] = Array.isArray(despues?.participantes)
+    ? despues.participantes
+    : [];
+
+  const respuestaAntes = new Map(listaAntes.map((p) => [p.uid, p.respuesta]));
+
+  return listaDespues
+    .filter((p) => p.respuesta === "rechazo" && respuestaAntes.get(p.uid) !== "rechazo")
+    .map((p) => ({
+      uid: p.uid,
+      nombre: p.nombre || "Un asistente",
+      motivo: (p as any).motivoRechazo || undefined,
+    }));
+}
+
+/**
+ * A quien le importa que alguien falte: al resto de asistentes y a quien agendo
+ * el evento, que puede no estar en la lista (la secretaria agenda para otros).
+ */
+async function destinatariosDeInasistencia(
+  despues: any,
+  uidAusente: string
+): Promise<ParticipanteAviso[]> {
+  const destinatarios = participantesDe(despues).filter((p) => p.uid !== uidAusente);
+
+  const organizadorId: string | undefined = despues?.organizadorId;
+  if (!organizadorId || organizadorId === uidAusente) return destinatarios;
+  if (destinatarios.some((p) => p.uid === organizadorId)) return destinatarios;
+
+  const snap = await admin.firestore().doc(`usuarios/${organizadorId}`).get();
+  if (!snap.exists) return destinatarios;
+
+  const datos = snap.data() as any;
+  destinatarios.push({
+    uid: organizadorId,
+    nombre: datos?.nombre || despues?.organizadorNombre || "Organizador",
+    email: datos?.email ?? null,
+    telefono: null,
+  });
+  return destinatarios;
 }
 
 export const sincronizarEvento = onDocumentWritten(
@@ -233,8 +311,25 @@ export const sincronizarEvento = onDocumentWritten(
       return;
     }
 
-    // Nada relevante cambio (p. ej. alguien solo confirmo asistencia): no se toca
-    // la cola ni se envia nada. Esta guarda es la que evita spam en cada RSVP.
+    // Alguien aviso que no podra asistir: se notifica a quien agendo el evento y
+    // al resto de asistentes. Es el unico cambio dentro del arreglo de
+    // participantes que genera avisos.
+    const nuevosAusentes = detectarNuevosAusentes(antes, despues);
+    for (const ausente of nuevosAusentes) {
+      const destinatarios = await destinatariosDeInasistencia(despues, ausente.uid);
+      await avisarAhora(eventoId, despues, destinatarios, "inasistencia", {
+        quienFalta: ausente.nombre,
+        motivo: ausente.motivo,
+      });
+      logger.info("[sincronizarEvento] Aviso de inasistencia", {
+        eventoId,
+        ausente: ausente.uid,
+        avisados: destinatarios.length,
+      });
+    }
+
+    // Nada relevante cambio (p. ej. alguien volvio a marcar que si asiste): no se
+    // toca la cola ni se envia nada mas.
     if (!cambioHorario && !cambioRecordatorios && !cambioParticipantes && !cambioLugar && !seReactivo) {
       return;
     }

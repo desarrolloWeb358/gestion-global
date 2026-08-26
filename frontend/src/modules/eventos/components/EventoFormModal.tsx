@@ -1,5 +1,5 @@
 import * as React from "react";
-import { CalendarIcon, Link2, MapPin, Trash2 } from "lucide-react";
+import { AlertTriangle, CalendarIcon, Link2, MapPin, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -36,31 +36,39 @@ import { Textarea } from "@/shared/ui/textarea";
 import type { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 
 import {
-  DURACION_DEFECTO_MINUTOS,
+  CANALES,
+  CANALES_AVISO_POR_DEFECTO,
+  CANAL_LABELS,
+  DURACION_MINIMA_MINUTOS,
   EVENTO_CATEGORIAS,
   EVENTO_MODALIDADES,
-  PASO_HORA_SEGUNDOS,
+  OPCIONES_HORA,
   RECORDATORIOS_POR_DEFECTO,
+  UBICACION_OFICINA,
+  ajustarAMediaHora,
 } from "../constants/eventoConstants";
 import {
   aFecha,
   aHoraInput,
   combinarFechaHora,
+  formatoRangoEvento,
   proximaMediaHora,
   sumarMinutos,
 } from "../lib/fechaEvento";
 import type {
+  CanalAviso,
   Evento,
   EventoCategoria,
   EventoModalidad,
-  EventoVisibilidad,
   ParticipanteEvento,
   RecordatorioEvento,
 } from "../models/evento.model";
 import {
   actualizarEvento,
+  buscarConflictos,
   crearEvento,
   eliminarEvento,
+  type ConflictoAgenda,
   type GuardarEventoInput,
 } from "../services/eventoService";
 import { ParticipantesSelector } from "./ParticipantesSelector";
@@ -101,7 +109,7 @@ export function EventoFormModal({
   const inicioEvento = aFecha(evento?.inicio);
   const finEvento = aFecha(evento?.fin);
   const arranque = inicioEvento ?? fechaInicial ?? proximaMediaHora();
-  const cierre = finEvento ?? sumarMinutos(arranque, DURACION_DEFECTO_MINUTOS);
+  const cierre = finEvento ?? sumarMinutos(arranque, DURACION_MINIMA_MINUTOS);
 
   const [titulo, setTitulo] = React.useState(evento?.titulo ?? "");
   const [descripcion, setDescripcion] = React.useState(evento?.descripcion ?? "");
@@ -114,45 +122,68 @@ export function EventoFormModal({
   const [ubicacion, setUbicacion] = React.useState(evento?.ubicacion ?? "");
   const [enlaceReunion, setEnlaceReunion] = React.useState(evento?.enlaceReunion ?? "");
   const [todoElDia, setTodoElDia] = React.useState(evento?.todoElDia ?? false);
-  const [visibilidad, setVisibilidad] = React.useState<EventoVisibilidad>(
-    evento?.visibilidad ?? "publica"
+  const [enOficina, setEnOficina] = React.useState(
+    (evento?.ubicacion ?? "") === UBICACION_OFICINA
   );
 
   const [fechaInicio, setFechaInicio] = React.useState<Date>(arranque);
-  const [horaInicio, setHoraInicio] = React.useState(aHoraInput(arranque));
+  const [horaInicio, setHoraInicio] = React.useState(ajustarAMediaHora(aHoraInput(arranque)));
   const [fechaFin, setFechaFin] = React.useState<Date>(cierre);
-  const [horaFin, setHoraFin] = React.useState(aHoraInput(cierre));
+  const [horaFin, setHoraFin] = React.useState(ajustarAMediaHora(aHoraInput(cierre)));
+  // Un evento nuevo arranca sin hora final; los ya creados conservan la suya.
+  const [tieneHoraFin, setTieneHoraFin] = React.useState(
+    esEdicion ? evento?.tieneHoraFin !== false : false
+  );
 
-  const [participantes, setParticipantes] = React.useState<ParticipanteEvento[]>(() => {
-    if (evento?.participantes?.length) return evento.participantes;
-    // En un evento nuevo el organizador siempre queda dentro. Se arma con sus
-    // propios datos y no buscándolo en `usuarios`: un supervisor puede crear
-    // eventos aunque su rol no aparezca en esa lista.
-    return [
-      {
-        uid: actor.uid,
-        nombre: actor.nombre || actor.email || "Organizador",
-        email: actor.email ?? "",
-        telefono: actor.telefono ?? null,
-        respuesta: "acepto",
-        respondidoEn: null,
-      },
-    ];
-  });
+  // Quien crea el evento NO se agrega solo: normalmente lo agenda la secretaria
+  // para otras personas y ella no asiste. Si va a ir, se marca a sí misma.
+  const [participantes, setParticipantes] = React.useState<ParticipanteEvento[]>(
+    evento?.participantes ?? []
+  );
+  const [canalesAviso, setCanalesAviso] = React.useState<CanalAviso[]>(
+    evento?.canalesAviso ?? CANALES_AVISO_POR_DEFECTO
+  );
   const [recordatorios, setRecordatorios] = React.useState<RecordatorioEvento[]>(
     evento?.recordatorios?.length ? evento.recordatorios : RECORDATORIOS_POR_DEFECTO
   );
 
   const [guardando, setGuardando] = React.useState(false);
   const [confirmarBorrado, setConfirmarBorrado] = React.useState(false);
+  const [conflictos, setConflictos] = React.useState<ConflictoAgenda[]>([]);
+  const [buscandoConflictos, setBuscandoConflictos] = React.useState(false);
+  const [confirmarCruce, setConfirmarCruce] = React.useState(false);
 
-  const organizadorUid = evento?.organizadorId ?? actor.uid;
   const hayTelefonos = participantes.some((p) => !!p.telefono);
+
+  /** Instante de inicio ya combinado, que usan la validación y el guardado. */
+  const inicioCombinado = React.useMemo(
+    () => (todoElDia ? combinarFechaHora(fechaInicio, "00:00") : combinarFechaHora(fechaInicio, horaInicio)),
+    [todoElDia, fechaInicio, horaInicio]
+  );
+
+  const finCombinado = React.useMemo(() => {
+    if (todoElDia) return combinarFechaHora(fechaFin, "23:59");
+    // Sin hora final el evento ocupa el bloque mínimo.
+    if (!tieneHoraFin) return sumarMinutos(inicioCombinado, DURACION_MINIMA_MINUTOS);
+    return combinarFechaHora(fechaFin, horaFin);
+  }, [todoElDia, tieneHoraFin, fechaFin, horaFin, inicioCombinado]);
+
+  function activarHoraFin(activar: boolean) {
+    setTieneHoraFin(activar);
+    if (!activar) return;
+    // Se propone el bloque mínimo: media hora después del inicio.
+    const propuesta = sumarMinutos(inicioCombinado, DURACION_MINIMA_MINUTOS);
+    setFechaFin(propuesta);
+    setHoraFin(aHoraInput(propuesta));
+  }
 
   // Si nadie tiene telefono, se limpia el canal de WhatsApp para no dejar
   // recordatorios que jamas se van a poder entregar.
   React.useEffect(() => {
     if (hayTelefonos) return;
+    setCanalesAviso((actuales) =>
+      actuales.includes("whatsapp") ? actuales.filter((c) => c !== "whatsapp") : actuales
+    );
     setRecordatorios((actuales) => {
       if (!actuales.some((r) => r.canales.includes("whatsapp"))) return actuales;
       return actuales.map((r) => ({
@@ -162,22 +193,75 @@ export function EventoFormModal({
     });
   }, [hayTelefonos]);
 
+  const uidsParticipantes = participantes.map((p) => p.uid).join(",");
+
+  /**
+   * Revisa la disponibilidad cada vez que cambian los asistentes o el horario.
+   * Va con retardo para no consultar en cada tecla, y descarta respuestas viejas
+   * que lleguen después de una consulta más reciente.
+   */
+  React.useEffect(() => {
+    if (participantes.length === 0 || todoElDia) {
+      setConflictos([]);
+      return;
+    }
+
+    let vigente = true;
+    setBuscandoConflictos(true);
+
+    const temporizador = setTimeout(async () => {
+      try {
+        const encontrados = await buscarConflictos({
+          inicio: inicioCombinado,
+          fin: finCombinado,
+          uids: participantes.map((p) => p.uid),
+          excluirEventoId: evento?.id,
+        });
+        if (vigente) setConflictos(encontrados);
+      } catch (err) {
+        console.error("[EventoFormModal] Error revisando disponibilidad:", err);
+        if (vigente) setConflictos([]);
+      } finally {
+        if (vigente) setBuscandoConflictos(false);
+      }
+    }, 400);
+
+    return () => {
+      vigente = false;
+      clearTimeout(temporizador);
+    };
+    // `uidsParticipantes` colapsa el arreglo a una cadena estable: comparar el
+    // arreglo por referencia dispararía la consulta en cada render.
+  }, [uidsParticipantes, inicioCombinado, finCombinado, todoElDia, evento?.id, participantes]);
+
+  /** Un renglón por persona ocupada, con el evento que se le cruza. */
+  const conflictosPorPersona = React.useMemo(() => {
+    const mapa = new Map<string, ConflictoAgenda[]>();
+    conflictos.forEach((c) => {
+      mapa.set(c.uid, [...(mapa.get(c.uid) ?? []), c]);
+    });
+    return [...mapa.entries()];
+  }, [conflictos]);
+
   function construirInput(): GuardarEventoInput | null {
     if (!titulo.trim()) {
       toast.error("El titulo es obligatorio.");
       return null;
     }
 
-    const inicio = todoElDia
-      ? combinarFechaHora(fechaInicio, "00:00")
-      : combinarFechaHora(fechaInicio, horaInicio);
-    const fin = todoElDia
-      ? combinarFechaHora(fechaFin, "23:59")
-      : combinarFechaHora(fechaFin, horaFin);
+    const inicio = inicioCombinado;
+    const fin = finCombinado;
 
-    if (fin.getTime() <= inicio.getTime()) {
-      toast.error("La hora de finalizacion debe ser posterior a la de inicio.");
-      return null;
+    if (tieneHoraFin && !todoElDia) {
+      const minutos = (fin.getTime() - inicio.getTime()) / 60_000;
+      if (minutos <= 0) {
+        toast.error("La hora final debe ser posterior a la de inicio.");
+        return null;
+      }
+      if (minutos < DURACION_MINIMA_MINUTOS) {
+        toast.error(`El evento debe durar al menos ${DURACION_MINIMA_MINUTOS} minutos.`);
+        return null;
+      }
     }
 
     if (modalidad !== "virtual" && !ubicacion.trim()) {
@@ -189,7 +273,7 @@ export function EventoFormModal({
       return null;
     }
     if (participantes.length === 0) {
-      toast.error("Selecciona al menos un participante.");
+      toast.error("Selecciona al menos un asistente.");
       return null;
     }
     if (recordatorios.some((r) => r.canales.length === 0)) {
@@ -206,9 +290,10 @@ export function EventoFormModal({
       enlaceReunion: modalidad === "presencial" ? "" : enlaceReunion,
       inicio,
       fin,
+      tieneHoraFin,
       todoElDia,
-      visibilidad,
       participantes,
+      canalesAviso,
       recordatorios,
       clienteId: evento?.clienteId ?? null,
       clienteNombre: evento?.clienteNombre ?? null,
@@ -216,18 +301,39 @@ export function EventoFormModal({
     };
   }
 
+  /** Punto de entrada del botón: si hay cruces, primero se confirma. */
+  function intentarGuardar() {
+    if (!construirInput()) return;
+    if (conflictos.length > 0) {
+      setConfirmarCruce(true);
+      return;
+    }
+    void onSubmit();
+  }
+
   async function onSubmit() {
     const input = construirInput();
     if (!input) return;
 
+    setConfirmarCruce(false);
     setGuardando(true);
     try {
       if (esEdicion && evento?.id) {
         await actualizarEvento(evento.id, input);
-        toast.success("Evento actualizado. Se avisara a los participantes.");
+        toast.success(
+          canalesAviso.length > 0
+            ? "Evento actualizado. Se avisará a los asistentes."
+            : "Evento actualizado, sin avisar."
+        );
       } else {
         await crearEvento(input, actor);
-        toast.success("Evento creado. Se envio la invitacion a los participantes.");
+        toast.success(
+          canalesAviso.length > 0
+            ? `Evento creado. Se avisó por ${canalesAviso
+                .map((c) => CANAL_LABELS[c].toLowerCase())
+                .join(" y ")}.`
+            : "Evento creado, sin avisar a nadie."
+        );
       }
       onSaved?.();
       onClose();
@@ -328,12 +434,26 @@ export function EventoFormModal({
                   <MapPin className="mr-1 inline h-3.5 w-3.5" />
                   Lugar *
                 </Label>
+                <label className="flex w-fit items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={enOficina}
+                    onCheckedChange={(v) => {
+                      const marcado = v === true;
+                      setEnOficina(marcado);
+                      // Al desmarcar se limpia para que no quede la sede escrita
+                      // en un evento que en realidad es en otro lado.
+                      setUbicacion(marcado ? UBICACION_OFICINA : "");
+                    }}
+                    disabled={bloqueado}
+                  />
+                  En la oficina
+                </label>
                 <Input
                   id="evento-ubicacion"
                   value={ubicacion}
                   onChange={(e) => setUbicacion(e.target.value)}
-                  placeholder="Ej: Sala de juntas, oficina principal"
-                  disabled={bloqueado}
+                  placeholder="Ej: Conjunto Casa Blanca, torre 3"
+                  disabled={bloqueado || enOficina}
                 />
               </div>
             )}
@@ -395,54 +515,84 @@ export function EventoFormModal({
                     </PopoverContent>
                   </Popover>
                   {!todoElDia && (
-                    <Input
-                      type="time"
-                      step={PASO_HORA_SEGUNDOS}
+                    <Select
                       value={horaInicio}
-                      onChange={(e) => setHoraInicio(e.target.value)}
+                      onValueChange={setHoraInicio}
                       disabled={bloqueado}
-                      className="w-[110px]"
-                    />
+                    >
+                      <SelectTrigger className="w-[125px]" aria-label="Hora de inicio">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-64">
+                        {OPCIONES_HORA.map((o) => (
+                          <SelectItem key={o.valor} value={o.valor}>
+                            {o.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   )}
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label>Fin *</Label>
-                <div className="flex gap-2">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={bloqueado}
-                        className="flex-1 justify-start font-normal"
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {fechaFin.toLocaleDateString("es-CO")}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={fechaFin}
-                        defaultMonth={fechaFin}
-                        onSelect={(d) => d && setFechaFin(d)}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  {!todoElDia && (
-                    <Input
-                      type="time"
-                      step={PASO_HORA_SEGUNDOS}
+                <label className="flex items-center gap-2 text-sm font-medium">
+                  <Checkbox
+                    checked={tieneHoraFin}
+                    onCheckedChange={(v) => activarHoraFin(v === true)}
+                    disabled={bloqueado || todoElDia}
+                  />
+                  Hora final
+                </label>
+
+                {tieneHoraFin && !todoElDia ? (
+                  <div className="flex gap-2">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={bloqueado}
+                          className="flex-1 justify-start font-normal"
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {fechaFin.toLocaleDateString("es-CO")}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={fechaFin}
+                          defaultMonth={fechaFin}
+                          onSelect={(d) => d && setFechaFin(d)}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <Select
                       value={horaFin}
-                      onChange={(e) => setHoraFin(e.target.value)}
+                      onValueChange={setHoraFin}
                       disabled={bloqueado}
-                      className="w-[110px]"
-                    />
-                  )}
-                </div>
+                    >
+                      <SelectTrigger className="w-[125px]" aria-label="Hora de fin">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-64">
+                        {OPCIONES_HORA.map((o) => (
+                          <SelectItem key={o.valor} value={o.valor}>
+                            {o.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <p className="pt-2 text-xs text-muted-foreground">
+                    {todoElDia
+                      ? "El evento ocupa el día completo."
+                      : "Sin hora final. Márcala si el evento tiene duración definida."}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -459,14 +609,84 @@ export function EventoFormModal({
             </div>
 
             <div className="space-y-1.5">
-              <Label>Participantes *</Label>
+              <Label>Asistentes *</Label>
+              <p className="text-xs text-muted-foreground">
+                Quien agenda no queda incluido automáticamente. Márcate también a ti
+                si vas a asistir.
+              </p>
               <ParticipantesSelector
                 usuarios={usuarios}
                 seleccionados={participantes}
                 onChange={setParticipantes}
                 disabled={bloqueado}
-                uidFijo={organizadorUid}
               />
+
+              {buscandoConflictos && (
+                <p className="text-xs text-muted-foreground">
+                  Revisando disponibilidad...
+                </p>
+              )}
+
+              {conflictosPorPersona.length > 0 && (
+                <div className="space-y-1.5 rounded-md border border-amber-300 bg-amber-50 p-3">
+                  <p className="flex items-center gap-1.5 text-sm font-medium text-amber-900">
+                    <AlertTriangle className="h-4 w-4" />
+                    Cruce de horario
+                  </p>
+                  <ul className="space-y-1 text-xs text-amber-800">
+                    {conflictosPorPersona.map(([uid, lista]) => (
+                      <li key={uid}>
+                        <strong>{lista[0].nombre}</strong> no está disponible:
+                        {lista.map((c) => (
+                          <span key={c.eventoId} className="block pl-3">
+                            · {c.eventoTitulo} —{" "}
+                            {formatoRangoEvento(c.inicio, c.fin, false, c.tieneHoraFin)}
+                          </span>
+                        ))}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Avisar al guardar por</Label>
+              <p className="text-xs text-muted-foreground">
+                Aviso inmediato de agendamiento. También se usa si después
+                reprogramas o cancelas el evento.
+              </p>
+              <div className="flex flex-wrap items-center gap-4 rounded-md border p-3">
+                {CANALES.map((canal) => {
+                  const deshabilitado =
+                    bloqueado || (canal === "whatsapp" && !hayTelefonos);
+                  return (
+                    <label
+                      key={canal}
+                      className="flex items-center gap-2 text-sm data-[off=true]:opacity-50"
+                      data-off={deshabilitado}
+                    >
+                      <Checkbox
+                        checked={canalesAviso.includes(canal)}
+                        onCheckedChange={() =>
+                          setCanalesAviso((actuales) =>
+                            actuales.includes(canal)
+                              ? actuales.filter((c) => c !== canal)
+                              : [...actuales, canal]
+                          )
+                        }
+                        disabled={deshabilitado}
+                      />
+                      {CANAL_LABELS[canal]}
+                    </label>
+                  );
+                })}
+              </div>
+              {canalesAviso.length === 0 && (
+                <p className="text-xs text-amber-600">
+                  No se avisará a nadie ahora. Los recordatorios sí saldrán a su hora.
+                </p>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -479,26 +699,6 @@ export function EventoFormModal({
               />
             </div>
 
-            <div className="space-y-1.5">
-              <Label>Visibilidad</Label>
-              <Select
-                value={visibilidad}
-                onValueChange={(v) => setVisibilidad(v as EventoVisibilidad)}
-                disabled={bloqueado}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="publica">
-                    Publica — todo el equipo la ve en el calendario
-                  </SelectItem>
-                  <SelectItem value="privada">
-                    Privada — solo los participantes
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
 
           <DialogFooter className="gap-2 sm:justify-between">
@@ -521,7 +721,7 @@ export function EventoFormModal({
                 Cancelar
               </Button>
               {!soloLectura && (
-                <Button type="button" onClick={onSubmit} disabled={guardando}>
+                <Button type="button" onClick={intentarGuardar} disabled={guardando}>
                   {guardando ? "Guardando..." : esEdicion ? "Guardar cambios" : "Crear evento"}
                 </Button>
               )}
@@ -529,6 +729,43 @@ export function EventoFormModal({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={confirmarCruce} onOpenChange={setConfirmarCruce}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hay un cruce de horario</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  {conflictosPorPersona.length === 1
+                    ? "Esta persona ya tiene otro compromiso a esa hora:"
+                    : "Estas personas ya tienen otro compromiso a esa hora:"}
+                </p>
+                <ul className="space-y-1 text-sm">
+                  {conflictosPorPersona.map(([uid, lista]) => (
+                    <li key={uid}>
+                      <strong>{lista[0].nombre}</strong>
+                      {lista.map((c) => (
+                        <span key={c.eventoId} className="block pl-3 text-muted-foreground">
+                          · {c.eventoTitulo} —{" "}
+                          {formatoRangoEvento(c.inicio, c.fin, false, c.tieneHoraFin)}
+                        </span>
+                      ))}
+                    </li>
+                  ))}
+                </ul>
+                <p>¿Quieres agendar el evento de todos modos?</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={guardando}>Revisar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void onSubmit()} disabled={guardando}>
+              Agendar de todos modos
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={confirmarBorrado} onOpenChange={setConfirmarBorrado}>
         <AlertDialogContent>

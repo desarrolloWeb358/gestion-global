@@ -1,8 +1,9 @@
 # Módulo Calendario / Eventos — GestionGlobal
 
 Agenda interna del equipo: reuniones presenciales y virtuales, capacitaciones,
-audiencias y visitas, con invitación, confirmación de asistencia y recordatorios
-automáticos por plataforma, correo y WhatsApp.
+audiencias y visitas, con aviso automático a los asistentes, recordatorios por
+plataforma, correo y WhatsApp, y un resumen de la agenda del día siguiente cada
+noche a las 8:00 p. m.
 
 ---
 
@@ -26,16 +27,25 @@ automáticos por plataforma, correo y WhatsApp.
 
 ### Qué hace
 
-- Calendario con vistas **Mes / Semana / Día / Agenda**, arrastrar para mover y
-  estirar para cambiar la duración.
+- Calendario con vistas **Mes / Semana / Día**, arrastrar para mover y estirar
+  para cambiar la duración. Todo se maneja en **bloques de media hora**.
 - Eventos **presenciales, virtuales o híbridos**, con lugar y/o enlace de reunión.
-- **Invitación automática** por plataforma y correo al crear el evento.
-- **RSVP**: cada participante confirma o rechaza asistencia; el organizador ve el
-  conteo.
+- **Hora final opcional**: un evento puede tener solo hora de inicio. Al activarla
+  se propone media hora después, que es el bloque mínimo.
+- **Aviso de cruce de horario**: al agregar a alguien que ya tiene otro
+  compromiso a esa hora, se avisa en vivo y se pide confirmación al guardar.
+- **Aviso automático** al agendar a alguien, por los canales que elija quien
+  agenda (plataforma / correo / WhatsApp, o ninguno). No hay que aceptar nada:
+  estar en la lista significa asistir.
+- **Excusa**: quien no pueda ir lo marca (con motivo opcional) y se avisa a quien
+  agendó y al resto de asistentes.
+- **Agenda diaria**: cada noche a las 8:00 p. m. sale el resumen del día
+  siguiente por correo y WhatsApp.
 - **Recordatorios configurables**: hasta 4 por evento, cada uno con su antelación
   (10 min a 1 semana) y sus canales (plataforma / correo / WhatsApp).
 - Avisos automáticos de **reprogramación** y **cancelación**.
-- **Visibilidad pública** (toda la empresa la ve) o **privada** (solo participantes).
+- **Visibilidad**: hoy todo evento es público para el equipo. El campo existe en
+  el modelo pero no tiene UI (ver §11).
 
 ### Qué NO hace (por decisión de alcance)
 
@@ -55,7 +65,7 @@ Se evaluó extender `tareas` con un campo `tipo: "evento"`. Se descartó:
 |---|---|---|
 | Unidad | trabajo con un dueño | bloque de tiempo con asistentes |
 | Ciclo de vida | avanza por estados (kanban) | ocurre o se cancela |
-| Personas | 1 responsable (`asignadoA`) | N participantes con RSVP |
+| Personas | 1 responsable (`asignadoA`) | N asistentes |
 | Fecha | 1 límite, solo día | inicio + fin con hora |
 
 Meter eventos en `tareas` habría roto el tablero kanban (una reunión no es
@@ -124,6 +134,11 @@ mover, cancelar o cambiar invitados, borra los pendientes y los regenera. Así n
 existe el estado inconsistente de "el evento se movió pero el recordatorio sigue
 apuntando a la hora vieja".
 
+**Una sola plantilla de WhatsApp para todos los tipos de aviso.** Su texto está
+redactado como recordatorio, así que el tipo se antepone al título dentro del
+parámetro (`CANCELADO - Reunión…`, `REPROGRAMADO - …`). Evita tener que aprobar
+una plantilla en Meta por cada situación, a costa de un encabezado en mayúsculas.
+
 **Los avisos internos no entran a la bandeja de WhatsApp.** A diferencia de
 `sendMetaTemplate`, el canal de WhatsApp del calendario **no llama a
 `appendMessage`**: son mensajes al equipo y ensuciarían el inbox de cobranza.
@@ -150,14 +165,17 @@ Definido en [evento.model.ts](../frontend/src/modules/eventos/models/evento.mode
 | `modalidad` | `presencial \| virtual \| hibrida` | |
 | `ubicacion` | string | obligatorio si no es virtual |
 | `enlaceReunion` | string | obligatorio si no es presencial |
-| `inicio` / `fin` | Timestamp | |
+| `inicio` | Timestamp | |
+| `fin` | Timestamp | **siempre poblado**; sin hora final vale `inicio + 30 min` |
+| `tieneHoraFin` | boolean | `false` = la hora final es implícita y no se muestra. Ausente = `true` |
 | `todoElDia` | boolean | |
 | `estado` | `programado \| cancelado \| realizado` | |
-| `visibilidad` | `publica \| privada` | |
+| `visibilidad` | `publica \| privada` | hoy siempre `publica`; sin UI |
 | `organizadorId` / `organizadorNombre` | string | |
-| `participantes` | `ParticipanteEvento[]` | `{uid, nombre, email, telefono, respuesta, respondidoEn}` |
+| `participantes` | `ParticipanteEvento[]` | `{uid, nombre, email, telefono, respuesta, respondidoEn, motivoRechazo}`. `respuesta` es `asiste \| rechazo`: no existe "pendiente" |
 | `participantesUids` | string[] | **denormalizado** para `array-contains` |
-| `recordatorios` | `RecordatorioEvento[]` | `{minutosAntes, canales[]}` |
+| `canalesAviso` | `CanalAviso[]` | canales del aviso **inmediato** (agendar / reprogramar / cancelar). Vacío = no avisar. Ausente = `["app","email"]` |
+| `recordatorios` | `RecordatorioEvento[]` | `{minutosAntes, canales[]}` — avisos **previos** |
 | `clienteId` / `tareaId` | string \| null | vínculos opcionales, hoy sin UI |
 
 > **Por qué `participantesUids` existe aparte:** Firestore no puede consultar
@@ -183,16 +201,42 @@ caerían en el pasado.
 
 ### `configuracion/eventos`
 
+**No se edita a mano.** Se administra desde **Ajustes → Agenda diaria**
+([AgendaDiariaPanel.tsx](../frontend/src/modules/ajustes/components/AgendaDiariaPanel.tsx)),
+igual que los catálogos de `tiposCaso` y `etiquetasDemanda` que viven en la misma
+colección.
+
 ```json
 {
-  "whatsappActivo": true,
-  "numberId": "<id del doc en numbers/>",
-  "plantillaRecordatorio": "recordatorio_reunion"
+  "whatsappActivo": false,
+  "numberId": null,
+  "plantillaRecordatorio": "recordatorio_reunion",
+  "plantillaAgenda": "agenda_diaria",
+  "plantillaAgendaImagen": "agenda_diaria_imagen",
+  "agendaDiaria": {
+    "activa": true,
+    "destinatarios": "equipo",
+    "destinatariosUids": [],
+    "canalEmail": true,
+    "canalWhatsapp": false,
+    "formatoWhatsapp": "imagen"
+  }
 }
 ```
 
-Si falta o `whatsappActivo` es `false`, el canal WhatsApp se omite sin error y
-los demás canales siguen funcionando.
+| Campo | Qué hace |
+|---|---|
+| `agendaDiaria.activa` | enciende/apaga el envío nocturno |
+| `agendaDiaria.destinatarios` | `"equipo"` = todo el personal interno activo · `"seleccion"` = solo los uids listados |
+| `agendaDiaria.destinatariosUids` | UIDs elegidos en la pantalla cuando es `"seleccion"` |
+| `agendaDiaria.canalEmail` / `canalWhatsapp` | por dónde sale |
+| `agendaDiaria.formatoWhatsapp` | `"imagen"` (recomendado) o `"texto"` |
+| `whatsappActivo`, `numberId`, `plantilla*` | canal WhatsApp de todo el módulo |
+
+> **Se eligen usuarios, no correos.** El backend resuelve el correo y el teléfono
+> leyendo `usuarios/{uid}` en el momento del envío, así que si alguien cambia de
+> correo no hay que tocar la configuración. Si falta o `whatsappActivo` es
+> `false`, el canal WhatsApp se omite sin error y el correo sigue funcionando.
 
 ---
 
@@ -203,6 +247,7 @@ los demás canales siguen funcionando.
 | [eventos/avisos.ts](../functions/src/eventos/avisos.ts) | transporte compartido: formato de fechas en `America/Bogota`, plantilla HTML del correo, y los tres canales |
 | [eventos/sincronizarEvento.ts](../functions/src/eventos/sincronizarEvento.ts) | `onDocumentWritten("eventos/{eventoId}")` |
 | [eventos/barrerRecordatorios.ts](../functions/src/eventos/barrerRecordatorios.ts) | `onSchedule("*/5 * * * *")` |
+| [eventos/agendaDiaria.ts](../functions/src/eventos/agendaDiaria.ts) | `onSchedule("0 20 * * *")` — resumen del día siguiente |
 | [whatsapp/metaApi.ts](../functions/src/whatsapp/metaApi.ts) | **refactor**: `callMetaTemplateApi` extraído de `sendTemplateHandler` |
 
 ### El refactor de `metaApi.ts`
@@ -223,11 +268,13 @@ comportamiento anterior.
 | Cambiaron los recordatorios | regenera | — |
 | Se canceló | borra todo | cancelación a todos |
 | Se reactivó | regenera | reprogramación a todos |
-| **Alguien solo respondió el RSVP** | **no toca** | **ninguno** |
+| Alguien avisó que **no podrá asistir** | no toca | **inasistencia** a quien agendó y al resto |
+| Alguien volvió a marcar que **sí asiste** | no toca | ninguno |
 
-> La última fila es la guarda que evita el spam: cada confirmación de asistencia
-> escribe en `eventos/{id}` y dispara el trigger. Sin esa comparación, cada "Sí
-> asisto" reenviaría la invitación a todo el mundo.
+> Las dos últimas filas son la guarda que evita el spam: marcar asistencia
+> escribe en `eventos/{id}` y dispara el trigger. Sin comparar qué cambió
+> realmente, cada clic reenviaría el aviso a todo el mundo. Solo el paso a
+> `rechazo` genera notificación, y solo la primera vez.
 
 ### Robustez del barrido
 
@@ -241,6 +288,64 @@ comportamiento anterior.
   apagado) se marcan `omitido` y no se reintentan.
 - **Purga a 30 días**, montada sobre el barrido de las 3:00 a. m. para no gastar
   un cuarto job de Cloud Scheduler.
+
+
+### La agenda diaria (`agendaDiaria`)
+
+Todas las noches a las **8:00 p. m. hora Colombia** arma el resumen del día
+siguiente y lo envía. Formato acordado con el equipo:
+
+```
+AGENDA LUNES 24 AGOSTO
+
+* Reunión en Casa Blanca 32 a las 9:30 a. m. - Jeimmy
+* Audiencia de Insolvencia Barichara 5-204 a las 10:30 a. m. - Don Javier
+* Cita con la administradora de Marbella a las 12:00 p. m. - Don Javier
+* Reunión en Santa María de Alsacia a las 6:30 p. m. - Don Javier (pendiente
+  confirmar quién lo acompaña)
+```
+
+- Ordenado por hora; los eventos **cancelados** no salen.
+- Quien avisó que **no asiste** no aparece en su línea.
+- La **descripción** del evento, si la hay, va entre paréntesis al final.
+- **Si no hay eventos, no se envía nada.** Un mensaje diario vacío se vuelve
+  ruido y la gente deja de leerlo.
+
+#### ⚠️ Dos límites de la plataforma WhatsApp
+
+**1. Meta no permite enviar a grupos.** La API de WhatsApp Cloud solo entrega a
+números individuales (Twilio tampoco soporta grupos). Por eso la agenda sale a
+una **lista de números configurada**, no al grupo del equipo. El resultado
+práctico es el mismo —todos la reciben— pero llega como mensaje individual.
+
+**2. Los parámetros de una plantilla de Meta no admiten saltos de línea.**
+Confirmado en producción: se intentó enviar con `
+` y Meta lo rechazó. El
+cuerpo de la plantilla sí los admite, pero el *valor de un parámetro* no.
+
+Por eso la agenda en WhatsApp se manda como **imagen** (ver abajo). El modo texto
+sigue disponible como respaldo, con todo en un renglón separado por ` | `.
+
+### La agenda como imagen
+
+[imagenAgenda.ts](../functions/src/eventos/imagenAgenda.ts) dibuja un PNG con
+`@napi-rs/canvas`: cabecera azul con el logo sobre teja blanca, una tarjeta por
+evento con franja y distintivo del color de su categoría, hora destacada a la
+derecha, y asistentes y lugar debajo del título.
+
+- **Sin tipografía empaquetada.** Se resuelve la primera familia disponible del
+  contenedor (`Arial`, `Liberation Sans`, `DejaVu Sans`, `Noto Sans`,
+  `Helvetica`, `sans-serif`) y se registra en el log cuál se usó. Si no hubiera
+  ninguna, `hayTipografia()` lo detecta y **no se envía una imagen ilegible**.
+- **Los distintivos se dibujan con formas, no con emoji**: los contenedores de
+  Functions no traen tipografía de color y saldrían como cuadros vacíos.
+- La imagen se sube a Storage en `agendaDiaria/` con un **token de descarga de
+  Firebase**, no con URL firmada: firmar exigiría el permiso
+  `iam.serviceAccounts.signBlob` en la cuenta de servicio, y el token no necesita
+  nada extra y tampoco es adivinable. Se genera **una sola vez** por noche y
+  todos reciben el mismo enlace.
+- Se purgan las imágenes de más de 30 días al final de cada ejecución.
+- El logo vive en `functions/assets/logo_icono.png`, copiado del frontend.
 
 ---
 
@@ -259,6 +364,9 @@ modules/eventos/
     ├── EventoDetalleModal.tsx        ver, RSVP, cancelar
     ├── ParticipantesSelector.tsx     multiselección con avisos de contacto
     └── RecordatoriosEditor.tsx       antelación × canales
+
+modules/ajustes/components/
+└── AgendaDiariaPanel.tsx             pantalla de configuración (Ajustes)
 ```
 
 ### Librería de calendario
@@ -281,6 +389,39 @@ Firestore no sabe hacer `OR` entre "es pública" y "estoy invitado", así que
 
 El hook se suscribe al rango visible **con un colchón de un mes a cada lado**,
 para no reabrir la suscripción al navegar mes a mes.
+
+### Hora final opcional
+
+`fin` **siempre** se guarda: sin hora final vale `inicio + 30 min`. La bandera
+`tieneHoraFin` solo controla si se muestra. Se hizo así para no volver `fin`
+nullable en todo el módulo — el calendario necesita un bloque con altura, los
+avisos un rango que imprimir y la detección de cruces un intervalo que comparar.
+
+Estirar un evento en la vista Semana **fija la hora final** (pone
+`tieneHoraFin: true`); moverlo de sitio no la toca.
+
+### Detección de cruces de horario
+
+`buscarConflictos` ([eventoService.ts](../frontend/src/modules/eventos/services/eventoService.ts))
+responde a quién de los asistentes ya se le cruza otro evento.
+
+La regla es un solapamiento clásico: hay cruce cuando
+`nuevoInicio < existenteFin && existenteInicio < nuevoFin`. Como los eventos sin
+hora final igual ocupan su bloque implícito de 30 minutos, **la misma comparación
+cubre los dos casos** que se pidieron: contra la hora de inicio cuando no hay
+rango, y contra todo el período cuando sí lo hay. El fin es exclusivo, así que
+8:00–9:00 y 9:00–10:00 **no** se consideran cruce.
+
+No cuentan como ocupado ni los eventos cancelados ni quien ya avisó que no
+asistirá. Los eventos de día completo no disparan la validación.
+
+La consulta trae la franja por rango de `inicio` (índice de un solo campo,
+automático) y cruza los participantes en memoria: Firestore no permite un rango
+sobre `inicio` y a la vez `array-contains-any` sobre `participantesUids`.
+
+**Es un bloqueo con salida:** el aviso aparece mientras se arma el evento y al
+guardar sale una confirmación con quién está ocupado y en qué. Se puede agendar
+igual de forma consciente.
 
 ### Quién puede ser invitado
 
@@ -351,9 +492,11 @@ Barrido **cada 5 minutos** = 8.640 ejecuciones/mes:
 | Functions — invocaciones | 8.640 | 2.000.000 | 0,4 % |
 | Functions — cómputo | ~650 GB-seg | 400.000 GB-seg | 0,16 % |
 | Firestore — lecturas | 288/día | 50.000/día | 0,6 % |
-| Cloud Scheduler | 3.er job | 3 gratis | gratis |
+| Cloud Scheduler | 4.º job | 3 gratis | **USD 0,10/mes** |
 
-**Costo de infraestructura: USD 0,00.** Bajar el barrido a 30 minutos ahorraría
+**Costo de infraestructura: USD 0,10 al mes** (USD 1,20 al año), por el cuarto
+job de Cloud Scheduler que agregó la agenda diaria. Todo lo demás sigue dentro de
+la capa gratuita. Bajar el barrido a 30 minutos ahorraría
 7.200 invocaciones de un cupo de 2 millones —nada— y volvería inútil cualquier
 recordatorio de menos de una hora: uno pedido a 30 minutos saldría entre 30 y 60
 minutos antes, y uno de 15 minutos podría llegar después de empezada la reunión.
@@ -370,7 +513,7 @@ OAuth2 es gratis dentro de los límites de envío de la cuenta.
 
 ```bash
 firebase deploy --only firestore:indexes
-firebase deploy --only functions:sincronizarEvento,functions:barrerRecordatoriosEventos
+firebase deploy --only functions:sincronizarEvento,functions:barrerRecordatoriosEventos,functions:agendaDiaria
 ```
 
 Los índices tardan unos minutos en construirse; hasta que terminen el calendario
@@ -383,8 +526,15 @@ cd frontend && npm run build
 firebase deploy --only hosting:app
 ```
 
-Con esto ya funcionan **calendario, invitaciones, RSVP, recordatorios por
-plataforma y por correo**. WhatsApp queda pendiente del paso 3.
+Con esto ya funcionan **calendario, avisos de agendamiento y recordatorios por
+plataforma y por correo**.
+
+**2.1** Entrar a **Ajustes → Agenda diaria** y encender el resumen nocturno:
+elegir si va a todo el equipo o a personas puntuales, y marcar *Correo*. Con eso
+la agenda empieza a salir esa misma noche a las 8:00 p. m. **No hace falta nada
+de Meta para el canal de correo.**
+
+WhatsApp queda pendiente del paso 3.
 
 ### Paso 3 — Activar el canal WhatsApp (opcional)
 
@@ -405,17 +555,23 @@ Lugar: {{lugar}}
 Los cinco nombres —`nombre`, `evento`, `fecha`, `hora`, `lugar`— deben coincidir
 exactamente con los que envía `avisoWhatsapp`.
 
+**3.1-bis** Crear la **segunda** plantilla, para la agenda diaria. Igual:
+categoría **Utilidad**, idioma **es_CO**, dos parámetros con nombre:
+
+```
+Nombre: agenda_diaria
+
+AGENDA {{fecha}}
+
+{{agenda}}
+```
+
+Recuerda que `{{agenda}}` llega **en una sola línea** con separadores: Meta no
+acepta saltos de línea dentro de un parámetro.
+
 **3.2** Esperar la aprobación de Meta (suele tardar minutos a horas).
 
-**3.3** Crear el documento `configuracion/eventos` en Firestore:
-
-```json
-{
-  "whatsappActivo": true,
-  "numberId": "<id del documento en la colección numbers/>",
-  "plantillaRecordatorio": "recordatorio_reunion"
-}
-```
+**3.3** Entrar a **Ajustes → Agenda diaria**, encender *Habilitar envíos por WhatsApp*, elegir la línea y confirmar los nombres de las plantillas.
 
 **3.4** Verificar que los usuarios del equipo tengan `telefonoUsuario` cargado en
 `usuarios/{uid}`. El selector de participantes avisa en el formulario cuando

@@ -13,8 +13,12 @@ export type EventoCategoria =
 /** Canales por los que se avisa a un participante. */
 export type CanalAviso = "app" | "email" | "whatsapp";
 
-/** Respuesta del participante a la invitación (RSVP). */
-export type RespuestaParticipante = "pendiente" | "acepto" | "rechazo";
+/**
+ * Asistencia del participante. No hay estado "pendiente": agendar a alguien
+ * equivale a que asiste. Solo se registra la excepción, cuando avisa que no
+ * podrá ir.
+ */
+export type RespuestaParticipante = "asiste" | "rechazo";
 
 export interface ParticipanteEvento {
   uid: string;
@@ -24,6 +28,8 @@ export interface ParticipanteEvento {
   telefono?: string | null;
   respuesta: RespuestaParticipante;
   respondidoEn?: Timestamp | null;
+  /** Motivo opcional cuando avisa que no podrá asistir. */
+  motivoRechazo?: string | null;
 }
 
 /**
@@ -49,7 +55,17 @@ export interface Evento {
   enlaceReunion?: string;
 
   inicio: Timestamp;
+  /**
+   * Siempre viene poblado, incluso cuando el usuario no definió hora final: en
+   * ese caso vale inicio + 30 min, para que el calendario pueda dibujar el
+   * bloque y las validaciones de cruce tengan un rango con el que trabajar.
+   */
   fin: Timestamp;
+  /**
+   * Si es false, la hora final es implícita y no se muestra en ninguna parte.
+   * Ausente = true, para no cambiar los eventos creados antes de esta opción.
+   */
+  tieneHoraFin: boolean;
   todoElDia: boolean;
 
   estado: EventoEstado;
@@ -61,6 +77,14 @@ export interface Evento {
   participantes: ParticipanteEvento[];
   /** Denormalizado: permite `array-contains` (no se puede consultar dentro de objetos). */
   participantesUids: string[];
+
+  /**
+   * Canales del aviso inmediato: el que sale al agendar, al reprogramar y al
+   * cancelar. Es independiente de `recordatorios`, que son los avisos previos.
+   * Vacío = no se avisa a nadie en el momento (útil para armar la agenda sin
+   * molestar); los recordatorios igual salen.
+   */
+  canalesAviso: CanalAviso[];
 
   recordatorios: RecordatorioEvento[];
 

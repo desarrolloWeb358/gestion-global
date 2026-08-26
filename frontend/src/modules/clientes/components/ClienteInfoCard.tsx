@@ -321,4 +321,5 @@ export function ClienteInfoCard({ cliente, ejecutivos = [], usuarios = [], total
   );
 }
 
+
 export default ClienteInfoCard;

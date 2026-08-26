@@ -25,6 +25,15 @@ export function normalizePhone(raw: string): string {
   return raw.replace(/[^\d]/g, "");
 }
 
+export interface OpcionesPlantilla {
+  /**
+   * URL publica de la imagen del encabezado, para plantillas cuyo header es de
+   * tipo IMAGE. Meta la descarga en el momento del envio, asi que tiene que ser
+   * alcanzable sin autenticacion.
+   */
+  headerImageUrl?: string;
+}
+
 /**
  * Envia una plantilla y devuelve el wamid que asigna Meta ("wamid.xxx") o ""
  * si la respuesta no lo trae.
@@ -34,23 +43,30 @@ export async function callMetaTemplateApi(
   token: string,
   to: string,
   templateName: string,
-  parameters: TemplateParameter[]
+  parameters: TemplateParameter[],
+  opciones: OpcionesPlantilla = {}
 ): Promise<string> {
   const url = `${META_BASE}/${phoneNumberId}/messages`;
 
-  const components =
-    parameters.length > 0
-      ? [
-          {
-            type: "body",
-            parameters: parameters.map((p) => ({
-              type: "text",
-              parameter_name: p.parameterName,
-              text: p.value,
-            })),
-          },
-        ]
-      : [];
+  const components: Record<string, unknown>[] = [];
+
+  if (opciones.headerImageUrl) {
+    components.push({
+      type: "header",
+      parameters: [{ type: "image", image: { link: opciones.headerImageUrl } }],
+    });
+  }
+
+  if (parameters.length > 0) {
+    components.push({
+      type: "body",
+      parameters: parameters.map((p) => ({
+        type: "text",
+        parameter_name: p.parameterName,
+        text: p.value,
+      })),
+    });
+  }
 
   const body: Record<string, unknown> = {
     messaging_product: "whatsapp",

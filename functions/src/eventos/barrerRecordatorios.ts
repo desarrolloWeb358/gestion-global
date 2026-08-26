@@ -188,7 +188,7 @@ export const barrerRecordatoriosEventos = onSchedule(
           participante,
           eventoDesdeDoc(datos.eventoId, eventoData),
           "recordatorio",
-          datos.minutosAntes
+          { minutosAntes: datos.minutosAntes }
         );
 
         if (resultado.ok) {

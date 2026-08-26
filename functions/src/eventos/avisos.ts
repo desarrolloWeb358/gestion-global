@@ -20,7 +20,17 @@ export type TipoAviso =
   | "invitacion"
   | "recordatorio"
   | "reprogramacion"
-  | "cancelacion";
+  | "cancelacion"
+  | "inasistencia";
+
+export interface OpcionesAviso {
+  /** Recordatorios: con cuanta antelacion sale el aviso. */
+  minutosAntes?: number;
+  /** Inasistencia: quien aviso que no podra ir. */
+  quienFalta?: string;
+  /** Inasistencia: el motivo, si lo dio. */
+  motivo?: string;
+}
 
 export type CanalAviso = "app" | "email" | "whatsapp";
 
@@ -41,6 +51,8 @@ export interface EventoAviso {
   inicio: Date;
   fin: Date;
   todoElDia: boolean;
+  /** false = la hora final es implicita y no se menciona en los avisos. */
+  tieneHoraFin: boolean;
   organizadorNombre?: string;
 }
 
@@ -85,6 +97,7 @@ export function hora(fecha: Date): string {
 
 export function rangoHorario(evento: EventoAviso): string {
   if (evento.todoElDia) return "Todo el dia";
+  if (!evento.tieneHoraFin) return hora(evento.inicio);
   return `${hora(evento.inicio)} - ${hora(evento.fin)}`;
 }
 
@@ -117,9 +130,11 @@ function copyDeAviso(tipo: TipoAviso, evento: EventoAviso): Copy {
   switch (tipo) {
     case "invitacion":
       return {
-        asunto: `[Invitacion] ${evento.titulo} - ${fechaCorta(evento.inicio)}`,
-        titulo: "Te invitaron a un evento",
-        entradilla: "Fuiste agregado a un evento en la agenda del equipo.",
+        asunto: `[Agenda] ${evento.titulo} - ${fechaCorta(evento.inicio)}`,
+        titulo: "Tienes un evento agendado",
+        entradilla:
+          "Quedaste agendado en este evento. No tienes que confirmar nada; " +
+          "si no puedes asistir, avisalo desde el calendario.",
       };
     case "reprogramacion":
       return {
@@ -133,6 +148,12 @@ function copyDeAviso(tipo: TipoAviso, evento: EventoAviso): Copy {
         titulo: "Se cancelo un evento",
         entradilla: "Este evento ya no se realizara. No necesitas hacer nada.",
       };
+    case "inasistencia":
+      return {
+        asunto: `[No asiste] ${evento.titulo} - ${fechaCorta(evento.inicio)}`,
+        titulo: "Alguien no podra asistir",
+        entradilla: "Un asistente aviso que no podra estar en este evento.",
+      };
     case "recordatorio":
     default:
       return {
@@ -144,11 +165,19 @@ function copyDeAviso(tipo: TipoAviso, evento: EventoAviso): Copy {
 }
 
 /** Texto corto para la campanita de la app. */
-function descripcionApp(tipo: TipoAviso, evento: EventoAviso, minutosAntes?: number): string {
+function descripcionApp(
+  tipo: TipoAviso,
+  evento: EventoAviso,
+  opciones: OpcionesAviso = {}
+): string {
   const cuando = `${fechaCorta(evento.inicio)} ${evento.todoElDia ? "" : hora(evento.inicio)}`.trim();
+  const { minutosAntes, quienFalta, motivo } = opciones;
   switch (tipo) {
     case "invitacion":
-      return `Te invitaron a "${evento.titulo}" el ${cuando}.`;
+      return `Quedaste agendado en "${evento.titulo}" el ${cuando}.`;
+    case "inasistencia":
+      return `${quienFalta ?? "Un asistente"} no podra asistir a "${evento.titulo}" del ${cuando}.` +
+        (motivo ? ` Motivo: ${motivo}` : "");
     case "reprogramacion":
       return `"${evento.titulo}" se reprogramo para el ${cuando}.`;
     case "cancelacion":
@@ -169,11 +198,11 @@ export async function avisoApp(
   participante: ParticipanteAviso,
   evento: EventoAviso,
   tipo: TipoAviso,
-  minutosAntes?: number
+  opciones: OpcionesAviso = {}
 ): Promise<ResultadoAviso> {
   const db = admin.firestore();
   await db.collection(`usuarios/${participante.uid}/notificaciones`).add({
-    descripcion: descripcionApp(tipo, evento, minutosAntes),
+    descripcion: descripcionApp(tipo, evento, opciones),
     ruta: `${RUTA_CALENDARIO}?evento=${evento.id}`,
     modulo: "evento",
     visto: false,
@@ -191,9 +220,10 @@ function plantillaCorreo(params: {
   copy: Copy;
   evento: EventoAviso;
   tipo: TipoAviso;
-  minutosAntes?: number;
+  opciones: OpcionesAviso;
 }): string {
-  const { nombreDestinatario, copy, evento, tipo, minutosAntes } = params;
+  const { nombreDestinatario, copy, evento, tipo, opciones } = params;
+  const { minutosAntes, quienFalta, motivo } = opciones;
   const cancelado = tipo === "cancelacion";
   const colorAcento = cancelado ? "#dc2626" : "#111827";
   const enlaceApp = `${APP_BASE_URL}${RUTA_CALENDARIO}?evento=${evento.id}`;
@@ -204,8 +234,12 @@ function plantillaCorreo(params: {
     ["Modalidad", evento.modalidad === "hibrida" ? "Hibrida" : evento.modalidad],
     [evento.modalidad === "virtual" ? "Enlace" : "Lugar", lugarTexto(evento)],
   ];
-  if (evento.organizadorNombre) filas.push(["Organiza", evento.organizadorNombre]);
+  if (evento.organizadorNombre) filas.push(["Agendo", evento.organizadorNombre]);
   if (minutosAntes) filas.push(["Aviso", etiquetaAntelacion(minutosAntes)]);
+  if (tipo === "inasistencia" && quienFalta) {
+    filas.push(["No asiste", quienFalta]);
+    if (motivo) filas.push(["Motivo", motivo]);
+  }
 
   const filasHtml = filas
     .map(
@@ -277,7 +311,7 @@ export async function avisoEmail(
   participante: ParticipanteAviso,
   evento: EventoAviso,
   tipo: TipoAviso,
-  minutosAntes?: number
+  opciones: OpcionesAviso = {}
 ): Promise<ResultadoAviso> {
   if (!participante.email) {
     return { ok: false, omitido: true, motivo: "El participante no tiene correo registrado" };
@@ -289,7 +323,7 @@ export async function avisoEmail(
     copy,
     evento,
     tipo,
-    minutosAntes,
+    opciones,
   });
 
   const texto = [
@@ -338,11 +372,32 @@ async function leerConfig(): Promise<ConfigEventos> {
   return valor;
 }
 
+/**
+ * Solo hay una plantilla aprobada en Meta y su texto esta redactado como
+ * recordatorio. Para que un aviso de cancelacion no diga "te recordamos tu
+ * proximo evento", el tipo se antepone al titulo dentro del parametro.
+ */
+function tituloSegunTipo(tipo: TipoAviso, titulo: string): string {
+  switch (tipo) {
+    case "cancelacion":
+      return `CANCELADO - ${titulo}`;
+    case "reprogramacion":
+      return `REPROGRAMADO - ${titulo}`;
+    case "invitacion":
+      return `AGENDADO - ${titulo}`;
+    case "inasistencia":
+      return `CAMBIO DE ASISTENCIA - ${titulo}`;
+    case "recordatorio":
+    default:
+      return titulo;
+  }
+}
+
 export async function avisoWhatsapp(
   participante: ParticipanteAviso,
   evento: EventoAviso,
-  _tipo: TipoAviso,
-  _minutosAntes?: number
+  tipo: TipoAviso,
+  _opciones: OpcionesAviso = {}
 ): Promise<ResultadoAviso> {
   if (!participante.telefono) {
     return { ok: false, omitido: true, motivo: "El participante no tiene telefono registrado" };
@@ -369,7 +424,7 @@ export async function avisoWhatsapp(
   // Los nombres de parametro deben coincidir con la plantilla aprobada en Meta.
   const parametros = [
     { parameterName: "nombre", value: participante.nombre },
-    { parameterName: "evento", value: evento.titulo },
+    { parameterName: "evento", value: tituloSegunTipo(tipo, evento.titulo) },
     { parameterName: "fecha", value: fechaLarga(evento.inicio) },
     { parameterName: "hora", value: rangoHorario(evento) },
     { parameterName: "lugar", value: lugarTexto(evento) },
@@ -397,16 +452,16 @@ export async function enviarAviso(
   participante: ParticipanteAviso,
   evento: EventoAviso,
   tipo: TipoAviso,
-  minutosAntes?: number
+  opciones: OpcionesAviso = {}
 ): Promise<ResultadoAviso> {
   try {
     switch (canal) {
       case "app":
-        return await avisoApp(participante, evento, tipo, minutosAntes);
+        return await avisoApp(participante, evento, tipo, opciones);
       case "email":
-        return await avisoEmail(participante, evento, tipo, minutosAntes);
+        return await avisoEmail(participante, evento, tipo, opciones);
       case "whatsapp":
-        return await avisoWhatsapp(participante, evento, tipo, minutosAntes);
+        return await avisoWhatsapp(participante, evento, tipo, opciones);
       default:
         return { ok: false, omitido: true, motivo: `Canal desconocido: ${canal}` };
     }
@@ -434,6 +489,8 @@ export function eventoDesdeDoc(id: string, data: any): EventoAviso {
     inicio: data.inicio?.toDate?.() ?? new Date(),
     fin: data.fin?.toDate?.() ?? new Date(),
     todoElDia: data.todoElDia === true,
+    // Ausente = true: asi se comportaban los eventos previos a esta opcion.
+    tieneHoraFin: data.tieneHoraFin !== false,
     organizadorNombre: data.organizadorNombre ?? "",
   };
 }

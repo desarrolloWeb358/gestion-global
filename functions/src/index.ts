@@ -423,8 +423,10 @@ export { notificarValorAgregadoCreado, notificarValorAgregadoActualizado } from 
 // sincronizarEvento: mantiene la cola `recordatoriosEventos` y manda los avisos
 //   inmediatos (invitación / reprogramación / cancelación).
 // barrerRecordatoriosEventos: cada 5 min entrega lo que ya vence en la cola.
+// agendaDiaria: cada noche a las 8 p. m. envía el resumen del día siguiente.
 export { sincronizarEvento } from "./eventos/sincronizarEvento";
 export { barrerRecordatoriosEventos } from "./eventos/barrerRecordatorios";
+export { agendaDiaria } from "./eventos/agendaDiaria";
 
 /*
 export const pruebaCorreo = onRequest({ secrets: [SENDGRID_API_KEY, SENDGRID_SENDER_EMAIL] }, async (req, res) => {

@@ -22,7 +22,9 @@ import {
 } from "@/shared/ui/dialog";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
+import { Label } from "@/shared/ui/label";
 import { Separator } from "@/shared/ui/separator";
+import { Textarea } from "@/shared/ui/textarea";
 import { cn } from "@/shared/lib/cn";
 
 import {
@@ -36,7 +38,7 @@ import {
 } from "../constants/eventoConstants";
 import { aFecha, formatoRangoEvento, tiempoRestante } from "../lib/fechaEvento";
 import type { Evento } from "../models/evento.model";
-import { cambiarEstadoEvento, responderInvitacion } from "../services/eventoService";
+import { cambiarAsistencia, cambiarEstadoEvento } from "../services/eventoService";
 
 interface EventoDetalleModalProps {
   evento: Evento;
@@ -54,6 +56,8 @@ export function EventoDetalleModal({
   onClose,
 }: EventoDetalleModalProps) {
   const [procesando, setProcesando] = React.useState(false);
+  const [mostrarMotivo, setMostrarMotivo] = React.useState(false);
+  const [motivo, setMotivo] = React.useState("");
 
   const inicio = aFecha(evento.inicio);
   const fin = aFecha(evento.fin);
@@ -65,21 +69,29 @@ export function EventoDetalleModal({
   const yaPaso = inicio ? inicio.getTime() < Date.now() : false;
 
   const conteo = React.useMemo(() => {
-    const base = { acepto: 0, rechazo: 0, pendiente: 0 };
+    const base = { asiste: 0, rechazo: 0 };
     evento.participantes.forEach((p) => {
       base[p.respuesta] = (base[p.respuesta] ?? 0) + 1;
     });
     return base;
   }, [evento.participantes]);
 
-  async function responder(respuesta: "acepto" | "rechazo") {
+  // No hay que aceptar nada: estar en la lista significa asistir. Solo se
+  // registra la excepcion, y esa si le llega al que agendo y al resto.
+  async function marcarAsistencia(respuesta: "asiste" | "rechazo") {
     if (!evento.id) return;
     setProcesando(true);
     try {
-      await responderInvitacion(evento.id, uid, respuesta);
-      toast.success(respuesta === "acepto" ? "Confirmaste tu asistencia." : "Marcaste que no asistes.");
+      await cambiarAsistencia(evento.id, uid, respuesta, motivo);
+      toast.success(
+        respuesta === "rechazo"
+          ? "Avisaste que no podras asistir. Se notifico a los demas."
+          : "Confirmaste que si asistes."
+      );
+      setMostrarMotivo(false);
+      setMotivo("");
     } catch (err) {
-      console.error("[EventoDetalleModal] Error respondiendo:", err);
+      console.error("[EventoDetalleModal] Error actualizando asistencia:", err);
       toast.error((err as any)?.message ?? "No se pudo registrar tu respuesta.");
     } finally {
       setProcesando(false);
@@ -139,7 +151,7 @@ export function EventoDetalleModal({
               <CalendarClock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
               <div>
                 <p className="font-medium">
-                  {formatoRangoEvento(inicio, fin, evento.todoElDia)}
+                  {formatoRangoEvento(inicio, fin, evento.todoElDia, evento.tieneHoraFin)}
                 </p>
                 {!cancelado && (
                   <p className="text-xs text-muted-foreground">{tiempoRestante(inicio)}</p>
@@ -183,9 +195,10 @@ export function EventoDetalleModal({
           <div className="space-y-2">
             <div className="flex items-center gap-2 font-medium">
               <Users className="h-4 w-4 text-muted-foreground" />
-              Participantes ({evento.participantes.length})
+              Asistentes ({evento.participantes.length})
               <span className="ml-auto text-xs font-normal text-muted-foreground">
-                {conteo.acepto} asisten · {conteo.rechazo} no · {conteo.pendiente} sin responder
+                {conteo.asiste} asisten
+                {conteo.rechazo > 0 && ` · ${conteo.rechazo} no podrá(n)`}
               </span>
             </div>
             <ul className="space-y-1">
@@ -194,7 +207,12 @@ export function EventoDetalleModal({
                   <span className="min-w-0 flex-1 truncate">
                     {p.nombre}
                     {p.uid === evento.organizadorId && (
-                      <span className="ml-1 text-xs text-muted-foreground">(organiza)</span>
+                      <span className="ml-1 text-xs text-muted-foreground">(agendó)</span>
+                    )}
+                    {p.respuesta === "rechazo" && p.motivoRechazo && (
+                      <span className="block text-xs text-muted-foreground">
+                        {p.motivoRechazo}
+                      </span>
                     )}
                   </span>
                   <Badge
@@ -233,30 +251,80 @@ export function EventoDetalleModal({
           </p>
         </div>
 
-        {/* RSVP: solo si estoy invitado, el evento sigue vigente y no ha pasado */}
+        {/* Estar en la lista ya significa asistir: solo se ofrece excusarse. */}
         {yo && !cancelado && !yaPaso && (
-          <div className="flex gap-2 rounded-md border bg-muted/40 p-2">
-            <span className="self-center text-sm text-muted-foreground">
-              ¿Asistes?
-            </span>
-            <Button
-              size="sm"
-              variant={yo.respuesta === "acepto" ? "default" : "outline"}
-              onClick={() => responder("acepto")}
-              disabled={procesando}
-            >
-              <Check className="mr-1 h-4 w-4" />
-              Si
-            </Button>
-            <Button
-              size="sm"
-              variant={yo.respuesta === "rechazo" ? "default" : "outline"}
-              onClick={() => responder("rechazo")}
-              disabled={procesando}
-            >
-              <X className="mr-1 h-4 w-4" />
-              No
-            </Button>
+          <div className="space-y-2 rounded-md border bg-muted/40 p-3">
+            {yo.respuesta === "asiste" && !mostrarMotivo && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  Estás agendado en este evento.
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="ml-auto"
+                  onClick={() => setMostrarMotivo(true)}
+                  disabled={procesando}
+                >
+                  <X className="mr-1 h-4 w-4" />
+                  No podré asistir
+                </Button>
+              </div>
+            )}
+
+            {yo.respuesta === "asiste" && mostrarMotivo && (
+              <div className="space-y-2">
+                <Label htmlFor="motivo-inasistencia" className="text-sm">
+                  ¿Por qué no podrás asistir? (opcional)
+                </Label>
+                <Textarea
+                  id="motivo-inasistencia"
+                  value={motivo}
+                  onChange={(e) => setMotivo(e.target.value)}
+                  placeholder="Ej: tengo audiencia a la misma hora"
+                  rows={2}
+                />
+                <div className="flex justify-end gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setMostrarMotivo(false);
+                      setMotivo("");
+                    }}
+                    disabled={procesando}
+                  >
+                    Volver
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => marcarAsistencia("rechazo")}
+                    disabled={procesando}
+                  >
+                    Avisar que no asisto
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {yo.respuesta === "rechazo" && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  Avisaste que no podrás asistir.
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="ml-auto"
+                  onClick={() => marcarAsistencia("asiste")}
+                  disabled={procesando}
+                >
+                  <Check className="mr-1 h-4 w-4" />
+                  Sí podré asistir
+                </Button>
+              </div>
+            )}
           </div>
         )}
 

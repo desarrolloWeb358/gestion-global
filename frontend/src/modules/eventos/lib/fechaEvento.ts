@@ -63,11 +63,16 @@ export function formatoHora(fecha: Date): string {
   });
 }
 
-/** "lunes, 24 de agosto de 2026 · 9:00 a. m. - 10:00 a. m." */
+/**
+ * "lunes, 24 de agosto de 2026 · 9:00 a. m. - 10:00 a. m."
+ * Con `tieneHoraFin` en false solo se muestra la hora de inicio: el `fin`
+ * guardado es implícito y no se le prometió al usuario.
+ */
 export function formatoRangoEvento(
   inicio: Date,
   fin: Date,
-  todoElDia: boolean
+  todoElDia: boolean,
+  tieneHoraFin = true
 ): string {
   const mismoDia = inicio.toDateString() === fin.toDateString();
 
@@ -75,6 +80,10 @@ export function formatoRangoEvento(
     return mismoDia
       ? `${formatoFechaLarga(inicio)} · Todo el dia`
       : `${formatoFechaCorta(inicio)} - ${formatoFechaCorta(fin)} · Todo el dia`;
+  }
+
+  if (!tieneHoraFin) {
+    return `${formatoFechaLarga(inicio)} · ${formatoHora(inicio)}`;
   }
 
   if (mismoDia) {

@@ -16,7 +16,7 @@ export function usuarioAParticipante(usuario: UsuarioSistema): ParticipanteEvent
     nombre: usuario.nombre || usuario.email || "Sin nombre",
     email: usuario.email ?? "",
     telefono: normalizeToE164(usuario.telefonoUsuario, { defaultCountry: "CO" }) ?? null,
-    respuesta: "pendiente",
+    respuesta: "asiste",
     respondidoEn: null,
   };
 }
@@ -26,7 +26,7 @@ interface ParticipantesSelectorProps {
   seleccionados: ParticipanteEvento[];
   onChange: (participantes: ParticipanteEvento[]) => void;
   disabled?: boolean;
-  /** UID que no se puede quitar (el organizador). */
+  /** UID que no se puede quitar. Hoy nadie es obligatorio. */
   uidFijo?: string;
 }
 

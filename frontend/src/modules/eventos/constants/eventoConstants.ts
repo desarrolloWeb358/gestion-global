@@ -54,16 +54,21 @@ export const CANAL_LABELS: Record<CanalAviso, string> = {
 };
 
 export const RESPUESTA_LABELS: Record<RespuestaParticipante, string> = {
-  pendiente: "Sin responder",
-  acepto: "Asiste",
+  asiste: "Asiste",
   rechazo: "No asiste",
 };
 
 export const RESPUESTA_BADGE_CLASS: Record<RespuestaParticipante, string> = {
-  pendiente: "bg-slate-100 text-slate-700 border-slate-200",
-  acepto: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  asiste: "bg-emerald-100 text-emerald-700 border-emerald-200",
   rechazo: "bg-rose-100 text-rose-700 border-rose-200",
 };
+
+/**
+ * Lugar frecuente: la mayoria de reuniones internas son en la sede, y escribir
+ * la direccion cada vez es friccion pura.
+ * Ajusta el texto aqui si cambia la sede.
+ */
+export const UBICACION_OFICINA = "Oficina Gestion Global";
 
 /** Opciones del selector "avisar con antelación". */
 export const OPCIONES_ANTELACION: { minutos: number; label: string }[] = [
@@ -90,15 +95,55 @@ export const RECORDATORIOS_POR_DEFECTO: RecordatorioEvento[] = [
   { minutosAntes: 30, canales: ["app"] },
 ];
 
-/** Duración por defecto de un evento creado con un clic en el calendario. */
-export const DURACION_DEFECTO_MINUTOS = 60;
+/**
+ * Canales del aviso que sale al guardar el evento. WhatsApp queda fuera por
+ * defecto porque cada plantilla enviada a Meta se cobra.
+ */
+export const CANALES_AVISO_POR_DEFECTO: CanalAviso[] = ["app", "email"];
+
+/** Los tres canales, en el orden en que se muestran. */
+export const CANALES: CanalAviso[] = ["app", "email", "whatsapp"];
+
+/**
+ * Bloque mínimo de un evento. También es la duración implícita cuando no se
+ * define hora final, y lo que se propone al activarla.
+ */
+export const DURACION_MINIMA_MINUTOS = 30;
 
 /**
  * La agenda se maneja en bloques de media hora: es el paso de los selectores de
  * hora del formulario y el tamaño de la franja en las vistas Semana y Día.
  */
 export const PASO_HORA_MINUTOS = 30;
-export const PASO_HORA_SEGUNDOS = PASO_HORA_MINUTOS * 60;
 export const PASO_HORA_FULLCALENDAR = "00:30:00";
+
+/**
+ * Las 48 medias horas del dia. El formulario usa un desplegable con estas
+ * opciones en vez de un <input type="time">: asi es imposible guardar un
+ * evento a las 8:37, que era lo que pasaba escribiendo la hora a mano.
+ */
+export const OPCIONES_HORA: { valor: string; label: string }[] = Array.from(
+  { length: (24 * 60) / PASO_HORA_MINUTOS },
+  (_, indice) => {
+    const totalMinutos = indice * PASO_HORA_MINUTOS;
+    const h = Math.floor(totalMinutos / 60);
+    const m = totalMinutos % 60;
+    const valor = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    const label = new Date(2000, 0, 1, h, m).toLocaleTimeString("es-CO", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+    return { valor, label };
+  }
+);
+
+/** Acerca una hora cualquiera a la media hora mas proxima hacia abajo. */
+export function ajustarAMediaHora(hora: string): string {
+  const [h, m] = hora.split(":").map((n) => Number.parseInt(n, 10));
+  if (!Number.isFinite(h)) return "08:00";
+  const minutoAjustado = (m ?? 0) < PASO_HORA_MINUTOS ? 0 : PASO_HORA_MINUTOS;
+  return `${String(h).padStart(2, "0")}:${String(minutoAjustado).padStart(2, "0")}`;
+}
 
 export const ZONA_HORARIA = "America/Bogota";

@@ -2,7 +2,6 @@ import * as React from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
-import listPlugin from "@fullcalendar/list";
 import interactionPlugin from "@fullcalendar/interaction";
 import esLocale from "@fullcalendar/core/locales/es";
 import type {
@@ -205,11 +204,13 @@ export default function CalendarioPage() {
   }
 
   async function onEventDrop(arg: EventDropArg) {
-    await aplicarReprogramacion(arg.event.id, arg.event.start, arg.event.end, arg.event.allDay, arg.revert);
+    // Mover no define hora final: solo cambia de sitio el bloque.
+    await aplicarReprogramacion(arg.event.id, arg.event.start, arg.event.end, arg.event.allDay, arg.revert, false);
   }
 
   async function onEventResize(arg: EventResizeDoneArg) {
-    await aplicarReprogramacion(arg.event.id, arg.event.start, arg.event.end, arg.event.allDay, arg.revert);
+    // Estirar el bloque sí es una forma de fijar la hora final.
+    await aplicarReprogramacion(arg.event.id, arg.event.start, arg.event.end, arg.event.allDay, arg.revert, true);
   }
 
   async function aplicarReprogramacion(
@@ -217,7 +218,8 @@ export default function CalendarioPage() {
     inicio: Date | null,
     fin: Date | null,
     todoElDia: boolean,
-    revertir: () => void
+    revertir: () => void,
+    defineHoraFin: boolean
   ) {
     const evento = buscarEvento(id);
     if (!evento || !inicio) {
@@ -240,7 +242,7 @@ export default function CalendarioPage() {
       fin ?? new Date(inicio.getTime() + (todoElDia ? 24 * 60 * 60 * 1000 : 60 * 60 * 1000));
 
     try {
-      await reprogramarEvento(id, inicio, finEfectivo, todoElDia);
+      await reprogramarEvento(id, inicio, finEfectivo, { todoElDia, defineHoraFin });
       toast.success("Evento reprogramado. Se recalcularon los recordatorios.");
     } catch (err) {
       console.error("[CalendarioPage] Error reprogramando:", err);
@@ -335,21 +337,20 @@ export default function CalendarioPage() {
 
       <div className="custom-calendar rounded-lg border bg-card p-2">
         <FullCalendar
-          plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
+          plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
           initialView="dayGridMonth"
           locale={esLocale}
           timeZone="local"
           headerToolbar={{
             left: "prev,next today",
             center: "title",
-            right: "dayGridMonth,timeGridWeek,timeGridDay,listWeek",
+            right: "dayGridMonth,timeGridWeek,timeGridDay",
           }}
           buttonText={{
             today: "Hoy",
             month: "Mes",
             week: "Semana",
             day: "Día",
-            list: "Agenda",
           }}
           events={eventosCalendario}
           datesSet={onDatesSet}
