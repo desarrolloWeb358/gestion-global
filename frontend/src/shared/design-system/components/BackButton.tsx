@@ -3,6 +3,7 @@ import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/shared/ui/button";
 import { cn } from "@/shared/lib/cn";
+import { pedirSalida } from "@/shared/hooks/useUnsavedChanges";
 
 interface BackButtonProps {
   /**
@@ -46,7 +47,9 @@ export function BackButton({
 }: BackButtonProps) {
   const navigate = useNavigate();
 
-  const handleClick = () => {
+  const handleClick = async () => {
+    // Si la pantalla tiene cambios sin guardar, esto abre el diálogo de aviso.
+    if (!(await pedirSalida())) return;
     if (onClick) {
       onClick();
     } else if (to) {

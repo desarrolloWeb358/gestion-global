@@ -29,6 +29,10 @@ const COLOR_CATEGORIA: Record<string, string> = {
   capacitacion: "#7c3aed",
   audiencia: "#dc2626",
   visita: "#059669",
+  normalizacion: "#0891b2",
+  notificacion: "#d97706",
+  juzgado: "#4f46e5",
+  permiso: "#db2777",
   otro: "#64748b",
 };
 
@@ -37,6 +41,10 @@ const ETIQUETA_CATEGORIA: Record<string, string> = {
   capacitacion: "CAPACITACION",
   audiencia: "AUDIENCIA",
   visita: "VISITA",
+  normalizacion: "NORMALIZACION",
+  notificacion: "NOTIFICACION",
+  juzgado: "JUZGADOS",
+  permiso: "PERMISO",
   otro: "EVENTO",
 };
 
@@ -52,6 +60,12 @@ const MARCA_CATEGORIA: Record<string, Marca> = {
   capacitacion: "birrete",
   audiencia: "balanza",
   visita: "pin",
+  // Las categorias nuevas reutilizan las marcas mas cercanas: normalizacion y
+  // notificacion son salidas a terreno, y juzgados es una diligencia judicial.
+  normalizacion: "pin",
+  notificacion: "pin",
+  juzgado: "balanza",
+  permiso: "punto",
   otro: "punto",
 };
 

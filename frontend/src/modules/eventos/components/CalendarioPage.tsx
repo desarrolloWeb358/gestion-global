@@ -32,23 +32,21 @@ import { suscribirUsuariosEquipoInterno } from "@/modules/usuarios/services/usua
 import type { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 
 import { useEventos } from "../hooks/useEventos";
-import { EVENTO_CATEGORIAS, PASO_HORA_FULLCALENDAR } from "../constants/eventoConstants";
+import {
+  EVENTO_CATEGORIAS,
+  EVENTO_CATEGORIA_CLASE,
+  FORMATO_FRANJA_HORARIA,
+  FORMATO_HORA_EVENTO,
+  PASO_HORA_FULLCALENDAR,
+} from "../constants/eventoConstants";
 import { aFecha } from "../lib/fechaEvento";
-import type { Evento, EventoCategoria } from "../models/evento.model";
+import { MENSAJE_NO_ES_DUENO, esDuenoEvento } from "../lib/permisosEvento";
+import type { Evento } from "../models/evento.model";
 import { reprogramarEvento, suscribirEvento, type RangoFechas } from "../services/eventoService";
 import { EventoDetalleModal } from "./EventoDetalleModal";
 import { EventoFormModal } from "./EventoFormModal";
 
 const TODOS = "__TODOS__";
-
-/** Categoría → clase de color del tema TailAdmin (ver index.css). */
-const CLASE_CATEGORIA: Record<EventoCategoria, string> = {
-  reunion: "fc-bg-primary",
-  capacitacion: "fc-bg-warning",
-  audiencia: "fc-bg-danger",
-  visita: "fc-bg-success",
-  otro: "fc-bg-neutral",
-};
 
 export default function CalendarioPage() {
   const { can, roles, loading: aclLoading } = useAcl();
@@ -158,16 +156,19 @@ export default function CalendarioPage() {
             start: inicio,
             end: fin,
             allDay: evento.todoElDia,
+            // Solo el dueño puede arrastrar o estirar su bloque. El handler de
+            // drop igual lo revalida, pero así ni siquiera se puede intentar.
+            editable: esDuenoEvento(evento, uid) && evento.estado !== "cancelado",
             extendedProps: { eventoId: evento.id },
             className: [
               "event-fc-color",
-              CLASE_CATEGORIA[evento.categoria],
+              EVENTO_CATEGORIA_CLASE[evento.categoria] ?? EVENTO_CATEGORIA_CLASE.otro,
               evento.estado === "cancelado" ? "fc-evento-cancelado" : "",
             ].filter(Boolean),
           },
         ];
       }),
-    [eventosFiltrados]
+    [eventosFiltrados, uid]
   );
 
   /** FullCalendar avisa el rango visible en cada navegación de mes/semana. */
@@ -200,7 +201,7 @@ export default function CalendarioPage() {
   }
 
   function puedeMover(evento: Evento): boolean {
-    return canManage || evento.organizadorId === uid;
+    return esDuenoEvento(evento, uid);
   }
 
   async function onEventDrop(arg: EventDropArg) {
@@ -228,7 +229,7 @@ export default function CalendarioPage() {
     }
     if (!puedeMover(evento)) {
       revertir();
-      toast.error("Solo el organizador puede mover este evento.");
+      toast.error(MENSAJE_NO_ES_DUENO);
       return;
     }
     if (evento.estado === "cancelado") {
@@ -366,8 +367,27 @@ export default function CalendarioPage() {
           height="auto"
           slotDuration={PASO_HORA_FULLCALENDAR}
           snapDuration={PASO_HORA_FULLCALENDAR}
+          // Las franjas se rotulan cada hora: con rótulo cada media hora la
+          // columna quedaba llena de texto y no se leía ninguno.
+          slotLabelInterval="01:00:00"
+          slotLabelFormat={FORMATO_FRANJA_HORARIA}
+          eventTimeFormat={FORMATO_HORA_EVENTO}
+          // El locale español trae reloj de 24 h; aquí toda la agenda se habla
+          // en am/pm, así que se fuerza en las cabeceras y en los bloques.
           slotMinTime="06:00:00"
           slotMaxTime="21:00:00"
+          // Los eventos que coinciden se reparten el ancho en vez de montarse
+          // uno encima de otro: en Semana/Día tapaban por completo el título.
+          slotEventOverlap={false}
+          expandRows
+          allDayText="Todo el día"
+          views={{
+            // En Mes basta el nombre del día; en Semana/Día se agrega el número
+            // para ubicarse sin mirar el título de la barra superior.
+            dayGridMonth: { dayHeaderFormat: { weekday: "long" } },
+            timeGridWeek: { dayHeaderFormat: { weekday: "short", day: "numeric" } },
+            timeGridDay: { dayHeaderFormat: { weekday: "long", day: "numeric" } },
+          }}
           firstDay={1}
           noEventsText="No hay eventos en este periodo"
         />
@@ -377,7 +397,6 @@ export default function CalendarioPage() {
         <EventoDetalleModal
           evento={detalleVigente}
           uid={uid ?? ""}
-          canManage={canManage}
           onEditar={() => setEventoEditar(detalleVigente)}
           onClose={() => setEventoDetalle(null)}
         />
@@ -389,7 +408,6 @@ export default function CalendarioPage() {
           fechaInicial={fechaNuevo}
           usuarios={usuarios}
           actor={actor}
-          canManage={canManage}
           onClose={() => {
             setCreando(false);
             setEventoEditar(null);

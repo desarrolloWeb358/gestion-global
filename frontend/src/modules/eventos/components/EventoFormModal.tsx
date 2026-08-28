@@ -1,5 +1,5 @@
 import * as React from "react";
-import { AlertTriangle, CalendarIcon, Link2, MapPin, Trash2 } from "lucide-react";
+import { AlertTriangle, Building2, CalendarIcon, Link2, MapPin, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -47,6 +47,7 @@ import {
   UBICACION_OFICINA,
   ajustarAMediaHora,
 } from "../constants/eventoConstants";
+import { esDuenoEvento } from "../lib/permisosEvento";
 import {
   aFecha,
   aHoraInput,
@@ -71,6 +72,7 @@ import {
   type ConflictoAgenda,
   type GuardarEventoInput,
 } from "../services/eventoService";
+import { ClienteSelector, type ClienteAsociado } from "./ClienteSelector";
 import { ParticipantesSelector } from "./ParticipantesSelector";
 import { RecordatoriosEditor } from "./RecordatoriosEditor";
 
@@ -88,7 +90,6 @@ interface EventoFormModalProps {
   fechaInicial?: Date | null;
   usuarios: UsuarioSistema[];
   actor: ActorEvento;
-  canManage: boolean;
   onClose: () => void;
   onSaved?: () => void;
 }
@@ -98,13 +99,14 @@ export function EventoFormModal({
   fechaInicial,
   usuarios,
   actor,
-  canManage,
   onClose,
   onSaved,
 }: EventoFormModalProps) {
   const esEdicion = !!evento?.id;
-  const esOrganizador = evento?.organizadorId === actor.uid;
-  const soloLectura = esEdicion && !canManage && !esOrganizador;
+  // Un evento es de quien lo creó: nadie más lo edita ni lo borra, tenga o no
+  // el permiso `eventos.manage`.
+  const esDueno = !evento || esDuenoEvento(evento, actor.uid);
+  const soloLectura = esEdicion && !esDueno;
 
   const inicioEvento = aFecha(evento?.inicio);
   const finEvento = aFecha(evento?.fin);
@@ -146,12 +148,18 @@ export function EventoFormModal({
   const [recordatorios, setRecordatorios] = React.useState<RecordatorioEvento[]>(
     evento?.recordatorios ?? RECORDATORIOS_POR_DEFECTO
   );
+  // Conjunto asociado. Es opcional y solo sirve para poder contar después
+  // cuántos eventos se hicieron con cada cliente.
+  const [cliente, setCliente] = React.useState<ClienteAsociado | null>(
+    evento?.clienteId
+      ? { id: evento.clienteId, nombre: evento.clienteNombre ?? evento.clienteId }
+      : null
+  );
 
   const [guardando, setGuardando] = React.useState(false);
   const [confirmarBorrado, setConfirmarBorrado] = React.useState(false);
   const [conflictos, setConflictos] = React.useState<ConflictoAgenda[]>([]);
   const [buscandoConflictos, setBuscandoConflictos] = React.useState(false);
-  const [confirmarCruce, setConfirmarCruce] = React.useState(false);
 
   const hayTelefonos = participantes.some((p) => !!p.telefono);
 
@@ -196,12 +204,33 @@ export function EventoFormModal({
   const uidsParticipantes = participantes.map((p) => p.uid).join(",");
 
   /**
+   * Al editar, ¿quedó la agenda exactamente igual? Si no se movió la hora ni
+   * cambió la lista de asistentes no hay nada que pueda generar un cruce nuevo,
+   * así que ni se revisa ni se bloquea.
+   *
+   * Sin esto los eventos viejos que ya venían cruzados —los que se agendaron
+   * cuando el cruce era solo una advertencia que se podía saltar— quedaban
+   * imposibles de editar: chocaban contra su propio cruce histórico y no dejaban
+   * ni corregir el título ni asociarles el conjunto.
+   */
+  const agendaIntacta = React.useMemo(() => {
+    if (!esEdicion || !evento) return false;
+    if (aFecha(evento.inicio)?.getTime() !== inicioCombinado.getTime()) return false;
+    if (aFecha(evento.fin)?.getTime() !== finCombinado.getTime()) return false;
+    if (evento.todoElDia !== todoElDia) return false;
+
+    const antes = new Set(evento.participantes.map((p) => p.uid));
+    const despues = uidsParticipantes ? uidsParticipantes.split(",") : [];
+    return despues.length === antes.size && despues.every((uid) => antes.has(uid));
+  }, [esEdicion, evento, inicioCombinado, finCombinado, todoElDia, uidsParticipantes]);
+
+  /**
    * Revisa la disponibilidad cada vez que cambian los asistentes o el horario.
    * Va con retardo para no consultar en cada tecla, y descarta respuestas viejas
    * que lleguen después de una consulta más reciente.
    */
   React.useEffect(() => {
-    if (participantes.length === 0 || todoElDia) {
+    if (participantes.length === 0 || todoElDia || agendaIntacta) {
       setConflictos([]);
       return;
     }
@@ -232,7 +261,7 @@ export function EventoFormModal({
     };
     // `uidsParticipantes` colapsa el arreglo a una cadena estable: comparar el
     // arreglo por referencia dispararía la consulta en cada render.
-  }, [uidsParticipantes, inicioCombinado, finCombinado, todoElDia, evento?.id, participantes]);
+  }, [uidsParticipantes, inicioCombinado, finCombinado, todoElDia, agendaIntacta, evento?.id, participantes]);
 
   /** Un renglón por persona ocupada, con el evento que se le cruza. */
   const conflictosPorPersona = React.useMemo(() => {
@@ -268,10 +297,8 @@ export function EventoFormModal({
       toast.error("Indica el lugar del evento.");
       return null;
     }
-    if (modalidad !== "presencial" && !enlaceReunion.trim()) {
-      toast.error("Indica el enlace de la reunion virtual.");
-      return null;
-    }
+    // El enlace de la reunión virtual es opcional a propósito: muchas veces se
+    // agenda antes de tener el link y se pega después editando el evento.
     if (participantes.length === 0) {
       toast.error("Selecciona al menos un asistente.");
       return null;
@@ -295,27 +322,58 @@ export function EventoFormModal({
       participantes,
       canalesAviso,
       recordatorios,
-      clienteId: evento?.clienteId ?? null,
-      clienteNombre: evento?.clienteNombre ?? null,
+      clienteId: cliente?.id ?? null,
+      clienteNombre: cliente?.nombre ?? null,
       tareaId: evento?.tareaId ?? null,
     };
   }
 
-  /** Punto de entrada del botón: si hay cruces, primero se confirma. */
-  function intentarGuardar() {
-    if (!construirInput()) return;
-    if (conflictos.length > 0) {
-      setConfirmarCruce(true);
-      return;
+  /**
+   * Punto de entrada del botón. El cruce de horario NO se puede saltar: si
+   * alguno de los asistentes ya tiene un compromiso a esa hora, no se guarda.
+   * Se vuelve a consultar en este momento (y no se confía en el resultado del
+   * efecto, que va con retardo) para que no se cuele un evento aprovechando la
+   * ventana entre el último tecleo y la consulta.
+   */
+  async function intentarGuardar() {
+    const input = construirInput();
+    if (!input) return;
+
+    if (input.participantes.length > 0 && !input.todoElDia && !agendaIntacta) {
+      setBuscandoConflictos(true);
+      let encontrados: ConflictoAgenda[];
+      try {
+        encontrados = await buscarConflictos({
+          inicio: input.inicio,
+          fin: input.fin,
+          uids: input.participantes.map((p) => p.uid),
+          excluirEventoId: evento?.id,
+        });
+      } catch (err) {
+        console.error("[EventoFormModal] Error revisando disponibilidad:", err);
+        toast.error("No se pudo verificar la disponibilidad. Intenta de nuevo.");
+        return;
+      } finally {
+        setBuscandoConflictos(false);
+      }
+
+      setConflictos(encontrados);
+      if (encontrados.length > 0) {
+        const nombres = [...new Set(encontrados.map((c) => c.nombre))];
+        toast.error(
+          `${nombres.join(", ")} ya tiene otro evento a esa hora. Cambia el horario o quita a esa persona.`
+        );
+        return;
+      }
     }
-    void onSubmit();
+
+    await onSubmit();
   }
 
   async function onSubmit() {
     const input = construirInput();
     if (!input) return;
 
-    setConfirmarCruce(false);
     setGuardando(true);
     try {
       if (esEdicion && evento?.id) {
@@ -462,7 +520,10 @@ export function EventoFormModal({
               <div className="space-y-1.5">
                 <Label htmlFor="evento-enlace">
                   <Link2 className="mr-1 inline h-3.5 w-3.5" />
-                  Enlace de la reunion *
+                  Enlace de la reunion
+                  <span className="ml-1 text-xs font-normal text-muted-foreground">
+                    (opcional)
+                  </span>
                 </Label>
                 <Input
                   id="evento-enlace"
@@ -471,6 +532,10 @@ export function EventoFormModal({
                   placeholder="https://meet.google.com/..."
                   disabled={bloqueado}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Si todavía no tienes el enlace, deja el campo vacío y agrégalo
+                  después editando el evento.
+                </p>
               </div>
             )}
 
@@ -597,6 +662,21 @@ export function EventoFormModal({
             </div>
 
             <div className="space-y-1.5">
+              <Label>
+                <Building2 className="mr-1 inline h-3.5 w-3.5" />
+                Conjunto relacionado
+                <span className="ml-1 text-xs font-normal text-muted-foreground">
+                  (opcional)
+                </span>
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Asócialo si el evento es de un conjunto en particular. Sirve para
+                saber después cuántas reuniones o jornadas se hicieron con cada uno.
+              </p>
+              <ClienteSelector valor={cliente} onChange={setCliente} disabled={bloqueado} />
+            </div>
+
+            <div className="space-y-1.5">
               <Label htmlFor="evento-descripcion">Descripcion / agenda</Label>
               <Textarea
                 id="evento-descripcion"
@@ -628,12 +708,12 @@ export function EventoFormModal({
               )}
 
               {conflictosPorPersona.length > 0 && (
-                <div className="space-y-1.5 rounded-md border border-amber-300 bg-amber-50 p-3">
-                  <p className="flex items-center gap-1.5 text-sm font-medium text-amber-900">
+                <div className="space-y-1.5 rounded-md border border-rose-300 bg-rose-50 p-3">
+                  <p className="flex items-center gap-1.5 text-sm font-medium text-rose-900">
                     <AlertTriangle className="h-4 w-4" />
-                    Cruce de horario
+                    Cruce de horario: no se puede guardar
                   </p>
-                  <ul className="space-y-1 text-xs text-amber-800">
+                  <ul className="space-y-1 text-xs text-rose-800">
                     {conflictosPorPersona.map(([uid, lista]) => (
                       <li key={uid}>
                         <strong>{lista[0].nombre}</strong> no está disponible:
@@ -646,6 +726,9 @@ export function EventoFormModal({
                       </li>
                     ))}
                   </ul>
+                  <p className="text-xs text-rose-800">
+                    Cambia el horario o quita de la lista a quien ya está ocupado.
+                  </p>
                 </div>
               )}
             </div>
@@ -703,7 +786,7 @@ export function EventoFormModal({
 
           <DialogFooter className="gap-2 sm:justify-between">
             <div>
-              {esEdicion && (canManage || esOrganizador) && (
+              {esEdicion && esDueno && (
                 <Button
                   type="button"
                   variant="ghost"
@@ -721,51 +804,24 @@ export function EventoFormModal({
                 Cancelar
               </Button>
               {!soloLectura && (
-                <Button type="button" onClick={intentarGuardar} disabled={guardando}>
-                  {guardando ? "Guardando..." : esEdicion ? "Guardar cambios" : "Crear evento"}
+                <Button
+                  type="button"
+                  onClick={() => void intentarGuardar()}
+                  disabled={guardando || buscandoConflictos}
+                >
+                  {guardando
+                    ? "Guardando..."
+                    : buscandoConflictos
+                      ? "Revisando agenda..."
+                      : esEdicion
+                        ? "Guardar cambios"
+                        : "Crear evento"}
                 </Button>
               )}
             </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <AlertDialog open={confirmarCruce} onOpenChange={setConfirmarCruce}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Hay un cruce de horario</AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-2">
-                <p>
-                  {conflictosPorPersona.length === 1
-                    ? "Esta persona ya tiene otro compromiso a esa hora:"
-                    : "Estas personas ya tienen otro compromiso a esa hora:"}
-                </p>
-                <ul className="space-y-1 text-sm">
-                  {conflictosPorPersona.map(([uid, lista]) => (
-                    <li key={uid}>
-                      <strong>{lista[0].nombre}</strong>
-                      {lista.map((c) => (
-                        <span key={c.eventoId} className="block pl-3 text-muted-foreground">
-                          · {c.eventoTitulo} —{" "}
-                          {formatoRangoEvento(c.inicio, c.fin, false, c.tieneHoraFin)}
-                        </span>
-                      ))}
-                    </li>
-                  ))}
-                </ul>
-                <p>¿Quieres agendar el evento de todos modos?</p>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={guardando}>Revisar</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void onSubmit()} disabled={guardando}>
-              Agendar de todos modos
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <AlertDialog open={confirmarBorrado} onOpenChange={setConfirmarBorrado}>
         <AlertDialogContent>

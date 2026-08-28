@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger, useSidebar } from "@/shared/ui/sidebar";
 import { AppSidebar } from "@/app/layout/app-sidebar";
 import { Toaster } from "sonner";
+import { UnsavedChangesGuard } from "@/shared/components/UnsavedChangesGuard";
 
 /**
  * Key del <Outlet>: cambiarla remonta la pantalla. Se hace a propósito en cada
@@ -54,6 +55,7 @@ const AppLayout: React.FC = () => {
   return (
     <SidebarProvider>
       <LayoutContent />
+      <UnsavedChangesGuard />
       <Toaster richColors position="top-center" />
     </SidebarProvider>
   );

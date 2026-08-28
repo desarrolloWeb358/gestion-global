@@ -2,12 +2,14 @@ import * as React from "react";
 import {
   Ban,
   Bell,
+  Building2,
   CalendarClock,
   Check,
   CircleCheck,
   Link2,
   MapPin,
   Pencil,
+  UserCircle2,
   Users,
   X,
 } from "lucide-react";
@@ -36,14 +38,20 @@ import {
   RESPUESTA_LABELS,
   etiquetaAntelacion,
 } from "../constants/eventoConstants";
-import { aFecha, formatoRangoEvento, tiempoRestante } from "../lib/fechaEvento";
+import {
+  aFecha,
+  formatoFechaCorta,
+  formatoHora,
+  formatoRangoEvento,
+  tiempoRestante,
+} from "../lib/fechaEvento";
+import { esDuenoEvento } from "../lib/permisosEvento";
 import type { Evento } from "../models/evento.model";
 import { cambiarAsistencia, cambiarEstadoEvento } from "../services/eventoService";
 
 interface EventoDetalleModalProps {
   evento: Evento;
   uid: string;
-  canManage: boolean;
   onEditar: () => void;
   onClose: () => void;
 }
@@ -51,7 +59,6 @@ interface EventoDetalleModalProps {
 export function EventoDetalleModal({
   evento,
   uid,
-  canManage,
   onEditar,
   onClose,
 }: EventoDetalleModalProps) {
@@ -61,10 +68,12 @@ export function EventoDetalleModal({
 
   const inicio = aFecha(evento.inicio);
   const fin = aFecha(evento.fin);
-  const esOrganizador = evento.organizadorId === uid;
-  const puedeEditar = canManage || esOrganizador;
+  // Editar, cancelar, reactivar y eliminar quedan reservados a quien creó el
+  // evento. El resto del equipo solo lo consulta y responde su asistencia.
+  const puedeEditar = esDuenoEvento(evento, uid);
   const cancelado = evento.estado === "cancelado";
 
+  const creacion = aFecha(evento.fechaCreacion);
   const yo = evento.participantes.find((p) => p.uid === uid);
   const yaPaso = inicio ? inicio.getTime() < Date.now() : false;
 
@@ -167,7 +176,7 @@ export function EventoDetalleModal({
             </div>
           )}
 
-          {evento.enlaceReunion && (
+          {evento.enlaceReunion ? (
             <div className="flex items-start gap-2">
               <Link2 className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
               <a
@@ -178,6 +187,23 @@ export function EventoDetalleModal({
               >
                 {evento.enlaceReunion}
               </a>
+            </div>
+          ) : (
+            evento.modalidad !== "presencial" && (
+              <div className="flex items-start gap-2 text-muted-foreground">
+                <Link2 className="mt-0.5 h-4 w-4 shrink-0" />
+                <span className="text-xs">
+                  Todavía no hay enlace de la reunión.
+                  {puedeEditar && " Puedes agregarlo desde Editar."}
+                </span>
+              </div>
+            )
+          )}
+
+          {evento.clienteNombre && (
+            <div className="flex items-start gap-2">
+              <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+              <span>{evento.clienteNombre}</span>
             </div>
           )}
 
@@ -246,9 +272,23 @@ export function EventoDetalleModal({
             </>
           )}
 
-          <p className="text-xs text-muted-foreground">
-            Organiza: {evento.organizadorNombre || "Sin definir"}
-          </p>
+          <Separator />
+
+          <div className="flex items-start gap-2 text-xs text-muted-foreground">
+            <UserCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <div className="space-y-0.5">
+              <p>
+                Creado por{" "}
+                <span className="font-medium text-foreground">
+                  {evento.creadoPorNombre || evento.organizadorNombre || "Sin definir"}
+                </span>
+                {creacion && ` · ${formatoFechaCorta(creacion)}, ${formatoHora(creacion)}`}
+              </p>
+              {!puedeEditar && (
+                <p>Solo esa persona puede editar o eliminar este evento.</p>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Estar en la lista ya significa asistir: solo se ofrece excusarse. */}

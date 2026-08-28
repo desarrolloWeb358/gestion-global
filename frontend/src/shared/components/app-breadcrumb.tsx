@@ -3,7 +3,7 @@ import * as React from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Home } from "lucide-react";
 import { cn } from "@/shared/lib/cn";
-import { checkNavigationGuards } from "@/shared/hooks/useUnsavedChanges";
+import { pedirSalida } from "@/shared/hooks/useUnsavedChanges";
 
 export type BreadcrumbItem = {
   label: string;
@@ -19,8 +19,8 @@ export default function AppBreadcrumb({ items, className }: AppBreadcrumbProps) 
   const navigate = useNavigate();
 
   const backItem = [...items].reverse().find((item, i) => i > 0 && !!item.href);
-  const handleBack = () => {
-    if (!checkNavigationGuards()) return;
+  const handleBack = async () => {
+    if (!(await pedirSalida())) return;
     if (backItem?.href) navigate(backItem.href);
     else navigate(-1);
   };
@@ -57,8 +57,8 @@ export default function AppBreadcrumb({ items, className }: AppBreadcrumbProps) 
               {isLink ? (
                 <button
                   type="button"
-                  onClick={() => {
-                    if (!checkNavigationGuards()) return;
+                  onClick={async () => {
+                    if (!(await pedirSalida())) return;
                     navigate(item.href!);
                   }}
                   className={cn(

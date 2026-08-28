@@ -12,6 +12,10 @@ export const EVENTO_CATEGORIAS: { id: EventoCategoria; label: string }[] = [
   { id: "capacitacion", label: "Capacitación" },
   { id: "audiencia", label: "Audiencia / Diligencia" },
   { id: "visita", label: "Visita a conjunto" },
+  { id: "normalizacion", label: "Jornada de normalización" },
+  { id: "notificacion", label: "Notificación" },
+  { id: "juzgado", label: "Visita a juzgados" },
+  { id: "permiso", label: "Permiso" },
   { id: "otro", label: "Otro" },
 ];
 
@@ -22,11 +26,32 @@ export const EVENTO_CATEGORIA_LABELS: Record<EventoCategoria, string> =
 
 /** Color de la barra del evento en el calendario. */
 export const EVENTO_CATEGORIA_COLOR: Record<EventoCategoria, string> = {
-  reunion: "#2563eb",      // azul
-  capacitacion: "#7c3aed", // violeta
-  audiencia: "#dc2626",    // rojo
-  visita: "#059669",       // verde
-  otro: "#64748b",         // gris
+  reunion: "#2563eb",       // azul
+  capacitacion: "#7c3aed",  // violeta
+  audiencia: "#dc2626",     // rojo
+  visita: "#059669",        // verde
+  normalizacion: "#0891b2", // cian
+  notificacion: "#d97706",  // ámbar
+  juzgado: "#4f46e5",       // índigo
+  permiso: "#db2777",       // fucsia
+  otro: "#64748b",          // gris
+};
+
+/**
+ * Clase CSS del bloque en FullCalendar. La paleta real (fondo, acento y color
+ * del texto, en claro y oscuro) vive en `index.css` bajo `.event-fc-color`;
+ * aquí solo se elige cuál aplica a cada categoría.
+ */
+export const EVENTO_CATEGORIA_CLASE: Record<EventoCategoria, string> = {
+  reunion: "fc-cat-reunion",
+  capacitacion: "fc-cat-capacitacion",
+  audiencia: "fc-cat-audiencia",
+  visita: "fc-cat-visita",
+  normalizacion: "fc-cat-normalizacion",
+  notificacion: "fc-cat-notificacion",
+  juzgado: "fc-cat-juzgado",
+  permiso: "fc-cat-permiso",
+  otro: "fc-cat-otro",
 };
 
 export const EVENTO_MODALIDADES: { id: EventoModalidad; label: string }[] = [
@@ -148,3 +173,24 @@ export function ajustarAMediaHora(hora: string): string {
 }
 
 export const ZONA_HORARIA = "America/Bogota";
+
+/**
+ * Formatos de hora de FullCalendar. El locale `es` pinta el reloj de 24 horas y
+ * aquí toda la operación se habla en am/pm, así que se fuerza el de 12.
+ */
+/** Hora del bloque del evento: "9:00 a. m." */
+export const FORMATO_HORA_EVENTO = {
+  hour: "numeric",
+  minute: "2-digit",
+  meridiem: "short",
+  hour12: true,
+} as const;
+
+/** Etiqueta de la franja horaria en Semana/Día: "9 a. m." (sin los :00). */
+export const FORMATO_FRANJA_HORARIA = {
+  hour: "numeric",
+  minute: "2-digit",
+  omitZeroMinute: true,
+  meridiem: "short",
+  hour12: true,
+} as const;

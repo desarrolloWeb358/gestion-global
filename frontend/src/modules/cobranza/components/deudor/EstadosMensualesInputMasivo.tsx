@@ -25,6 +25,7 @@ import { BackButton } from "@/shared/design-system/components/BackButton";
 import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 import { tipificacionColorMap } from "@/shared/constants/tipificacionColors";
 import { Checkbox } from "@/shared/ui/checkbox";
+import { useUnsavedChanges } from "@/shared/hooks/useUnsavedChanges";
 
 interface FilaEstadoBase {
   deudorId: string;
@@ -43,6 +44,13 @@ const TIPIFICACIONES_FILTRABLES: TipificacionDeuda[] = [
   TipificacionDeuda.ACUERDO,
   TipificacionDeuda.DEMANDA_ACUERDO,
 ];
+
+/** Huella de los valores digitables: si cambia, hay trabajo sin guardar. */
+function huellaFilas(filas: FilaEstadoBase[]) {
+  return filas
+    .map((f) => `${f.deudorId}|${f.deuda}|${f.recaudo}|${f.porcentajeHonorarios}`)
+    .join("~");
+}
 
 function ubicacionToSortableNumber(ubicacion: string) {
   const onlyDigits = (ubicacion ?? "").replace(/\D/g, "");
@@ -77,6 +85,18 @@ export default function EstadosMensualesInputMasivo() {
 
   // Estructura base de deudores (sin estados) para reutilizar al cargar mes
   const filasBaseRef = useRef<FilaEstadoBase[]>([]);
+
+  // Huella de lo ultimo cargado o guardado: si la tabla ya no coincide, el
+  // usuario tiene trabajo sin guardar y hay que avisarle antes de que salga.
+  const [huellaBase, setHuellaBase] = useState("");
+  const hayCambiosSinGuardar =
+    !modalAbierto &&
+    !saving &&
+    !cargandoExistentes &&
+    filas.length > 0 &&
+    huellaFilas(filas) !== huellaBase;
+
+  useUnsavedChanges(hayCambiosSinGuardar);
 
   // Traer nombre del cliente
   useEffect(() => {
@@ -155,6 +175,7 @@ export default function EstadosMensualesInputMasivo() {
         })
       );
       setFilas(resultado);
+      setHuellaBase(huellaFilas(resultado));
     } finally {
       setCargandoExistentes(false);
     }
@@ -305,8 +326,9 @@ export default function EstadosMensualesInputMasivo() {
 
           const honorariosDeuda = deuda > 0 ? round0(deuda * (porc / 100)) : 0;
 
-          // Honorarios del Recaudo = Recaudo × (% / (100 + %))
-          const honorariosRecaudo = recaudo > 0 ? round0(recaudo * (porc / (100 + porc))) : 0;            
+          // Honorarios del Recaudo = Recaudo × % (modo "porcentaje_recaudo", el mismo
+          // que usa el formulario individual de EstadosMensualesTable).
+          const honorariosRecaudo = recaudo > 0 ? round0(recaudo * (porc / 100)) : 0;
 
           await upsertEstadoMensualPorMes(clienteId, fila.deudorId, {
             mes: mesGlobal,
@@ -316,6 +338,7 @@ export default function EstadosMensualesInputMasivo() {
 
             honorariosDeuda,            
             honorariosRecaudo,
+            modoHonorariosRecaudo: "porcentaje_recaudo",
 
             recibo: "",
             observaciones: "",
@@ -330,6 +353,8 @@ export default function EstadosMensualesInputMasivo() {
 
         })
       );
+
+      setHuellaBase(huellaFilas(filas));
 
       toast.success(
         `Se guardaron ${porGuardar.length} fila(s).` +
@@ -683,6 +708,8 @@ export default function EstadosMensualesInputMasivo() {
             <strong>Nota:</strong> Solo se guardarán las filas que tengan al menos{" "}
             Deuda y Recaudo completados. Las filas vacías serán omitidas automáticamente.
             El porcentaje de honorarios se limita entre 0% y 20%.
+            {" "}Los honorarios se calculan como <strong>Hon. Deuda = Deuda × %</strong> y{" "}
+            <strong>Hon. Recaudo = Recaudo × %</strong>.
           </Typography>
         </div>
       </div>

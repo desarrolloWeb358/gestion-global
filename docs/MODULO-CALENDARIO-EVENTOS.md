@@ -30,10 +30,15 @@ noche a las 8:00 p. m.
 - Calendario con vistas **Mes / Semana / Día**, arrastrar para mover y estirar
   para cambiar la duración. Todo se maneja en **bloques de media hora**.
 - Eventos **presenciales, virtuales o híbridos**, con lugar y/o enlace de reunión.
+  El **enlace es opcional**: se agenda primero y se pega el link después, editando.
 - **Hora final opcional**: un evento puede tener solo hora de inicio. Al activarla
   se propone media hora después, que es el bloque mínimo.
-- **Aviso de cruce de horario**: al agregar a alguien que ya tiene otro
-  compromiso a esa hora, se avisa en vivo y se pide confirmación al guardar.
+- **Cruce de horario bloqueante**: si alguno de los asistentes ya tiene otro
+  compromiso a esa hora, el evento **no se guarda**. Se avisa en vivo mientras se
+  edita y se vuelve a verificar contra Firestore al pulsar Guardar.
+- **Conjunto opcional**: un evento se puede asociar a un cliente buscándolo por
+  parte del nombre, para poder contar después cuántas reuniones o jornadas se
+  hicieron con cada uno.
 - **Aviso automático** al agendar a alguien, por los canales que elija quien
   agenda (plataforma / correo / WhatsApp, o ninguno). No hay que aceptar nada:
   estar en la lista significa asistir.
@@ -164,10 +169,10 @@ Definido en [evento.model.ts](../frontend/src/modules/eventos/models/evento.mode
 |---|---|---|
 | `titulo` | string | |
 | `descripcion` | string | agenda / temas |
-| `categoria` | `reunion \| capacitacion \| audiencia \| visita \| otro` | define el color |
+| `categoria` | `reunion \| capacitacion \| audiencia \| visita \| normalizacion \| notificacion \| juzgado \| permiso \| otro` | define el color |
 | `modalidad` | `presencial \| virtual \| hibrida` | |
 | `ubicacion` | string | obligatorio si no es virtual |
-| `enlaceReunion` | string | obligatorio si no es presencial |
+| `enlaceReunion` | string | **opcional** aunque sea virtual: puede agregarse después |
 | `inicio` | Timestamp | |
 | `fin` | Timestamp | **siempre poblado**; sin hora final vale `inicio + 30 min` |
 | `tieneHoraFin` | boolean | `false` = la hora final es implícita y no se muestra. Ausente = `true` |
@@ -179,7 +184,9 @@ Definido en [evento.model.ts](../frontend/src/modules/eventos/models/evento.mode
 | `participantesUids` | string[] | **denormalizado** para `array-contains` |
 | `canalesAviso` | `CanalAviso[]` | canales del aviso **inmediato** (agendar / reprogramar / cancelar). Vacío = no avisar. Ausente = `["app","email"]` |
 | `recordatorios` | `RecordatorioEvento[]` | `{minutosAntes, canales[]}` — avisos **previos** |
-| `clienteId` / `tareaId` | string \| null | vínculos opcionales, hoy sin UI |
+| `clienteId` / `clienteNombre` | string \| null | conjunto asociado, **opcional**. `clienteNombre` va denormalizado para listar sin resolver el documento |
+| `tareaId` | string \| null | vínculo opcional, hoy sin UI |
+| `creadoPor` / `creadoPorNombre` | string | **trazabilidad**: quién creó el evento. Se escribe al crear y las ediciones no lo tocan. Es quien puede editarlo y borrarlo |
 
 > **Por qué `participantesUids` existe aparte:** Firestore no puede consultar
 > dentro de objetos de un arreglo. Sin ese campo plano no hay forma de preguntar
@@ -379,10 +386,18 @@ interaction** — todos **MIT**, verificado contra npm. Los únicos paquetes
 comerciales de FullCalendar son `resource-timeline`, `resource-timegrid` y
 `timeline` (vistas de recursos, una fila por persona o sala); **no se usan**.
 
-El tema TailAdmin ya traía los estilos `.fc-*` en `index.css` incluido modo
-oscuro, así que el calendario se ve nativo sin CSS nuevo. Solo se añadió la clase
-`fc-bg-neutral` (la paleta traía 4 colores y hay 5 categorías), el tachado de
-cancelados y un ajuste de contraste en dark.
+El tema TailAdmin traía estilos `.fc-*` en `index.css`, pero solo servían para la
+vista Mes: en Semana y Día FullCalendar deja su texto blanco por defecto y sobre
+los fondos claros del tema los bloques salían ilegibles. Ahora cada categoría
+define tres variables CSS —`--ev-acento`, `--ev-fondo` y `--ev-texto`— sobre
+`.event-fc-color.fc-cat-*`, y **las tres vistas se pintan a partir de ellas**
+(claro y oscuro). En Semana/Día el bloque además va compacto, con barra lateral
+del color de la categoría, y los eventos que coinciden se reparten el ancho
+(`slotEventOverlap={false}`) en vez de montarse uno sobre otro.
+
+Las horas se muestran en **am/pm** en toda la vista (`slotLabelFormat` y
+`eventTimeFormat` en [eventoConstants.ts](../frontend/src/modules/eventos/constants/eventoConstants.ts)):
+el locale `es` de FullCalendar trae reloj de 24 h y la operación se habla en 12.
 
 ### Estrategia de consulta
 
@@ -417,6 +432,12 @@ rango, y contra todo el período cuando sí lo hay. El fin es exclusivo, así qu
 
 No cuentan como ocupado ni los eventos cancelados ni quien ya avisó que no
 asistirá. Los eventos de día completo no disparan la validación.
+
+**El cruce bloquea el guardado.** Antes era una advertencia con un "Agendar de
+todos modos"; hoy simplemente no se guarda. La consulta que decide se relanza en
+el momento de pulsar Guardar —no se confía en la del efecto, que va con 400 ms de
+retardo— para que no se cuele un evento por la ventana entre el último tecleo y
+la respuesta.
 
 La consulta trae la franja por rango de `inicio` (índice de un solo campo,
 automático) y cruza los participantes en memoria: Firestore no permite un rango
@@ -454,7 +475,15 @@ Tres scopes nuevos en [acl.ts](../frontend/src/shared/constants/acl.ts):
 |---|---|
 | `eventos.read` | ver el calendario |
 | `eventos.create` | crear eventos y editar los propios |
-| `eventos.manage` | editar/cancelar cualquier evento y ver los privados |
+| `eventos.manage` | ver los privados (cuando se habiliten) |
+
+> **Editar, mover, cancelar y eliminar es solo de quien creó el evento.**
+> `eventos.manage` ya **no** habilita tocar la agenda ajena: lo tienen admin,
+> supervisor y ejecutivoAdmin, que era demasiada gente para una agenda
+> compartida. La regla vive en
+> [permisosEvento.ts](../frontend/src/modules/eventos/lib/permisosEvento.ts) y la
+> aplican el calendario, el detalle y el formulario. Los asistentes que no
+> crearon el evento solo pueden avisar que no asistirán.
 
 | Rol | read | create | manage |
 |---|:--:|:--:|:--:|
@@ -625,8 +654,11 @@ recomienda.
 
 ### Otros pendientes menores
 
-- `clienteId` y `tareaId` existen en el modelo pero no tienen UI. Están listos
-  para vincular una reunión con un conjunto o con la tarea que salió de ella.
+- `tareaId` existe en el modelo pero no tiene UI. Está listo para vincular una
+  reunión con la tarea que salió de ella.
+- `clienteId` ya se puede elegir desde el formulario, pero todavía no hay un
+  reporte que agrupe eventos por conjunto. La consulta sería un
+  `where("clienteId", "==", ...)` sobre `eventos`.
 - Sin adjuntos en el evento.
 - Sin vista de recursos (una fila por persona). Requeriría el FullCalendar
   comercial o una grilla propia.

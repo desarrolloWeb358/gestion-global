@@ -643,14 +643,103 @@ span.flatpickr-weekday,
 .fc .fc-day-other .fc-daygrid-day-top .fc-daygrid-day-number {
   @apply text-gray-400 dark:text-white/30;
 }
+/* ============================================================
+   Eventos del calendario (módulo Calendario / Eventos)
+
+   Cada categoría define tres variables y TODAS las vistas (Mes, Semana y Día)
+   se pintan a partir de ellas. Antes cada vista tenía su propio color: en Mes
+   se veía bien, pero en Semana y Día FullCalendar dejaba su texto blanco por
+   defecto sobre estos fondos claros y los bloques salían ilegibles.
+     --ev-acento : color fuerte de la categoría (barra lateral, punto, borde)
+     --ev-fondo  : relleno del bloque
+     --ev-texto  : color del título y de la hora, siempre con contraste
+   ============================================================ */
 .event-fc-color {
-  @apply rounded-lg py-2.5 pl-4 pr-3;
+  --ev-acento: #64748b;
+  --ev-fondo: #f1f5f9;
+  --ev-texto: #1e293b;
 }
-.event-fc-color .fc-event-title {
-  @apply p-0 text-sm font-normal text-gray-700 dark:text-gray-200;
+.dark .event-fc-color {
+  --ev-fondo: color-mix(in srgb, var(--ev-acento) 24%, transparent);
+  --ev-texto: #f8fafc;
+}
+
+.event-fc-color.fc-cat-reunion {
+  --ev-acento: #2563eb;
+  --ev-fondo: #eff6ff;
+  --ev-texto: #1e3a8a;
+}
+.event-fc-color.fc-cat-capacitacion {
+  --ev-acento: #7c3aed;
+  --ev-fondo: #f5f3ff;
+  --ev-texto: #4c1d95;
+}
+.event-fc-color.fc-cat-audiencia {
+  --ev-acento: #dc2626;
+  --ev-fondo: #fef2f2;
+  --ev-texto: #7f1d1d;
+}
+.event-fc-color.fc-cat-visita {
+  --ev-acento: #059669;
+  --ev-fondo: #ecfdf5;
+  --ev-texto: #064e3b;
+}
+.event-fc-color.fc-cat-normalizacion {
+  --ev-acento: #0891b2;
+  --ev-fondo: #ecfeff;
+  --ev-texto: #164e63;
+}
+.event-fc-color.fc-cat-notificacion {
+  --ev-acento: #d97706;
+  --ev-fondo: #fffbeb;
+  --ev-texto: #78350f;
+}
+.event-fc-color.fc-cat-juzgado {
+  --ev-acento: #4f46e5;
+  --ev-fondo: #eef2ff;
+  --ev-texto: #312e81;
+}
+.event-fc-color.fc-cat-permiso {
+  --ev-acento: #db2777;
+  --ev-fondo: #fdf2f8;
+  --ev-texto: #831843;
+}
+.event-fc-color.fc-cat-otro {
+  --ev-acento: #64748b;
+  --ev-fondo: #f1f5f9;
+  --ev-texto: #1e293b;
+}
+.dark .event-fc-color.fc-cat-reunion,
+.dark .event-fc-color.fc-cat-capacitacion,
+.dark .event-fc-color.fc-cat-audiencia,
+.dark .event-fc-color.fc-cat-visita,
+.dark .event-fc-color.fc-cat-normalizacion,
+.dark .event-fc-color.fc-cat-notificacion,
+.dark .event-fc-color.fc-cat-juzgado,
+.dark .event-fc-color.fc-cat-permiso,
+.dark .event-fc-color.fc-cat-otro {
+  --ev-fondo: color-mix(in srgb, var(--ev-acento) 26%, transparent);
+  --ev-texto: #f8fafc;
+}
+
+/* --- Vista Mes: fila con barra de color a la izquierda --- */
+.fc .event-fc-color {
+  @apply rounded-lg py-2.5 pl-4 pr-3;
+  background-color: var(--ev-fondo);
+  border-color: var(--ev-fondo);
+}
+.fc .event-fc-color .fc-event-title {
+  @apply p-0 text-sm font-normal;
+  color: var(--ev-texto);
+}
+.fc .event-fc-color .fc-event-time {
+  @apply text-sm font-semibold;
+  color: var(--ev-texto);
 }
 .fc-daygrid-event-dot {
   @apply w-1 h-5 ml-0 mr-3 border-none rounded-sm;
+  background-color: var(--ev-acento);
+  border-color: var(--ev-acento);
 }
 .fc-event {
   @apply focus:shadow-none;
@@ -658,42 +747,77 @@ span.flatpickr-weekday,
 .fc-daygrid-event.fc-event-start {
   @apply ml-3!;
 }
-.event-fc-color.fc-bg-success {
-  @apply border-success-50 bg-success-50;
+
+/* --- Vistas Semana y Día: bloques compactos y legibles ---
+   El padding de la vista Mes es enorme para una franja de 30 minutos, y el
+   texto blanco por defecto de FullCalendar desaparecía sobre el fondo claro. */
+.fc .fc-timegrid-event.event-fc-color {
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--ev-acento) 40%, transparent);
+  border-left: 3px solid var(--ev-acento);
+  background-color: var(--ev-fondo);
+  box-shadow: none;
+  overflow: hidden;
 }
-.event-fc-color.fc-bg-danger {
-  @apply border-error-50 bg-error-50;
+.fc .fc-timegrid-event .fc-event-main,
+.fc .fc-timegrid-event .fc-event-main-frame {
+  color: var(--ev-texto);
 }
-.event-fc-color.fc-bg-primary {
-  @apply border-brand-50 bg-brand-50;
+.fc .fc-timegrid-event .fc-event-time {
+  @apply text-[11px] font-semibold leading-tight;
+  color: var(--ev-texto);
+  opacity: 0.85;
 }
-.event-fc-color.fc-bg-warning {
-  @apply border-orange-50 bg-orange-50;
+.fc .fc-timegrid-event .fc-event-title {
+  @apply text-xs font-semibold leading-snug;
+  color: var(--ev-texto);
+  white-space: normal;
 }
-.event-fc-color.fc-bg-success .fc-daygrid-event-dot {
-  @apply bg-success-500;
+/* Un evento de media hora no da para dos renglones: la hora y el título van
+   en la misma línea cuando el bloque es corto. */
+.fc .fc-timegrid-event-short .fc-event-main-frame {
+  @apply flex-row items-baseline gap-1;
 }
-.event-fc-color.fc-bg-danger .fc-daygrid-event-dot {
-  @apply bg-error-500;
+.fc .fc-timegrid-event-short .fc-event-title-container {
+  @apply min-w-0;
 }
-.event-fc-color.fc-bg-primary .fc-daygrid-event-dot {
-  @apply bg-brand-500;
+.fc .fc-timegrid-event:hover {
+  filter: brightness(0.97);
 }
-.event-fc-color.fc-bg-warning .fc-daygrid-event-dot {
-  @apply bg-orange-500;
+.fc .fc-timegrid-event-harness-inset .fc-timegrid-event {
+  box-shadow: 0 0 0 1px #fff;
 }
-/* Quinta categoría del calendario ("Otro"): la paleta del template solo traía cuatro. */
-.event-fc-color.fc-bg-neutral {
-  @apply border-gray-100 bg-gray-100 dark:border-white/10 dark:bg-white/10;
+.dark .fc .fc-timegrid-event-harness-inset .fc-timegrid-event {
+  box-shadow: 0 0 0 1px #101828;
 }
-.event-fc-color.fc-bg-neutral .fc-daygrid-event-dot {
-  @apply bg-gray-500;
+/* Franjas más altas: con la altura por defecto el título no cabía. */
+.fc .fc-timegrid-slot {
+  height: 2.25rem;
 }
+/* El día de hoy venía con el amarillo por defecto de FullCalendar, que competía
+   con el color de los eventos. Se cambia por un azul apenas insinuado. */
+.fc .fc-timegrid-col.fc-day-today,
+.fc .fc-daygrid-day.fc-day-today {
+  background-color: rgba(37, 99, 235, 0.04);
+}
+.dark .fc .fc-timegrid-col.fc-day-today,
+.dark .fc .fc-daygrid-day.fc-day-today {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+.fc .fc-timegrid-now-indicator-line {
+  border-color: #ef4444;
+  border-width: 2px 0 0;
+}
+.fc .fc-timegrid-now-indicator-arrow {
+  border-color: transparent transparent transparent #ef4444;
+}
+
 /* Evento cancelado: se conserva en el calendario pero tachado y atenuado. */
-.event-fc-color.fc-evento-cancelado {
+.fc .event-fc-color.fc-evento-cancelado {
   @apply opacity-50;
 }
-.event-fc-color.fc-evento-cancelado .fc-event-title {
+.fc .event-fc-color.fc-evento-cancelado .fc-event-title {
   @apply line-through;
 }
 /* El template fuerza min-h-screen en .fc; dentro de una página con cabecera
@@ -793,9 +917,8 @@ span.flatpickr-weekday,
 }
 
 .custom-calendar .fc-h-event {
-  background-color: transparent;
   border: none;
-  color: black;
+  color: var(--ev-texto, #1e293b);
 }
 .fc.fc-media-screen {
   @apply min-h-screen;
@@ -981,7 +1104,11 @@ span.flatpickr-weekday,
    Rich Text Viewer
    ============================ */
 
-.rich-viewer p { margin: 0 0 0.6em; }
+/* Debe coincidir con .rich-editor-content .tiptap para que el mensaje
+   guardado se vea con el mismo interlineado que en el editor.
+   line-height sin unidad para no romper overrides de tamaño (text-base). */
+.rich-viewer { line-height: 1.35; }
+.rich-viewer p { margin: 0 0 0.11em; }
 .rich-viewer p:last-child { margin-bottom: 0; }
 .rich-viewer p:empty { min-height: 1em; }
 .rich-viewer strong { font-weight: 700; }
@@ -991,11 +1118,11 @@ span.flatpickr-weekday,
 .rich-viewer ul {
   list-style-type: disc;
   padding-left: 1.5rem;
-  margin: 0.2em 0 0.4em;
+  margin: 0.25em 0 0.5em;
 }
 .rich-viewer ol {
   list-style-type: decimal;
   padding-left: 1.5rem;
-  margin: 0.2em 0 0.4em;
+  margin: 0.25em 0 0.5em;
 }
 .rich-viewer li { margin: 0.1em 0; }

@@ -8,6 +8,10 @@ export type EventoCategoria =
   | "capacitacion"
   | "audiencia"
   | "visita"
+  | "normalizacion"
+  | "notificacion"
+  | "juzgado"
+  | "permiso"
   | "otro";
 
 /** Canales por los que se avisa a un participante. */
@@ -88,11 +92,23 @@ export interface Evento {
 
   recordatorios: RecordatorioEvento[];
 
-  /** Vínculos opcionales con el dominio. Ninguno es obligatorio. */
+  /**
+   * Vínculos opcionales con el dominio. Ninguno es obligatorio.
+   *
+   * `clienteId` es el conjunto al que pertenece el evento. Se guarda junto con
+   * `clienteNombre` denormalizado para poder listar sin resolver el documento,
+   * y existe para que a futuro se pueda responder "cuántas reuniones se
+   * hicieron con este conjunto" con un `where("clienteId", "==", ...)`.
+   */
   clienteId?: string | null;
   clienteNombre?: string | null;
   tareaId?: string | null;
 
+  /**
+   * Trazabilidad: quién creó el evento. Se escribe una sola vez al crear y no
+   * lo tocan las ediciones posteriores. Es también la única persona (junto con
+   * el organizador, que hoy es la misma) autorizada a editarlo o borrarlo.
+   */
   creadoPor: string;
   creadoPorNombre?: string;
   fechaCreacion: Timestamp | FieldValue;
