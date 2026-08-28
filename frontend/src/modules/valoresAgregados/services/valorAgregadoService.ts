@@ -33,6 +33,7 @@ function normalizarTipo(input: unknown): TipoValorAgregado {
     "tutela": TipoValorAgregado.TUTELA,
     "desacato": TipoValorAgregado.DESACATO,
     "estudios contratos": TipoValorAgregado.ESTUDIOS_CONTRATOS,
+    "otros": TipoValorAgregado.OTROS,
   };
   return map[v] ?? TipoValorAgregado.DERECHO_DE_PETICION;
 }
@@ -100,6 +101,7 @@ function calcularFechaLimite(tipo: TipoValorAgregado, fechaBase: Date): Date {
     [TipoValorAgregado.TUTELA]: 1,
     [TipoValorAgregado.DESACATO]: 1,
     [TipoValorAgregado.ESTUDIOS_CONTRATOS]: 3,
+    [TipoValorAgregado.OTROS]: 10,
   };
   const fecha = new Date(fechaBase);
   fecha.setDate(fecha.getDate() + (DIAS_POR_TIPO[tipo] ?? 3));
