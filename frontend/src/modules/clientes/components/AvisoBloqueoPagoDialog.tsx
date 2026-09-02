@@ -9,6 +9,9 @@ import {
 import { Button } from "@/shared/ui/button";
 import type { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 
+/** Correo de contacto fijo para temas de cartera: siempre se muestra este. */
+const CORREO_CARTERA = "carterazona1@gestionglobalacg.com";
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -21,7 +24,7 @@ interface Props {
  * y trata de abrir cualquiera de los accesos rápidos.
  */
 export function AvisoBloqueoPagoDialog({ open, onClose, ejecutivo }: Props) {
-  const nombreEjecutivo = ejecutivo?.nombre?.trim() || ejecutivo?.email || null;
+  const nombreEjecutivo = ejecutivo?.nombre?.trim() || null;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -48,37 +51,33 @@ export function AvisoBloqueoPagoDialog({ open, onClose, ejecutivo }: Props) {
             usuario de inmediato.
           </p>
 
-          {ejecutivo && (
-            <div className="rounded-lg border border-brand-secondary/20 bg-brand-primary/5 p-4 space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-brand-secondary">
-                Tu ejecutivo de cuenta
+          <div className="rounded-lg border border-brand-secondary/20 bg-brand-primary/5 p-4 space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-brand-secondary">
+              Tu ejecutivo de cuenta
+            </p>
+            {nombreEjecutivo && (
+              <p className="flex items-center gap-2 text-gray-700">
+                <UserRound className="h-4 w-4 text-brand-primary" />
+                {nombreEjecutivo}
               </p>
-              {nombreEjecutivo && (
-                <p className="flex items-center gap-2 text-gray-700">
-                  <UserRound className="h-4 w-4 text-brand-primary" />
-                  {nombreEjecutivo}
-                </p>
-              )}
-              {ejecutivo.email && (
-                <a
-                  href={`mailto:${ejecutivo.email}`}
-                  className="flex items-center gap-2 text-brand-primary hover:underline"
-                >
-                  <Mail className="h-4 w-4" />
-                  {ejecutivo.email}
-                </a>
-              )}
-              {ejecutivo.telefonoUsuario && (
-                <a
-                  href={`tel:${ejecutivo.telefonoUsuario}`}
-                  className="flex items-center gap-2 text-brand-primary hover:underline"
-                >
-                  <Phone className="h-4 w-4" />
-                  {ejecutivo.telefonoUsuario}
-                </a>
-              )}
-            </div>
-          )}
+            )}
+            <a
+              href={`mailto:${CORREO_CARTERA}`}
+              className="flex items-center gap-2 text-brand-primary hover:underline"
+            >
+              <Mail className="h-4 w-4" />
+              {CORREO_CARTERA}
+            </a>
+            {ejecutivo?.telefonoUsuario && (
+              <a
+                href={`tel:${ejecutivo.telefonoUsuario}`}
+                className="flex items-center gap-2 text-brand-primary hover:underline"
+              >
+                <Phone className="h-4 w-4" />
+                {ejecutivo.telefonoUsuario}
+              </a>
+            )}
+          </div>
 
           <p className="text-xs text-gray-500">
             Agradecemos tu comprensión. — Gestión Global ACG SAS

@@ -88,7 +88,7 @@ export function ClienteBloqueoPagoDialog({
             <>
               <p>
                 <strong className="text-brand-secondary">{cliente?.nombre}</strong>{" "}
-                seguirá pudiendo iniciar sesión, pero no podrá abrir ninguno de sus
+                podrá iniciar sesión pero no podrá abrir ninguno de sus
                 accesos rápidos (deudores, valores agregados, reporte, seguimiento
                 y contratos). Al intentarlo verá el aviso para comunicarse con su
                 ejecutivo de cuenta.
