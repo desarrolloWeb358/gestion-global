@@ -269,15 +269,23 @@ export default function DeudorDetailPage() {
       return;
     }
 
+    const correosFinal: string[] = [];
+    for (const raw of editForm.correos.split(/[\s,;\/]+/)) {
+      const correo = raw.trim().toLowerCase();
+      if (correo && !correosFinal.includes(correo)) correosFinal.push(correo);
+    }
+    const correosInvalidos = correosFinal.filter((c) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c));
+    if (correosInvalidos.length > 0) {
+      toast.error(`Correo inválido: ${correosInvalidos.join(", ")}`);
+      return;
+    }
+
     const payload = {
       nombre,
       cedula: editForm.cedula.trim(),
       ubicacion: editForm.ubicacion.trim(),
       porcentajeHonorarios: porcentaje,
-      correos: editForm.correos
-        .split(",")
-        .map((correo) => correo.trim())
-        .filter(Boolean),
+      correos: correosFinal,
       telefonos: editForm.telefonos
         .split(",")
         .map((telefono) => telefono.trim())

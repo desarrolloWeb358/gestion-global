@@ -151,6 +151,19 @@ function parsearCorreosDeTexto(texto: string): string[] {
   return correos;
 }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Separa el texto del input en correos individuales SIN descartar los inválidos,
+ *  para que el usuario pueda seguir escribiendo (la validación va al guardar). */
+function separarCorreos(texto: string): string[] {
+  const correos: string[] = [];
+  for (const raw of texto.split(/[\s,;\/]+/)) {
+    const e = raw.trim().toLowerCase();
+    if (e && !correos.includes(e)) correos.push(e);
+  }
+  return correos;
+}
+
 function normalizarEncabezado(s: string): string {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 }
@@ -227,6 +240,93 @@ function PhoneTagInput({
           onBlur={() => { if (input.trim()) { addPhone(input); setInput(""); } }}
           placeholder={value.length === 0 ? "3001234567 — Enter o coma para agregar" : ""}
           className="flex-1 min-w-[200px] bg-transparent outline-none text-sm placeholder:text-muted-foreground"
+        />
+      )}
+    </div>
+  );
+}
+
+function EmailTagInput({
+  value,
+  onChange,
+  readOnly,
+  disabled,
+}: {
+  value: string[];
+  onChange: (correos: string[]) => void;
+  readOnly?: boolean;
+  disabled?: boolean;
+}) {
+  const [input, setInput] = useState("");
+
+  const addCorreos = (raw: string) => {
+    const nuevos = separarCorreos(raw).filter((c) => !value.includes(c));
+    if (nuevos.length === 0) return;
+    onChange([...value, ...nuevos]);
+  };
+
+  const removeCorreo = (idx: number) => {
+    onChange(value.filter((_, i) => i !== idx));
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" || e.key === "," || e.key === ";" || e.key === " " || e.key === "Tab") {
+      if (e.key === "Tab" && input.trim() === "") return; // Tab sin texto: seguir navegando
+      e.preventDefault();
+      addCorreos(input);
+      setInput("");
+    } else if (e.key === "Backspace" && input === "" && value.length > 0) {
+      removeCorreo(value.length - 1);
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    addCorreos(e.clipboardData.getData("text"));
+    setInput("");
+  };
+
+  return (
+    <div className="mt-1.5 min-h-[42px] flex flex-wrap gap-1.5 rounded-md border border-brand-secondary/30 bg-white px-2 py-1.5 focus-within:border-brand-primary focus-within:ring-2 focus-within:ring-brand-primary/20 transition-colors">
+      {value.map((correo, idx) => {
+        const invalido = !EMAIL_RE.test(correo);
+        return (
+          <span
+            key={idx}
+            title={invalido ? "Correo con formato inválido" : correo}
+            className={
+              invalido
+                ? "inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-0.5 text-sm font-medium text-red-600 ring-1 ring-red-300"
+                : "inline-flex items-center gap-1 rounded-full bg-brand-primary/10 px-2.5 py-0.5 text-sm font-medium text-brand-secondary"
+            }
+          >
+            {correo}
+            {!readOnly && !disabled && (
+              <button
+                type="button"
+                onClick={() => removeCorreo(idx)}
+                className={invalido ? "rounded-full hover:bg-red-100 p-0.5" : "rounded-full hover:bg-brand-primary/20 p-0.5"}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </span>
+        );
+      })}
+      {!readOnly && !disabled && (
+        <input
+          type="text"
+          inputMode="email"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
+          onBlur={() => { if (input.trim()) { addCorreos(input); setInput(""); } }}
+          placeholder={value.length === 0 ? "correo@example.com — Enter o coma para agregar" : ""}
+          className="flex-1 min-w-[220px] bg-transparent outline-none text-sm placeholder:text-muted-foreground"
         />
       )}
     </div>
@@ -866,6 +966,8 @@ export default function DeudoresTable() {
   const [open, setOpen] = useState(false);
   const [deudorEditando, setDeudorEditando] = useState<Deudor | null>(null);
   const [formData, setFormData] = useState<Partial<Deudor> & { porcentajeHonorarios?: number | string }>({});
+  // ✅ los correos se editan como chips, igual que los teléfonos
+  const [correosLista, setCorreosLista] = useState<string[]>([]);
 
   // ✅ BLOQUEO GLOBAL
   const [saving, setSaving] = useState(false);
@@ -1357,6 +1459,7 @@ export default function DeudoresTable() {
       tipificacion: TipificacionDeuda.GESTIONANDO,
       porcentajeHonorarios: 15,
     });
+    setCorreosLista([]);
     setOpen(true);
   };
 
@@ -1373,6 +1476,7 @@ export default function DeudoresTable() {
       ...deudor,
       porcentajeHonorarios: porcentaje,
     });
+    setCorreosLista(deudor.correos ?? []);
 
     setOpen(true);
   };
@@ -1418,6 +1522,13 @@ export default function DeudoresTable() {
     if (!clienteId) return;
     if (!canEdit) return;
 
+    const correosFinal = correosLista;
+    const correosInvalidos = correosFinal.filter((c) => !EMAIL_RE.test(c));
+    if (correosInvalidos.length > 0) {
+      toast.error(`Correo inválido: ${correosInvalidos.join(", ")}`);
+      return;
+    }
+
     const valorActual = formData.porcentajeHonorarios as number | string | undefined;
     const porcentajeFinal =
       valorActual === undefined || valorActual === null || valorActual === ""
@@ -1437,7 +1548,7 @@ export default function DeudoresTable() {
           nombre: t(formData.nombre),
           cedula: t(formData.cedula),
           ubicacion: t(formData.ubicacion),
-          correos: formData.correos ?? [],
+          correos: correosFinal,
           telefonos: formData.telefonos ?? [],
           tipificacion: formData.tipificacion as TipificacionDeuda,
           porcentajeHonorarios: porcentajeFinal,
@@ -1449,7 +1560,7 @@ export default function DeudoresTable() {
           cedula: t(formData.cedula),
           ubicacion: t(formData.ubicacion),
           porcentajeHonorarios: porcentajeFinal,
-          correos: formData.correos ?? [],
+          correos: correosFinal,
           telefonos: formData.telefonos ?? [],
           tipificacion: (formData.tipificacion as TipificacionDeuda) ?? TipificacionDeuda.GESTIONANDO,
         });
@@ -1761,19 +1872,15 @@ export default function DeudoresTable() {
                       <div className="space-y-3 pt-4 border-t border-brand-secondary/10">
                         <div>
                           <Label className="text-brand-secondary font-medium">Correos electrónicos</Label>
-                          <Input
-                            placeholder="correo1@example.com, correo2@example.com"
-                            value={formData.correos?.join(", ") ?? ""}
-                            onChange={(e) =>
-                              setFormData((prev) => ({
-                                ...prev,
-                                correos: e.target.value.split(",").map((c) => c.trim()).filter(Boolean),
-                              }))
-                            }
-                            readOnly={readOnly || saving}
-                            className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
+                          <EmailTagInput
+                            value={correosLista}
+                            onChange={setCorreosLista}
+                            readOnly={readOnly}
+                            disabled={saving}
                           />
-                          <p className="text-xs mt-1">Separa múltiples correos con comas</p>
+                          <p className="text-xs mt-1 text-muted-foreground">
+                            Escribe un correo y presiona <kbd className="px-1 rounded bg-gray-100 text-xs">Enter</kbd>, coma, espacio o Tab para agregarlo.
+                          </p>
                         </div>
 
                         <div>
