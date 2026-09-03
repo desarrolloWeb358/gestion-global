@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { httpsCallable } from "firebase/functions";
 import { ArrowLeft, CheckCircle, Mail, Send, XCircle } from "lucide-react";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 import { functions } from "@/firebase";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
@@ -39,6 +40,8 @@ function escapeHtml(value: string): string {
   }[char] ?? char));
 }
 
+const FECHA_ACTUAL = new Date().toLocaleDateString("es-CO", { month: "long", year: "numeric" });
+
 function replaceVariables(text: string, deudor: Partial<Deudor> | undefined, conjunto: string): string {
   const values: Record<string, string> = {
     nombre: deudor?.nombre ?? conjunto,
@@ -47,11 +50,27 @@ function replaceVariables(text: string, deudor: Partial<Deudor> | undefined, con
     direccion: deudor?.direccion ?? "",
     tipificacion: deudor?.tipificacion ?? "",
     conjunto,
+    fecha: FECHA_ACTUAL,
   };
   return EMAIL_VARIABLES.reduce(
     (result, variable) => result.replace(new RegExp(`\\{\\{${variable}\\}\\}`, "g"), values[variable]),
     text
   );
+}
+
+function buildDeudoresExcelBase64(deudores: Deudor[], conjunto: string): { filename: string; contentBase64: string; contentType: string } {
+  const rows = deudores.map((deudor) => ({ INMUEBLE: deudor.ubicacion ?? "", DEUDOR: deudor.nombre ?? "" }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws["!cols"] = [{ wch: 12 }, { wch: 40 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Deudores");
+  const contentBase64 = XLSX.write(wb, { type: "base64", bookType: "xlsx" });
+  const safeConjunto = conjunto.trim().replace(/[^\w\-]+/g, "_").slice(0, 60) || "conjunto";
+  return {
+    filename: `Deudores_${safeConjunto}.xlsx`,
+    contentBase64,
+    contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  };
 }
 
 function buildHtml(text: string): string {
@@ -105,6 +124,8 @@ export default function EmailComposePage() {
     0
   );
   const previewDebtor = targetDeudores[0] ?? deudores[0];
+  const selectedTemplate = EMAIL_TEMPLATES.find((item) => item.id === templateId);
+  const willAttachDeudoresExcel = isConjunto && !!selectedTemplate?.attachDeudoresExcel;
 
   function selectTemplate(id: string) {
     const template = EMAIL_TEMPLATES.find((item) => item.id === id);
@@ -116,6 +137,7 @@ export default function EmailComposePage() {
 
   async function handleSend() {
     if (!clienteId || sending) return;
+    const shouldAttachDeudoresExcel = willAttachDeudoresExcel && deudores.length > 0;
     const selectedDebtors = isBulk ? targetDeudores : deudores;
     const items = isConjunto ? [{
       to: conjuntoEmail.trim().toLowerCase(),
@@ -126,6 +148,7 @@ export default function EmailComposePage() {
       deudorId: "",
       deudorNombre: conjunto,
       tipificacion: "",
+      attachments: shouldAttachDeudoresExcel ? [buildDeudoresExcelBase64(deudores, conjunto)] : undefined,
     }] : selectedDebtors.flatMap((deudor) => {
       const emails = isBulk
         ? [...new Set((deudor.correos ?? []).map((email) => email.trim().toLowerCase()).filter((email) => EMAIL_RE.test(email)))]
@@ -203,6 +226,11 @@ export default function EmailComposePage() {
               <Label>Correo del conjunto</Label>
               <Input type="email" value={conjuntoEmail} onChange={(event) => setConjuntoEmail(event.target.value)} placeholder="administracion@conjunto.com" />
               <p className="text-xs text-gray-500">Se usa el correo de contacto registrado; puedes corregirlo para este envío.</p>
+              {willAttachDeudoresExcel && (
+                <p className="text-xs text-brand-primary">
+                  Se adjuntará automáticamente el Excel con los {deudores.length} deudores de {conjunto || "este conjunto"} (INMUEBLE / DEUDOR).
+                </p>
+              )}
             </div>
           ) : isBulk ? (
             <div className="space-y-2">

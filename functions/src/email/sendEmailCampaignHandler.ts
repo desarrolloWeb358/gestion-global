@@ -9,6 +9,12 @@ import {
   sendEmail,
 } from "../notificaciones/sendEmail";
 
+interface EmailAttachment {
+  filename: string;
+  contentBase64: string;
+  contentType?: string;
+}
+
 interface EmailItem {
   to: string;
   subject: string;
@@ -18,15 +24,22 @@ interface EmailItem {
   deudorId?: string;
   deudorNombre: string;
   tipificacion?: string;
+  attachments?: EmailAttachment[];
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MAX_ATTACHMENT_BASE64_LENGTH = 8_000_000; // ~6MB decoded, well under Gmail's limit
+const SEND_DELAY_MS = 300; // ritmo defensivo entre envíos, igual que el job de WhatsApp masivo
 const JURIDICAL_TIPS = new Set([
   "Demanda",
   "Demanda/Acuerdo",
   "Demanda terminada",
   "Demanda/Insolvencia",
 ]);
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export const sendEmailCampaign = onCall(
   {
@@ -80,16 +93,24 @@ export const sendEmailCampaign = onCall(
       createdAt: FieldValue.serverTimestamp(),
     });
 
-    for (const item of items) {
+    for (let index = 0; index < items.length; index++) {
+      const item = items[index];
+      if (index > 0) await delay(SEND_DELAY_MS);
       try {
         if (!EMAIL_RE.test(String(item.to ?? "").trim())) throw new Error("Correo inválido");
         if (!item.subject?.trim() || !item.html?.trim()) throw new Error("Asunto o contenido vacío");
+        const attachments = Array.isArray(item.attachments) ? item.attachments : [];
+        for (const attachment of attachments) {
+          if (!attachment?.filename || !attachment?.contentBase64) throw new Error("Adjunto inválido");
+          if (attachment.contentBase64.length > MAX_ATTACHMENT_BASE64_LENGTH) throw new Error("El adjunto supera el tamaño máximo permitido");
+        }
 
         await sendEmail({
           to: item.to.trim().toLowerCase(),
           subject: item.subject.trim(),
           text: item.text ?? "",
           html: item.html,
+          attachments,
         });
 
         if (item.clienteId && item.deudorId) {

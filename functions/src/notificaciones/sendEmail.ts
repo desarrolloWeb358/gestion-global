@@ -1,7 +1,6 @@
 // functions/src/twilio/sendEmail.ts
 import { defineSecret } from "firebase-functions/params";
 import nodemailer from "nodemailer";
-import { google } from "googleapis";
 
 // 🔐 Secrets para Gmail OAuth2
 export const GMAIL_USER = defineSecret("GMAIL_USER");                 // gestionglobalacg@gestionglobalacg.com
@@ -9,16 +8,32 @@ export const GMAIL_CLIENT_ID = defineSecret("GMAIL_CLIENT_ID");       // client_
 export const GMAIL_CLIENT_SECRET = defineSecret("GMAIL_CLIENT_SECRET"); // client_secret de OAuth
 export const GMAIL_REFRESH_TOKEN = defineSecret("GMAIL_REFRESH_TOKEN"); // refresh_token del Playground
 
+type SendEmailAttachment = {
+  filename: string;
+  contentBase64: string;
+  contentType?: string;
+};
+
 type SendEmailOptions = {
   to: string;
   subject: string;
   text?: string;
   html?: string;
+  attachments?: SendEmailAttachment[];
 };
 
-export const sendEmail = async (opts: SendEmailOptions): Promise<string> => {
-  console.log("[sendEmail] init (Gmail OAuth2)");
+// Reutilizamos un único transporter (y su token OAuth2 interno) entre envíos.
+// Antes cada llamada a sendEmail creaba un OAuth2Client nuevo y pedía un
+// access_token nuevo a Google, lo que en un envío masivo (30+ correos
+// seguidos) terminaba chocando con el rate limit del endpoint de tokens de
+// Google: los primeros ~30 correos salían bien y el resto empezaba a fallar
+// silenciosamente aunque el ciclo de envío seguía intentando con los que
+// quedaban. Nodemailer refresca el access_token internamente solo cuando
+// expira, así que basta con no recrear el transporter en cada envío.
+let cachedTransporter: nodemailer.Transporter | null = null;
+let cachedUser: string | null = null;
 
+function getTransporter(): { transporter: nodemailer.Transporter; user: string } {
   const user = GMAIL_USER.value();
   const clientId = GMAIL_CLIENT_ID.value();
   const clientSecret = GMAIL_CLIENT_SECRET.value();
@@ -29,25 +44,11 @@ export const sendEmail = async (opts: SendEmailOptions): Promise<string> => {
     throw new Error("Faltan credenciales de Gmail");
   }
 
-  // Cliente OAuth2 de Google
-  const oAuth2Client = new google.auth.OAuth2(
-    clientId,
-    clientSecret,
-    "https://developers.google.com/oauthplayground" // el mismo redirect del Playground
-  );
-
-  oAuth2Client.setCredentials({ refresh_token: refreshToken });
-
-  const accessTokenObj = await oAuth2Client.getAccessToken();
-  const accessToken = typeof accessTokenObj === "string"
-    ? accessTokenObj
-    : accessTokenObj?.token;
-
-  if (!accessToken) {
-    throw new Error("No se pudo obtener access_token de OAuth2");
+  if (cachedTransporter && cachedUser === user) {
+    return { transporter: cachedTransporter, user };
   }
 
-  const transporter = nodemailer.createTransport({
+  cachedTransporter = nodemailer.createTransport({
     service: "gmail",
     auth: {
       type: "OAuth2",
@@ -55,9 +56,15 @@ export const sendEmail = async (opts: SendEmailOptions): Promise<string> => {
       clientId,
       clientSecret,
       refreshToken,
-      accessToken,
     },
   });
+  cachedUser = user;
+
+  return { transporter: cachedTransporter, user };
+}
+
+export const sendEmail = async (opts: SendEmailOptions): Promise<string> => {
+  const { transporter, user } = getTransporter();
 
   const info = await transporter.sendMail({
     from: `"Gestión Global ACG" <${user}>`,
@@ -65,6 +72,12 @@ export const sendEmail = async (opts: SendEmailOptions): Promise<string> => {
     subject: opts.subject,
     text: opts.text,
     html: opts.html,
+    attachments: opts.attachments?.map((attachment) => ({
+      filename: attachment.filename,
+      content: attachment.contentBase64,
+      encoding: "base64" as const,
+      contentType: attachment.contentType,
+    })),
   });
 
   console.log("[sendEmail] messageId:", info.messageId);
