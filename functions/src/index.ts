@@ -422,6 +422,9 @@ export { processBulkSendJob }     from "./whatsapp/bulkSendHandler";
 export { notificarValorAgregadoCreado, notificarValorAgregadoActualizado } from "./valoresAgregados/notificaciones";
 export { procesarMensajeValorAgregado } from "./valoresAgregados/conversacion";
 
+// Avisa por correo a la administración cuando un acuerdo de pago queda en firme.
+export { notificarAcuerdoEnFirme } from "./acuerdos/notificaciones";
+
 // =====================================================
 // 📅 MÓDULO CALENDARIO — Eventos y recordatorios del equipo
 // =====================================================

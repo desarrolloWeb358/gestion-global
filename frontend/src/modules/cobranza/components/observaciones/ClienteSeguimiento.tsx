@@ -119,6 +119,28 @@ export default function ClienteSeguimientoConjunto() {
 
   }
 
+  function handlePasteArchivo(e: React.ClipboardEvent) {
+    const items = Array.from(e.clipboardData?.items ?? []);
+    const imageItems = items.filter((item) => item.type.startsWith("image/"));
+    if (imageItems.length === 0) return;
+
+    e.preventDefault();
+
+    const nuevos = imageItems
+      .map((item, i) => {
+        const blob = item.getAsFile();
+        if (!blob) return null;
+        const ext = item.type.split("/")[1] ?? "png";
+        return new File([blob], `imagen_pegada_${Date.now()}_${i}.${ext}`, { type: item.type });
+      })
+      .filter((f): f is File => f !== null);
+
+    if (nuevos.length === 0) return;
+
+    setArchivos((prev) => [...prev, ...nuevos]);
+    toast.success(nuevos.length > 1 ? "Imágenes adjuntadas" : "Imagen adjuntada");
+  }
+
   async function guardar() {
 
     if (!clienteId) return;
@@ -211,7 +233,7 @@ export default function ClienteSeguimientoConjunto() {
 
           </div>
 
-          <div className="p-5 space-y-4">
+          <div className="p-5 space-y-4" onPaste={handlePasteArchivo}>
 
             <RichTextEditor
               value={texto}
@@ -258,7 +280,7 @@ export default function ClienteSeguimientoConjunto() {
               />
               <Upload className="h-4 w-4 text-gray-400" />
               <span className="text-sm text-gray-600">
-                Adjuntar archivos (opcional — PDF, imagen, Word)
+                Adjuntar archivos (opcional — PDF, imagen, Word, o pega una imagen con Ctrl+V)
               </span>
             </label>
 

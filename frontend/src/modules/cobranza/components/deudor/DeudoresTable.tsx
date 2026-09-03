@@ -1651,12 +1651,12 @@ export default function DeudoresTable() {
           const honorarios = ultimo?.honorariosDeuda ?? null;
           const total = deuda != null ? deuda + (honorarios ?? 0) : null;
           return {
+            Tipificación: d.tipificacion ?? "",
+            "Ubicación / Apto": d.ubicacion ?? "",
             Nombre: d.nombre ?? "",
             Cédula: d.cedula ?? "",
             Teléfonos: (d.telefonos ?? []).join(", "),
-            "Ubicación / Apto": d.ubicacion ?? "",
             Correo: (d.correos ?? []).join(", "),
-            Tipificación: d.tipificacion ?? "",
             "Deuda (último mes)": fmt(deuda),
             "Honorarios (último mes)": fmt(honorarios),
             "Total con honorarios": fmt(total),
