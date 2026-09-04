@@ -410,6 +410,7 @@ export { sendWhatsAppMessage }    from "./whatsapp/sendMessageHandler";
 export { sendMetaTemplate }       from "./whatsapp/sendTemplateHandler";
 export { sendEmailCampaign }      from "./email/sendEmailCampaignHandler";
 export { getEmailCampaignHistory } from "./email/sendEmailCampaignHandler";
+export { processEmailCampaign }   from "./email/sendEmailCampaignHandler";
 export { processBulkSendJob }     from "./whatsapp/bulkSendHandler";
 
 // =====================================================

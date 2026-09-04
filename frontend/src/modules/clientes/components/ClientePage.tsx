@@ -526,10 +526,10 @@ export default function ClientePage() {
                                             <Mail className="h-6 w-6 text-blue-600" />
                                         </div>
                                         <Typography variant="h3" className="!text-brand-secondary mb-2">
-                                            Correos masivos
+                                            Correos
                                         </Typography>
                                         <Typography variant="small">
-                                            Envía comunicaciones con plantilla a los deudores del conjunto
+                                            Envía comunicaciones con plantilla al conjunto o a sus deudores, y consulta el historial
                                         </Typography>
                                     </div>
                                 </button>

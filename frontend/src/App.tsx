@@ -35,7 +35,6 @@ import TemplatesPage from "./modules/whatsapp/components/TemplatesPage";
 import SendWhatsAppPage from "./modules/whatsapp/components/SendWhatsAppPage";
 import BulkWhatsAppPage from "./modules/whatsapp/components/BulkWhatsAppPage";
 import EmailComposePage from "./modules/correos/components/EmailComposePage";
-import EmailHomePage from "./modules/correos/components/EmailHomePage";
 
 // Dashboards
 import AdminDashboardPage from "@/modules/dashboard/pages/AdminDashboardPage";
@@ -154,7 +153,6 @@ export default function App() {
             <Route path="/clientes/:clienteId/enviar-whatsapp-masivo" element={<BulkWhatsAppPage />} />
 
             {/* Correos */}
-            <Route path="/correos" element={<EmailHomePage />} />
             <Route path="/clientes/:clienteId/enviar-correos" element={<EmailComposePage />} />
             <Route path="/clientes/:clienteId/deudores/:deudorId/enviar-correo" element={<EmailComposePage />} />
 

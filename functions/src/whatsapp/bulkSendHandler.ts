@@ -2,6 +2,7 @@ import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import { getOrCreateConversation, appendMessage } from "./conversationService";
+import { TIPS_JURIDICO } from "../shared/tipificaciones";
 
 const BATCH_SIZE = 10;
 const BATCH_DELAY_MS = 600;
@@ -9,12 +10,7 @@ const BATCH_DELAY_MS = 600;
 const NO_PHONE_SEGUIMIENTO_TEXT =
   "Se intentó enviar un mensaje por WhatsApp al deudor, pero no fue posible ya que no contamos con la información del número telefónico.";
 
-const TIPS_JURIDICO = new Set([
-  "Demanda",
-  "Demanda/Acuerdo",
-  "Demanda/Terminado",
-  "Demanda/Insolvencia",
-]);
+
 
 interface BulkItem {
   deudorId: string;
