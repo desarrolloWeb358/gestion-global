@@ -62,6 +62,7 @@ import MonitoreoRadicadosPage from "./modules/cobranza/components/MonitoreoRadic
 import DetalleProcesoJudicialPage from "./modules/cobranza/components/DetalleProcesoJudicialPage";
 import AjustesPage from "./modules/ajustes/components/AjustesPage";
 import ContratosPage from "./modules/contratos/components/ContratosPage";
+import SeguimientoMasivoPage from "./modules/cobranza/components/seguimiento/SeguimientoMasivoPage";
 import TareasBoardPage from "./modules/tareas/components/TareasBoardPage";
 import CalendarioPage from "./modules/eventos/components/CalendarioPage";
 
@@ -124,6 +125,10 @@ export default function App() {
               element={<ClienteSeguimiento />}
             />
             {/* valores agregados */}
+            <Route
+              path="/clientes/:clienteId/seguimiento-masivo"
+              element={<SeguimientoMasivoPage />}
+            />
             <Route path="/valores-agregados/:clienteId" element={<ValoresAgregadosTable />} />
             <Route path="/clientes/:clienteId/valores-agregados/:valorId" element={<ValorAgregadoDetailPage />} />
             <Route path="/clientes/:clienteId/deudores/:deudorId/AcuerdoPago" element={<AcuerdoPagoPage />} />

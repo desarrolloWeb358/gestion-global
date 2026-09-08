@@ -532,17 +532,14 @@ function buildProcesoDemandaCard(input: {
   numeroRadicado?: string;
   juzgado?: string;
   seguimientos: { fecha: string | null; texto: string }[];
-  observacionCliente?: string;
 }) {
   const ubicacion = input.ubicacion || "SIN INMUEBLE";
   const demandados = (input.demandados || "").trim() || "-"; // ya viene como string desde el caller
   const radicado = (input.numeroRadicado || "").trim() || "-";
   const juzgado = (input.juzgado || "").trim() || "-";
 
-  const lista = [
-    ...(input.seguimientos || []),
-    { fecha: null, texto: input.observacionCliente?.trim() ? input.observacionCliente.trim() : "" },
-  ].filter((x) => (x.texto || "").trim().length > 0);
+  // Solo los seguimientos de la demanda; la observación del conjunto no va en el reporte.
+  const lista = (input.seguimientos || []).filter((x) => (x.texto || "").trim().length > 0);
 
   // ✅ anchos estables (ajústalos si quieres)
   const W_INM = 14;
@@ -1596,7 +1593,6 @@ export async function buildReporteClienteDocx(input: ReporteClienteWordInput): P
         numeroRadicado: d.numeroRadicado || "",
         juzgado: d.juzgado || "",
         seguimientos: d.seguimientos || [],
-        observacionCliente: d.observacionCliente || "",
       });
 
       // tabla info + tabla observaciones

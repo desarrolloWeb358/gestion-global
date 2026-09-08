@@ -10,6 +10,7 @@ import {
     TrendingUp,
     Building2,
     MessageSquare,
+    MessageSquarePlus,
     MessageCircle,
     Mail,
     ScrollText,
@@ -63,6 +64,7 @@ export default function ClientePage() {
     const canViewWhatsappMasivo = can(PERMS.Whatsapp_Write);
     const canSendEmail = can(PERMS.Email_Write);
     const canViewContratos = can(PERMS.Contratos_Read);
+    const canSeguimientoMasivo = can(PERMS.Seguimientos_Masivo_Create);
 
     // Obtener nombre del cliente desde usuarios
     const nombreCliente = useMemo(() => {
@@ -592,6 +594,36 @@ export default function ClientePage() {
                                         </Typography>
                                         <Typography variant="small">
                                             Consulta y gestiona los contratos del cliente
+                                        </Typography>
+                                    </div>
+                                </button>
+                            )}
+
+                            {/* Tarjeta: Seguimiento masivo (solo supervisor / admin) */}
+                            {canSeguimientoMasivo && (
+                                <button
+                                    onClick={() => abrirAcceso(`/clientes/${cliente.id}/seguimiento-masivo`)}
+                                    className={cn(
+                                    "group relative overflow-hidden rounded-xl border-2 border-brand-secondary/20 bg-white p-6 text-left transition-all hover:border-teal-500 hover:shadow-lg hover:-translate-y-1",
+                                    cardBloqueadaCls
+                                )}
+                                >
+                                    <div className="absolute top-0 right-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-teal-500/5 transition-transform group-hover:scale-150" />
+                                    {accesosBloqueados && (
+                                        <span className="absolute top-3 right-3 z-10 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-700">
+                                            <Lock className="h-3 w-3" />
+                                            Bloqueado
+                                        </span>
+                                    )}
+                                    <div className="relative">
+                                        <div className="mb-4 inline-flex rounded-lg bg-teal-500/10 p-3 transition-colors group-hover:bg-teal-500/20">
+                                            <MessageSquarePlus className="h-6 w-6 text-teal-600" />
+                                        </div>
+                                        <Typography variant="h3" className="!text-brand-secondary mb-2">
+                                            Seguimiento Masivo
+                                        </Typography>
+                                        <Typography variant="small">
+                                            Registra la misma gestión en varios deudores a la vez
                                         </Typography>
                                     </div>
                                 </button>

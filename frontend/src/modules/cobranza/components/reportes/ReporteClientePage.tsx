@@ -113,6 +113,13 @@ import { obtenerDemandasConSeguimientoCliente } from "../../services/reportes/de
 import { obtenerReporteDeudoresPorPeriodo } from "../../services/reportes/reporteDeudoresService";
 import type { FilaReporte } from "../../services/reportes/tipos";
 
+// Tipificaciones que se listan en el resumen pero no cuentan como casos vigentes
+// (no suman en el total de inmuebles del pie de tabla).
+const TIPIFICACIONES_FUERA_DEL_TOTAL = new Set<string>([
+  TipificacionDeuda.DEVUELTO,
+  TipificacionDeuda.TERMINADO,
+]);
+
 // Mes a partir del cual rige el nuevo modelo de habilitación por ejecutivo (inclusive)
 const REPORTE_NUEVO_MODELO_DESDE = "2026-06";
 
@@ -636,7 +643,11 @@ export default function ReporteClientePage() {
   const totalesResumen = useMemo(() => {
     return resumenFiltrado.reduce(
       (acc, fila) => {
-        acc.inmuebles += fila.inmuebles;
+        // Devuelto y Terminado se muestran en la tabla, pero no son casos
+        // vigentes: no suman en el total de inmuebles.
+        if (!TIPIFICACIONES_FUERA_DEL_TOTAL.has(String(fila.tipificacion))) {
+          acc.inmuebles += fila.inmuebles;
+        }
         acc.recaudoTotal += fila.recaudoTotal;
         acc.honorariosRecaudoTotal += fila.honorariosRecaudoTotal;
         acc.ingresoConjunto += fila.ingresoConjunto;

@@ -19,6 +19,8 @@ import {
   getDownloadURL,
   deleteObject,
 } from "firebase/storage";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 import { Seguimiento } from "../models/seguimiento.model";
 
 /* ====================== Helpers ====================== */
@@ -72,6 +74,38 @@ async function actualizarFechaUltimoSeguimiento(
   await updateDoc(deudorRef, { fechaUltimoSeguimiento: ahora });
 }
 
+export type DestinoSeguimiento = "seguimiento" | "seguimientoJuridico";
+
+// Escribe el documento del seguimiento con archivos YA subidos.
+// Lo comparten la creación individual y la masiva.
+async function escribirSeguimiento(
+  destino: DestinoSeguimiento,
+  ejecutivoUID: string,
+  clienteId: string,
+  deudorId: string,
+  data: Omit<Seguimiento, "id">,
+  archivosUrl?: string[]
+) {
+  const refCol = collection(db, `clientes/${clienteId}/deudores/${deudorId}/${destino}`);
+
+  const fechaBase = data.fecha instanceof Date ? data.fecha : data.fecha?.toDate?.() ?? new Date();
+  const ahora = Timestamp.fromDate(new Date());
+
+  const payload = stripUndefined({
+    fecha: Timestamp.fromDate(fechaBase),
+    clienteUID: clienteId,
+    ejecutivoUID: ejecutivoUID,
+    tipoSeguimiento: data.tipoSeguimiento,
+    descripcion: data.descripcion,
+    actualizadoEn: ahora,
+    ...(archivosUrl && archivosUrl.length > 0 ? { archivosUrl } : {}),
+  });
+
+  const docRef = await addDoc(refCol, payload);
+  await actualizarFechaUltimoSeguimiento(clienteId, deudorId, ahora);
+  return docRef;
+}
+
 /* ======================================================
    PRE-JURÍDICO
    clientes/{clienteId}/deudores/{deudorId}/seguimiento
@@ -99,27 +133,7 @@ export async function addSeguimiento(
       ? await uploadArchivos(clienteId, deudorId, archivos)
       : undefined;
 
-  const refCol = collection(db, `clientes/${clienteId}/deudores/${deudorId}/seguimiento`);
-
-  const fechaBase = data.fecha instanceof Date ? data.fecha : data.fecha?.toDate?.() ?? new Date();
-  const fechaSeleccionada = Timestamp.fromDate(fechaBase);
-  const ahora = Timestamp.fromDate(new Date());
-
-  const payload = stripUndefined({
-    fecha: fechaSeleccionada,
-    clienteUID: clienteId,
-    ejecutivoUID: ejecutivoUID,
-    tipoSeguimiento: data.tipoSeguimiento,
-    descripcion: data.descripcion,
-    actualizadoEn: ahora,
-    ...(archivosUrl ? { archivosUrl } : {}),
-  });
-
-  const docRef = await addDoc(refCol, payload);
-
-  await actualizarFechaUltimoSeguimiento(clienteId, deudorId, ahora);
-
-  return docRef;
+  return escribirSeguimiento("seguimiento", ejecutivoUID, clienteId, deudorId, data, archivosUrl);
 }
 
 export async function updateSeguimiento(
@@ -173,6 +187,38 @@ export async function deleteSeguimiento(
 }
 
 /* ======================================================
+   SEGUIMIENTO INICIAL AUTOMÁTICO
+   Se registra al crear un deudor (manual o importación masiva)
+   ====================================================== */
+
+function descripcionSeguimientoInicial(fecha: Date): string {
+  const fechaTexto = format(fecha, "d 'de' MMMM 'del' yyyy", { locale: es });
+  return `El día ${fechaTexto}, la administración nos hace entrega del inmueble para dar inicio a la gestión de cobranza.`;
+}
+
+// Crea el primer seguimiento prejurídico de un deudor recién creado.
+// No lanza: el deudor ya quedó guardado y un fallo aquí no debe romper
+// la creación individual ni abortar la carga masiva.
+export async function addSeguimientoInicialDeudor(
+  ejecutivoUID: string,
+  clienteId: string,
+  deudorId: string,
+  fecha: Date = new Date()
+): Promise<boolean> {
+  try {
+    await addSeguimiento(ejecutivoUID, clienteId, deudorId, {
+      fecha,
+      tipoSeguimiento: "otro",
+      descripcion: descripcionSeguimientoInicial(fecha),
+    });
+    return true;
+  } catch (e) {
+    console.warn("No se pudo crear el seguimiento inicial del deudor:", e);
+    return false;
+  }
+}
+
+/* ======================================================
    JURÍDICO
    clientes/{clienteId}/deudores/{deudorId}/seguimientoJuridico
    ====================================================== */
@@ -200,27 +246,7 @@ export async function addSeguimientoJuridico(
       ? await uploadArchivos(clienteId, deudorId, archivos)
       : undefined;
 
-  const refCol = collection(db, `clientes/${clienteId}/deudores/${deudorId}/seguimientoJuridico`);
-
-  const fechaBase = data.fecha instanceof Date ? data.fecha : data.fecha?.toDate?.() ?? new Date();
-  const fechaSeleccionada = Timestamp.fromDate(fechaBase);
-  const ahora = Timestamp.fromDate(new Date());
-
-  const payload = stripUndefined({
-    fecha: fechaSeleccionada,
-    ejecutivoUID: ejecutivoUID,
-    clienteUID: clienteId,
-    tipoSeguimiento: data.tipoSeguimiento,
-    descripcion: data.descripcion,
-    actualizadoEn: ahora,
-    ...(archivosUrl ? { archivosUrl } : {}),
-  });
-
-  const docRef = await addDoc(refCol, payload);
-
-  await actualizarFechaUltimoSeguimiento(clienteId, deudorId, ahora);
-
-  return docRef;
+  return escribirSeguimiento("seguimientoJuridico", ejecutivoUID, clienteId, deudorId, data, archivosUrl);
 }
 
 export async function updateSeguimientoJuridico(
@@ -277,4 +303,78 @@ export async function deleteSeguimientoJuridico(
     descripcion: snap.exists() ? (snap.data() as Seguimiento).descripcion : seguimientoId,
     coleccionPath: `clientes/${clienteId}/deudores/${deudorId}/seguimientoJuridico`,
   });
+}
+
+/* ======================================================
+   SEGUIMIENTO MASIVO
+   Un mismo seguimiento replicado en varios deudores del conjunto
+   ====================================================== */
+
+export interface SeguimientoMasivoInput {
+  clienteId: string;
+  ejecutivoUID: string;
+  deudorIds: string[];
+  destino: DestinoSeguimiento;
+  data: Omit<Seguimiento, "id">;
+  archivos?: File[];
+  // Se llama después de cada deudor procesado, para la barra de progreso.
+  onProgress?: (procesados: number, total: number) => void;
+}
+
+export interface ResultadoSeguimientoMasivo {
+  exitosos: number;
+  fallidos: { deudorId: string; message: string }[];
+}
+
+// Cuántos deudores se escriben en paralelo. Suficiente para que 300 deudores
+// no tarden una eternidad, sin saturar la cuota de escritura de Firestore.
+const LOTE_MASIVO = 10;
+
+// Sube los adjuntos UNA sola vez a una carpeta del cliente y reusa esas URLs
+// en todos los deudores, en vez de subir el mismo archivo N veces.
+async function uploadArchivosMasivos(clienteId: string, archivos: File[]): Promise<string[]> {
+  const carpeta = `clientes/${clienteId}/seguimientosMasivos/${Date.now()}`;
+  return Promise.all(
+    archivos.map(async (archivo) => {
+      const sref = ref(storage, `${carpeta}/${archivo.name}`);
+      await uploadBytes(sref, archivo);
+      return getDownloadURL(sref);
+    })
+  );
+}
+
+export async function addSeguimientoMasivo({
+  clienteId,
+  ejecutivoUID,
+  deudorIds,
+  destino,
+  data,
+  archivos,
+  onProgress,
+}: SeguimientoMasivoInput): Promise<ResultadoSeguimientoMasivo> {
+  const archivosUrl =
+    archivos && archivos.length > 0 ? await uploadArchivosMasivos(clienteId, archivos) : undefined;
+
+  const fallidos: { deudorId: string; message: string }[] = [];
+  let exitosos = 0;
+  let procesados = 0;
+
+  for (let i = 0; i < deudorIds.length; i += LOTE_MASIVO) {
+    const lote = deudorIds.slice(i, i + LOTE_MASIVO);
+    await Promise.all(
+      lote.map(async (deudorId) => {
+        try {
+          await escribirSeguimiento(destino, ejecutivoUID, clienteId, deudorId, data, archivosUrl);
+          exitosos++;
+        } catch (e: any) {
+          fallidos.push({ deudorId, message: e?.message ?? "Error desconocido" });
+        } finally {
+          procesados++;
+          onProgress?.(procesados, deudorIds.length);
+        }
+      })
+    );
+  }
+
+  return { exitosos, fallidos };
 }

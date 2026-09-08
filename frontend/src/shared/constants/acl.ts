@@ -109,6 +109,10 @@ export const PERMS = {
   // Seguimiento — edición de fecha (solo ejecutivoAdmin y admin)
   Seguimientos_Fecha_Edit: "seguimientos.fecha.edit",
 
+  // Seguimiento masivo: replicar una misma gestión en muchos deudores
+  // de un conjunto. Solo supervisor y admin.
+  Seguimientos_Masivo_Create: "seguimientos.masivo.create",
+
   // Casos (clientes particulares: personas naturales/jurídicas con procesos).
   // Línea de negocio independiente de la cartera de conjuntos.
   ClientesParticulares_Read: "clientesParticulares.read",
@@ -150,6 +154,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Seguimientos_Dependientes_Read,
     PERMS.Seguimientos_Dependientes_Edit,
     PERMS.Seguimientos_Fecha_Edit,
+    PERMS.Seguimientos_Masivo_Create,
     PERMS.Abonos_Read,
     PERMS.Abonos_Edit,
     PERMS.Recaudos_Read,
@@ -191,6 +196,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Seguimientos_Ejecutivos_Edit,
     PERMS.Seguimientos_Dependientes_Read,
     PERMS.Seguimientos_Dependientes_Edit,
+    PERMS.Seguimientos_Masivo_Create,
     PERMS.Abonos_Read,
     PERMS.Abonos_Edit,
     PERMS.Valores_Read,

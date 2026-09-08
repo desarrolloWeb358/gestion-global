@@ -47,6 +47,8 @@ import { PERMS } from "@/shared/constants/acl";
 // ✅ Historial tipificaciones
 import type { HistorialTipificacion } from "../../models/historialTipificacion.model";
 import { crearEstadoMensual, obtenerEstadosMensuales } from "../../services/estadoMensualService";
+import { addSeguimientoInicialDeudor } from "../../services/seguimientoService";
+import { auth } from "@/firebase";
 
 import { Timestamp } from "firebase/firestore";
 
@@ -712,12 +714,14 @@ function ImportPreviewDialog({
   onCancel,
   onImport,
   importing,
+  onDescargarPlantilla,
 }: {
   preview: ImportPreview;
   open: boolean;
   onCancel: () => void;
   onImport: (opts: ImportOpts) => void;
   importing: boolean;
+  onDescargarPlantilla: () => void;
 }) {
   const esCrear = preview.mode === "crear";
 
@@ -822,6 +826,13 @@ function ImportPreviewDialog({
                 {missingRequired.length === 1
                   ? <>Falta la columna obligatoria <strong>{missingRequired[0]}</strong>.</>
                   : <>Faltan las columnas obligatorias <strong>{missingRequired.join(" y ")}</strong>.</>}
+                <button
+                  type="button"
+                  onClick={onDescargarPlantilla}
+                  className="block mt-1 text-xs font-medium underline underline-offset-2 hover:text-red-800"
+                >
+                  Descargar plantilla de ejemplo
+                </button>
               </span>
             </div>
           )}
@@ -1041,6 +1052,7 @@ export default function DeudoresTable() {
   const ejecutarImportacion = async (opts: ImportOpts) => {
     if (!clienteId || !importPreview) return;
     setImportando(true);
+    const uidUsuario = usuarioSistema?.uid ?? auth.currentUser?.uid ?? "";
     try {
       const buffer = await importPreview.file.arrayBuffer();
       const wb = XLSX.read(buffer, { type: "array" });
@@ -1214,6 +1226,11 @@ export default function DeudoresTable() {
                 porcentajeHonorarios: 15,
               });
               createdInBatch.add(keyLower);
+
+              // Seguimiento inicial automático (solo para deudores nuevos)
+              if (nuevoDeudorId) {
+                await addSeguimientoInicialDeudor(uidUsuario, clienteId, nuevoDeudorId);
+              }
 
               // Si hay columna DEUDA y el usuario seleccionó un mes, crear estado mensual
               if (colDeuda && opts.mesDeuda && nuevoDeudorId) {
@@ -1555,7 +1572,7 @@ export default function DeudoresTable() {
         });
         toast.success("Deudor actualizado correctamente");
       } else {
-        await crearDeudor(clienteId, {
+        const nuevoDeudorId = await crearDeudor(clienteId, {
           nombre: t(formData.nombre),
           cedula: t(formData.cedula),
           ubicacion: t(formData.ubicacion),
@@ -1564,7 +1581,15 @@ export default function DeudoresTable() {
           telefonos: formData.telefonos ?? [],
           tipificacion: (formData.tipificacion as TipificacionDeuda) ?? TipificacionDeuda.GESTIONANDO,
         });
+
+        // Seguimiento inicial automático
+        const uidUsuario = usuarioSistema?.uid ?? auth.currentUser?.uid ?? "";
+        const conSeguimiento = await addSeguimientoInicialDeudor(uidUsuario, clienteId, nuevoDeudorId);
+
         toast.success("Deudor creado correctamente");
+        if (!conSeguimiento) {
+          toast.warning("No se pudo registrar el seguimiento inicial. Agrégalo manualmente.");
+        }
       }
 
       setOpen(false);
@@ -1635,6 +1660,66 @@ export default function DeudoresTable() {
   }
 
   const [exportando, setExportando] = useState(false);
+
+  // Plantilla de ejemplo para la carga masiva ("Crear deudores").
+  // La primera hoja es la que lee el importador; "Instrucciones" va después.
+  function descargarPlantillaDeudores() {
+    const ejemplo = [
+      {
+        INMUEBLE: "APTO 101",
+        NOMBRE: "Juan Pérez Gómez",
+        "CÉDULA": "1234567890",
+        CONTACTO: "3001234567",
+        "CORREO ELECTRÓNICO": "juan.perez@example.com",
+        DEUDA: 1250000,
+      },
+      {
+        INMUEBLE: "APTO 102",
+        NOMBRE: "María Rodríguez",
+        "CÉDULA": "9876543210",
+        CONTACTO: "3109876543, 3201112233",
+        "CORREO ELECTRÓNICO": "maria.r@example.com; contacto@example.com",
+        DEUDA: 830000,
+      },
+      {
+        INMUEBLE: "CASA 15",
+        NOMBRE: "Carlos Ramírez",
+        "CÉDULA": "",
+        CONTACTO: "573151234567",
+        "CORREO ELECTRÓNICO": "",
+        DEUDA: 450000,
+      },
+    ];
+
+    const instrucciones = [
+      ["Columna", "¿Obligatoria?", "Qué debe contener"],
+      ["INMUEBLE", "Sí", "Apartamento / casa / local. Es la llave del deudor: si ya existe se actualiza, si no existe se crea. No distingue mayúsculas ni espacios de sobra."],
+      ["NOMBRE", "Sí", "Nombre completo del deudor. Sin este dato la fila se reporta como \"Sin nombre\" y no se crea."],
+      ["CÉDULA", "No", "Número de documento, solo dígitos."],
+      ["CONTACTO", "No", "Uno o varios teléfonos separados por coma, punto y coma, barra o salto de línea. El prefijo 57 / 057 se elimina automáticamente y quedan los 10 dígitos."],
+      ["CORREO ELECTRÓNICO", "No", "Uno o varios correos separados por coma, punto y coma, barra o espacio. Los que no tengan formato válido se descartan."],
+      ["DEUDA", "No", "Solo el valor numérico, sin $ ni puntos. Se registra como estado mensual del mes que elijas en la vista previa."],
+      [],
+      ["Notas", "", ""],
+      ["", "", "La fila 1 debe ser la de encabezados; los datos empiezan en la fila 2."],
+      ["", "", "Solo se lee la PRIMERA hoja del archivo. No cambies el orden de las hojas."],
+      ["", "", "Los encabezados pueden ir en mayúsculas o minúsculas, con o sin tildes. También se acepta TELÉFONO en vez de CONTACTO."],
+      ["", "", "Si el mismo INMUEBLE se repite dentro del archivo, solo se procesa la primera fila."],
+      ["", "", "Cada deudor nuevo se crea con tipificación GESTIONANDO, 15% de honorarios y un seguimiento inicial automático en Prejurídico."],
+      ["", "", "Puedes borrar las filas de ejemplo y escribir tus datos, o pegar los tuyos debajo."],
+    ];
+
+    const wsDeudores = XLSX.utils.json_to_sheet(ejemplo);
+    wsDeudores["!cols"] = [{ wch: 16 }, { wch: 26 }, { wch: 14 }, { wch: 26 }, { wch: 38 }, { wch: 12 }];
+
+    const wsInstrucciones = XLSX.utils.aoa_to_sheet(instrucciones);
+    wsInstrucciones["!cols"] = [{ wch: 22 }, { wch: 14 }, { wch: 95 }];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, wsDeudores, "Deudores");
+    XLSX.utils.book_append_sheet(wb, wsInstrucciones, "Instrucciones");
+    XLSX.writeFile(wb, "Plantilla_Crear_Deudores.xlsx");
+  }
 
   async function exportarExcel() {
     if (!clienteId || exportando) return;
@@ -1724,6 +1809,16 @@ export default function DeudoresTable() {
                     if (file) validarExcel(file, "crear");
                   }}
                 />
+                <Button
+                  variant="outline"
+                  onClick={descargarPlantillaDeudores}
+                  className="gap-2 border-brand-secondary/30 shadow-sm"
+                  disabled={saving || importando}
+                  title="Descarga un Excel de ejemplo con las columnas y el formato que espera la carga masiva"
+                >
+                  <FileText className="h-4 w-4" />
+                  Plantilla
+                </Button>
                 <Button
                   variant="outline"
                   onClick={() => crearInputRef.current?.click()}
@@ -2313,6 +2408,7 @@ export default function DeudoresTable() {
           onCancel={() => setImportPreview(null)}
           onImport={ejecutarImportacion}
           importing={importando}
+          onDescargarPlantilla={descargarPlantillaDeudores}
         />
       )}
 
