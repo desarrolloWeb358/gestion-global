@@ -50,6 +50,63 @@ const fmt = new Intl.DateTimeFormat("es-CO", {
 });
 const fmtD = (d: Date | null) => (d ? fmt.format(d) : "—");
 
+/** Persistencia de la última consulta (filtros + resultados) al salir y volver. */
+const SESSION_KEY = "reporteDemandas:ultimaConsulta";
+
+type ConsultaGuardada = {
+  fDependiente: string;
+  fEtiqueta: string;
+  rows: DemandaReporteRow[];
+  /** true si no cupieron los resultados: se conservan solo los filtros. */
+  truncada?: boolean;
+};
+
+const aFecha = (v: unknown): Date | null => {
+  if (!v) return null;
+  const d = new Date(v as string);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+function guardarConsulta(fDependiente: string, fEtiqueta: string, rows: DemandaReporteRow[]) {
+  try {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ fDependiente, fEtiqueta, rows }));
+  } catch {
+    // Cuota llena (resultados muy grandes): al menos conservamos los filtros.
+    try {
+      sessionStorage.setItem(
+        SESSION_KEY,
+        JSON.stringify({ fDependiente, fEtiqueta, rows: [], truncada: true })
+      );
+    } catch {
+      /* almacenamiento no disponible: la persistencia es opcional */
+    }
+  }
+}
+
+/** JSON.parse devuelve las fechas como string: hay que revivirlas. */
+function leerConsultaGuardada(): ConsultaGuardada | null {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw) as ConsultaGuardada;
+    if (!p || !Array.isArray(p.rows)) return null;
+    return {
+      fDependiente: p.fDependiente ?? "",
+      fEtiqueta: p.fEtiqueta ?? "todas",
+      truncada: !!p.truncada,
+      rows: p.rows.map((r) => ({
+        ...r,
+        etiquetas: (r.etiquetas ?? []).map((e) => ({ ...e, fecha: aFecha(e.fecha) })),
+        proximaAccionFecha: aFecha(r.proximaAccionFecha),
+        fechaUltimaRevision: aFecha(r.fechaUltimaRevision),
+        fechaCreacion: aFecha(r.fechaCreacion),
+      })),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export default function ReporteDemandasPage() {
   const navigate = useNavigate();
   const acl = useAcl() as { roles: Rol[] };
@@ -67,14 +124,17 @@ export default function ReporteDemandasPage() {
   const [etiquetasOpts, setEtiquetasOpts] = React.useState<string[]>([]);
   const [cargandoOpciones, setCargandoOpciones] = React.useState(true);
 
+  // Última consulta guardada (para volver desde el detalle sin perder los filtros)
+  const guardada = React.useMemo(() => leerConsultaGuardada(), []);
+
   // Resultados (solo tras presionar Buscar)
-  const [rows, setRows] = React.useState<DemandaReporteRow[]>([]);
+  const [rows, setRows] = React.useState<DemandaReporteRow[]>(guardada?.rows ?? []);
   const [buscando, setBuscando] = React.useState(false);
-  const [buscado, setBuscado] = React.useState(false);
+  const [buscado, setBuscado] = React.useState(!!guardada && !guardada.truncada);
 
   // Estado de filtros
-  const [fDependiente, setFDependiente] = React.useState<string>("");
-  const [fEtiqueta, setFEtiqueta] = React.useState<string>("todas");
+  const [fDependiente, setFDependiente] = React.useState<string>(guardada?.fDependiente ?? "");
+  const [fEtiqueta, setFEtiqueta] = React.useState<string>(guardada?.fEtiqueta ?? "todas");
 
   React.useEffect(() => {
     (async () => {
@@ -87,7 +147,7 @@ export default function ReporteDemandasPage() {
         setDependientesOpts(op.dependientes);
         setEtiquetasOpts(etis.map((e) => e.nombre).filter(Boolean));
         // Si es un dependiente solo, establecer su dependiente automáticamente
-        if (soloDependiente && uid) {
+        if (soloDependiente && uid && !guardada) {
           setFDependiente(uid);
         }
       } catch {
@@ -127,6 +187,7 @@ export default function ReporteDemandasPage() {
       const res = await buscarDemandas(filtros);
       setRows(res);
       setBuscado(true);
+      guardarConsulta(fDependiente, fEtiqueta, res);
     } catch {
       toast.error("⚠️ No se pudo cargar el reporte de demandas");
     } finally {
@@ -143,6 +204,15 @@ export default function ReporteDemandasPage() {
     setFEtiqueta("todas");
     setRows([]);
     setBuscado(false);
+    try {
+      sessionStorage.removeItem(SESSION_KEY);
+    } catch {
+      /* almacenamiento no disponible */
+    }
+  };
+
+  const abrirDemanda = (r: DemandaReporteRow) => {
+    navigate(`/clientes/${r.clienteId}/deudores/${r.deudorId}/demandas/${r.demandaId}`);
   };
 
   const exportar = () => {
@@ -286,7 +356,20 @@ export default function ReporteDemandasPage() {
                 </TableHeader>
                 <TableBody>
                   {rows.map((r, index) => (
-                    <TableRow key={`${r.clienteId}-${r.deudorId}-${r.demandaId}`} className={cn("border-brand-secondary/5", index % 2 === 0 ? "bg-white" : "bg-brand-primary/[0.02]", "hover:bg-brand-primary/5")}>
+                    <TableRow
+                      key={`${r.clienteId}-${r.deudorId}-${r.demandaId}`}
+                      onClick={() => abrirDemanda(r)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          abrirDemanda(r);
+                        }
+                      }}
+                      tabIndex={0}
+                      role="link"
+                      title="Abrir demanda"
+                      className={cn("border-brand-secondary/5 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40", index % 2 === 0 ? "bg-white" : "bg-brand-primary/[0.02]", "hover:bg-brand-primary/5")}
+                    >
                       <TableCell className="text-gray-700 w-[22%] truncate">{r.clienteNombre}</TableCell>
                       <TableCell className="font-medium text-gray-800 w-[22%] truncate">{r.deudorNombre || "—"}</TableCell>
                       <TableCell className="text-gray-700 font-mono text-xs w-[16%]">{r.numeroRadicado || "—"}</TableCell>
@@ -306,7 +389,7 @@ export default function ReporteDemandasPage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
-                        <Button size="sm" variant="ghost" onClick={() => navigate(`/clientes/${r.clienteId}/deudores/${r.deudorId}/demandas/${r.demandaId}`)} className="hover:bg-brand-primary/10" title="Abrir demanda">
+                        <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); abrirDemanda(r); }} className="hover:bg-brand-primary/10" title="Abrir demanda">
                           <ExternalLink className="h-4 w-4 text-brand-primary" />
                         </Button>
                       </TableCell>

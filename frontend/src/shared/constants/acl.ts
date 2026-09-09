@@ -78,6 +78,10 @@ export const PERMS = {
 
   Seguimientos_Observaciones_Create: "seguimientos.observaciones.create",
 
+  // Etiquetas de la demanda: uso interno del área jurídica.
+  // Solo dependiente, supervisor, abogado (y admin). Los ejecutivos NO las ven.
+  Demandas_Etiquetas_Read: "demandas.etiquetas.read",
+
   // Abonos
   Abonos_Read: "abonos.read",
   Abonos_Edit: "abonos.edit",
@@ -152,6 +156,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Seguimientos_Ejecutivos_Read,
     PERMS.Seguimientos_Ejecutivos_Edit,
     PERMS.Seguimientos_Dependientes_Read,
+    PERMS.Demandas_Etiquetas_Read,
     PERMS.Seguimientos_Dependientes_Edit,
     PERMS.Seguimientos_Fecha_Edit,
     PERMS.Seguimientos_Masivo_Create,
@@ -195,6 +200,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Seguimientos_Ejecutivos_Read,
     PERMS.Seguimientos_Ejecutivos_Edit,
     PERMS.Seguimientos_Dependientes_Read,
+    PERMS.Demandas_Etiquetas_Read,
     PERMS.Seguimientos_Dependientes_Edit,
     PERMS.Seguimientos_Masivo_Create,
     PERMS.Abonos_Read,
@@ -304,6 +310,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Acuerdos_Edit,
     PERMS.Seguimientos_Ejecutivos_Read,
     PERMS.Seguimientos_Dependientes_Read,
+    PERMS.Demandas_Etiquetas_Read,
     PERMS.Seguimientos_Dependientes_Edit,
     PERMS.Abonos_Read,
     PERMS.Valores_Read,
@@ -351,6 +358,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Acuerdos_Edit,
     PERMS.Seguimientos_Ejecutivos_Read,
     PERMS.Seguimientos_Dependientes_Read,
+    PERMS.Demandas_Etiquetas_Read,
     PERMS.Abonos_Read,
     PERMS.Valores_agregados_Read,
     PERMS.Contratos_Read,

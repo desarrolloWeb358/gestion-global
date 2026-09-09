@@ -9,8 +9,9 @@ import type {
   EventClickArg,
   EventDropArg,
   EventInput,
+  MoreLinkArg,
 } from "@fullcalendar/core";
-import type { EventResizeDoneArg } from "@fullcalendar/interaction";
+import type { DateClickArg, EventResizeDoneArg } from "@fullcalendar/interaction";
 import { useSearchParams } from "react-router-dom";
 import { CalendarPlus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -43,10 +44,12 @@ import { aFecha } from "../lib/fechaEvento";
 import { MENSAJE_NO_ES_DUENO, esDuenoEvento } from "../lib/permisosEvento";
 import type { Evento } from "../models/evento.model";
 import { reprogramarEvento, suscribirEvento, type RangoFechas } from "../services/eventoService";
+import { DiaResumenModal } from "./DiaResumenModal";
 import { EventoDetalleModal } from "./EventoDetalleModal";
 import { EventoFormModal } from "./EventoFormModal";
 
 const TODOS = "__TODOS__";
+const UN_DIA_MS = 24 * 60 * 60 * 1000;
 
 export default function CalendarioPage() {
   const { can, roles, loading: aclLoading } = useAcl();
@@ -83,6 +86,12 @@ export default function CalendarioPage() {
   const [eventoEditar, setEventoEditar] = React.useState<Evento | null>(null);
   const [fechaNuevo, setFechaNuevo] = React.useState<Date | null>(null);
   const [creando, setCreando] = React.useState(false);
+  /**
+   * Día abierto en el resumen. Se conserva mientras se mira el detalle de uno
+   * de sus eventos o se crea otro: al cerrar ese modal se vuelve a la lista del
+   * día en vez de quedar en el calendario pelado.
+   */
+  const [diaResumen, setDiaResumen] = React.useState<Date | null>(null);
 
   React.useEffect(() => {
     if (!canCreate && !canManage) return;
@@ -194,10 +203,38 @@ export default function CalendarioPage() {
     if (evento) setEventoDetalle(evento);
   }
 
+  /**
+   * Un click en una casilla del mes abre el resumen del día, no el formulario:
+   * lo primero que se quiere saber al tocar un día es qué hay agendado. Crear
+   * queda a un botón de distancia, dentro de ese mismo resumen.
+   */
+  function onDateClick(arg: DateClickArg) {
+    if (arg.view.type !== "dayGridMonth") return;
+    arg.view.calendar.unselect();
+    setDiaResumen(arg.date);
+  }
+
   function onSelect(arg: DateSelectArg) {
+    // En Mes, el click de un solo día ya lo atendió `onDateClick`. Arrastrar
+    // varios días sí sigue creando un evento que los abarca.
+    const unSoloDia = arg.end.getTime() - arg.start.getTime() <= UN_DIA_MS;
+    if (arg.view.type === "dayGridMonth" && unSoloDia) {
+      arg.view.calendar.unselect();
+      return;
+    }
     if (!canCreate) return;
     setFechaNuevo(arg.start);
     setCreando(true);
+  }
+
+  /**
+   * El "+N más" de una casilla llena abre el mismo resumen del día. Devolver el
+   * tipo de vista actual evita el popover nativo de FullCalendar sin moverse
+   * del mes que se está viendo.
+   */
+  function onMoreLinkClick(arg: MoreLinkArg) {
+    setDiaResumen(arg.date);
+    return arg.view.type;
   }
 
   function puedeMover(evento: Evento): boolean {
@@ -356,6 +393,8 @@ export default function CalendarioPage() {
           events={eventosCalendario}
           datesSet={onDatesSet}
           eventClick={onEventClick}
+          dateClick={onDateClick}
+          moreLinkClick={onMoreLinkClick}
           select={onSelect}
           selectable={canCreate}
           selectMirror
@@ -392,6 +431,22 @@ export default function CalendarioPage() {
           noEventsText="No hay eventos en este periodo"
         />
       </div>
+
+      {/* El resumen del día cede el paso al detalle y al formulario, y vuelve
+          solo cuando se cierran: nunca hay dos modales encima. */}
+      {diaResumen && !detalleVigente && !creando && !eventoEditar && (
+        <DiaResumenModal
+          dia={diaResumen}
+          eventos={eventosFiltrados}
+          puedeCrear={canCreate}
+          onVerEvento={(evento) => setEventoDetalle(evento)}
+          onCrearEvento={(fecha) => {
+            setFechaNuevo(fecha);
+            setCreando(true);
+          }}
+          onClose={() => setDiaResumen(null)}
+        />
+      )}
 
       {detalleVigente && !eventoEditar && (
         <EventoDetalleModal

@@ -126,6 +126,9 @@ export default function DemandaDetailPage() {
   const roles = Array.isArray(acl.roles) ? acl.roles : [];
   const isExterno = roles.includes("cliente") || roles.includes("deudor");
   const puedeEditar = acl.can(PERMS.Seguimientos_Dependientes_Edit);
+  // Las etiquetas son uso interno del área jurídica: dependiente, supervisor,
+  // abogado (y admin). Los ejecutivos no las ven ni las editan.
+  const puedeVerEtiquetas = acl.can(PERMS.Demandas_Etiquetas_Read);
   const readOnly = !puedeEditar;
 
   const [loading, setLoading] = React.useState(true);
@@ -743,8 +746,8 @@ export default function DemandaDetailPage() {
               )}
             </div>
 
-            {/* ── Etiquetas (uso interno; ocultas para cliente/deudor) ── */}
-            {!isExterno && (
+            {/* ── Etiquetas (uso interno del área jurídica; ocultas para ejecutivos, cliente y deudor) ── */}
+            {puedeVerEtiquetas && (
             <div className="space-y-3">
               <Label className="text-brand-secondary font-medium flex items-center gap-2">
                 <Tag className="h-4 w-4" /> Etiquetas

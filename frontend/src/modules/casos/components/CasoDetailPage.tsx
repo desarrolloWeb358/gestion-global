@@ -7,17 +7,23 @@
 import * as React from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { getAuth } from "firebase/auth";
 import {
+  AlertCircle,
   ArrowLeft,
   Calendar as CalendarIcon,
   CalendarDays,
+  ChevronDown,
   FileText,
   Gavel,
   MessageSquare,
   Paperclip,
   Plus,
+  RefreshCw,
   Save,
+  Scale,
   Send,
+  ShieldAlert,
   Tag,
   Trash2,
   Upload,
@@ -60,6 +66,7 @@ import type { EtiquetaDemanda } from "@/modules/cobranza/models/etiquetaDemanda.
 
 import {
   actualizarCaso,
+  actualizarProcesoJudicialCaso,
   agregarDocumentoCaso,
   eliminarDocumentoCaso,
   getCasoById,
@@ -81,11 +88,17 @@ import {
   type Caso,
   type ContraparteCaso,
   type EtiquetaEnCaso,
+  type ProcesoJudicialCaso,
 } from "../models/caso.model";
 import type { SeguimientoCaso } from "../models/seguimientoCaso.model";
 import type { ObservacionCaso } from "../models/observacionCaso.model";
 
 const SIN_TIPO = "__sin__";
+
+// Consulta pública de procesos (CPNU) de la Rama Judicial: la misma función
+// que usa el detalle de demandas.
+const CPNU_URL =
+  "https://us-central1-gestionglobal-9eac8.cloudfunctions.net/helloWorld";
 
 const fmt = new Intl.DateTimeFormat("es-CO", {
   year: "numeric",
@@ -242,6 +255,79 @@ export default function CasoDetailPage() {
       toast.error("⚠️ No se pudo guardar el caso");
     } finally {
       setSaving(false);
+    }
+  };
+
+  /* ---------- Rama Judicial (CPNU) ---------- */
+
+  const [cpnu, setCpnu] = React.useState<{
+    actuaciones: any[];
+    total: number;
+    ultima: string | null;
+    privado: boolean | null;
+    consultado: boolean;
+    error: string | null;
+    loading: boolean;
+    show: boolean;
+  }>({
+    actuaciones: [],
+    total: 0,
+    ultima: null,
+    privado: null,
+    consultado: false,
+    error: null,
+    loading: false,
+    show: false,
+  });
+
+  const consultarCPNU = async () => {
+    const radicado = form.numeroRadicado.trim();
+    if (radicado.length !== 23) {
+      setCpnu((s) => ({ ...s, error: "El radicado debe tener exactamente 23 dígitos." }));
+      return;
+    }
+    setCpnu((s) => ({ ...s, loading: true, error: null, show: true }));
+    try {
+      const token = await getAuth().currentUser?.getIdToken();
+      const res = await fetch(CPNU_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ radicado }),
+      });
+      const data = await res.json();
+      if (res.status === 404) {
+        setCpnu((s) => ({
+          ...s,
+          privado: null,
+          actuaciones: [],
+          error: "Proceso no encontrado en CPNU. Puede ser Juzgados de Pequeñas Causas (TYBA).",
+          consultado: true,
+          loading: false,
+        }));
+        return;
+      }
+      if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
+
+      const nuevoProceso: ProcesoJudicialCaso = {
+        ...(caso?.procesoJudicial ?? {}),
+        esPrivado: data.esPrivado ?? false,
+        fechaUltimaActuacion: data.fechaUltimaActuacion ?? null,
+      };
+      setCaso((prev) => (prev ? { ...prev, procesoJudicial: nuevoProceso } : prev));
+      setCpnu((s) => ({
+        ...s,
+        actuaciones: data.actuaciones ?? [],
+        total: data.totalActuaciones ?? 0,
+        ultima: data.fechaUltimaActuacion ?? null,
+        privado: data.esPrivado ?? false,
+        consultado: true,
+        loading: false,
+      }));
+      if (clienteParticularId && casoId) {
+        actualizarProcesoJudicialCaso(clienteParticularId, casoId, nuevoProceso).catch(() => {});
+      }
+    } catch (err: any) {
+      setCpnu((s) => ({ ...s, error: err.message ?? "Error de conexión", loading: false }));
     }
   };
 
@@ -730,6 +816,124 @@ export default function CasoDetailPage() {
                 La fecha más próxima define la “próxima acción” del caso en el reporte global.
               </p>
             </div>
+          </section>
+        )}
+
+        {/* ============ Rama Judicial (CPNU) — uso interno ============ */}
+        {!esVistaCliente && form.numeroRadicado && (
+          <section className="rounded-2xl border border-indigo-200 bg-white shadow-sm overflow-hidden">
+            <div className="w-full bg-gradient-to-r from-indigo-50 to-blue-50 px-5 py-4 border-b border-indigo-100 flex items-center justify-between gap-3">
+              <div
+                className="flex items-center gap-3 flex-1 cursor-pointer select-none min-w-0"
+                onClick={() => setCpnu((s) => ({ ...s, show: !s.show }))}
+              >
+                <Scale className="h-5 w-5 text-indigo-600 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-indigo-800">Rama Judicial (CPNU)</p>
+                  <p className="text-xs text-indigo-500 mt-0.5 font-mono truncate">
+                    {form.numeroRadicado}
+                  </p>
+                </div>
+                <ChevronDown
+                  className={cn(
+                    "h-4 w-4 text-indigo-400 transition-transform shrink-0",
+                    cpnu.show && "rotate-180"
+                  )}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={consultarCPNU}
+                disabled={cpnu.loading}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium disabled:opacity-60 shrink-0"
+              >
+                {cpnu.loading ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Consultando...
+                  </>
+                ) : cpnu.consultado ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5" /> Actualizar
+                  </>
+                ) : (
+                  <>
+                    <Scale className="h-3.5 w-3.5" /> Consultar
+                  </>
+                )}
+              </button>
+            </div>
+            {cpnu.show && (
+              <div className="p-4 md:p-5 space-y-3">
+                {cpnu.error && (
+                  <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+                    <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                    <span>{cpnu.error}</span>
+                  </div>
+                )}
+                {cpnu.consultado && !cpnu.loading && cpnu.privado === true && (
+                  <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+                    <ShieldAlert className="h-4 w-4 mt-0.5 shrink-0" /> Proceso privado — actuaciones
+                    no públicas en CPNU.
+                  </div>
+                )}
+                {cpnu.consultado && !cpnu.loading && cpnu.privado === false && (
+                  <>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+                      <span>
+                        {cpnu.actuaciones.length} de {cpnu.total} actuaciones
+                      </span>
+                      {cpnu.ultima && (
+                        <span>
+                          Última:{" "}
+                          <span className="font-medium text-indigo-700">{cpnu.ultima}</span>
+                        </span>
+                      )}
+                    </div>
+                    {cpnu.actuaciones.length > 0 && (
+                      <div className="rounded-xl border border-indigo-100 overflow-hidden overflow-x-auto">
+                        <table className="w-full text-xs min-w-[600px]">
+                          <thead className="bg-indigo-50 border-b border-indigo-100">
+                            <tr>
+                              <th className="px-3 py-2 text-left font-semibold text-indigo-700 w-8">#</th>
+                              <th className="px-3 py-2 text-left font-semibold text-indigo-700 w-24">Fecha</th>
+                              <th className="px-3 py-2 text-left font-semibold text-indigo-700 w-36">Actuación</th>
+                              <th className="px-3 py-2 text-left font-semibold text-indigo-700">Anotación</th>
+                              <th className="px-3 py-2 text-center font-semibold text-indigo-700 w-12">Docs</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-indigo-50">
+                            {cpnu.actuaciones.map((act) => (
+                              <tr key={act.numero} className="hover:bg-indigo-50/40">
+                                <td className="px-3 py-2.5 text-muted-foreground text-center">
+                                  {act.numero}
+                                </td>
+                                <td className="px-3 py-2.5 whitespace-nowrap text-gray-700">
+                                  {act.fecha || "—"}
+                                </td>
+                                <td className="px-3 py-2.5 font-medium text-indigo-700">
+                                  {act.tipo || "—"}
+                                </td>
+                                <td className="px-3 py-2.5 text-gray-600 whitespace-pre-line">
+                                  {act.anotacion || "—"}
+                                </td>
+                                <td className="px-3 py-2.5 text-center">
+                                  {act.conDocumentos ? "Sí" : "—"}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </>
+                )}
+                {!cpnu.consultado && !cpnu.loading && !cpnu.error && (
+                  <p className="text-sm text-muted-foreground">
+                    Consulta las actuaciones publicadas por la Rama Judicial para este radicado.
+                  </p>
+                )}
+              </div>
+            )}
           </section>
         )}
 
