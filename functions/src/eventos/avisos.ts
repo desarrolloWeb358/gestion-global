@@ -343,7 +343,7 @@ export async function avisoEmail(
     "Gestion Global",
   ].join("\n");
 
-  await sendEmail({ to: participante.email, subject: copy.asunto, text: texto, html });
+  await sendEmail({ to: participante.email, subject: copy.asunto, text: texto, html, remitente: "agenda" });
   return { ok: true };
 }
 

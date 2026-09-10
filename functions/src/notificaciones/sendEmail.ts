@@ -8,6 +8,27 @@ export const GMAIL_CLIENT_ID = defineSecret("GMAIL_CLIENT_ID");       // client_
 export const GMAIL_CLIENT_SECRET = defineSecret("GMAIL_CLIENT_SECRET"); // client_secret de OAuth
 export const GMAIL_REFRESH_TOKEN = defineSecret("GMAIL_REFRESH_TOKEN"); // refresh_token del Playground
 
+/**
+ * Direcciones desde las que sale el correo de la plataforma.
+ *
+ * Ojo: solo GMAIL_USER autentica contra Gmail. Las otras dos salen porque están
+ * registradas en ESA cuenta como "Enviar mensajes como" (Gmail > Configuración >
+ * Cuentas e importación) y verificadas con "Tratar como un alias". Si un alias se
+ * borra de esa pantalla, Gmail no falla: reescribe el From de vuelta a GMAIL_USER
+ * y el correo sale igual pero con el remitente equivocado. Antes de agregar una
+ * dirección nueva aquí, verifícala primero allá.
+ */
+export const REMITENTES = {
+  /** Valores agregados y recordatorios de plazos legales. Es la cuenta que autentica. */
+  general: { email: "gestionglobalacg@gestionglobalacg.com", nombre: "Gestión Global ACG" },
+  /** Campañas de correo a deudores y avisos de acuerdos en firme. */
+  cartera: { email: "carterazona1@gestionglobalacg.com", nombre: "Gestión Global ACG" },
+  /** Todo el módulo de calendario: invitaciones, recordatorios y agenda diaria. */
+  agenda: { email: "asistentegerencia@gestionglobalacg.com", nombre: "Gestión Global ACG" },
+} as const;
+
+export type Remitente = keyof typeof REMITENTES;
+
 type SendEmailAttachment = {
   filename: string;
   contentBase64: string;
@@ -20,6 +41,11 @@ type SendEmailOptions = {
   text?: string;
   html?: string;
   attachments?: SendEmailAttachment[];
+  /**
+   * Desde cuál de las tres direcciones sale. Por omisión `general`, para que
+   * cualquier envío que no lo especifique siga saliendo como siempre.
+   */
+  remitente?: Remitente;
 };
 
 // Reutilizamos un único transporter (y su token OAuth2 interno) entre envíos.
@@ -64,10 +90,14 @@ function getTransporter(): { transporter: nodemailer.Transporter; user: string }
 }
 
 export const sendEmail = async (opts: SendEmailOptions): Promise<string> => {
-  const { transporter, user } = getTransporter();
+  const { transporter } = getTransporter();
+  const remitente = REMITENTES[opts.remitente ?? "general"];
 
   const info = await transporter.sendMail({
-    from: `"Gestión Global ACG" <${user}>`,
+    from: `"${remitente.nombre}" <${remitente.email}>`,
+    // Sin esto, un cliente de correo que ignore el From y use el Sender (la
+    // cuenta que autentica) mandaría la respuesta al buzón equivocado.
+    replyTo: remitente.email,
     to: opts.to,
     subject: opts.subject,
     text: opts.text,
@@ -80,6 +110,6 @@ export const sendEmail = async (opts: SendEmailOptions): Promise<string> => {
     })),
   });
 
-  console.log("[sendEmail] messageId:", info.messageId);
+  console.log("[sendEmail] messageId:", info.messageId, "desde:", remitente.email);
   return info.messageId || "correo-enviado";
 };

@@ -551,7 +551,7 @@ export const agendaDiaria = onSchedule(
       );
       for (const correo of correos) {
         try {
-          await sendEmail({ to: correo, subject: asunto, text: texto, html });
+          await sendEmail({ to: correo, subject: asunto, text: texto, html, remitente: "agenda" });
           correosEnviados++;
         } catch (err: any) {
           logger.error("[agendaDiaria] Fallo el envio por correo", {

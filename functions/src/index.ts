@@ -3,57 +3,12 @@ import * as logger from "firebase-functions/logger";
 
 import { sendSMS } from './twilio/sendSMS';
 import { sendWhatsAppTemplate } from './twilio/sendWhatsApp';
-import { GMAIL_USER, GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN } from "./notificaciones/sendEmail";
-import { sendEmail } from "./notificaciones/sendEmail";
 import { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN } from "./twilio/client";
 import * as admin from "firebase-admin";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 
 admin.initializeApp();
 
-export const enviarNotificacion = onRequest(
-  {
-    secrets: [
-      GMAIL_USER,
-      GMAIL_CLIENT_ID,
-      GMAIL_CLIENT_SECRET,
-      GMAIL_REFRESH_TOKEN,
-    ],
-  },
-  async (req, res) => {
-    console.log("Solicitud recibida para enviar notificación:", req.body);
-
-    res.set("Access-Control-Allow-Origin", "*");
-    res.set("Access-Control-Allow-Headers", "Content-Type");
-    if (req.method === "OPTIONS") {
-      res.status(204).send("");
-      return;
-    }
-
-    try {
-      const { to, subject, text, html } = req.body;
-
-      if (!to || !subject) {
-        res.status(400).send("Faltan parámetros obligatorios: to, subject");
-        return;
-      }
-
-      const messageId = await sendEmail({
-        to,
-        subject,
-        text,
-        html,
-      });
-
-      res.status(200).send({ success: true, messageId });
-    } catch (error) {
-      console.error("Error al enviar notificación:", error);
-      res.status(500).send("Error al enviar la notificación.");
-    }
-  }
-);
-
-// Enviar notificaciones por correo electrónico (SMTP)
 
 
 

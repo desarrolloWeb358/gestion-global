@@ -69,6 +69,7 @@ export const notificarAcuerdoEnFirme = onDocumentUpdated(
     try {
       await sendEmail({
         to: destinatario.correo,
+        remitente: "cartera",
         subject: `Acuerdo de pago en firme: ${nombreDeudor}`,
         text: `Se dejó en firme el acuerdo de pago N.° ${numero} con ${nombreDeudor}, por un total de ${totalFmt}.`,
         html: buildEmailHtml(

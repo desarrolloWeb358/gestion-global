@@ -289,6 +289,7 @@ export const processEmailCampaign = onDocumentCreated(
           subject,
           text,
           html: buildHtml(text),
+          remitente: "cartera",
           attachments: mailAttachments,
         });
 
