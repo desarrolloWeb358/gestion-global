@@ -54,6 +54,52 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Deja el correo enviado como gestión del deudor, en la colección que le
+ * corresponde a su tipificación.
+ *
+ * El documento debe tener la misma forma que el que escribe la pantalla de
+ * seguimientos (`seguimientoService.ts`) y el envío masivo de WhatsApp:
+ * `fechaCreacion` + `clienteUID` + `ejecutivoUID` son los campos por los que
+ * consulta el reporte de seguimientos por ejecutivo. Sin ellos el correo se ve
+ * en la ficha del deudor pero no existe para el reporte, y el deudor sigue
+ * contando como "sin gestionar" mientras no se refresque
+ * `fechaUltimoSeguimiento`.
+ */
+async function registrarSeguimientoCorreo(params: {
+  clienteId: string;
+  deudorId: string;
+  tipificacion?: string | null;
+  ejecutivoUID: string;
+  descripcion: string;
+}): Promise<void> {
+  const db = getFirestore();
+  const ahora = Timestamp.now();
+  const deudorRef = db
+    .collection("clientes")
+    .doc(params.clienteId)
+    .collection("deudores")
+    .doc(params.deudorId);
+
+  await deudorRef.collection(coleccionSeguimiento(params.tipificacion)).add({
+    fecha: ahora,
+    fechaCreacion: ahora,
+    clienteUID: params.clienteId,
+    ejecutivoUID: params.ejecutivoUID,
+    tipoSeguimiento: "correo",
+    descripcion: params.descripcion,
+    actualizadoEn: ahora,
+  });
+
+  // Solo hacia adelante: un envío no puede "envejecer" una gestión posterior
+  // que haya quedado registrada mientras corría la campaña.
+  const deudorSnap = await deudorRef.get();
+  const fechaActual = deudorSnap.data()?.fechaUltimoSeguimiento as Timestamp | undefined;
+  if (!fechaActual || ahora.toMillis() > (fechaActual.toMillis?.() ?? 0)) {
+    await deudorRef.update({ fechaUltimoSeguimiento: ahora });
+  }
+}
+
 /** Roles que pueden usar el módulo de correos (espejo de PERMS.Email_Write del frontend). */
 const ROLES_CORREO = ["admin", "ejecutivoAdmin", "ejecutivo"];
 /** De esos, los que ven todos los conjuntos sin restricción de cartera. */
@@ -293,19 +339,25 @@ export const processEmailCampaign = onDocumentCreated(
           attachments: mailAttachments,
         });
 
+        // El correo ya salió: si el seguimiento falla se deja constancia en los
+        // logs, pero el destinatario NO se marca como fallido. Marcarlo llevaba a
+        // reenviar la campaña y a que el deudor recibiera el correo dos veces.
         if (claimed.clienteId && recipient.deudorId) {
-          await db
-            .collection("clientes")
-            .doc(String(claimed.clienteId))
-            .collection("deudores")
-            .doc(recipient.deudorId)
-            .collection(coleccionSeguimiento(recipient.tipificacion))
-            .add({
-              usuarioId: agentId,
-              fecha: Timestamp.now(),
-              tipoSeguimiento: "correo",
+          try {
+            await registrarSeguimientoCorreo({
+              clienteId: String(claimed.clienteId),
+              deudorId: recipient.deudorId,
+              tipificacion: recipient.tipificacion,
+              ejecutivoUID: agentId,
               descripcion: `Se envió el correo "${subject}" a ${recipient.to}.`,
             });
+          } catch (error) {
+            logger.error("[processEmailCampaign] No se pudo registrar el seguimiento", {
+              campaignId: campaignRef.id,
+              deudorId: recipient.deudorId,
+              message: error instanceof Error ? error.message : String(error),
+            });
+          }
         }
 
         results.push({ to: recipient.to, deudorNombre: recipient.deudorNombre, status: "ok" });

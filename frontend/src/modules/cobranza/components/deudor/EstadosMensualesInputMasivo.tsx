@@ -43,7 +43,15 @@ const TIPIFICACIONES_FILTRABLES: TipificacionDeuda[] = [
   TipificacionDeuda.DEMANDA,
   TipificacionDeuda.ACUERDO,
   TipificacionDeuda.DEMANDA_ACUERDO,
+  TipificacionDeuda.DEMANDA_INSOLVENCIA,
 ];
+
+/** Tipificaciones que arrancan con 20% de honorarios por defecto. */
+const TIPIFICACIONES_DEMANDA = new Set<TipificacionDeuda>([
+  TipificacionDeuda.DEMANDA,
+  TipificacionDeuda.DEMANDA_ACUERDO,
+  TipificacionDeuda.DEMANDA_INSOLVENCIA,
+]);
 
 /** Huella de los valores digitables: si cambia, hay trabajo sin guardar. */
 function huellaFilas(filas: FilaEstadoBase[]) {
@@ -62,12 +70,7 @@ export default function EstadosMensualesInputMasivo() {
   const { clienteId } = useParams();
 
   const [tipificacionesSeleccionadas, setTipificacionesSeleccionadas] =
-    useState<TipificacionDeuda[]>([
-      TipificacionDeuda.GESTIONANDO,
-      TipificacionDeuda.DEMANDA,
-      TipificacionDeuda.ACUERDO,
-      TipificacionDeuda.DEMANDA_ACUERDO,
-    ]);
+    useState<TipificacionDeuda[]>([...TIPIFICACIONES_FILTRABLES]);
 
   const [clienteNombre, setClienteNombre] = useState<string>("");
   const [mesGlobal, setMesGlobal] = useState<string>(() =>
@@ -198,9 +201,7 @@ export default function EstadosMensualesInputMasivo() {
 
         const nuevasFilas: FilaEstadoBase[] = deudores.map((d) => {
           const tipificacion = d.tipificacion ?? TipificacionDeuda.GESTIONANDO;
-          const esDemanda =
-            tipificacion === TipificacionDeuda.DEMANDA ||
-            tipificacion === TipificacionDeuda.DEMANDA_ACUERDO;
+          const esDemanda = TIPIFICACIONES_DEMANDA.has(tipificacion);
 
           const tienePorc =
             d.porcentajeHonorarios !== undefined &&
@@ -287,7 +288,7 @@ export default function EstadosMensualesInputMasivo() {
       return;
     }
 
-    const porGuardar = filas.filter((f) => {
+    const porGuardar = filasVisibles.filter((f) => {
       const deudaOk = f.deuda.trim() !== "" && Number(f.deuda) >= 0;
       const recaudoOk = f.recaudo.trim() !== "" && Number(f.recaudo) >= 0;
       
@@ -296,7 +297,7 @@ export default function EstadosMensualesInputMasivo() {
       return deudaOk || recaudoOk;
     });
 
-    const omitidas = filas.length - porGuardar.length;
+    const omitidas = filasVisibles.length - porGuardar.length;
 
     if (porGuardar.length === 0) {
       toast.error("No hay filas válidas: diligencia al menos uno (Deuda o Recaudo).");
@@ -549,12 +550,7 @@ export default function EstadosMensualesInputMasivo() {
                 variant="outline"
                 className="ml-auto"
                 onClick={() =>
-                  setTipificacionesSeleccionadas([
-                    TipificacionDeuda.GESTIONANDO,
-                    TipificacionDeuda.DEMANDA,
-                    TipificacionDeuda.ACUERDO,
-                    TipificacionDeuda.DEMANDA_ACUERDO,
-                  ])
+                  setTipificacionesSeleccionadas([...TIPIFICACIONES_FILTRABLES])
                 }
               >
                 Ver todos
@@ -605,10 +601,6 @@ export default function EstadosMensualesInputMasivo() {
 
                 <TableBody>
                   {filasVisibles.map((fila, i) => {
-                    const esDemanda =
-                      fila.tipificacion === TipificacionDeuda.DEMANDA ||
-                      fila.tipificacion === TipificacionDeuda.DEMANDA_ACUERDO;
-
                     return (
                       <TableRow
                         key={fila.deudorId}

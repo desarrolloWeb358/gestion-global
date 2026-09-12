@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import * as XLSX from "xlsx";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { Eye, Pencil, Search, X, Users, UserPlus, Filter, FileText, Trash2, CalendarIcon, Upload, Download, CheckCircle2, AlertCircle, AlertTriangle, MinusCircle } from "lucide-react";
+import { Eye, Pencil, Search, X, Users, UserPlus, Filter, FileText, Trash2, Upload, Download, CheckCircle2, AlertCircle, AlertTriangle, MinusCircle } from "lucide-react";
 import { createPortal } from "react-dom";
 
 import { Deudor } from "../../models/deudores.model";
@@ -35,9 +35,6 @@ import { BackButton } from "@/shared/design-system/components/BackButton";
 import { cn } from "@/shared/lib/cn";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover";
-import { Calendar } from "@/shared/ui/calendar";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
 
 // 🔐 ACL
 import { useAcl } from "@/modules/auth/hooks/useAcl";
@@ -47,16 +44,19 @@ import { PERMS } from "@/shared/constants/acl";
 // ✅ Historial tipificaciones
 import type { HistorialTipificacion } from "../../models/historialTipificacion.model";
 import { crearEstadoMensual, obtenerEstadosMensuales } from "../../services/estadoMensualService";
-import { addSeguimientoInicialDeudor } from "../../services/seguimientoService";
+import {
+  addSeguimientoCambioTipificacion,
+  addSeguimientoInicialDeudor,
+} from "../../services/seguimientoService";
 import { auth } from "@/firebase";
 
 import { Timestamp } from "firebase/firestore";
 
+import { tipificacionActivaDesdeHistorial } from "../../services/historialTipificacionesService";
 import {
-  obtenerHistorialTipificaciones,
-  reemplazarHistorialTipificaciones,
-  tipificacionActivaDesdeHistorial,
-} from "../../services/historialTipificacionesService";
+  HistorialTipificacionesDialog,
+  applyHonorariosDefaultByTip,
+} from "./HistorialTipificacionesDialog";
 
 import {
   isFinalTip,
@@ -335,297 +335,6 @@ function EmailTagInput({
   );
 }
 
-/** Timestamp-like -> Date */
-const toDateSafe = (v: any): Date | undefined => {
-  if (!v) return undefined;
-  if (v instanceof Date) return v;
-  if (typeof v?.toDate === "function") return v.toDate(); // Firestore Timestamp
-  if (typeof v?.seconds === "number") return new Date(v.seconds * 1000);
-  return undefined;
-};
-
-function applyHonorariosDefaultByTip(tip: TipificacionDeuda, prev?: number | string) {
-  const esDemanda =
-    tip === TipificacionDeuda.DEMANDA ||
-    tip === TipificacionDeuda.DEMANDA_ACUERDO ||
-    tip === TipificacionDeuda.DEMANDA_TERMINADO ||
-    tip === TipificacionDeuda.DEMANDA_INSOLVENCIA;
-
-  const esGestionando = tip === TipificacionDeuda.GESTIONANDO;
-
-  if (esDemanda) return 20;
-  if (esGestionando) return 15;
-
-  const current = prev === "" || prev === undefined || prev === null ? undefined : Number(prev);
-  return Number.isFinite(current as any) ? Number(current) : 15;
-}
-
-/* =========================
-   Popup: Editor Historial
-========================= */
-
-function HistorialTipificacionesDialog(props: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  readOnly: boolean;
-  saving: boolean;
-  clienteId: string;
-  deudorId: string;
-  onSaved: (historialOrdenado: Array<{ fecha: Date; tipificacion: TipificacionDeuda }>) => void;
-}) {
-  const { open, onOpenChange, readOnly, saving, clienteId, deudorId, onSaved } = props;
-
-  const [loading, setLoading] = useState(false);
-  const [items, setItems] = useState<Array<{ id?: string; fecha: Date; tipificacion: TipificacionDeuda }>>([]);
-  const [busy, setBusy] = useState(false);
-
-  const cargar = async () => {
-    setLoading(true);
-    try {
-      const raw = await obtenerHistorialTipificaciones(clienteId, deudorId);
-      const mapped = raw
-        .map((x) => ({
-          id: x.id,
-          fecha: toDateSafe(x.fecha) ?? new Date(),
-          tipificacion: (x.tipificacion ?? TipificacionDeuda.GESTIONANDO) as TipificacionDeuda,
-        }))
-        .sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
-      setItems(mapped);
-    } catch (e: any) {
-      console.error(e);
-      toast.error(e?.message ?? "Error cargando historial");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (open && clienteId && deudorId) cargar();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, clienteId, deudorId]);
-
-  const addRow = () => {
-    setItems((prev) => [
-      ...prev,
-      {
-        fecha: new Date(),
-        tipificacion: TipificacionDeuda.GESTIONANDO,
-      },
-    ]);
-  };
-
-  const updateRow = (idx: number, patch: Partial<{ fecha: Date; tipificacion: TipificacionDeuda }>) => {
-    setItems((prev) =>
-      prev.map((it, i) => (i === idx ? { ...it, ...patch } : it))
-    );
-  };
-
-  const removeRow = (idx: number) => {
-    setItems((prev) => prev.filter((_, i) => i !== idx));
-  };
-
-  const guardar = async () => {
-    if (readOnly) return;
-
-    // Validación mínima
-    if (items.length === 0) {
-      toast.error("Debes tener al menos 1 registro de tipificación.");
-      return;
-    }
-    for (const it of items) {
-      if (!it.fecha || isNaN(it.fecha.getTime())) {
-        toast.error("Hay un registro con fecha inválida.");
-        return;
-      }
-      if (!it.tipificacion) {
-        toast.error("Hay un registro sin tipificación.");
-        return;
-      }
-    }
-
-    // Ordenar por fecha asc
-    const ordenado = [...items].sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
-
-    setBusy(true);
-    try {
-      // Reemplazar el historial completo
-      await reemplazarHistorialTipificaciones(
-        clienteId,
-        deudorId,
-        ordenado.map((x) => ({
-          fecha: Timestamp.fromDate(x.fecha),
-          tipificacion: x.tipificacion
-        }))
-
-      );
-
-      toast.success("Historial de tipificaciones guardado.");
-      onSaved(ordenado);
-      onOpenChange(false);
-    } catch (e: any) {
-      console.error(e);
-      toast.error(e?.message ?? "Error guardando historial");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => !saving && !busy && onOpenChange(v)}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-brand-primary text-xl font-bold">
-            Historial de tipificaciones
-          </DialogTitle>
-        </DialogHeader>
-
-        {loading ? (
-          <div className="py-10 text-center">
-            <div className="h-10 w-10 mx-auto animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-primary mb-3" />
-            <Typography variant="body">Cargando historial...</Typography>
-          </div>
-        ) : (
-          <div className="space-y-4">
-
-
-            <div className="overflow-x-auto rounded-lg border border-brand-secondary/10">
-              <Table>
-                <TableHeader className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5">
-                  <TableRow className="border-brand-secondary/10 hover:bg-transparent">
-                    <TableHead className="text-brand-secondary font-semibold w-56">Fecha inicio</TableHead>
-                    <TableHead className="text-brand-secondary font-semibold">Tipificación</TableHead>
-                    <TableHead className="text-brand-secondary font-semibold text-center w-24">Acción</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {items.map((it, idx) => (
-                    <TableRow key={it.id ?? idx} className="border-brand-secondary/5">
-                      <TableCell className="align-top">
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className={cn(
-                                "w-full justify-start text-left font-normal border-brand-secondary/30",
-                                !it.fecha && "text-muted-foreground"
-                              )}
-                              disabled={readOnly || busy || saving}
-                            >
-                              <CalendarIcon className="mr-2 h-4 w-4" />
-                              {it.fecha ? format(it.fecha, "PPP", { locale: es }) : "Selecciona fecha"}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={it.fecha}
-                              defaultMonth={it.fecha ?? new Date()}
-                              onSelect={(date) => updateRow(idx, { fecha: date ?? new Date() })}
-                              initialFocus
-                              captionLayout="dropdown"
-                              fromYear={new Date().getFullYear() - 20}
-                              toYear={new Date().getFullYear() + 20}
-                            />
-                          </PopoverContent>
-                        </Popover>
-                      </TableCell>
-
-                      <TableCell className="align-top">
-                        <Select
-                          disabled={readOnly || busy || saving}
-                          value={it.tipificacion}
-                          onValueChange={(v) => updateRow(idx, { tipificacion: v as TipificacionDeuda })}
-                        >
-                          <SelectTrigger className="border-brand-secondary/30 bg-white focus:border-brand-primary focus:ring-brand-primary/20">
-                            <SelectValue placeholder="Selecciona una tipificación" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {Object.values(TipificacionDeuda).map((t) => (
-                              <SelectItem key={t} value={t}>{t}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-
-
-                      </TableCell>
-
-                      <TableCell className="text-center align-top">
-                        {!readOnly && (
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="ghost"
-                            className="hover:bg-red-50"
-                            onClick={() => removeRow(idx)}
-                            disabled={busy || saving}
-                            title="Eliminar fila"
-                          >
-                            <Trash2 className="h-4 w-4 text-red-600" />
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-
-                  {items.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
-                        No hay historial. Agrega el primer registro.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-
-            {!readOnly && (
-              <div className="flex items-center justify-between gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={addRow}
-                  disabled={busy || saving}
-                  className="border-brand-secondary/30"
-                >
-                  + Agregar registro
-                </Button>
-
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => onOpenChange(false)}
-                    disabled={busy || saving}
-                    className="border-brand-secondary/30"
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="brand"
-                    onClick={guardar}
-                    disabled={busy || saving}
-                  >
-                    Guardar historial
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {readOnly && (
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cerrar
-            </Button>
-          </DialogFooter>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 /* =========================
    Importación desde Excel
@@ -2035,6 +1744,11 @@ export default function DeudoresTable() {
                           }))
                         );
 
+                        // Se lee ANTES de tocar el form: es con lo que se compara
+                        // para saber si el guardado cambió de verdad la tipificación.
+                        // Editar solo la fecha de un registro no es un cambio.
+                        const tipAnterior = formData.tipificacion as TipificacionDeuda | undefined;
+
                         // 2) reflejar en el form
                         setFormData((p) => ({
                           ...p,
@@ -2048,6 +1762,26 @@ export default function DeudoresTable() {
                             tipificacion: tipActiva,
                             porcentajeHonorarios: applyHonorariosDefaultByTip(tipActiva, formData.porcentajeHonorarios),
                           });
+
+                          // 4) dejar el cambio como gestión del deudor. Va después de
+                          // persistir para no registrar un cambio que no alcanzó a
+                          // guardarse, y refresca `fechaUltimoSeguimiento`.
+                          if (tipActiva !== tipAnterior) {
+                            const uidUsuario = usuarioSistema?.uid ?? auth.currentUser?.uid ?? "";
+                            const conSeguimiento = await addSeguimientoCambioTipificacion(
+                              uidUsuario,
+                              clienteId,
+                              deudorEditando.id!,
+                              tipAnterior,
+                              tipActiva
+                            );
+                            if (!conSeguimiento) {
+                              toast.warning(
+                                "La tipificación se guardó, pero no se pudo registrar el seguimiento del cambio. Agrégalo manualmente."
+                              );
+                            }
+                          }
+
                           await fetchDeudores();
                         } catch (e: any) {
                           console.error(e);

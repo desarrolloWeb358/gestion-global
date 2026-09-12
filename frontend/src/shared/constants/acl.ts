@@ -82,6 +82,10 @@ export const PERMS = {
   // Solo dependiente, supervisor, abogado (y admin). Los ejecutivos NO las ven.
   Demandas_Etiquetas_Read: "demandas.etiquetas.read",
 
+  // Consulta a la Rama Judicial (CPNU) desde la demanda: uso interno del area
+  // juridica. Los ejecutivos NO la ven.
+  Demandas_Cpnu_Read: "demandas.cpnu.read",
+
   // Abonos
   Abonos_Read: "abonos.read",
   Abonos_Edit: "abonos.edit",
@@ -157,6 +161,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Seguimientos_Ejecutivos_Edit,
     PERMS.Seguimientos_Dependientes_Read,
     PERMS.Demandas_Etiquetas_Read,
+    PERMS.Demandas_Cpnu_Read,
     PERMS.Seguimientos_Dependientes_Edit,
     PERMS.Seguimientos_Fecha_Edit,
     PERMS.Seguimientos_Masivo_Create,
@@ -201,6 +206,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Seguimientos_Ejecutivos_Edit,
     PERMS.Seguimientos_Dependientes_Read,
     PERMS.Demandas_Etiquetas_Read,
+    PERMS.Demandas_Cpnu_Read,
     PERMS.Seguimientos_Dependientes_Edit,
     PERMS.Seguimientos_Masivo_Create,
     PERMS.Abonos_Read,
@@ -311,6 +317,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Seguimientos_Ejecutivos_Read,
     PERMS.Seguimientos_Dependientes_Read,
     PERMS.Demandas_Etiquetas_Read,
+    PERMS.Demandas_Cpnu_Read,
     PERMS.Seguimientos_Dependientes_Edit,
     PERMS.Abonos_Read,
     PERMS.Valores_Read,
@@ -359,6 +366,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
     PERMS.Seguimientos_Ejecutivos_Read,
     PERMS.Seguimientos_Dependientes_Read,
     PERMS.Demandas_Etiquetas_Read,
+    PERMS.Demandas_Cpnu_Read,
     PERMS.Abonos_Read,
     PERMS.Valores_agregados_Read,
     PERMS.Contratos_Read,
@@ -382,6 +390,7 @@ export const ROLE_PERMISSIONS: Record<Rol, readonly Perm[]> = {
   // Supervisión de franquicia: SOLO lectura + reportes, limitado a franquiciasAsignadas.
   adminFranquicia: [
     PERMS.Clientes_Read,
+    PERMS.Demandas_Cpnu_Read,
     PERMS.Deudores_Read,
     PERMS.Seguimientos_Ejecutivos_Read,
     PERMS.Seguimientos_Dependientes_Read,

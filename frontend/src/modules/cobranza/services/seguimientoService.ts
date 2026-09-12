@@ -22,6 +22,7 @@ import {
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Seguimiento } from "../models/seguimiento.model";
+import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 
 /* ====================== Helpers ====================== */
 
@@ -214,6 +215,67 @@ export async function addSeguimientoInicialDeudor(
     return true;
   } catch (e) {
     console.warn("No se pudo crear el seguimiento inicial del deudor:", e);
+    return false;
+  }
+}
+
+/* ======================================================
+   CAMBIO DE TIPIFICACIÓN
+   Se registra al guardar el historial de tipificaciones del deudor
+   ====================================================== */
+
+/**
+ * Tipificaciones de etapa jurídica. Su gestión vive en `seguimientoJuridico`,
+ * no en `seguimiento`; mismo criterio que `functions/src/shared/tipificaciones.ts`.
+ */
+const TIPS_JURIDICO = new Set<string>([
+  TipificacionDeuda.DEMANDA,
+  TipificacionDeuda.DEMANDA_ACUERDO,
+  TipificacionDeuda.DEMANDA_TERMINADO,
+  TipificacionDeuda.DEMANDA_INSOLVENCIA,
+]);
+
+function descripcionCambioTipificacion(
+  anterior: string | undefined,
+  nueva: string,
+  fecha: Date
+): string {
+  const fechaTexto = format(fecha, "d 'de' MMMM 'del' yyyy", { locale: es });
+  if (!anterior) {
+    return `El día ${fechaTexto} se registró la tipificación "${nueva}" del deudor.`;
+  }
+  return `El día ${fechaTexto} se cambió la tipificación del deudor de "${anterior}" a "${nueva}".`;
+}
+
+/**
+ * Deja constancia del cambio de tipificación como una gestión más del deudor.
+ *
+ * Queda en la colección de la tipificación NUEVA: el cambio abre la etapa a la
+ * que pasa el deudor, así que al pasar de prejurídico a demanda el registro
+ * encabeza la pestaña en la que de ahí en adelante se le hace seguimiento.
+ *
+ * No lanza: la tipificación ya quedó guardada y un fallo aquí no debe hacer
+ * ver el cambio como fallido. Igual que `addSeguimientoInicialDeudor`, devuelve
+ * si alcanzó a registrarse para que la pantalla avise.
+ */
+export async function addSeguimientoCambioTipificacion(
+  ejecutivoUID: string,
+  clienteId: string,
+  deudorId: string,
+  tipificacionAnterior: string | undefined,
+  tipificacionNueva: string,
+  fecha: Date = new Date()
+): Promise<boolean> {
+  const agregar = TIPS_JURIDICO.has(tipificacionNueva) ? addSeguimientoJuridico : addSeguimiento;
+  try {
+    await agregar(ejecutivoUID, clienteId, deudorId, {
+      fecha,
+      tipoSeguimiento: "otro",
+      descripcion: descripcionCambioTipificacion(tipificacionAnterior, tipificacionNueva, fecha),
+    });
+    return true;
+  } catch (e) {
+    console.warn("No se pudo registrar el seguimiento del cambio de tipificación:", e);
     return false;
   }
 }

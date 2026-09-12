@@ -129,6 +129,9 @@ export default function DemandaDetailPage() {
   // Las etiquetas son uso interno del área jurídica: dependiente, supervisor,
   // abogado (y admin). Los ejecutivos no las ven ni las editan.
   const puedeVerEtiquetas = acl.can(PERMS.Demandas_Etiquetas_Read);
+  // La consulta a la Rama Judicial (CPNU) tambien es del area juridica:
+  // los ejecutivos (ejecutivo / ejecutivoAdmin) no la ven.
+  const puedeVerCpnu = acl.can(PERMS.Demandas_Cpnu_Read);
   const readOnly = !puedeEditar;
 
   const [loading, setLoading] = React.useState(true);
@@ -884,7 +887,7 @@ export default function DemandaDetailPage() {
         </section>
 
         {/* ── CPNU (uso interno; oculto para cliente/deudor) ── */}
-        {!isExterno && form.numeroRadicado && (
+        {!isExterno && puedeVerCpnu && form.numeroRadicado && (
           <section className="rounded-2xl border border-indigo-200 bg-white shadow-sm overflow-hidden">
             <div className="w-full bg-gradient-to-r from-indigo-50 to-blue-50 px-5 py-4 border-b border-indigo-100 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 flex-1 cursor-pointer select-none min-w-0" onClick={() => setCpnu((s) => ({ ...s, show: !s.show }))}>

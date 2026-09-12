@@ -392,6 +392,13 @@ export { sincronizarEvento } from "./eventos/sincronizarEvento";
 export { barrerRecordatoriosEventos } from "./eventos/barrerRecordatorios";
 export { agendaDiaria } from "./eventos/agendaDiaria";
 
+// =====================================================
+// ✉️ CORREO SUELTO DESDE LA APP
+// =====================================================
+// Sustituye a la `enviarNotificacion` de más abajo (comentada): misma idea,
+// pero onCall y sobre el `sendEmail` de Gmail OAuth2 que usa todo lo demás.
+export { enviarCorreoApp } from "./notificaciones/enviarCorreoApp";
+
 /*
 export const pruebaCorreo = onRequest({ secrets: [SENDGRID_API_KEY, SENDGRID_SENDER_EMAIL] }, async (req, res) => {
   try {

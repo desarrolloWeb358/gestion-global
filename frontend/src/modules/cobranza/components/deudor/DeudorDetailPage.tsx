@@ -4,8 +4,16 @@
 import * as React from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
-  obtenerHistorialTipificaciones
+  obtenerHistorialTipificaciones,
+  tipificacionActivaDesdeHistorial,
 } from "../../services/historialTipificacionesService";
+import {
+  HistorialTipificacionesDialog,
+  applyHonorariosDefaultByTip,
+} from "./HistorialTipificacionesDialog";
+import { addSeguimientoCambioTipificacion } from "../../services/seguimientoService";
+import { auth } from "@/firebase";
+import { Timestamp } from "firebase/firestore";
 import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 import {
   User,
@@ -115,6 +123,7 @@ export default function DeudorDetailPage() {
   const [creandoAcceso, setCreandoAcceso] = React.useState(false);
   const [editOpen, setEditOpen] = React.useState(false);
   const [editSaving, setEditSaving] = React.useState(false);
+  const [histOpen, setHistOpen] = React.useState(false);
   const [editForm, setEditForm] = React.useState({
     nombre: "",
     cedula: "",
@@ -1087,18 +1096,41 @@ export default function DeudorDetailPage() {
                   />
                 </div>
 
+                {/* Tipificación: solo lectura. Se deriva del último registro del
+                    historial, así que se cambia desde el editor del historial. */}
                 <div>
-                  <Label className="text-brand-secondary font-medium">Porcentaje de honorarios (%)</Label>
-                  <Input
-                    type="number"
-                    value={editForm.porcentajeHonorarios}
-                    onChange={(event) =>
-                      setEditForm((prev) => ({ ...prev, porcentajeHonorarios: event.target.value }))
-                    }
-                    disabled={editSaving}
-                    className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
-                  />
+                  <Label className="text-brand-secondary font-medium">Tipificación</Label>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <div className="flex-1 rounded-md border border-brand-secondary/30 bg-white px-3 py-2">
+                      <span className="text-sm text-brand-secondary font-medium">
+                        {(deudor.tipificacion as TipificacionDeuda) ?? TipificacionDeuda.GESTIONANDO}
+                      </span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-brand-secondary/30"
+                      onClick={() => setHistOpen(true)}
+                      disabled={editSaving}
+                      title="Editar historial de tipificaciones"
+                    >
+                      Editar
+                    </Button>
+                  </div>
                 </div>
+              </div>
+
+              <div>
+                <Label className="text-brand-secondary font-medium">Porcentaje de honorarios (%)</Label>
+                <Input
+                  type="number"
+                  value={editForm.porcentajeHonorarios}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({ ...prev, porcentajeHonorarios: event.target.value }))
+                  }
+                  disabled={editSaving}
+                  className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
+                />
               </div>
 
               <div>
@@ -1144,6 +1176,63 @@ export default function DeudorDetailPage() {
                 </Button>
               </DialogFooter>
             </form>
+
+            {/* Editor del historial: el único sitio donde cambia la tipificación. */}
+            <HistorialTipificacionesDialog
+              open={histOpen}
+              onOpenChange={setHistOpen}
+              readOnly={!canEdit}
+              saving={editSaving}
+              clienteId={clienteId!}
+              deudorId={deudor.id!}
+              onSaved={async (historialOrdenado) => {
+                const tipActiva = tipificacionActivaDesdeHistorial(
+                  historialOrdenado.map((h) => ({
+                    fecha: Timestamp.fromDate(h.fecha),
+                    tipificacion: h.tipificacion,
+                  }))
+                );
+                const tipAnterior = deudor.tipificacion as TipificacionDeuda | undefined;
+                const honorarios = applyHonorariosDefaultByTip(tipActiva, editForm.porcentajeHonorarios);
+
+                try {
+                  await actualizarDeudorDatos(clienteId!, deudor.id!, {
+                    tipificacion: tipActiva,
+                    porcentajeHonorarios: honorarios,
+                  });
+
+                  // Igual que en el listado de deudores: el cambio queda como
+                  // gestión y refresca `fechaUltimoSeguimiento`. Solo si cambió de
+                  // verdad; editar la fecha de un registro no es un cambio.
+                  if (tipActiva !== tipAnterior) {
+                    const uidUsuario = usuarioSistema?.uid ?? auth.currentUser?.uid ?? "";
+                    const conSeguimiento = await addSeguimientoCambioTipificacion(
+                      uidUsuario,
+                      clienteId!,
+                      deudor.id!,
+                      tipAnterior,
+                      tipActiva
+                    );
+                    if (!conSeguimiento) {
+                      toast.warning(
+                        "La tipificación se guardó, pero no se pudo registrar el seguimiento del cambio. Agrégalo manualmente."
+                      );
+                    }
+                  }
+
+                  // La ficha muestra la tipificación fuera del diálogo (badge,
+                  // secciones de demanda), así que hay que refrescar ambos estados.
+                  setDeudor((prev) =>
+                    prev ? { ...prev, tipificacion: tipActiva, porcentajeHonorarios: honorarios } : prev
+                  );
+                  setEditForm((prev) => ({ ...prev, porcentajeHonorarios: String(honorarios) }));
+                  // `fechaTerminado` se recalcula solo: su efecto depende de `deudor`.
+                } catch (error: any) {
+                  console.error(error);
+                  toast.error(error?.message ?? "No se pudo actualizar la tipificación del deudor.");
+                }
+              }}
+            />
           </DialogContent>
         </Dialog>
       </div>

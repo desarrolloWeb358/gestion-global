@@ -101,6 +101,18 @@ function replaceVariables(text: string, deudor: Partial<Deudor> | undefined, con
   );
 }
 
+/**
+ * El correo del conjunto admite varias direcciones: la administración, el
+ * consejo y el revisor suelen querer copia. Se acepta lo que la gente pega de
+ * verdad (comas, puntos y coma o saltos de línea) y se deduplica.
+ */
+function parseEmailList(raw: string): { valid: string[]; invalid: string[] } {
+  const parts = raw.split(/[,;\s]+/).map((part) => part.trim().toLowerCase()).filter(Boolean);
+  const valid = [...new Set(parts.filter((part) => EMAIL_RE.test(part)))];
+  const invalid = [...new Set(parts.filter((part) => !EMAIL_RE.test(part)))];
+  return { valid, invalid };
+}
+
 /** Deudores que sí van en el cuadro anexo, ordenados por inmueble. */
 function deudoresParaExcel(deudores: Deudor[]): Deudor[] {
   return deudores
@@ -110,9 +122,13 @@ function deudoresParaExcel(deudores: Deudor[]): Deudor[] {
 }
 
 function buildDeudoresExcelBase64(deudores: Deudor[], conjunto: string): { filename: string; contentBase64: string; contentType: string } {
-  const rows = deudores.map((deudor) => ({ INMUEBLE: deudor.ubicacion ?? "", DEUDOR: deudor.nombre ?? "" }));
+  const rows = deudores.map((deudor) => ({
+    INMUEBLE: deudor.ubicacion ?? "",
+    DEUDOR: deudor.nombre ?? "",
+    "TIPIFICACIÓN": deudor.tipificacion ?? "",
+  }));
   const ws = XLSX.utils.json_to_sheet(rows);
-  ws["!cols"] = [{ wch: 12 }, { wch: 40 }];
+  ws["!cols"] = [{ wch: 12 }, { wch: 40 }, { wch: 24 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Deudores");
   const contentBase64 = XLSX.write(wb, { type: "base64", bookType: "xlsx" });
@@ -203,6 +219,7 @@ export default function EmailComposePage() {
   );
   const previewDebtor = targetDeudores[0] ?? deudores[0];
   const selectedTemplate = EMAIL_TEMPLATES.find((item) => item.id === templateId);
+  const conjuntoEmails = useMemo(() => parseEmailList(conjuntoEmail), [conjuntoEmail]);
   const excelDeudores = useMemo(() => deudoresParaExcel(deudores), [deudores]);
   const willAttachDeudoresExcel = isConjunto && !!selectedTemplate?.attachDeudoresExcel && excelDeudores.length > 0;
   const excelExcluidos = deudores.length - excelDeudores.length;
@@ -257,13 +274,13 @@ export default function EmailComposePage() {
       : undefined;
 
     const recipients = isConjunto
-      ? [{
-          to: conjuntoEmail.trim().toLowerCase(),
+      ? conjuntoEmails.valid.map((to) => ({
+          to,
           deudorId: "",
           deudorNombre: conjunto,
           tipificacion: "",
           vars: varsDeudor(undefined, conjunto),
-        }]
+        }))
       : (isBulk ? targetDeudores : deudores).flatMap((deudor) => {
           const emails = isBulk
             ? [...new Set((deudor.correos ?? []).map((email) => email.trim().toLowerCase()).filter((email) => EMAIL_RE.test(email)))]
@@ -282,7 +299,7 @@ export default function EmailComposePage() {
 
     // Un envío de cobranza no se puede deshacer: se confirma antes de disparar.
     const destinos = isConjunto
-      ? `a ${recipients[0].to}`
+      ? `a ${recipients.map((recipient) => recipient.to).join(", ")}`
       : `a ${recipients.length} correo${recipients.length === 1 ? "" : "s"} de ${conjunto || "este conjunto"}`;
     const anexo = attachments ? `\n\nSe adjuntará "${attachments[0].filename}" con ${excelDeudores.length} deudores.` : "";
     // Se muestra el asunto ya resuelto, no la plantilla con {{variables}}.
@@ -378,11 +395,19 @@ export default function EmailComposePage() {
           {isConjunto ? (
             <div className="space-y-2">
               <Label>Correo del conjunto</Label>
-              <Input type="email" value={conjuntoEmail} onChange={(event) => setConjuntoEmail(event.target.value)} placeholder="administracion@conjunto.com" />
-              <p className="text-xs text-gray-500">Se usa el correo de contacto registrado; puedes corregirlo para este envío.</p>
+              <Input type="text" inputMode="email" value={conjuntoEmail} onChange={(event) => setConjuntoEmail(event.target.value)} placeholder="administracion@conjunto.com, consejo@conjunto.com" />
+              <p className="text-xs text-gray-500">
+                Se usa el correo de contacto registrado; puedes corregirlo para este envío. Puedes poner varios separados por coma o punto y coma.
+              </p>
+              {conjuntoEmails.valid.length > 1 && (
+                <p className="text-xs text-gray-500">Se enviará un correo a cada una de las {conjuntoEmails.valid.length} direcciones, con el mismo contenido y anexo.</p>
+              )}
+              {conjuntoEmails.invalid.length > 0 && (
+                <p className="text-xs text-amber-600">No se enviará a {conjuntoEmails.invalid.join(", ")}: no {conjuntoEmails.invalid.length === 1 ? "es un correo válido" : "son correos válidos"}.</p>
+              )}
               {willAttachDeudoresExcel && (
                 <p className="text-xs text-brand-primary">
-                  Se adjuntará el Excel con {excelDeudores.length} deudores en gestión de {conjunto || "este conjunto"} (INMUEBLE / DEUDOR)
+                  Se adjuntará el Excel con {excelDeudores.length} deudores en gestión de {conjunto || "este conjunto"} (INMUEBLE / DEUDOR / TIPIFICACIÓN)
                   {excelExcluidos > 0 && `; se excluyeron ${excelExcluidos} por estar terminados, inactivos o devueltos`}.
                 </p>
               )}
@@ -413,8 +438,8 @@ export default function EmailComposePage() {
           <div className="space-y-2"><Label>Asunto</Label><Input value={subject} onChange={(event) => setSubject(event.target.value)} /></div>
           <div className="space-y-2"><Label>Contenido</Label><Textarea value={body} onChange={(event) => setBody(event.target.value)} rows={12} /></div>
           <p className="text-xs text-gray-500">Variables disponibles: {EMAIL_VARIABLES.map((variable) => `{{${variable}}}`).join(", ")}</p>
-          <Button onClick={handleSend} disabled={sending || !subject.trim() || !body.trim() || (isConjunto ? !EMAIL_RE.test(conjuntoEmail.trim()) : isBulk ? validRecipientCount === 0 : !selectedEmail)} className="w-full gap-2">
-            <Send className="h-4 w-4" />{sending ? "Enviando correos..." : isConjunto ? "Enviar al conjunto" : isBulk ? `Enviar ${validRecipientCount} correos` : "Enviar correo"}
+          <Button onClick={handleSend} disabled={sending || !subject.trim() || !body.trim() || (isConjunto ? conjuntoEmails.valid.length === 0 || conjuntoEmails.invalid.length > 0 : isBulk ? validRecipientCount === 0 : !selectedEmail)} className="w-full gap-2">
+            <Send className="h-4 w-4" />{sending ? "Enviando correos..." : isConjunto ? (conjuntoEmails.valid.length > 1 ? `Enviar al conjunto (${conjuntoEmails.valid.length} correos)` : "Enviar al conjunto") : isBulk ? `Enviar ${validRecipientCount} correos` : "Enviar correo"}
           </Button>
         </div>
 
