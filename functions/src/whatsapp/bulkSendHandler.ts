@@ -2,6 +2,7 @@ import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import { getOrCreateConversation, appendMessage } from "./conversationService";
+import { callMetaTemplateApi, sanitizeParameterValue } from "./metaApi";
 import { TIPS_JURIDICO } from "../shared/tipificaciones";
 
 const BATCH_SIZE = 10;
@@ -34,69 +35,6 @@ function delay(ms: number) {
   return new Promise((res) => setTimeout(res, ms));
 }
 
-// Limpia parámetros para Meta: elimina saltos de línea, tabs, y espacios múltiples
-function sanitizeParameterValue(value: string): string {
-  if (!value || typeof value !== "string") return "";
-  return value
-    .replace(/[\n\r\t]/g, " ") // Reemplaza newlines y tabs con espacio
-    .replace(/  +/g, " ")       // Reduce espacios múltiples a uno solo
-    .trim();                     // Elimina espacios al inicio y final
-}
-
-async function callMetaTemplateApi(
-  phoneNumberId: string,
-  token: string,
-  to: string,
-  templateName: string,
-  parameters: Array<{ parameterName: string; value: string }>
-): Promise<string> {
-  const url = `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`;
-
-  const components =
-    parameters.length > 0
-      ? [
-          {
-            type: "body",
-            parameters: parameters.map((p) => ({
-              type: "text",
-              parameter_name: p.parameterName,
-              text: p.value,
-            })),
-          },
-        ]
-      : [];
-
-  const body = {
-    messaging_product: "whatsapp",
-    to,
-    type: "template",
-    template: {
-      name: templateName,
-      language: { code: "es_CO" },
-      ...(components.length > 0 && { components }),
-    },
-  };
-
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!resp.ok) {
-    const error = await resp.json().catch(() => null);
-    throw new Error(
-      `META_TEMPLATE_SEND_FAILED status=${resp.status} body=${JSON.stringify(error)}`
-    );
-  }
-
-  const data = await resp.json().catch(() => ({}));
-  return (data as any)?.messages?.[0]?.id ?? "";
-}
-
 export const processBulkSendJob = onDocumentCreated(
   {
     document: "bulkSendJobs/{jobId}",
@@ -115,6 +53,8 @@ export const processBulkSendJob = onDocumentCreated(
       status: string;
       numberId: string;
       templateId: string;
+      /** Enlace publico de la imagen del encabezado, si la plantilla lo pide. */
+      headerImageUrl?: string;
       clienteId: string;
       agentId: string;
       items: BulkItem[];
@@ -218,7 +158,8 @@ export const processBulkSendJob = onDocumentCreated(
               metaToken,
               item.phone,
               providerTemplateName,
-              sanitizedParams
+              sanitizedParams,
+              job.headerImageUrl ? { headerImageUrl: job.headerImageUrl } : {}
             );
 
             const conv = await getOrCreateConversation(job.numberId, item.phone, {
@@ -237,6 +178,9 @@ export const processBulkSendJob = onDocumentCreated(
                 timestampMs: Date.now(),
                 providerMessageId: wamid || undefined,
                 deliveryStatus: "pending",
+                ...(job.headerImageUrl
+                  ? { mediaUrl: job.headerImageUrl, mediaType: "image" as const }
+                  : {}),
               },
             });
 

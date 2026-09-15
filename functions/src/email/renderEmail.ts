@@ -23,6 +23,29 @@ export const EMAIL_VARIABLES = [
 export type EmailVariable = (typeof EMAIL_VARIABLES)[number];
 export type EmailVars = Partial<Record<EmailVariable, string>>;
 
+/**
+ * Marcador que el redactor escribe en el cuerpo para decir dónde va la imagen.
+ *
+ * No es una EMAIL_VARIABLE: `replaceVariables` no lo toca, porque su valor no
+ * es texto sino una etiqueta `<img>` que arma el backend. Sustituirlo antes del
+ * escape convertiría el `<img>` en texto literal.
+ */
+export const IMAGE_PLACEHOLDER = "{{imagen}}";
+
+/** Content-ID con el que la imagen se referencia desde el HTML del correo. */
+export const IMAGE_CID = "imagen-embebida";
+
+/**
+ * Quita el marcador del cuerpo en texto plano. El `text` del correo es el
+ * fallback para clientes sin HTML: ahí no hay imagen que mostrar, y dejar
+ * "{{imagen}}" crudo se lee como un error del sistema.
+ */
+export function stripImagePlaceholder(text: string): string {
+  // Al quitar el marcador de su propia línea quedan tres saltos seguidos, que
+  // en el correo se ven como un hueco: se colapsan a una línea en blanco.
+  return text.split(IMAGE_PLACEHOLDER).join("").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 export function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (char) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;",
@@ -42,10 +65,24 @@ export function replaceVariables(text: string, vars: EmailVars): string {
   );
 }
 
-export function buildHtml(text: string): string {
+export function buildHtml(text: string, options?: { imageCid?: string }): string {
   const paragraphs = escapeHtml(text)
     .split(/\n{2,}/)
     .map((paragraph) => `<p style="margin:0 0 16px;line-height:1.6">${paragraph.replace(/\n/g, "<br>")}</p>`)
     .join("");
-  return `<div style="font-family:Arial,sans-serif;color:#243447;max-width:680px;margin:auto"><div style="background:#004B87;color:white;padding:18px 24px;font-size:20px;font-weight:700">Gestión Global ACG</div><div style="padding:24px;border:1px solid #dde5ec">${paragraphs}</div></div>`;
+
+  // El `<img>` se inyecta DESPUÉS de escapar, y lo arma esta función a partir de
+  // un cid que fija el backend: nada de lo que escribió el usuario llega a la
+  // etiqueta. El marcador sobrevive al escape porque las llaves no se escapan.
+  const imgTag = options?.imageCid
+    ? `<img src="cid:${options.imageCid}" alt="" style="display:block;max-width:100%;height:auto;margin:0 0 16px" />`
+    : "";
+
+  const cuerpo = paragraphs.includes(IMAGE_PLACEHOLDER)
+    ? paragraphs.split(IMAGE_PLACEHOLDER).join(imgTag)
+    // Sin marcador, una imagen adjunta va al final: es lo que espera quien la
+    // sube sin conocer la sintaxis. Sin imagen, el marcador simplemente se borra.
+    : paragraphs + imgTag;
+
+  return `<div style="font-family:Arial,sans-serif;color:#243447;max-width:680px;margin:auto"><div style="background:#004B87;color:white;padding:18px 24px;font-size:20px;font-weight:700">Gestión Global ACG</div><div style="padding:24px;border:1px solid #dde5ec">${cuerpo}</div></div>`;
 }

@@ -1,5 +1,6 @@
 // src/modules/cobranza/components/SeguimientoForm.tsx
 import * as React from "react";
+import { toast } from "sonner";
 
 import {
   Dialog,
@@ -133,6 +134,7 @@ export default function SeguimientoForm({
   const [archivos, setArchivos] = React.useState<File[]>([]);
   const [saving, setSaving] = React.useState(false);
   const [showExitConfirm, setShowExitConfirm] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const isDirty = descripcion.trim() !== "";
 
@@ -152,6 +154,30 @@ export default function SeguimientoForm({
     setDestino(destinoInicial ?? defaultDestinoFromTipificacion(tipificacionDeuda));
   }, [seguimiento, open, tipificacionDeuda, destinoInicial]);
 
+  function handlePasteArchivo(e: React.ClipboardEvent) {
+    if (saving) return;
+
+    const items = Array.from(e.clipboardData?.items ?? []);
+    const imageItems = items.filter((item) => item.type.startsWith("image/"));
+    if (imageItems.length === 0) return;
+
+    e.preventDefault();
+
+    const nuevos = imageItems
+      .map((item, i) => {
+        const blob = item.getAsFile();
+        if (!blob) return null;
+        const ext = item.type.split("/")[1] ?? "png";
+        return new File([blob], `imagen_pegada_${Date.now()}_${i}.${ext}`, { type: item.type });
+      })
+      .filter((f): f is File => f !== null);
+
+    if (nuevos.length === 0) return;
+
+    setArchivos((prev) => [...prev, ...nuevos]);
+    toast.success(nuevos.length > 1 ? "Imágenes adjuntadas" : "Imagen adjuntada");
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (saving) return;
@@ -166,6 +192,8 @@ export default function SeguimientoForm({
       if (onSaveWithDestino) {
         await onSaveWithDestino(destino, data, archivos.length > 0 ? archivos : undefined);
       }
+      setArchivos([]);
+      if (fileInputRef.current) fileInputRef.current.value = "";
       onClose();
     } finally {
       setSaving(false);
@@ -221,6 +249,7 @@ export default function SeguimientoForm({
                 id="seguimiento-form"
                 className="px-6 py-5 space-y-6"
                 onSubmit={handleSubmit}
+                onPaste={handlePasteArchivo}
                 style={saving ? { pointerEvents: "none" } : undefined}
               >
                 {/* Datos básicos */}
@@ -338,11 +367,19 @@ export default function SeguimientoForm({
                     </Label>
                     <Input
                       id="archivos"
+                      ref={fileInputRef}
                       type="file"
                       multiple
-                      onChange={(e) => setArchivos(Array.from(e.target.files ?? []))}
+                      onChange={(e) => {
+                        const nuevos = Array.from(e.target.files ?? []);
+                        setArchivos((prev) => [...prev, ...nuevos]);
+                        if (fileInputRef.current) fileInputRef.current.value = "";
+                      }}
                       disabled={saving}
                     />
+                    <p className="text-xs text-muted-foreground">
+                      También puedes pegar una imagen con Ctrl+V sobre el formulario.
+                    </p>
                     {archivos.length > 0 && (
                       <div className="space-y-1">
                         {archivos.map((f, i) => (

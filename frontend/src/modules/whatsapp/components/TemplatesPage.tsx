@@ -7,12 +7,14 @@ import {
   IconTrash,
   IconArrowLeft,
   IconVariable,
+  IconPhoto,
 } from "@tabler/icons-react";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { Textarea } from "@/shared/ui/textarea";
 import { Label } from "@/shared/ui/label";
 import { Badge } from "@/shared/ui/badge";
+import { Checkbox } from "@/shared/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -56,12 +58,14 @@ interface FormState {
   displayName: string;
   providerTemplateName: string;
   bodyText: string;
+  headerImage: boolean;
 }
 
 const EMPTY_FORM: FormState = {
   displayName: "",
   providerTemplateName: "",
   bodyText: "",
+  headerImage: false,
 };
 
 export default function TemplatesPage() {
@@ -101,6 +105,7 @@ export default function TemplatesPage() {
       displayName: t.displayName,
       providerTemplateName: t.providerTemplateName,
       bodyText: t.bodyText,
+      headerImage: t.headerType === "image",
     });
     setDialogOpen(true);
   }, []);
@@ -117,6 +122,7 @@ export default function TemplatesPage() {
         providerTemplateName: form.providerTemplateName.trim(),
         bodyText: form.bodyText,
         variables,
+        headerType: form.headerImage ? ("image" as const) : ("none" as const),
       };
 
       if (editingTemplate) {
@@ -208,6 +214,12 @@ export default function TemplatesPage() {
                   <Badge variant="outline" className="font-mono text-xs">
                     {t.providerTemplateName}
                   </Badge>
+                  {t.headerType === "image" && (
+                    <Badge variant="outline" className="text-xs gap-1">
+                      <IconPhoto className="w-3 h-3" />
+                      Con imagen
+                    </Badge>
+                  )}
                 </div>
                 {t.bodyText && (
                   <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
@@ -302,6 +314,27 @@ export default function TemplatesPage() {
               <p className="text-xs text-muted-foreground">
                 Debe coincidir exactamente con el nombre aprobado en Meta Business Suite.
               </p>
+            </div>
+
+            <div className="flex items-start gap-2.5 rounded-md border border-border p-3">
+              <Checkbox
+                id="headerImage"
+                checked={form.headerImage}
+                onCheckedChange={(v) =>
+                  setForm((f) => ({ ...f, headerImage: v === true }))
+                }
+                className="mt-0.5"
+              />
+              <div className="space-y-1">
+                <Label htmlFor="headerImage" className="cursor-pointer">
+                  La plantilla lleva encabezado de imagen
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Marca esto solo si en Meta la creaste con encabezado tipo
+                  IMAGE. Al enviarla se pedira adjuntar la imagen; sin ella Meta
+                  rechaza el envio.
+                </p>
+              </div>
             </div>
 
             <div className="space-y-1.5">

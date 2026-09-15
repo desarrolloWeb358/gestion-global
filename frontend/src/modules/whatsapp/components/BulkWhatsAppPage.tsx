@@ -7,9 +7,10 @@ import {
   doc,
   serverTimestamp,
 } from "firebase/firestore";
-import { db } from "@/firebase";
+import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import { db, storage } from "@/firebase";
 import { toast } from "sonner";
-import { ArrowLeft, Send, CheckCircle, XCircle, PhoneOff, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, Send, CheckCircle, XCircle, PhoneOff, ChevronDown, ChevronUp, ImagePlus, X } from "lucide-react";
 import { IconVariable } from "@tabler/icons-react";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
@@ -58,6 +59,10 @@ const DEUDOR_FIELD_OPTIONS = [
   { key: "asesor",      label: "Asesor" },
   { key: "copropiedad", label: "Copropiedad" },
 ];
+
+/** Meta solo acepta JPEG y PNG en el encabezado, hasta 5 MB. */
+const HEADER_IMAGE_TYPES = "image/jpeg,image/png";
+const HEADER_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -132,6 +137,11 @@ export default function BulkWhatsAppPage() {
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
 
   const [varSources, setVarSources] = useState<Record<string, VarSource>>({});
+
+  // Imagen del encabezado: solo aplica a plantillas con headerType "image".
+  // Se sube una vez y todos los deudores reciben el mismo enlace.
+  const [headerImageFile, setHeaderImageFile] = useState<File | null>(null);
+  const [headerImagePreview, setHeaderImagePreview] = useState<string>("");
 
   const [allDeudores, setAllDeudores] = useState<Deudor[]>([]);
   const [loadingDeudores, setLoadingDeudores] = useState(true);
@@ -219,6 +229,36 @@ export default function BulkWhatsAppPage() {
   }, [numberId]);
 
   const selectedTemplate = templates.find((t) => t.id === selectedTemplateId) ?? null;
+  const needsHeaderImage = selectedTemplate?.headerType === "image";
+
+  // Al cambiar de plantilla la imagen anterior deja de tener sentido.
+  useEffect(() => {
+    setHeaderImageFile(null);
+  }, [selectedTemplateId]);
+
+  // El object URL del preview se libera al cambiar de archivo.
+  useEffect(() => {
+    if (!headerImageFile) { setHeaderImagePreview(""); return; }
+    const url = URL.createObjectURL(headerImageFile);
+    setHeaderImagePreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [headerImageFile]);
+
+  const handleHeaderImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    e.target.value = "";
+    if (!file) return;
+    if (!HEADER_IMAGE_TYPES.split(",").includes(file.type)) {
+      toast.error("La imagen debe ser JPG o PNG");
+      return;
+    }
+    if (file.size > HEADER_IMAGE_MAX_BYTES) {
+      toast.error("La imagen no puede superar 5 MB");
+      return;
+    }
+    setHeaderImageFile(file);
+  };
+
   useEffect(() => {
     if (!selectedTemplate) { setVarSources({}); return; }
     const initial: Record<string, VarSource> = {};
@@ -276,7 +316,8 @@ export default function BulkWhatsAppPage() {
     : false;
 
   const canSend =
-    !!numberId && !!selectedTemplateId && allStaticFilled && selectedTips.length > 0 && filteredDeudores.length > 0;
+    !!numberId && !!selectedTemplateId && allStaticFilled && selectedTips.length > 0 &&
+    filteredDeudores.length > 0 && (!needsHeaderImage || !!headerImageFile);
 
   // ── Selección múltiple de tipificaciones ──────────────────────────────────
 
@@ -291,6 +332,23 @@ export default function BulkWhatsAppPage() {
   const handleSend = async () => {
     if (!canSend || !selectedTemplate || !clienteId || !user || isSending) return;
     setIsSending(true);
+
+    // La imagen se sube UNA vez a /media (lectura publica): Meta la descarga
+    // en el momento del envio y necesita alcanzarla sin autenticacion.
+    let headerImageUrl = "";
+    if (needsHeaderImage && headerImageFile) {
+      try {
+        const path = `media/bulk-header/${numberId}/${Date.now()}_${headerImageFile.name}`;
+        const fileRef = storageRef(storage, path);
+        await uploadBytes(fileRef, headerImageFile);
+        headerImageUrl = await getDownloadURL(fileRef);
+      } catch (err) {
+        console.error(err);
+        toast.error("No se pudo subir la imagen del encabezado");
+        setIsSending(false);
+        return;
+      }
+    }
 
     // Pre-calcular parámetros por deudor para que el backend no necesite lógica de resolución
     const items: Array<{
@@ -352,6 +410,7 @@ export default function BulkWhatsAppPage() {
       status: "pending",
       numberId,
       templateId: selectedTemplateId,
+      ...(headerImageUrl ? { headerImageUrl } : {}),
       clienteId,
       agentId: user.uid,
       items,
@@ -558,6 +617,54 @@ export default function BulkWhatsAppPage() {
                 </p>
               </div>
             )}
+
+            {/* Imagen del encabezado — solo plantillas tipo IMAGE en Meta */}
+            {needsHeaderImage && (
+              <div className="space-y-2">
+                <Label>Imagen del encabezado</Label>
+                <p className="text-xs text-gray-500">
+                  Esta plantilla lleva encabezado de imagen. Todos los deudores
+                  reciben la misma imagen. JPG o PNG, máximo 5 MB.
+                </p>
+
+                {headerImageFile ? (
+                  <div className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 bg-gray-50">
+                    {headerImagePreview && (
+                      <img
+                        src={headerImagePreview}
+                        alt="Vista previa del encabezado"
+                        className="h-16 w-16 rounded-md object-cover border border-gray-200"
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-700 truncate">{headerImageFile.name}</p>
+                      <p className="text-xs text-gray-400">
+                        {(headerImageFile.size / 1024).toFixed(0)} KB
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setHeaderImageFile(null)}
+                      className="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      aria-label="Quitar imagen"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex items-center justify-center gap-2 h-20 rounded-lg border-2 border-dashed border-gray-300 text-sm text-gray-500 cursor-pointer hover:border-brand-primary hover:text-brand-primary transition-colors">
+                    <ImagePlus className="h-5 w-5" />
+                    Selecciona la imagen a enviar
+                    <input
+                      type="file"
+                      accept={HEADER_IMAGE_TYPES}
+                      className="hidden"
+                      onChange={handleHeaderImageChange}
+                    />
+                  </label>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Sección 2: Variables */}
@@ -725,7 +832,9 @@ export default function BulkWhatsAppPage() {
             size="lg"
           >
             <Send className="h-4 w-4" />
-            {selectedTips.length > 0 && filteredDeudores.length > 0
+            {needsHeaderImage && !headerImageFile
+              ? "Adjunta la imagen del encabezado para enviar"
+              : selectedTips.length > 0 && filteredDeudores.length > 0
               ? `Enviar a ${filteredDeudores.length} deudor${filteredDeudores.length !== 1 ? "es" : ""} · ${selectedTips.length} tipificación${selectedTips.length !== 1 ? "es" : ""}`
               : "Selecciona al menos una tipificación para enviar"
             }

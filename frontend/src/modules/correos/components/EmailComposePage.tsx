@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { httpsCallable } from "firebase/functions";
 import { doc, onSnapshot } from "firebase/firestore";
@@ -140,6 +140,124 @@ function buildDeudoresExcelBase64(deudores: Deudor[], conjunto: string): { filen
   };
 }
 
+/** Imagen que se pinta dentro del cuerpo del correo (no como archivo adjunto). */
+interface InlineImagePayload {
+  filename: string;
+  contentBase64: string;
+  contentType: string;
+}
+
+/**
+ * Techo de la imagen incrustada, espejo del que valida `sendEmailCampaign`.
+ * Se comprueba aquí también para poder avisar antes del envío: si solo lo
+ * validara el backend, el usuario lo descubriría al final, con todo redactado.
+ */
+const MAX_INLINE_IMAGE_BASE64 = 400_000;
+/**
+ * Marcador que indica dónde va la imagen dentro del cuerpo. Debe coincidir con
+ * `IMAGE_PLACEHOLDER` de `functions/src/email/renderEmail.ts`: allá es donde se
+ * sustituye de verdad, aquí solo se inserta y se previsualiza.
+ */
+const IMAGE_PLACEHOLDER = "{{imagen}}";
+/** Ancho al que se reduce la imagen. 1000 px basta para verse bien en correo. */
+const MAX_IMAGE_WIDTH = 1000;
+const INLINE_IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    // El dataURL viene como "data:<tipo>;base64,<contenido>": al backend solo
+    // le sirve el contenido.
+    reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
+    reader.onerror = () => reject(new Error("No se pudo leer la imagen."));
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
+ * Reduce la imagen antes de mandarla.
+ *
+ * Los adjuntos viajan en base64 DENTRO del documento de la campaña, y un
+ * documento de Firestore tope en 1 MB: una foto de celular sin reducir no cabe.
+ * Se exporta a JPEG sobre fondo blanco porque es lo que mejor comprime y todo
+ * cliente de correo lo pinta; el GIF se manda intacto para no perder la
+ * animación al aplanarlo en el canvas.
+ */
+async function prepareInlineImage(file: File): Promise<InlineImagePayload> {
+  if (!INLINE_IMAGE_TYPES.includes(file.type)) {
+    throw new Error("La imagen debe ser PNG, JPG, GIF o WEBP.");
+  }
+
+  if (file.type === "image/gif") {
+    const contentBase64 = await blobToBase64(file);
+    if (contentBase64.length > MAX_INLINE_IMAGE_BASE64) {
+      throw new Error("El GIF es demasiado pesado. Usa uno más liviano o una imagen fija.");
+    }
+    return { filename: file.name, contentBase64, contentType: file.type };
+  }
+
+  const url = URL.createObjectURL(file);
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new Image();
+      element.onload = () => resolve(element);
+      element.onerror = () => reject(new Error("El archivo no es una imagen válida."));
+      element.src = url;
+    });
+
+    const scale = Math.min(1, MAX_IMAGE_WIDTH / image.width);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(image.width * scale));
+    canvas.height = Math.max(1, Math.round(image.height * scale));
+
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("No se pudo procesar la imagen.");
+    // Sin el relleno, una PNG con transparencia sale con fondo negro en JPEG.
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", 0.75)
+    );
+    if (!blob) throw new Error("No se pudo procesar la imagen.");
+
+    const contentBase64 = await blobToBase64(blob);
+    if (contentBase64.length > MAX_INLINE_IMAGE_BASE64) {
+      throw new Error("La imagen sigue siendo muy pesada después de reducirla. Usa una más pequeña.");
+    }
+
+    const filename = file.name.replace(/\.[^.]+$/, "") || "imagen";
+    return { filename: `${filename}.jpg`, contentBase64, contentType: "image/jpeg" };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/**
+ * Cuerpo de la vista previa. Replica lo que hace `buildHtml` en el backend: la
+ * imagen sustituye al marcador, y si no hay marcador se pinta al final. Si el
+ * render del correo cambia allá, hay que actualizar esto también.
+ */
+function PreviewBody({ text, imageSrc }: { text: string; imageSrc: string | null }) {
+  const parts = text.split(IMAGE_PLACEHOLDER);
+  const imagen = imageSrc ? (
+    <img src={imageSrc} alt="" className="my-3 block max-w-full rounded" />
+  ) : null;
+
+  return (
+    <div className="whitespace-pre-wrap text-gray-600 leading-relaxed">
+      {parts.map((part, index) => (
+        <span key={index}>
+          {part}
+          {index < parts.length - 1 && imagen}
+        </span>
+      ))}
+      {parts.length === 1 && imagen}
+    </div>
+  );
+}
+
 export default function EmailComposePage() {
   const { clienteId, deudorId } = useParams<{ clienteId: string; deudorId?: string }>();
   const [searchParams] = useSearchParams();
@@ -167,7 +285,57 @@ export default function EmailComposePage() {
   const [history, setHistory] = useState<CampaignHistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [inlineImage, setInlineImage] = useState<InlineImagePayload | null>(null);
+  const [imageBusy, setImageBusy] = useState(false);
   const unsubscribeRef = useRef<(() => void) | null>(null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  /** dataURL para la vista previa; se arma del mismo base64 que se envía. */
+  const inlineImageSrc = inlineImage
+    ? `data:${inlineImage.contentType};base64,${inlineImage.contentBase64}`
+    : null;
+
+  async function cargarImagen(file: File | undefined | null) {
+    if (!file) return;
+    setImageBusy(true);
+    try {
+      const prepared = await prepareInlineImage(file);
+      setInlineImage(prepared);
+      // Si el cuerpo aún no dice dónde va, se inserta el marcador al final para
+      // que el usuario vea de inmediato que la imagen quedó en el correo.
+      setBody((current) => (current.includes(IMAGE_PLACEHOLDER) ? current : `${current}\n\n${IMAGE_PLACEHOLDER}`));
+      toast.success("Imagen lista para incrustarse en el correo.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo procesar la imagen.");
+    } finally {
+      setImageBusy(false);
+      if (imageInputRef.current) imageInputRef.current.value = "";
+    }
+  }
+
+  /** Pegar con Ctrl+V una captura, sin tener que guardarla como archivo antes. */
+  function handlePasteImagen(event: ClipboardEvent) {
+    const imageItem = Array.from(event.clipboardData?.items ?? []).find((item) =>
+      item.type.startsWith("image/")
+    );
+    if (!imageItem) return;
+    event.preventDefault();
+    cargarImagen(imageItem.getAsFile());
+  }
+
+  /** Inserta {{imagen}} en la posición del cursor dentro del contenido. */
+  function insertarMarcador() {
+    const textarea = bodyRef.current;
+    const at = textarea ? textarea.selectionStart : body.length;
+    setBody((current) => `${current.slice(0, at)}${IMAGE_PLACEHOLDER}${current.slice(at)}`);
+    // El cursor queda después del marcador recién insertado.
+    requestAnimationFrame(() => {
+      if (!textarea) return;
+      textarea.focus();
+      textarea.setSelectionRange(at + IMAGE_PLACEHOLDER.length, at + IMAGE_PLACEHOLDER.length);
+    });
+  }
 
   useEffect(() => () => unsubscribeRef.current?.(), []);
 
@@ -229,7 +397,10 @@ export default function EmailComposePage() {
     if (!template) return;
     setTemplateId(id);
     setSubject(template.subject);
-    setBody(template.body);
+    // Cambiar de plantilla reemplaza el cuerpo y con él el marcador. Si ya hay
+    // una imagen cargada se vuelve a poner, o quedaría cargada pero sin salir
+    // en el correo.
+    setBody(inlineImage ? `${template.body}\n\n${IMAGE_PLACEHOLDER}` : template.body);
   }
 
   /** Suscribe la UI al avance de la campaña ya encolada. */
@@ -302,9 +473,10 @@ export default function EmailComposePage() {
       ? `a ${recipients.map((recipient) => recipient.to).join(", ")}`
       : `a ${recipients.length} correo${recipients.length === 1 ? "" : "s"} de ${conjunto || "este conjunto"}`;
     const anexo = attachments ? `\n\nSe adjuntará "${attachments[0].filename}" con ${excelDeudores.length} deudores.` : "";
+    const avisoImagen = inlineImage ? `\n\nEl correo lleva la imagen "${inlineImage.filename}" incrustada en el cuerpo.` : "";
     // Se muestra el asunto ya resuelto, no la plantilla con {{variables}}.
     const asuntoReal = replaceVariables(subject, isConjunto ? undefined : previewDebtor, conjunto);
-    if (!window.confirm(`Vas a enviar "${asuntoReal}" ${destinos}.${anexo}\n\nEsta acción no se puede deshacer. ¿Continuar?`)) return;
+    if (!window.confirm(`Vas a enviar "${asuntoReal}" ${destinos}.${anexo}${avisoImagen}\n\nEsta acción no se puede deshacer. ¿Continuar?`)) return;
 
     setSending(true);
     setProgress(null);
@@ -312,6 +484,7 @@ export default function EmailComposePage() {
       const send = httpsCallable<{
         recipients: typeof recipients;
         attachments?: ReturnType<typeof buildDeudoresExcelBase64>[];
+        inlineImage?: InlineImagePayload;
         mode: "bulk" | "individual" | "conjunto";
         templateId: string;
         clienteId: string;
@@ -323,6 +496,7 @@ export default function EmailComposePage() {
       const response = await send({
         recipients,
         attachments,
+        inlineImage: inlineImage ?? undefined,
         mode: isConjunto ? "conjunto" : isBulk ? "bulk" : "individual",
         templateId,
         clienteId,
@@ -436,8 +610,54 @@ export default function EmailComposePage() {
           )}
 
           <div className="space-y-2"><Label>Asunto</Label><Input value={subject} onChange={(event) => setSubject(event.target.value)} /></div>
-          <div className="space-y-2"><Label>Contenido</Label><Textarea value={body} onChange={(event) => setBody(event.target.value)} rows={12} /></div>
+          <div className="space-y-2" onPaste={handlePasteImagen}>
+            <Label>Contenido</Label>
+            <Textarea ref={bodyRef} value={body} onChange={(event) => setBody(event.target.value)} rows={12} />
+          </div>
           <p className="text-xs text-gray-500">Variables disponibles: {EMAIL_VARIABLES.map((variable) => `{{${variable}}}`).join(", ")}</p>
+
+          {/* Imagen incrustada en el cuerpo (no va como archivo adjunto) */}
+          <div className="space-y-2 rounded-xl border p-3" onPaste={handlePasteImagen}>
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-sm">Imagen en el cuerpo (opcional)</Label>
+              {inlineImage && (
+                <button type="button" onClick={insertarMarcador} className="text-xs text-brand-primary hover:underline">
+                  Insertar {IMAGE_PLACEHOLDER} aquí
+                </button>
+              )}
+            </div>
+
+            {inlineImageSrc ? (
+              <div className="flex items-start gap-3">
+                <img src={inlineImageSrc} alt="Imagen del correo" className="h-20 w-20 rounded border object-cover" />
+                <div className="min-w-0 flex-1 text-xs text-gray-500">
+                  <p className="truncate font-medium text-gray-700">{inlineImage?.filename}</p>
+                  <p>{Math.round((inlineImage?.contentBase64.length ?? 0) * 0.75 / 1024)} KB · se verá dentro del correo</p>
+                  <button
+                    type="button"
+                    onClick={() => { setInlineImage(null); setBody((current) => current.split(IMAGE_PLACEHOLDER).join("").trimEnd()); }}
+                    className="mt-1 text-red-500 hover:underline"
+                  >
+                    Quitar imagen
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <Input
+                ref={imageInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/gif,image/webp"
+                disabled={imageBusy || sending}
+                onChange={(event) => cargarImagen(event.target.files?.[0])}
+              />
+            )}
+
+            <p className="text-xs text-gray-500">
+              {imageBusy
+                ? "Procesando la imagen..."
+                : `Se incrusta donde escribas ${IMAGE_PLACEHOLDER}; si no está, va al final. También puedes pegarla con Ctrl+V. Se reduce automáticamente antes de enviarla.`}
+            </p>
+          </div>
           <Button onClick={handleSend} disabled={sending || !subject.trim() || !body.trim() || (isConjunto ? conjuntoEmails.valid.length === 0 || conjuntoEmails.invalid.length > 0 : isBulk ? validRecipientCount === 0 : !selectedEmail)} className="w-full gap-2">
             <Send className="h-4 w-4" />{sending ? "Enviando correos..." : isConjunto ? (conjuntoEmails.valid.length > 1 ? `Enviar al conjunto (${conjuntoEmails.valid.length} correos)` : "Enviar al conjunto") : isBulk ? `Enviar ${validRecipientCount} correos` : "Enviar correo"}
           </Button>
@@ -446,7 +666,10 @@ export default function EmailComposePage() {
         <div className="lg:col-span-2 space-y-5">
           <div className="rounded-2xl border bg-white shadow-sm overflow-hidden">
             <div className="px-4 py-3 border-b flex items-center gap-2"><Mail className="h-4 w-4 text-brand-primary" /><span className="text-sm font-semibold">Vista previa</span></div>
-            <div className="p-5 text-sm"><p className="font-semibold mb-4">{replaceVariables(subject, previewDebtor, conjunto)}</p><div className="whitespace-pre-wrap text-gray-600 leading-relaxed">{replaceVariables(body, previewDebtor, conjunto)}</div></div>
+            <div className="p-5 text-sm">
+              <p className="font-semibold mb-4">{replaceVariables(subject, previewDebtor, conjunto)}</p>
+              <PreviewBody text={replaceVariables(body, previewDebtor, conjunto)} imageSrc={inlineImageSrc} />
+            </div>
           </div>
 
           {progress && progress.status !== "done" && (

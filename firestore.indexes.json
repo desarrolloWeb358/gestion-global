@@ -29,6 +29,20 @@
       ]
     },
     {
+      "collectionGroup": "acuerdos",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "estado",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "esActivo",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "estadosMensuales",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
@@ -214,6 +228,34 @@
         },
         {
           "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "seguimiento",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "ejecutivoUID",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "fechaCreacion",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "seguimientoJuridico",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "ejecutivoUID",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "fechaCreacion",
           "order": "DESCENDING"
         }
       ]

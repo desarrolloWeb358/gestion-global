@@ -381,6 +381,13 @@ export { procesarMensajeValorAgregado } from "./valoresAgregados/conversacion";
 // Avisa por correo a la administración cuando un acuerdo de pago queda en firme.
 export { notificarAcuerdoEnFirme } from "./acuerdos/notificaciones";
 
+// recordatorioCuotasAcuerdo: todos los días a las 10 a. m. le recuerda al deudor
+//   las cuotas de su acuerdo EN FIRME que caen en los plazos configurados (5 días
+//   antes y la víspera, por defecto), por WhatsApp y por correo, y deja cada
+//   intento en el seguimiento del deudor. Los dos avisos salen de la MISMA
+//   corrida; el alcance se limita por conjunto desde Ajustes.
+export { recordatorioCuotasAcuerdo } from "./acuerdos/recordatorioCuotas";
+
 // =====================================================
 // 📅 MÓDULO CALENDARIO — Eventos y recordatorios del equipo
 // =====================================================
@@ -391,6 +398,14 @@ export { notificarAcuerdoEnFirme } from "./acuerdos/notificaciones";
 export { sincronizarEvento } from "./eventos/sincronizarEvento";
 export { barrerRecordatoriosEventos } from "./eventos/barrerRecordatorios";
 export { agendaDiaria } from "./eventos/agendaDiaria";
+
+// =====================================================
+// ✅ MÓDULO TAREAS — Recordatorio de pendientes
+// =====================================================
+// tareasDiarias: de lunes a sábado a las 8 a. m. le dice a cada persona cuántas
+//   tareas abiertas tiene. A diferencia de `agendaDiaria`, el mensaje es
+//   distinto para cada destinatario y quien no tiene nada abierto no recibe nada.
+export { tareasDiarias } from "./tareas/tareasDiarias";
 
 // =====================================================
 // ✉️ CORREO SUELTO DESDE LA APP

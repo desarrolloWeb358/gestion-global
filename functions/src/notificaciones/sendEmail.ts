@@ -33,6 +33,12 @@ type SendEmailAttachment = {
   filename: string;
   contentBase64: string;
   contentType?: string;
+  /**
+   * Content-ID para incrustar el archivo en el HTML con `<img src="cid:...">`.
+   * Con cid el adjunto se manda como `inline`, así el cliente de correo lo
+   * pinta dentro del cuerpo en vez de listarlo como archivo adjunto.
+   */
+  cid?: string;
 };
 
 type SendEmailOptions = {
@@ -107,6 +113,9 @@ export const sendEmail = async (opts: SendEmailOptions): Promise<string> => {
       content: attachment.contentBase64,
       encoding: "base64" as const,
       contentType: attachment.contentType,
+      ...(attachment.cid
+        ? { cid: attachment.cid, contentDisposition: "inline" as const }
+        : {}),
     })),
   });
 

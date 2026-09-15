@@ -10,7 +10,13 @@ import {
   sendEmail,
 } from "../notificaciones/sendEmail";
 import { coleccionSeguimiento } from "../shared/tipificaciones";
-import { buildHtml, replaceVariables, type EmailVars } from "./renderEmail";
+import {
+  buildHtml,
+  replaceVariables,
+  stripImagePlaceholder,
+  IMAGE_CID,
+  type EmailVars,
+} from "./renderEmail";
 
 // Ojo: estos objetos se guardan tal cual en el documento de la campaña y
 // `admin.initializeApp()` no usa `ignoreUndefinedProperties`, así que los
@@ -20,6 +26,13 @@ interface EmailAttachment {
   filename: string;
   contentBase64: string;
   contentType?: string | null;
+}
+
+/** Imagen que se pinta dentro del cuerpo del correo, no como archivo adjunto. */
+interface InlineImage {
+  filename: string;
+  contentBase64: string;
+  contentType: string;
 }
 
 /** Un destinatario del envío: a quién y con qué valores se renderiza la plantilla. */
@@ -47,6 +60,14 @@ const MAX_RECIPIENTS = 200;
  */
 const MAX_ATTACHMENT_BASE64_LENGTH = 600_000;
 const MAX_ATTACHMENTS = 3;
+/**
+ * La imagen incrustada comparte el mismo documento de 1 MB que los adjuntos y
+ * los hasta 200 destinatarios, así que tiene su propio techo, más bajo:
+ * 400 000 caracteres (~300 KB decodificados). El frontend ya la redimensiona
+ * antes de subirla; este límite es la red de seguridad si eso falla.
+ */
+const MAX_INLINE_IMAGE_BASE64_LENGTH = 400_000;
+const INLINE_IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 const SEND_DELAY_MS = 300; // ritmo defensivo entre envíos, igual que el job de WhatsApp masivo
 const PROGRESS_EVERY = 5;  // cada cuántos envíos se refresca el contador en vivo
 
@@ -171,6 +192,31 @@ function sanitizeAttachments(raw: unknown): EmailAttachment[] {
   });
 }
 
+/**
+ * La imagen se valida aparte de los adjuntos: va incrustada en el HTML, no en
+ * la lista de archivos, y solo se aceptan tipos que un cliente de correo sepa
+ * pintar. Sin la comprobación de tipo, un PDF renombrado saldría como un hueco
+ * roto en el correo del deudor.
+ */
+function sanitizeInlineImage(raw: unknown): InlineImage | null {
+  if (raw === undefined || raw === null) return null;
+  const image = raw as Partial<InlineImage>;
+  const filename = String(image?.filename ?? "").trim();
+  const contentBase64 = String(image?.contentBase64 ?? "");
+  const contentType = String(image?.contentType ?? "").toLowerCase();
+
+  if (!filename || !contentBase64) {
+    throw new HttpsError("invalid-argument", "Imagen inválida: falta nombre o contenido.");
+  }
+  if (!INLINE_IMAGE_TYPES.includes(contentType)) {
+    throw new HttpsError("invalid-argument", "La imagen debe ser PNG, JPG, GIF o WEBP.");
+  }
+  if (contentBase64.length > MAX_INLINE_IMAGE_BASE64_LENGTH) {
+    throw new HttpsError("invalid-argument", "La imagen supera el tamaño máximo permitido.");
+  }
+  return { filename, contentBase64, contentType };
+}
+
 function sanitizeRecipients(raw: unknown): EmailRecipient[] {
   if (!Array.isArray(raw) || raw.length === 0) {
     throw new HttpsError("invalid-argument", "No hay destinatarios para enviar.");
@@ -218,6 +264,7 @@ export const sendEmailCampaign = onCall(
     const payload = request.data as {
       recipients?: unknown;
       attachments?: unknown;
+      inlineImage?: unknown;
       mode?: "bulk" | "individual" | "conjunto";
       templateId?: string;
       clienteId?: string;
@@ -236,6 +283,7 @@ export const sendEmailCampaign = onCall(
 
     const recipients = sanitizeRecipients(payload?.recipients);
     const attachments = sanitizeAttachments(payload?.attachments);
+    const inlineImage = sanitizeInlineImage(payload?.inlineImage);
 
     const db = getFirestore();
     const campaignRef = db.collection("emailCampaigns").doc();
@@ -252,6 +300,7 @@ export const sendEmailCampaign = onCall(
         bodyTemplate,
         recipients,
         attachments,
+        inlineImage,
         // Se deja constancia de qué se adjuntó, para poder responder un reclamo
         // del conjunto sobre el cuadro que recibió.
         attachmentNames: attachments.map((attachment) => attachment.filename),
@@ -309,15 +358,34 @@ export const processEmailCampaign = onDocumentCreated(
 
     const recipients = (claimed.recipients ?? []) as EmailRecipient[];
     const attachments = (claimed.attachments ?? []) as EmailAttachment[];
+    const inlineImage = (claimed.inlineImage ?? null) as InlineImage | null;
     const subjectTemplate = String(claimed.subjectTemplate ?? "");
     const bodyTemplate = String(claimed.bodyTemplate ?? "");
     const agentId = String(claimed.agentId ?? "");
     // sendEmail (nodemailer) espera `contentType?: string`; en el documento va como null.
-    const mailAttachments = attachments.map((attachment) => ({
+    // Se tipa explícito: sin esto TypeScript infiere el tipo del map (sin `cid`)
+    // y el push de la imagen incrustada no compila.
+    const mailAttachments: {
+      filename: string;
+      contentBase64: string;
+      contentType?: string;
+      cid?: string;
+    }[] = attachments.map((attachment) => ({
       filename: attachment.filename,
       contentBase64: attachment.contentBase64,
       contentType: attachment.contentType ?? undefined,
     }));
+    // La imagen incrustada viaja como un adjunto más, pero con cid: eso es lo
+    // que hace que el cliente de correo la pinte en el cuerpo en vez de
+    // listarla junto al Excel.
+    if (inlineImage) {
+      mailAttachments.push({
+        filename: inlineImage.filename,
+        contentBase64: inlineImage.contentBase64,
+        contentType: inlineImage.contentType,
+        cid: IMAGE_CID,
+      });
+    }
     const results: SendResult[] = [];
 
     for (let index = 0; index < recipients.length; index++) {
@@ -325,7 +393,13 @@ export const processEmailCampaign = onDocumentCreated(
       if (index > 0) await delay(SEND_DELAY_MS);
 
       const subject = replaceVariables(subjectTemplate, recipient.vars).trim();
-      const text = replaceVariables(bodyTemplate, recipient.vars);
+      const html = buildHtml(
+        replaceVariables(bodyTemplate, recipient.vars),
+        inlineImage ? { imageCid: IMAGE_CID } : undefined
+      );
+      // El marcador {{imagen}} solo tiene sentido en el HTML; en el texto plano
+      // (y en el historial, que lo muestra tal cual) se elimina.
+      const text = stripImagePlaceholder(replaceVariables(bodyTemplate, recipient.vars));
 
       try {
         if (!subject || !text.trim()) throw new Error("Asunto o contenido vacío");
@@ -334,7 +408,7 @@ export const processEmailCampaign = onDocumentCreated(
           to: recipient.to,
           subject,
           text,
-          html: buildHtml(text),
+          html,
           remitente: "cartera",
           attachments: mailAttachments,
         });
@@ -368,6 +442,7 @@ export const processEmailCampaign = onDocumentCreated(
           subject,
           text,
           attachmentNames: attachments.map((attachment) => attachment.filename),
+          inlineImageName: inlineImage?.filename ?? null,
           status: "ok",
           sentAt: FieldValue.serverTimestamp(),
         });
@@ -407,6 +482,7 @@ export const processEmailCampaign = onDocumentCreated(
       // Ya no hacen falta y son lo más pesado del documento.
       recipients: FieldValue.delete(),
       attachments: FieldValue.delete(),
+      inlineImage: FieldValue.delete(),
       updatedAt: FieldValue.serverTimestamp(),
     });
   }
