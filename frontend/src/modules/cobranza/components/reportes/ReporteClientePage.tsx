@@ -114,10 +114,12 @@ import { obtenerReporteDeudoresPorPeriodo } from "../../services/reportes/report
 import type { FilaReporte } from "../../services/reportes/tipos";
 
 // Tipificaciones que se listan en el resumen pero no cuentan como casos vigentes
-// (no suman en el total de inmuebles del pie de tabla).
+// (no suman en el total de inmuebles del pie de tabla). La plata sí suma: el
+// recaudo del año es el mismo aunque el caso ya esté cerrado.
 const TIPIFICACIONES_FUERA_DEL_TOTAL = new Set<string>([
   TipificacionDeuda.DEVUELTO,
   TipificacionDeuda.TERMINADO,
+  TipificacionDeuda.DEMANDA_TERMINADO,
 ]);
 
 // Mes a partir del cual rige el nuevo modelo de habilitación por ejecutivo (inclusive)
