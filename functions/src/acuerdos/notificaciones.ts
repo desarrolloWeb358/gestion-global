@@ -6,6 +6,8 @@ import {
   GMAIL_CLIENT_ID,
   GMAIL_CLIENT_SECRET,
   GMAIL_REFRESH_TOKEN,
+  GMAIL_USER_CARTERA,
+  GMAIL_REFRESH_TOKEN_CARTERA,
   sendEmail,
 } from "../notificaciones/sendEmail";
 import { buildEmailHtml, destinatarioCliente, obtenerClienteInfo } from "../valoresAgregados/shared";
@@ -29,7 +31,15 @@ export const notificarAcuerdoEnFirme = onDocumentUpdated(
   {
     document: "clientes/{clienteId}/deudores/{deudorId}/acuerdos/{acuerdoId}",
     region: "us-central1",
-    secrets: [GMAIL_USER, GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN],
+    secrets: [
+      GMAIL_USER,
+      GMAIL_CLIENT_ID,
+      GMAIL_CLIENT_SECRET,
+      GMAIL_REFRESH_TOKEN,
+      // Sin estos dos, el envio como `cartera` cae al modo alias sin avisar.
+      GMAIL_USER_CARTERA,
+      GMAIL_REFRESH_TOKEN_CARTERA,
+    ],
   },
   async (event) => {
     const change = event.data;

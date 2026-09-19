@@ -16,9 +16,10 @@ export const sendMetaTemplate = onCall(
       throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
     }
 
-    const { numberId, to, templateId, parameters, clienteId, deudorId, deudorNombre } = (
-      request.data ?? {}
-    ) as {
+    const {
+      numberId, to, templateId, parameters, clienteId, deudorId, deudorNombre,
+      headerImageUrl,
+    } = (request.data ?? {}) as {
       numberId?: string;
       to?: string;           // número destino en formato internacional, ej: "573001234567"
       templateId?: string;
@@ -26,6 +27,8 @@ export const sendMetaTemplate = onCall(
       clienteId?: string;
       deudorId?: string;
       deudorNombre?: string;
+      // URL pública de la imagen del encabezado: solo plantillas con header IMAGE.
+      headerImageUrl?: string;
     };
 
     if (!numberId || !to?.trim() || !templateId) {
@@ -93,7 +96,8 @@ export const sendMetaTemplate = onCall(
       numberData.metaToken,
       userAddress,
       templateData.providerTemplateName,
-      params
+      params,
+      headerImageUrl ? { headerImageUrl } : {}
     );
 
     // Construir texto legible: reemplaza {{variable}} con los valores enviados
@@ -112,6 +116,9 @@ export const sendMetaTemplate = onCall(
         timestampMs: Date.now(),
         providerMessageId: wamid || undefined,
         deliveryStatus: "pending",
+        ...(headerImageUrl
+          ? { mediaUrl: headerImageUrl, mediaType: "image" as const }
+          : {}),
       },
     });
 

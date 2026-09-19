@@ -6,6 +6,8 @@ import {
   GMAIL_CLIENT_ID,
   GMAIL_CLIENT_SECRET,
   GMAIL_REFRESH_TOKEN,
+  GMAIL_USER_CARTERA,
+  GMAIL_REFRESH_TOKEN_CARTERA,
   GMAIL_USER,
   sendEmail,
 } from "../notificaciones/sendEmail";
@@ -339,7 +341,15 @@ export const processEmailCampaign = onDocumentCreated(
     timeoutSeconds: 540,
     memory: "512MiB",
     retry: false, // un reintento automático volvería a enviar correos ya enviados
-    secrets: [GMAIL_USER, GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN],
+    secrets: [
+      GMAIL_USER,
+      GMAIL_CLIENT_ID,
+      GMAIL_CLIENT_SECRET,
+      GMAIL_REFRESH_TOKEN,
+      // Sin estos dos, el envio como `cartera` cae al modo alias sin avisar.
+      GMAIL_USER_CARTERA,
+      GMAIL_REFRESH_TOKEN_CARTERA,
+    ],
   },
   async (event) => {
     const campaignRef = event.data?.ref;

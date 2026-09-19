@@ -206,7 +206,7 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/ajustes",
     label: "Ajustes",
     icon: IconSettings,
-    roles: ["admin"],
+    roles: ["admin", "supervisor"],
   },
 
   // ========================================

@@ -1,14 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { httpsCallable } from "firebase/functions";
-import { functions } from "@/firebase";
+import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import { functions, storage } from "@/firebase";
 import { toast } from "sonner";
 import { useAuth } from "@/app/providers/AuthContext";
 import { addSeguimiento, addSeguimientoJuridico } from "@/modules/cobranza/services/seguimientoService";
 import { Timestamp } from "firebase/firestore";
 import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 import {
-  Phone, IdCard, DollarSign, Tag, FileCheck, ArrowLeft, Send,
+  Phone, IdCard, DollarSign, Tag, FileCheck, ArrowLeft, Send, ImagePlus, X,
 } from "lucide-react";
 import { IconVariable } from "@tabler/icons-react";
 import { Button } from "@/shared/ui/button";
@@ -31,6 +32,10 @@ import { listenTemplates } from "../services/templatesService";
 import type { WaTemplate } from "../models/waTemplate.model";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString("es-CO")}`;
+
+/** Meta solo acepta JPEG y PNG en el encabezado, hasta 5 MB. */
+const HEADER_IMAGE_TYPES = "image/jpeg,image/png";
+const HEADER_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 
 const TIPS_JURIDICO = new Set([
   TipificacionDeuda.DEMANDA,
@@ -124,6 +129,39 @@ export default function SendWhatsAppPage() {
   const [sending, setSending] = useState(false);
 
   const selectedTemplate = templates.find((t) => t.id === selectedId) ?? null;
+  const needsHeaderImage = selectedTemplate?.headerType === "image";
+
+  // Imagen del encabezado: solo aplica a plantillas con headerType "image".
+  const [headerImageFile, setHeaderImageFile] = useState<File | null>(null);
+  const [headerImagePreview, setHeaderImagePreview] = useState<string>("");
+
+  // Al cambiar de plantilla la imagen anterior deja de tener sentido.
+  useEffect(() => {
+    setHeaderImageFile(null);
+  }, [selectedId]);
+
+  // El object URL del preview se libera al cambiar de archivo.
+  useEffect(() => {
+    if (!headerImageFile) { setHeaderImagePreview(""); return; }
+    const url = URL.createObjectURL(headerImageFile);
+    setHeaderImagePreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [headerImageFile]);
+
+  const handleHeaderImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    e.target.value = "";
+    if (!file) return;
+    if (!HEADER_IMAGE_TYPES.split(",").includes(file.type)) {
+      toast.error("La imagen debe ser JPG o PNG");
+      return;
+    }
+    if (file.size > HEADER_IMAGE_MAX_BYTES) {
+      toast.error("La imagen no puede superar 5 MB");
+      return;
+    }
+    setHeaderImageFile(file);
+  };
 
   // Phones from deudor
   const phones = deudor?.telefonos ?? [];
@@ -193,7 +231,9 @@ export default function SendWhatsAppPage() {
     !selectedTemplate ||
     selectedTemplate.variables.every((v) => v.name === "telefono" || varValues[v.name]?.trim());
 
-  const canSend = hasPhone && numberId && selectedId && allVarsFilled && !sending;
+  const canSend =
+    hasPhone && numberId && selectedId && allVarsFilled && !sending &&
+    (!needsHeaderImage || !!headerImageFile);
 
   const buildMensaje = (phone: string) =>
     selectedTemplate
@@ -211,6 +251,23 @@ export default function SendWhatsAppPage() {
     if (!canSend) return;
     setSending(true);
     try {
+      // La imagen se sube UNA vez a /media (lectura publica): Meta la descarga
+      // en el momento del envio y necesita alcanzarla sin autenticacion.
+      let headerImageUrl = "";
+      if (needsHeaderImage && headerImageFile) {
+        try {
+          const path = `media/outgoing-header/${numberId}/${Date.now()}_${headerImageFile.name}`;
+          const fileRef = storageRef(storage, path);
+          await uploadBytes(fileRef, headerImageFile);
+          headerImageUrl = await getDownloadURL(fileRef);
+        } catch (err) {
+          console.error(err);
+          toast.error("No se pudo subir la imagen del encabezado");
+          setSending(false);
+          return;
+        }
+      }
+
       const fn = httpsCallable<unknown, { ok: boolean; conversationId: string }>(
         functions,
         "sendMetaTemplate"
@@ -233,6 +290,7 @@ export default function SendWhatsAppPage() {
           clienteId,
           deudorId,
           deudorNombre: deudor?.nombre,
+          ...(headerImageUrl ? { headerImageUrl } : {}),
         });
         lastConversationId = result.data.conversationId;
 
@@ -396,6 +454,53 @@ export default function SendWhatsAppPage() {
               </div>
             )}
 
+            {/* Imagen del encabezado — solo plantillas tipo IMAGE en Meta */}
+            {needsHeaderImage && (
+              <div className="space-y-2">
+                <Label>Imagen del encabezado</Label>
+                <p className="text-xs text-gray-500">
+                  Esta plantilla lleva encabezado de imagen. JPG o PNG, máximo 5 MB.
+                </p>
+
+                {headerImageFile ? (
+                  <div className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 bg-gray-50">
+                    {headerImagePreview && (
+                      <img
+                        src={headerImagePreview}
+                        alt="Vista previa del encabezado"
+                        className="h-16 w-16 rounded-md object-cover border border-gray-200"
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-700 truncate">{headerImageFile.name}</p>
+                      <p className="text-xs text-gray-400">
+                        {(headerImageFile.size / 1024).toFixed(0)} KB
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setHeaderImageFile(null)}
+                      className="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      aria-label="Quitar imagen"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex items-center justify-center gap-2 h-20 rounded-lg border-2 border-dashed border-gray-300 text-sm text-gray-500 cursor-pointer hover:border-brand-primary hover:text-brand-primary transition-colors">
+                    <ImagePlus className="h-5 w-5" />
+                    Selecciona la imagen a enviar
+                    <input
+                      type="file"
+                      accept={HEADER_IMAGE_TYPES}
+                      className="hidden"
+                      onChange={handleHeaderImageChange}
+                    />
+                  </label>
+                )}
+              </div>
+            )}
+
             {/* Variables */}
             {selectedTemplate && selectedTemplate.variables.length > 0 && (
               <div className="space-y-3 rounded-lg bg-brand-primary/5 border border-brand-primary/20 p-4">
@@ -447,7 +552,11 @@ export default function SendWhatsAppPage() {
               size="lg"
             >
               <Send className="h-4 w-4" />
-              {sending ? "Enviando..." : "Enviar mensaje"}
+              {sending
+                ? "Enviando..."
+                : needsHeaderImage && !headerImageFile
+                ? "Adjunta la imagen del encabezado para enviar"
+                : "Enviar mensaje"}
             </Button>
           </div>
         </div>

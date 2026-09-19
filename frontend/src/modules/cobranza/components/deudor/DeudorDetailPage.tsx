@@ -58,6 +58,7 @@ import { cn } from "@/shared/lib/cn";
 import { toast } from "sonner";
 
 import { getClienteById } from "@/modules/clientes/services/clienteService";
+import { EmailTagInput, PhoneTagInput, EMAIL_RE } from "./ContactoTagInputs";
 import type { Cliente } from "@/modules/clientes/models/cliente.model";
 import { Deudor } from "../../models/deudores.model";
 import { crearUsuarioParaDeudor } from "../../services/deudorUserService";
@@ -113,6 +114,19 @@ export default function DeudorDetailPage() {
   const [loading, setLoading] = React.useState(true);
   const [loadingUsuario, setLoadingUsuario] = React.useState(false);
 
+  // Todos los correos del deudor: el del usuario vinculado (si lo hay) va primero,
+  // luego los de la ficha, sin repetir.
+  const correosDeudor = React.useMemo(() => {
+    const lista: string[] = [];
+    for (const raw of [usuario?.email, ...(deudor?.correos ?? [])]) {
+      const correo = raw?.trim();
+      if (correo && !lista.some((c) => c.toLowerCase() === correo.toLowerCase())) {
+        lista.push(correo);
+      }
+    }
+    return lista;
+  }, [usuario?.email, deudor?.correos]);
+
   const [nombreCliente, setNombreCliente] =
     React.useState<string>("Cargando...");
   const [loadingCliente, setLoadingCliente] = React.useState(true);
@@ -124,13 +138,20 @@ export default function DeudorDetailPage() {
   const [editOpen, setEditOpen] = React.useState(false);
   const [editSaving, setEditSaving] = React.useState(false);
   const [histOpen, setHistOpen] = React.useState(false);
-  const [editForm, setEditForm] = React.useState({
+  const [editForm, setEditForm] = React.useState<{
+    nombre: string;
+    cedula: string;
+    ubicacion: string;
+    porcentajeHonorarios: string;
+    correos: string[];
+    telefonos: string[];
+  }>({
     nombre: "",
     cedula: "",
     ubicacion: "",
     porcentajeHonorarios: "",
-    correos: "",
-    telefonos: "",
+    correos: [],
+    telefonos: [],
   });
 
   // ===========================
@@ -253,8 +274,8 @@ export default function DeudorDetailPage() {
         deudor.porcentajeHonorarios !== undefined && deudor.porcentajeHonorarios !== null
           ? String(deudor.porcentajeHonorarios)
           : "",
-      correos: (deudor.correos ?? []).join(", "),
-      telefonos: (deudor.telefonos ?? []).join(", "),
+      correos: deudor.correos ?? [],
+      telefonos: deudor.telefonos ?? [],
     });
     setEditOpen(true);
   };
@@ -278,12 +299,8 @@ export default function DeudorDetailPage() {
       return;
     }
 
-    const correosFinal: string[] = [];
-    for (const raw of editForm.correos.split(/[\s,;\/]+/)) {
-      const correo = raw.trim().toLowerCase();
-      if (correo && !correosFinal.includes(correo)) correosFinal.push(correo);
-    }
-    const correosInvalidos = correosFinal.filter((c) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c));
+    const correosFinal = editForm.correos;
+    const correosInvalidos = correosFinal.filter((c) => !EMAIL_RE.test(c));
     if (correosInvalidos.length > 0) {
       toast.error(`Correo inválido: ${correosInvalidos.join(", ")}`);
       return;
@@ -295,10 +312,7 @@ export default function DeudorDetailPage() {
       ubicacion: editForm.ubicacion.trim(),
       porcentajeHonorarios: porcentaje,
       correos: correosFinal,
-      telefonos: editForm.telefonos
-        .split(",")
-        .map((telefono) => telefono.trim())
-        .filter(Boolean),
+      telefonos: editForm.telefonos,
     };
 
     try {
@@ -613,13 +627,21 @@ export default function DeudorDetailPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs mb-1">
-                    Correo electrónico
+                    {correosDeudor.length > 1 ? "Correos electrónicos" : "Correo electrónico"}
                   </p>
                   {loadingUsuario ? (
                     <div className="h-4 w-32 bg-gray-200 animate-pulse rounded" />
+                  ) : correosDeudor.length > 0 ? (
+                    <div className="flex flex-col gap-0.5">
+                      {correosDeudor.map((correo, i) => (
+                        <p key={i} className="text-sm font-semibold text-gray-700 break-all">
+                          {correo}
+                        </p>
+                      ))}
+                    </div>
                   ) : (
                     <p className="text-sm font-semibold text-gray-700 truncate">
-                      {usuario?.email || deudor.correos?.[0] || "No registrado"}
+                      No registrado
                     </p>
                   )}
                 </div>
@@ -1135,30 +1157,26 @@ export default function DeudorDetailPage() {
 
               <div>
                 <Label className="text-brand-secondary font-medium">Correos electrónicos</Label>
-                <Input
+                <EmailTagInput
                   value={editForm.correos}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({ ...prev, correos: event.target.value }))
-                  }
+                  onChange={(correos) => setEditForm((prev) => ({ ...prev, correos }))}
                   disabled={editSaving}
-                  placeholder="correo1@example.com, correo2@example.com"
-                  className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
                 />
-                <p className="text-xs mt-1">Separa múltiples correos con comas.</p>
+                <p className="text-xs mt-1 text-muted-foreground">
+                  Escribe un correo y presiona <kbd className="px-1 rounded bg-gray-100 text-xs">Enter</kbd>, coma, espacio o Tab para agregarlo.
+                </p>
               </div>
 
               <div>
                 <Label className="text-brand-secondary font-medium">Teléfonos</Label>
-                <Input
+                <PhoneTagInput
                   value={editForm.telefonos}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({ ...prev, telefonos: event.target.value }))
-                  }
+                  onChange={(telefonos) => setEditForm((prev) => ({ ...prev, telefonos }))}
                   disabled={editSaving}
-                  placeholder="3001234567, 3109876543"
-                  className="mt-1.5 border-brand-secondary/30 focus:border-brand-primary focus:ring-brand-primary/20"
                 />
-                <p className="text-xs mt-1">Separa múltiples teléfonos con comas.</p>
+                <p className="text-xs mt-1 text-muted-foreground">
+                  Escribe un número y presiona <kbd className="px-1 rounded bg-gray-100 text-xs">Enter</kbd>, coma o Tab para agregarlo. El prefijo +57 se elimina automáticamente.
+                </p>
               </div>
 
               <DialogFooter className="gap-2">

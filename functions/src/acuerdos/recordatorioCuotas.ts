@@ -34,6 +34,8 @@ import {
   GMAIL_CLIENT_ID,
   GMAIL_CLIENT_SECRET,
   GMAIL_REFRESH_TOKEN,
+  GMAIL_USER_CARTERA,
+  GMAIL_REFRESH_TOKEN_CARTERA,
   GMAIL_USER,
   sendEmail,
 } from "../notificaciones/sendEmail";
@@ -565,7 +567,15 @@ export const recordatorioCuotasAcuerdo = onSchedule(
     schedule: "0 10 * * *",
     timeZone: ZONA,
     region: "us-central1",
-    secrets: [GMAIL_USER, GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN],
+    secrets: [
+      GMAIL_USER,
+      GMAIL_CLIENT_ID,
+      GMAIL_CLIENT_SECRET,
+      GMAIL_REFRESH_TOKEN,
+      // Sin estos dos, el envio como `cartera` cae al modo alias sin avisar.
+      GMAIL_USER_CARTERA,
+      GMAIL_REFRESH_TOKEN_CARTERA,
+    ],
   },
   async () => {
     const db = admin.firestore();

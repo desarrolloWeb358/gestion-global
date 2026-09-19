@@ -6,6 +6,8 @@ import {
   GMAIL_CLIENT_ID,
   GMAIL_CLIENT_SECRET,
   GMAIL_REFRESH_TOKEN,
+  GMAIL_USER_CARTERA,
+  GMAIL_REFRESH_TOKEN_CARTERA,
 } from "./sendEmail";
 import type { Remitente } from "./sendEmail";
 
@@ -34,7 +36,15 @@ export const enviarCorreoApp = onCall(
     region: "us-central1",
     timeoutSeconds: 60,
     memory: "256MiB",
-    secrets: [GMAIL_USER, GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN],
+    secrets: [
+      GMAIL_USER,
+      GMAIL_CLIENT_ID,
+      GMAIL_CLIENT_SECRET,
+      GMAIL_REFRESH_TOKEN,
+      // Sin estos dos, el envio como `cartera` cae al modo alias sin avisar.
+      GMAIL_USER_CARTERA,
+      GMAIL_REFRESH_TOKEN_CARTERA,
+    ],
   },
   async (request) => {
     if (!request.auth?.uid) {
