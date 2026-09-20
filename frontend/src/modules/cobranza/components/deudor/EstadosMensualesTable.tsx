@@ -6,8 +6,10 @@ import {
   ArrowDownUp,
   ArrowUp,
   ArrowDown,
+  Building2,
   Calendar,
   DollarSign,
+  MapPin,
   Edit,
   FileText,
   Filter,
@@ -323,37 +325,58 @@ export default function EstadosMensualesTable() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clienteId, deudorId]);
 
+  /** Formulario en blanco para un mes que todavía no tiene registro. */
+  const formularioVacío = (mes: string): Partial<EstadoMensual> => ({
+    mes,
+    clienteUID: clienteId || "",
+    deuda: undefined,
+    recaudo: undefined,
+    porcentajeHonorarios: porcentajeDefault,
+    honorariosDeuda: undefined,
+    honorariosRecaudo: undefined,
+    modoHonorariosRecaudo: "porcentaje_recaudo",
+    recibo: "",
+    observaciones: "",
+  });
+
+  /** Formulario con los valores ya guardados de un mes. */
+  const formularioDesdeEstado = (estado: EstadoMensual): Partial<EstadoMensual> => ({
+    clienteUID: clienteId || "",
+    id: estado.id,
+    mes: estado.mes,
+    deuda: estado.deuda ?? undefined,
+    recaudo: estado.recaudo ?? undefined,
+    porcentajeHonorarios: estado.porcentajeHonorarios ?? 15,
+    honorariosDeuda: estado.honorariosDeuda ?? undefined,
+    honorariosRecaudo: estado.honorariosRecaudo ?? undefined,
+    modoHonorariosRecaudo: inferirModoHonorarios(estado),
+    recibo: estado.recibo ?? "",
+    observaciones: estado.observaciones ?? "",
+  });
+
+  /**
+   * Al abrir el modal y cada vez que se cambia el mes: si ese mes ya tiene
+   * registro se cargan sus valores para editarlos; si no, el formulario va en blanco.
+   */
+  const cargarMesEnFormulario = (mes: string) => {
+    const existente = mes ? estadosMensuales.find((e) => e.mes === mes) : undefined;
+    if (existente) {
+      setNuevoEstadoMensual(formularioDesdeEstado(existente));
+      setEditing(true);
+    } else {
+      setNuevoEstadoMensual(formularioVacío(mes));
+      setEditing(false);
+    }
+  };
+
   const resetForm = () => {
-    setNuevoEstadoMensual({
-      mes: new Date().toISOString().slice(0, 7),
-      clienteUID: clienteId || "",
-      deuda: undefined,
-      recaudo: undefined,
-      porcentajeHonorarios: porcentajeDefault,
-      honorariosDeuda: undefined,
-      honorariosRecaudo: undefined,
-      modoHonorariosRecaudo: "porcentaje_recaudo",
-      recibo: "",
-      observaciones: "",
-    });
+    setNuevoEstadoMensual(formularioVacío(hoyYYYYMM));
     setEditing(false);
   };
 
   const openEdit = (estado: EstadoMensual) => {
     if (!canEdit) return;
-    setNuevoEstadoMensual({
-      clienteUID: clienteId || "",
-      id: estado.id,
-      mes: estado.mes,
-      deuda: estado.deuda ?? undefined,
-      recaudo: estado.recaudo ?? undefined,
-      porcentajeHonorarios: estado.porcentajeHonorarios ?? 15,
-      honorariosDeuda: estado.honorariosDeuda ?? undefined,
-      honorariosRecaudo: estado.honorariosRecaudo ?? undefined,
-      modoHonorariosRecaudo: inferirModoHonorarios(estado),
-      recibo: estado.recibo ?? "",
-      observaciones: estado.observaciones ?? "",
-    });
+    setNuevoEstadoMensual(formularioDesdeEstado(estado));
     setEditing(true);
     setOpen(true);
   };
@@ -509,7 +532,7 @@ export default function EstadosMensualesTable() {
                   <DialogTrigger asChild>
                     <Button
                       onClick={() => {
-                        resetForm();
+                        cargarMesEnFormulario(hoyYYYYMM);
                         setOpen(true);
                       }}
                       variant="brand"
@@ -528,6 +551,21 @@ export default function EstadosMensualesTable() {
                           ? `Editar Estado (${nuevoEstadoMensual.mes})`
                           : "Nuevo Estado Mensual"}
                       </DialogTitle>
+                      {/* Conjunto e inmueble: para saber sobre quién se está trabajando */}
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-1">
+                        {nombreCliente && (
+                          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-secondary">
+                            <Building2 className="h-4 w-4 text-brand-primary" />
+                            {nombreCliente}
+                          </span>
+                        )}
+                        {deudorLabel.trim() && (
+                          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-secondary">
+                            <MapPin className="h-4 w-4 text-brand-primary" />
+                            {deudorLabel}
+                          </span>
+                        )}
+                      </div>
                     </DialogHeader>
 
                     <div className="space-y-6 py-4">
@@ -541,11 +579,15 @@ export default function EstadosMensualesTable() {
                           id="mes"
                           type="month"
                           value={nuevoEstadoMensual.mes || ""}
-                          onChange={(e) =>
-                            setNuevoEstadoMensual((s) => ({ ...s, mes: e.target.value }))
-                          }
+                          onChange={(e) => cargarMesEnFormulario(e.target.value)}
                           className="border-brand-secondary/30"
                         />
+                        {editing && (
+                          <Typography variant="small" className="text-brand-primary">
+                            Este mes ya tenía un registro: se cargaron sus valores y al guardar se
+                            actualiza.
+                          </Typography>
+                        )}
                       </div>
 
                       {/* Campos numéricos */}

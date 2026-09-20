@@ -235,6 +235,50 @@ export async function obtenerDeudorPorCliente(clienteId: string): Promise<Deudor
 
 
 
+// ------------ Ubicación: normalización y unicidad ------------
+
+/**
+ * La ubicación (inmueble) es la llave real del deudor dentro de la cartera, así que
+ * SIEMPRE se guarda recortada y en minúsculas. Si se guardara tal cual la escribe
+ * el usuario, "Apto 101" y "apto 101" quedarían como dos registros distintos y la
+ * validación de duplicados —que compara por igualdad exacta— no los vería.
+ */
+export function normalizarUbicacion(ubicacion?: string): string {
+  return (ubicacion ?? "").trim().toLowerCase();
+}
+
+/**
+ * Busca el deudor que ya ocupa esa ubicación en la cartera, SIN filtrar por
+ * tipificación: un inmueble con un deudor Terminado o Inactivo sigue ocupado.
+ * `excluirDeudorId` evita que un deudor choque consigo mismo al editarse.
+ */
+async function buscarDeudorPorUbicacion(
+  clienteId: string,
+  ubicacionNormalizada: string,
+  excluirDeudorId?: string
+): Promise<Deudor | null> {
+  const ref = collection(db, `clientes/${clienteId}/deudores`);
+  const snapshot = await getDocs(
+    query(ref, where("ubicacion", "==", ubicacionNormalizada))
+  );
+
+  const conflicto = snapshot.docs.find((d) => d.id !== excluirDeudorId);
+  return conflicto ? mapDocToDeudor(conflicto.id, conflicto.data()) : null;
+}
+
+/**
+ * El deudor que choca suele estar filtrado fuera de la tabla (Terminado, Inactivo,
+ * Devuelto…), así que el mensaje dice quién es y en qué estado está; si no, el
+ * error parece un fantasma.
+ */
+function mensajeUbicacionDuplicada(ubicacion: string, conflicto: Deudor): string {
+  const nombre = conflicto.nombre?.trim() || "(sin nombre)";
+  return (
+    `No se puede usar la ubicación "${ubicacion}": ya la tiene ${nombre}, ` +
+    `con tipificación ${conflicto.tipificacion}.`
+  );
+}
+
 // ------------ Crear / Actualizar / Eliminar Deudor ------------
 export async function crearDeudor(
   clienteId: string,
@@ -243,23 +287,18 @@ export async function crearDeudor(
 
   const ref = collection(db, `clientes/${clienteId}/deudores`);
 
-  const ubicacionNormalizada = (data.ubicacion ?? "").trim().toLowerCase();
+  const ubicacionNormalizada = normalizarUbicacion(data.ubicacion);
 
   if (!ubicacionNormalizada) {
     throw new Error("La ubicación es obligatoria.");
   }
 
-  // 🔎 1️⃣ VALIDAR SI YA EXISTE
-  const q = query(
-    ref,
-    where("ubicacion", "==", ubicacionNormalizada)
-  );
+  // 🔎 1️⃣ VALIDAR SI YA EXISTE (en toda la cartera, sin importar la tipificación)
+  const conflicto = await buscarDeudorPorUbicacion(clienteId, ubicacionNormalizada);
 
-  const snapshot = await getDocs(q);
-
-  if (!snapshot.empty) {
+  if (conflicto) {
     throw new Error(
-      "No se puede crear el deudor porque ya existe uno con esa misma ubicación."
+      mensajeUbicacionDuplicada((data.ubicacion ?? "").trim(), conflicto)
     );
   }
 
@@ -323,6 +362,29 @@ export async function actualizarDeudorDatos(
   const ref = doc(db, `clientes/${clienteId}/deudores/${deudorId}`) as DocumentReference<DeudorDoc>;
 
   const next: any = { ...patch };
+
+  // La ubicación se normaliza y se valida igual que al crear: editar un deudor para
+  // dejarle la ubicación de otro rompe la misma regla. Solo cuando el patch la trae
+  // (los merges del import de Excel, por ejemplo, no la tocan y no pagan la lectura).
+  if (patch.ubicacion !== undefined) {
+    const ubicacionNormalizada = normalizarUbicacion(patch.ubicacion);
+
+    if (!ubicacionNormalizada) {
+      throw new Error("La ubicación es obligatoria.");
+    }
+
+    const conflicto = await buscarDeudorPorUbicacion(
+      clienteId,
+      ubicacionNormalizada,
+      deudorId
+    );
+
+    if (conflicto) {
+      throw new Error(mensajeUbicacionDuplicada(patch.ubicacion.trim(), conflicto));
+    }
+
+    next.ubicacion = ubicacionNormalizada;
+  }
 
   const sanitized = Object.fromEntries(
     Object.entries(next).filter(([, v]) => v !== undefined)

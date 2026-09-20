@@ -11,6 +11,7 @@ import {
   actualizarDeudorDatos,
   borrarDeudorCompleto,
   mergeContactosDeudor,
+  normalizarUbicacion,
   DeudorPatch,
 } from "../../services/deudorService";
 
@@ -1032,7 +1033,7 @@ export default function DeudoresTable() {
         await actualizarDeudorDatos(clienteId, deudorEditando.id!, {
           nombre: t(formData.nombre),
           cedula: t(formData.cedula),
-          ubicacion: t(formData.ubicacion),
+          ubicacion: normalizarUbicacion(formData.ubicacion),
           correos: correosFinal,
           telefonos: formData.telefonos ?? [],
           tipificacion: formData.tipificacion as TipificacionDeuda,
@@ -1043,7 +1044,7 @@ export default function DeudoresTable() {
         const nuevoDeudorId = await crearDeudor(clienteId, {
           nombre: t(formData.nombre),
           cedula: t(formData.cedula),
-          ubicacion: t(formData.ubicacion),
+          ubicacion: normalizarUbicacion(formData.ubicacion),
           porcentajeHonorarios: porcentajeFinal,
           correos: correosFinal,
           telefonos: formData.telefonos ?? [],

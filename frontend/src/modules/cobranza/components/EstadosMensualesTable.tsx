@@ -332,7 +332,7 @@ export default function EstadosMensualesTable() {
                       <FileText className="h-5 w-5" />
                       {editing
                         ? `Editar Estado (${nuevoEstadoMensual.mes})`
-                        : "Nuevo Estado Mensual"}
+                        : "Nuevo Estado Mensuall"}
                     </DialogTitle>
                   </DialogHeader>
 

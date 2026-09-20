@@ -130,14 +130,14 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/clientes-particulares",
     label: "Clientes particulares",
     icon: IconUserSearch,
-    roles: ["admin", "supervisor", "ejecutivoAdmin", "dependiente", "abogado", "adminFranquicia"],
+    roles: ["admin", "supervisor", "dependiente", "abogado", "adminFranquicia"],
     perm: PERMS.ClientesParticulares_Read,
   },
   {
     to: "/reporte-casos",
     label: "Casos",
     icon: IconScale,
-    roles: ["admin", "supervisor", "ejecutivoAdmin", "dependiente", "abogado", "adminFranquicia"],
+    roles: ["admin", "supervisor", "dependiente", "abogado", "adminFranquicia"],
     perm: PERMS.Casos_Read,
   },
 

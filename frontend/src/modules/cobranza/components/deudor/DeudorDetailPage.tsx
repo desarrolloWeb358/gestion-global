@@ -37,7 +37,7 @@ import {
   Plus,
 } from "lucide-react";
 
-import { actualizarDeudorDatos, getDeudorById, vincularDeudorConUsuario } from "../../services/deudorService";
+import { actualizarDeudorDatos, getDeudorById, normalizarUbicacion, vincularDeudorConUsuario } from "../../services/deudorService";
 import { getDemandas } from "../../services/demandaService";
 import { Demanda, toDateSafe } from "../../models/demanda.model";
 
@@ -309,7 +309,7 @@ export default function DeudorDetailPage() {
     const payload = {
       nombre,
       cedula: editForm.cedula.trim(),
-      ubicacion: editForm.ubicacion.trim(),
+      ubicacion: normalizarUbicacion(editForm.ubicacion),
       porcentajeHonorarios: porcentaje,
       correos: correosFinal,
       telefonos: editForm.telefonos,

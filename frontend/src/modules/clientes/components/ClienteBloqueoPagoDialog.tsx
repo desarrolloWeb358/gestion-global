@@ -13,6 +13,7 @@ import { Label } from "@/shared/ui/label";
 import { Textarea } from "@/shared/ui/textarea";
 import type { Cliente } from "@/modules/clientes/models/cliente.model";
 import { setBloqueoPorPago } from "@/modules/clientes/services/clienteService";
+import { enviarCorreoBloqueoPago } from "@/modules/clientes/services/clienteBloqueoPagoEmail";
 
 interface Props {
   cliente: Cliente | null;
@@ -48,11 +49,30 @@ export function ClienteBloqueoPagoDialog({
     setGuardando(true);
     try {
       await setBloqueoPorPago(cliente.id, bloquear, { ...actor, motivo });
-      toast.success(
-        bloquear
-          ? "Cliente inhabilitado por no pago"
-          : "Acceso del cliente reactivado"
-      );
+
+      // El correo va aparte: si falla, el cambio de estado ya quedó guardado y
+      // no se revierte, solo se avisa al ejecutivo para que informe a mano.
+      try {
+        const correo = await enviarCorreoBloqueoPago({
+          clienteId: cliente.id,
+          bloqueado: bloquear,
+          motivo,
+          clienteNombre: cliente.nombre,
+        });
+        toast.success(
+          bloquear
+            ? `Cliente inhabilitado por no pago. Se avisó a ${correo}`
+            : `Acceso del cliente reactivado. Se avisó a ${correo}`
+        );
+      } catch (errorCorreo) {
+        console.error("No se pudo avisar por correo el bloqueo por pago:", errorCorreo);
+        toast.warning(
+          bloquear
+            ? "Cliente inhabilitado, pero no se pudo enviar el correo de aviso"
+            : "Acceso reactivado, pero no se pudo enviar el correo de aviso"
+        );
+      }
+
       onClose();
       onSaved();
     } catch (error) {
@@ -93,10 +113,18 @@ export function ClienteBloqueoPagoDialog({
                 y contratos). Al intentarlo verá el aviso para comunicarse con su
                 ejecutivo de cuenta.
               </p>
+              <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800">
+                Se enviará un correo al administrador del conjunto informándole
+                de la suspensión.
+              </p>
               <div>
                 <Label className="text-brand-secondary font-medium">
-                  Motivo (opcional, uso interno)
+                  Motivo (opcional)
                 </Label>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  Se incluye tal cual en el correo al cliente. Si lo dejas vacío,
+                  el correo indica que está pendiente el pago de los honorarios.
+                </p>
                 <Textarea
                   value={motivo}
                   onChange={(e) => setMotivo(e.target.value)}
@@ -107,11 +135,17 @@ export function ClienteBloqueoPagoDialog({
               </div>
             </>
           ) : (
-            <p>
-              Se restablecerá el acceso completo de{" "}
-              <strong className="text-brand-secondary">{cliente?.nombre}</strong> a
-              todos sus accesos rápidos.
-            </p>
+            <>
+              <p>
+                Se restablecerá el acceso completo de{" "}
+                <strong className="text-brand-secondary">{cliente?.nombre}</strong> a
+                todos sus accesos rápidos.
+              </p>
+              <p className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-green-800">
+                Se enviará un correo al administrador del conjunto informándole
+                que su acceso quedó reactivado.
+              </p>
+            </>
           )}
         </div>
 
