@@ -65,10 +65,28 @@ export function replaceVariables(text: string, vars: EmailVars): string {
   );
 }
 
+/**
+ * Marcado mínimo que el redactor puede escribir a mano en el textarea:
+ * `**texto**` para negrilla y una línea que empiece con `## ` como título
+ * destacado (color y tamaño). Se aplica DESPUÉS de escapar el HTML, así que
+ * nunca puede introducir una etiqueta que no sea la que agrega esta función.
+ * Si esto cambia, hay que replicarlo en la vista previa del frontend
+ * (`EmailComposePage.tsx`, función `renderFormattedLines`).
+ */
+function applyInlineBold(escaped: string): string {
+  return escaped.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+}
+
 export function buildHtml(text: string, options?: { imageCid?: string }): string {
   const paragraphs = escapeHtml(text)
     .split(/\n{2,}/)
-    .map((paragraph) => `<p style="margin:0 0 16px;line-height:1.6">${paragraph.replace(/\n/g, "<br>")}</p>`)
+    .map((block) => {
+      const headingMatch = block.trim().match(/^##\s+(.+)$/);
+      if (headingMatch) {
+        return `<h3 style="margin:20px 0 8px;font-size:16px;color:#004B87;font-weight:700">${applyInlineBold(headingMatch[1])}</h3>`;
+      }
+      return `<p style="margin:0 0 16px;line-height:1.6">${applyInlineBold(block).replace(/\n/g, "<br>")}</p>`;
+    })
     .join("");
 
   // El `<img>` se inyecta DESPUÉS de escapar, y lo arma esta función a partir de

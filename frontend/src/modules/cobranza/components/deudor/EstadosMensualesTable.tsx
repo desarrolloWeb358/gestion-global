@@ -409,9 +409,9 @@ export default function EstadosMensualesTable() {
       await cargarEstadosMensuales();
       setOpen(false);
       resetForm();
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      toast.error("Error al guardar el estado mensual");
+      toast.error(e?.message ?? "Error al guardar el estado mensual");
     } finally {
       setSaving(false);
     }

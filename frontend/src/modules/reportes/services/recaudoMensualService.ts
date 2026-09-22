@@ -20,6 +20,28 @@ export async function obtenerDeudoresActivosPorCliente(): Promise<Map<string, nu
 
 const MES_VALIDO_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
+/** El sistema lleva estado mensual desde enero de 2026: nada anterior es real. */
+const MES_MINIMO = "2026-01";
+
+function mesActualYYYYMM(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/**
+ * Además del formato "YYYY-MM", el mes tiene que caer dentro de la ventana en
+ * que el reporte "último estado mensual activado" es válido: desde enero de
+ * 2026 (cuando arrancó este seguimiento) hasta la fecha de hoy. Un typo en el
+ * <input type="month"> (ej. "7201-02" en vez de "2027-02") cumple el formato
+ * pero, al ser un número enorme, siempre "gana" la comparación lexicográfica
+ * de más abajo y termina mostrándose como si ese conjunto estuviera al día
+ * cuando en realidad el dato es basura.
+ */
+function esMesRazonable(mes: string): boolean {
+  if (!MES_VALIDO_RE.test(mes)) return false;
+  return mes >= MES_MINIMO && mes <= mesActualYYYYMM();
+}
+
 /** Último mes ("YYYY-MM") con estadoMensual guardado, agrupado por clienteUID. */
 export async function obtenerUltimoMesActivadoPorCliente(): Promise<Map<string, string>> {
   const snap = await getDocs(collectionGroup(db, "estadosMensuales"));
@@ -30,8 +52,8 @@ export async function obtenerUltimoMesActivadoPorCliente(): Promise<Map<string, 
     const mes: string | undefined = d.mes || docSnap.id;
     if (!clienteUID || !mes) return;
     // El formato "YYYY-MM" es ancho fijo: la comparación de máximo es lexicográfica,
-    // así que un valor corrupto (ej. "203-02") con menos dígitos rompe el orden.
-    if (!MES_VALIDO_RE.test(mes)) {
+    // así que un valor corrupto (ej. "203-02" o "7201-02") rompe el orden.
+    if (!esMesRazonable(mes)) {
       console.warn(
         `[obtenerUltimoMesActivadoPorCliente] mes inválido "${mes}" en ${docSnap.ref.path}, se ignora`
       );
