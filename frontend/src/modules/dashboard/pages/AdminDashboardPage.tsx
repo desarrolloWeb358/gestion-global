@@ -293,13 +293,9 @@ function EstadoMesBadge({
       </span>
     );
   }
-  if (diff === 2) {
-    return (
-      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-amber-100 text-amber-700">
-        Pendiente
-      </span>
-    );
-  }
+  // A partir de 2 meses de diferencia se cuenta como atrasado (ver el filtro
+  // "atrasados" más abajo, que usa el mismo umbral >= 2): antes existía un
+  // estado intermedio "Pendiente" en ámbar que no coincidía con ese conteo.
   return (
     <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-700">
       Atrasado ({diff}m)
@@ -366,6 +362,9 @@ export default function AdminDashboardPage() {
 
   // ── Filtro sin gestión dependientes
   const [depSinGestionFilter, setDepSinGestionFilter] = useState<SinGestionThreshold>("1m");
+
+  // ── Filtro por estado del reporte "Último estado mensual activado"
+  const [estadoUltimoMesFiltro, setEstadoUltimoMesFiltro] = useState<"todos" | "atrasados">("todos");
 
   const years = useMemo(() => {
     const max = new Date().getFullYear();
@@ -674,10 +673,9 @@ export default function AdminDashboardPage() {
     return resultado;
   }, [clientesListView, usuariosMap, deudoresPorCliente, acuerdosEnFirmeMap, excludedEjecutivoIds, sinGestion15dMap]);
 
-  const mesActualReal = useMemo(() => {
-    const { year: yy, month: mm } = currentYM();
-    return `${yy}-${mm}`;
-  }, []);
+  // Antes usaba siempre la fecha real de hoy, ignorando el filtro global
+  // año-mes del encabezado: cambiar el filtro no movía nada en esta sección.
+  const mesActualReal = mesClave;
 
   // ── Último estado mensual activado: conjuntos por ejecutiva prejurídico
   const ejecutivaReporte = useMemo<EjecutivaReporteRow[]>(() => {
@@ -1250,6 +1248,21 @@ export default function AdminDashboardPage() {
 
           {ultimoMesExpanded && (
             <div className="divide-y">
+              <div className="px-5 py-3 flex items-center gap-2 bg-slate-50/50 border-b">
+                <Label className="text-xs text-muted-foreground">Mostrar</Label>
+                <Select
+                  value={estadoUltimoMesFiltro}
+                  onValueChange={(v) => setEstadoUltimoMesFiltro(v as "todos" | "atrasados")}
+                >
+                  <SelectTrigger className="w-44 h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos los conjuntos</SelectItem>
+                    <SelectItem value="atrasados">Solo atrasados</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               {loadingKpis ? (
                 <div className="h-48 flex items-center justify-center">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -1263,9 +1276,12 @@ export default function AdminDashboardPage() {
               ) : (
                 ejecutivaReporte.map((ej) => {
                   const isOpen = expandedEjecutivaIds.has(ej.ejecutivoId);
-                  const atrasados = ej.conjuntos.filter(
+                  const conjuntosAtrasados = ej.conjuntos.filter(
                     (c) => !c.ultimoMes || mesesDiferencia(mesActualReal, c.ultimoMes) >= 2
-                  ).length;
+                  );
+                  const atrasados = conjuntosAtrasados.length;
+                  const conjuntosVisibles =
+                    estadoUltimoMesFiltro === "atrasados" ? conjuntosAtrasados : ej.conjuntos;
                   return (
                     <div key={ej.ejecutivoId}>
                       <button
@@ -1292,9 +1308,11 @@ export default function AdminDashboardPage() {
 
                       {isOpen && (
                         <div className="overflow-x-auto pb-2">
-                          {ej.conjuntos.length === 0 ? (
+                          {conjuntosVisibles.length === 0 ? (
                             <p className="px-5 pb-3 text-xs text-muted-foreground">
-                              Sin conjuntos asignados.
+                              {ej.conjuntos.length === 0
+                                ? "Sin conjuntos asignados."
+                                : "Sin conjuntos atrasados."}
                             </p>
                           ) : (
                             <table className="w-full text-sm">
@@ -1312,7 +1330,7 @@ export default function AdminDashboardPage() {
                                 </tr>
                               </thead>
                               <tbody>
-                                {ej.conjuntos.map((c) => (
+                                {conjuntosVisibles.map((c) => (
                                   <tr key={c.clienteId} className="border-t hover:bg-slate-50/50">
                                     <td className="py-2 px-5">
                                       <button

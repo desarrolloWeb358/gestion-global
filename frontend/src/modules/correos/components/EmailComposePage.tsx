@@ -235,6 +235,40 @@ async function prepareInlineImage(file: File): Promise<InlineImagePayload> {
 }
 
 /**
+ * Replica el marcado mínimo que interpreta `buildHtml` en el backend
+ * (`functions/src/email/renderEmail.ts`): `**texto**` para negrilla y una
+ * línea que empiece con `## ` como título destacado. Si eso cambia, hay que
+ * actualizar esto también.
+ */
+function renderFormattedLines(text: string) {
+  return text.split("\n").map((line, i) => {
+    const headingMatch = line.match(/^##\s+(.+)$/);
+    if (headingMatch) {
+      return (
+        <div key={i} className="mt-3 mb-1 text-[15px] font-bold" style={{ color: "#004B87" }}>
+          {headingMatch[1]}
+        </div>
+      );
+    }
+    if (line.trim() === "") {
+      return <div key={i} className="min-h-[1em]" />;
+    }
+    const segments = line.split(/(\*\*.+?\*\*)/g).filter((seg) => seg !== "");
+    return (
+      <div key={i}>
+        {segments.map((seg, j) =>
+          seg.startsWith("**") && seg.endsWith("**") ? (
+            <strong key={j}>{seg.slice(2, -2)}</strong>
+          ) : (
+            <span key={j}>{seg}</span>
+          )
+        )}
+      </div>
+    );
+  });
+}
+
+/**
  * Cuerpo de la vista previa. Replica lo que hace `buildHtml` en el backend: la
  * imagen sustituye al marcador, y si no hay marcador se pinta al final. Si el
  * render del correo cambia allá, hay que actualizar esto también.
@@ -246,10 +280,10 @@ function PreviewBody({ text, imageSrc }: { text: string; imageSrc: string | null
   ) : null;
 
   return (
-    <div className="whitespace-pre-wrap text-gray-600 leading-relaxed">
+    <div className="text-gray-600 leading-relaxed">
       {parts.map((part, index) => (
         <span key={index}>
-          {part}
+          {renderFormattedLines(part)}
           {index < parts.length - 1 && imagen}
         </span>
       ))}
@@ -615,6 +649,10 @@ export default function EmailComposePage() {
             <Textarea ref={bodyRef} value={body} onChange={(event) => setBody(event.target.value)} rows={12} />
           </div>
           <p className="text-xs text-gray-500">Variables disponibles: {EMAIL_VARIABLES.map((variable) => `{{${variable}}}`).join(", ")}</p>
+          <p className="text-xs text-gray-500">
+            Formato: escribe <code className="rounded bg-gray-100 px-1">**texto**</code> para negrilla y una línea que empiece con{" "}
+            <code className="rounded bg-gray-100 px-1">## </code> para un título destacado.
+          </p>
 
           {/* Imagen incrustada en el cuerpo (no va como archivo adjunto) */}
           <div className="space-y-2 rounded-xl border p-3" onPaste={handlePasteImagen}>

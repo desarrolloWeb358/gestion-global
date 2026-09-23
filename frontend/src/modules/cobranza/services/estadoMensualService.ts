@@ -21,6 +21,36 @@ import { EstadoMensual } from "../models/estadoMensual.model";
 export const toNullableNumber = (v: any) =>
   v === "" || v === undefined || v === null ? null : Number(v);
 
+const MES_VALIDO_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+/** El sistema lleva estado mensual desde enero de 2026: nada anterior es real. */
+const MES_MINIMO = "2026-01";
+
+function mesActualYYYYMM(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/**
+ * El <input type="month"> a veces deja pasar un año disparatado si se teclea
+ * rápido (ej. "7201-02" en vez de "2027-02"). El id del documento es ese mismo
+ * "mes", así que un valor así no solo se ve mal: rompe el reporte de "último
+ * mes activado", que compara meses como strings y ese año siempre "gana".
+ * El rango válido va desde enero de 2026 (cuando arrancó este seguimiento)
+ * hasta el mes actual: ni datos "de antes de existir el sistema" ni fechas
+ * futuras.
+ */
+export function validarMesRazonable(mes: string) {
+  if (!MES_VALIDO_RE.test(mes)) {
+    throw new Error(`El mes "${mes}" no tiene un formato válido (YYYY-MM).`);
+  }
+  const mesActual = mesActualYYYYMM();
+  if (mes < MES_MINIMO || mes > mesActual) {
+    throw new Error(
+      `El mes "${mes}" está fuera del rango válido (desde enero de 2026 hasta ${mesActual}). Revisa el mes ingresado.`
+    );
+  }
+}
+
 export function normalizeEstado(
   input: Partial<EstadoMensual>
 ): Record<string, any> {
@@ -87,6 +117,7 @@ export async function crearEstadoMensual(
     throw new Error(
       "El campo 'mes' es obligatorio para crear un estado mensual."
     );
+  validarMesRazonable(payload.mes);
 
   const ref = doc(
     db,
@@ -168,6 +199,7 @@ export async function upsertEstadoMensualPorMes(
   const payload = normalizeEstado(estadoMensual);
 
   if (!payload.mes) throw new Error("El campo 'mes' es obligatorio.");
+  validarMesRazonable(payload.mes);
 
   const basePath = `clientes/${clienteId}/deudores/${deudorId}/estadosMensuales`;
   const newId = String(payload.mes);

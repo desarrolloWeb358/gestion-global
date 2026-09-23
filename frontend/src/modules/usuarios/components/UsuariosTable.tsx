@@ -1018,9 +1018,12 @@ export default function UsuariosCrud() {
                             📞 (601) 4631148 · 57 316 6936088
                           </p>
                         `,
-                      }).catch((err) =>
-                        console.error("[bienvenida clienteCaso] Error enviando correo:", err)
-                      );
+                      }).catch((err) => {
+                        console.error("[bienvenida clienteCaso] Error enviando correo:", err);
+                        toast.warning(
+                          "⚠️ El cliente se creó, pero el correo de bienvenida no se pudo enviar. Reenvíalo manualmente."
+                        );
+                      });
                     }
 
                     if (rolesSeleccionados?.includes("cliente")) {
@@ -1054,7 +1057,12 @@ export default function UsuariosCrud() {
                             📞 (601) 4631148 · 57 316 6936088
                           </p>
                         `,
-                      }).catch((err) => console.error("[bienvenida cliente] Error enviando correo:", err));
+                      }).catch((err) => {
+                        console.error("[bienvenida cliente] Error enviando correo:", err);
+                        toast.warning(
+                          "⚠️ El cliente se creó, pero el correo de bienvenida no se pudo enviar. Reenvíalo manualmente."
+                        );
+                      });
                     }
 
                     const nuevo: UsuarioSistema = {
