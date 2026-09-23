@@ -11,6 +11,7 @@ import {
   Filter as FilterIcon,
   Tag,
   ExternalLink,
+  ChevronDown,
 } from "lucide-react";
 
 import { Button } from "@/shared/ui/button";
@@ -31,17 +32,29 @@ import {
   TableBody,
   TableCell,
 } from "@/shared/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuSeparator,
+  DropdownMenuItem,
+} from "@/shared/ui/dropdown-menu";
 import { Typography } from "@/shared/design-system/components/Typography";
 import { cn } from "@/shared/lib/cn";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import type { Rol } from "@/shared/constants/acl";
 import {
   buscarDemandas,
+  completarTipificaciones,
   cargarOpcionesFiltroDemandas,
   type DemandaReporteRow,
   type DemandaReporteFiltros,
 } from "../../services/reportes/demandaReporteGlobalService";
 import { getEtiquetasDemanda } from "../../services/etiquetaDemandaService";
+import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
+
+const TIPIFICACIONES = Object.values(TipificacionDeuda);
 
 const fmt = new Intl.DateTimeFormat("es-CO", {
   year: "numeric",
@@ -56,6 +69,7 @@ const SESSION_KEY = "reporteDemandas:ultimaConsulta";
 type ConsultaGuardada = {
   fDependiente: string;
   fEtiqueta: string;
+  fTipificaciones: TipificacionDeuda[];
   rows: DemandaReporteRow[];
   /** true si no cupieron los resultados: se conservan solo los filtros. */
   truncada?: boolean;
@@ -67,15 +81,23 @@ const aFecha = (v: unknown): Date | null => {
   return Number.isNaN(d.getTime()) ? null : d;
 };
 
-function guardarConsulta(fDependiente: string, fEtiqueta: string, rows: DemandaReporteRow[]) {
+function guardarConsulta(
+  fDependiente: string,
+  fEtiqueta: string,
+  fTipificaciones: TipificacionDeuda[],
+  rows: DemandaReporteRow[]
+) {
   try {
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ fDependiente, fEtiqueta, rows }));
+    sessionStorage.setItem(
+      SESSION_KEY,
+      JSON.stringify({ fDependiente, fEtiqueta, fTipificaciones, rows })
+    );
   } catch {
     // Cuota llena (resultados muy grandes): al menos conservamos los filtros.
     try {
       sessionStorage.setItem(
         SESSION_KEY,
-        JSON.stringify({ fDependiente, fEtiqueta, rows: [], truncada: true })
+        JSON.stringify({ fDependiente, fEtiqueta, fTipificaciones, rows: [], truncada: true })
       );
     } catch {
       /* almacenamiento no disponible: la persistencia es opcional */
@@ -93,6 +115,7 @@ function leerConsultaGuardada(): ConsultaGuardada | null {
     return {
       fDependiente: p.fDependiente ?? "",
       fEtiqueta: p.fEtiqueta ?? "todas",
+      fTipificaciones: Array.isArray(p.fTipificaciones) ? p.fTipificaciones : [],
       truncada: !!p.truncada,
       rows: p.rows.map((r) => ({
         ...r,
@@ -130,11 +153,29 @@ export default function ReporteDemandasPage() {
   // Resultados (solo tras presionar Buscar)
   const [rows, setRows] = React.useState<DemandaReporteRow[]>(guardada?.rows ?? []);
   const [buscando, setBuscando] = React.useState(false);
+  const [exportando, setExportando] = React.useState(false);
   const [buscado, setBuscado] = React.useState(!!guardada && !guardada.truncada);
 
   // Estado de filtros
   const [fDependiente, setFDependiente] = React.useState<string>(guardada?.fDependiente ?? "");
   const [fEtiqueta, setFEtiqueta] = React.useState<string>(guardada?.fEtiqueta ?? "todas");
+  const [fTipificaciones, setFTipificaciones] = React.useState<TipificacionDeuda[]>(
+    guardada?.fTipificaciones ?? []
+  );
+
+  const alternarTipificacion = (t: TipificacionDeuda) => {
+    setFTipificaciones((prev) =>
+      prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]
+    );
+  };
+
+  // Etiqueta del botón: "Todas" cuando no hay ninguna marcada.
+  const resumenTipificaciones =
+    fTipificaciones.length === 0
+      ? "Todas"
+      : fTipificaciones.length === 1
+        ? fTipificaciones[0]
+        : `${fTipificaciones.length} seleccionadas`;
 
   React.useEffect(() => {
     (async () => {
@@ -177,6 +218,7 @@ export default function ReporteDemandasPage() {
       ejecutivoDependienteId: fDependiente || undefined,
       estado: undefined,
       etiquetaNombre: fEtiqueta !== "todas" ? fEtiqueta : undefined,
+      tipificaciones: fTipificaciones.length > 0 ? fTipificaciones : undefined,
       soloSinCoteje: false,
       campoFecha: "proximaAccionFecha",
       desde: undefined,
@@ -187,7 +229,7 @@ export default function ReporteDemandasPage() {
       const res = await buscarDemandas(filtros);
       setRows(res);
       setBuscado(true);
-      guardarConsulta(fDependiente, fEtiqueta, res);
+      guardarConsulta(fDependiente, fEtiqueta, fTipificaciones, res);
     } catch {
       toast.error("⚠️ No se pudo cargar el reporte de demandas");
     } finally {
@@ -202,6 +244,7 @@ export default function ReporteDemandasPage() {
       setFDependiente("");
     }
     setFEtiqueta("todas");
+    setFTipificaciones([]);
     setRows([]);
     setBuscado(false);
     try {
@@ -215,14 +258,33 @@ export default function ReporteDemandasPage() {
     navigate(`/clientes/${r.clienteId}/deudores/${r.deudorId}/demandas/${r.demandaId}`);
   };
 
-  const exportar = () => {
+  const exportar = async () => {
     if (rows.length === 0) {
       toast.error("No hay filas para exportar.");
       return;
     }
-    const data = rows.map((r) => ({
+
+    // La tipificación vive en el deudor: si la búsqueda no la trajo (filtro en
+    // "Todas"), se leen aquí solo los deudores del resultado y se guardan en las
+    // filas, para que una segunda exportación no vuelva a pagarlas.
+    let filas = rows;
+    try {
+      setExportando(true);
+      filas = await completarTipificaciones(rows);
+      if (filas !== rows) {
+        setRows(filas);
+        guardarConsulta(fDependiente, fEtiqueta, fTipificaciones, filas);
+      }
+    } catch {
+      toast.error("⚠️ No se pudo leer la tipificación; se exporta sin esa columna.");
+    } finally {
+      setExportando(false);
+    }
+
+    const data = filas.map((r) => ({
       Cliente: r.clienteNombre,
       Deudor: r.deudorNombre,
+      Tipificación: r.tipificacion || "—",
       Radicado: r.numeroRadicado,
       Juzgado: r.juzgado,
       Etiquetas: r.etiquetas.map((e) => e.nombre).join(", "),
@@ -232,7 +294,7 @@ export default function ReporteDemandasPage() {
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     ws["!cols"] = [
-      { wch: 30 }, { wch: 30 }, { wch: 25 }, { wch: 22 },
+      { wch: 30 }, { wch: 30 }, { wch: 20 }, { wch: 25 }, { wch: 22 },
       { wch: 28 }, { wch: 12 }, { wch: 15 }, { wch: 14 },
     ];
     const wb = XLSX.utils.book_new();
@@ -261,8 +323,9 @@ export default function ReporteDemandasPage() {
             </div>
           </div>
           {buscado && rows.length > 0 && (
-            <Button variant="brand" onClick={exportar} className="gap-2">
-              <Download className="h-4 w-4" /> Exportar Excel
+            <Button variant="brand" onClick={exportar} disabled={exportando} className="gap-2">
+              <Download className={cn("h-4 w-4", exportando && "animate-pulse")} />
+              {exportando ? "Preparando..." : "Exportar Excel"}
             </Button>
           )}
         </header>
@@ -300,12 +363,48 @@ export default function ReporteDemandasPage() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Tipificación</Label>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild disabled={cargandoOpciones}>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-between border-brand-secondary/30 font-normal"
+                  >
+                    <span className="truncate">{resumenTipificaciones}</span>
+                    <ChevronDown className="h-4 w-4 opacity-50 shrink-0" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-64 max-h-80 overflow-y-auto">
+                  {TIPIFICACIONES.map((t) => (
+                    <DropdownMenuCheckboxItem
+                      key={t}
+                      checked={fTipificaciones.includes(t)}
+                      onCheckedChange={() => alternarTipificacion(t)}
+                      onSelect={(e) => e.preventDefault()}
+                    >
+                      {t}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                  {fTipificaciones.length > 0 && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onSelect={() => setFTipificaciones([])}>
+                        Quitar selección
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
           <div className="px-4 md:px-5 pb-4 md:pb-5 flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs text-muted-foreground">
               {busquedaAcotada
                 ? "Búsqueda acotada por cliente/dependiente (rápida)."
                 : "Sugerencia: filtra por cliente o dependiente para una consulta más rápida."}
+              {fTipificaciones.length > 0 &&
+                " La tipificación se cruza contra los deudores del dependiente."}
             </p>
             <Button
               variant="brand"

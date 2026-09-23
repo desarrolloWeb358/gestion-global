@@ -6,9 +6,11 @@ import {
   getDocs,
   query,
   where,
+  documentId,
   QueryDocumentSnapshot,
 } from "firebase/firestore";
 import { Demanda, toDateSafe } from "../../models/demanda.model";
+import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 
 export interface DemandaReporteRow {
   demandaId: string;
@@ -16,6 +18,8 @@ export interface DemandaReporteRow {
   clienteNombre: string;
   deudorId: string;
   deudorNombre: string;
+  /** Tipificación del deudor. Vacía hasta que se conozca (ver `completarTipificaciones`). */
+  tipificacion: string;
   ubicacion: string;
   numeroRadicado: string;
   juzgado: string;
@@ -36,6 +40,8 @@ export interface DemandaReporteFiltros {
   ejecutivoDependienteId?: string;
   estado?: Demanda["estado"];
   etiquetaNombre?: string;
+  /** Tipificaciones del DEUDOR dueño de la demanda; vacío o ausente = todas. */
+  tipificaciones?: TipificacionDeuda[];
   soloSinCoteje?: boolean;
   // Rango sobre el campo elegido
   campoFecha?: "fechaUltimaRevision" | "fechaCreacion" | "proximaAccionFecha";
@@ -123,6 +129,7 @@ function docToRow(
     clienteNombre: cli?.nombre ?? clienteId,
     deudorId,
     deudorNombre: (data.deudorNombre as string) ?? "",
+    tipificacion: "",
     ubicacion: (data.ubicacion as string) ?? "",
     numeroRadicado: data.numeroRadicado ?? "",
     juzgado: data.juzgado ?? "",
@@ -149,11 +156,103 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
+/** Clave de un deudor dentro del reporte: `clienteId/deudorId`. */
+const claveDeudor = (clienteId: string, deudorId: string) => `${clienteId}/${deudorId}`;
+
+/**
+ * Devuelve el mapa `clienteId/deudorId` → tipificación de los deudores cuya
+ * tipificación está entre las pedidas, consultando SOLO los clientes ya acotados.
+ * No se leen todos los deudores de la cartera: cada consulta trae únicamente los
+ * que ya cumplen, así que el filtro deja además la tipificación lista sin costo extra.
+ *
+ * La tipificación vive en el deudor (`clientes/{c}/deudores/{d}.tipificacion`) y
+ * no está denormalizada en la demanda, así que este cruce es la única vía.
+ */
+async function cargarDeudoresPorTipificacion(
+  clienteIds: string[],
+  tipificaciones: TipificacionDeuda[]
+): Promise<Map<string, string>> {
+  // Firestore 'in' admite hasta 30 valores (hoy hay 10 tipificaciones: un solo lote)
+  const lotesTips = chunk(tipificaciones, 30);
+
+  const consultas = clienteIds.flatMap((clienteId) =>
+    lotesTips.map(async (tips) => {
+      const snap = await getDocs(
+        query(
+          collection(db, `clientes/${clienteId}/deudores`),
+          where("tipificacion", "in", tips)
+        )
+      );
+      return { clienteId, snap };
+    })
+  );
+
+  const resultados = await Promise.all(consultas);
+
+  const porDeudor = new Map<string, string>();
+  resultados.forEach(({ clienteId, snap }) => {
+    snap.docs.forEach((d) =>
+      porDeudor.set(claveDeudor(clienteId, d.id), (d.data().tipificacion as string) ?? "")
+    );
+  });
+  return porDeudor;
+}
+
+/**
+ * Completa la tipificación de las filas que aún no la traen (caso "Todas"), leyendo
+ * por ID SOLO los deudores que aparecen en el resultado, en lotes de 30 por cliente.
+ * No recorre la cartera entera. Se llama bajo demanda —hoy, al exportar a Excel—
+ * para no pagar estas lecturas en cada búsqueda.
+ *
+ * Devuelve filas nuevas; las originales no se mutan.
+ */
+export async function completarTipificaciones(
+  rows: DemandaReporteRow[]
+): Promise<DemandaReporteRow[]> {
+  // Deudores sin tipificación conocida, agrupados por cliente
+  const pendientesPorCliente = new Map<string, Set<string>>();
+  rows.forEach((r) => {
+    if (r.tipificacion || !r.clienteId || !r.deudorId) return;
+    const set = pendientesPorCliente.get(r.clienteId) ?? new Set<string>();
+    set.add(r.deudorId);
+    pendientesPorCliente.set(r.clienteId, set);
+  });
+
+  if (pendientesPorCliente.size === 0) return rows;
+
+  const consultas = [...pendientesPorCliente.entries()].flatMap(([clienteId, deudorIds]) =>
+    // Firestore 'in' admite hasta 30 valores → un lote por cada 30 deudores
+    chunk([...deudorIds], 30).map(async (ids) => {
+      const snap = await getDocs(
+        query(collection(db, `clientes/${clienteId}/deudores`), where(documentId(), "in", ids))
+      );
+      return { clienteId, snap };
+    })
+  );
+
+  const resultados = await Promise.all(consultas);
+
+  const porDeudor = new Map<string, string>();
+  resultados.forEach(({ clienteId, snap }) => {
+    snap.docs.forEach((d) =>
+      porDeudor.set(claveDeudor(clienteId, d.id), (d.data().tipificacion as string) ?? "")
+    );
+  });
+
+  return rows.map((r) =>
+    r.tipificacion
+      ? r
+      : { ...r, tipificacion: porDeudor.get(claveDeudor(r.clienteId, r.deudorId)) ?? "" }
+  );
+}
+
 /**
  * Busca demandas acotando la consulta al servidor por `clienteId` (denormalizado
  * en cada demanda) cuando hay cliente o dependiente seleccionado. Así NO se leen
  * todas las demandas de la base. El resto de filtros (etiqueta, fecha, coteje) se
- * aplican en memoria sobre el conjunto ya reducido.
+ * aplican en memoria sobre el conjunto ya reducido. La tipificación, que vive en el
+ * deudor, se cruza con una consulta acotada por cliente (ver
+ * `cargarDeudoresPorTipificacion`) y solo cuando se pide.
  *
  * Regla de acotamiento:
  *  - clienteId → [ese cliente]
@@ -198,7 +297,23 @@ export async function buscarDemandas(
     docs = snap.docs;
   }
 
-  const rows = docs.map((d) => docToRow(d, clientes, usuarios));
+  let rows = docs.map((d) => docToRow(d, clientes, usuarios));
+
+  // 3) Tipificación del deudor: solo si se pidió, y solo sobre los clientes en juego
+  const tips = (filtros.tipificaciones ?? []).filter(Boolean);
+  if (tips.length > 0) {
+    const clienteIdsEnJuego =
+      targetClienteIds ?? [...new Set(rows.map((r) => r.clienteId))].filter(Boolean);
+    if (clienteIdsEnJuego.length === 0) return [];
+    const permitidos = await cargarDeudoresPorTipificacion(clienteIdsEnJuego, tips);
+    rows = rows
+      .filter((r) => permitidos.has(claveDeudor(r.clienteId, r.deudorId)))
+      .map((r) => ({
+        ...r,
+        tipificacion: permitidos.get(claveDeudor(r.clienteId, r.deudorId)) ?? "",
+      }));
+  }
+
   return aplicarFiltros(rows, filtros);
 }
 
