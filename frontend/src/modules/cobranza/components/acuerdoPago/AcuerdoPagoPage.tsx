@@ -1400,6 +1400,33 @@ export default function AcuerdoPagoPage() {
                         </div>
 
                         <div className="p-4 md:p-5 space-y-3">
+                            {!readOnly && !currentAcuerdoId && (
+                                <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 flex items-start gap-2">
+                                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                                    <div className="text-xs text-amber-900">
+                                        <p className="font-semibold">Falta guardar el acuerdo antes de subir archivos</p>
+                                        <p>
+                                            Los archivos se guardan dentro del acuerdo, así que primero debes crear el BORRADOR con el
+                                            botón <strong>Guardar</strong> (arriba, al final del formulario). Después podrás subir los
+                                            archivos y, por ultimo, dejarlo en firme.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {!readOnly && !!currentAcuerdoId && archivosAcuerdo.length === 0 && (
+                                <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 flex items-start gap-2">
+                                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                                    <div className="text-xs text-amber-900">
+                                        <p className="font-semibold">Aún no has subido ningún archivo</p>
+                                        <p>
+                                            Selecciona los archivos y pulsa <strong>Subir archivo(s)</strong>. Solo después de eso podrás
+                                            dejar el acuerdo en firme.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="space-y-2">
                                 <Label className="text-brand-secondary font-medium flex items-center gap-2">
                                     <Upload className="h-4 w-4" />
@@ -1517,7 +1544,7 @@ export default function AcuerdoPagoPage() {
                                     <Button
                                         type="button"
                                         variant="outline"
-                                        disabled={subiendoFirmado || saving || archivoFirmadoFiles.length === 0 || !currentAcuerdoId}
+                                        disabled={subiendoFirmado || saving}
                                         onClick={handleSubirArchivosAcuerdo}
                                         className="gap-2"
                                     >
@@ -1528,7 +1555,7 @@ export default function AcuerdoPagoPage() {
                                     <Button
                                         type="button"
                                         variant="brand"
-                                        disabled={saving || subiendoFirmado || archivosAcuerdo.length === 0 || !currentAcuerdoId}
+                                        disabled={saving || subiendoFirmado}
                                         onClick={handleDejarEnFirme}
                                         className="gap-2"
                                     >
