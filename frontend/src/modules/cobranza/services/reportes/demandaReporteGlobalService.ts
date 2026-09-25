@@ -18,6 +18,8 @@ export interface DemandaReporteRow {
   clienteNombre: string;
   deudorId: string;
   deudorNombre: string;
+  /** Nombres de `demandados[]` de la demanda; puede venir vacío. */
+  demandadosNombres: string[];
   /** Tipificación del deudor. Vacía hasta que se conozca (ver `completarTipificaciones`). */
   tipificacion: string;
   ubicacion: string;
@@ -129,6 +131,9 @@ function docToRow(
     clienteNombre: cli?.nombre ?? clienteId,
     deudorId,
     deudorNombre: (data.deudorNombre as string) ?? "",
+    demandadosNombres: (data.demandados ?? [])
+      .map((d) => (d.nombre ?? "").trim())
+      .filter(Boolean),
     tipificacion: "",
     ubicacion: (data.ubicacion as string) ?? "",
     numeroRadicado: data.numeroRadicado ?? "",
@@ -148,6 +153,15 @@ function docToRow(
     totalDemandados: (data.demandados ?? []).length,
     notificacionesSinCoteje,
   };
+}
+
+/**
+ * Quién aparece en la columna de la demanda: los demandados de la propia demanda
+ * y, si no tiene ninguno (≈1 de cada 3 demandas), el nombre del deudor como antes.
+ */
+export function nombresDemandados(r: DemandaReporteRow): string {
+  const nombres = r.demandadosNombres ?? [];
+  return nombres.length > 0 ? nombres.join(", ") : r.deudorNombre ?? "";
 }
 
 function chunk<T>(arr: T[], size: number): T[][] {

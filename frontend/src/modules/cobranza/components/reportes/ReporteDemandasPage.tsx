@@ -47,6 +47,7 @@ import type { Rol } from "@/shared/constants/acl";
 import {
   buscarDemandas,
   completarTipificaciones,
+  nombresDemandados,
   cargarOpcionesFiltroDemandas,
   type DemandaReporteRow,
   type DemandaReporteFiltros,
@@ -283,7 +284,7 @@ export default function ReporteDemandasPage() {
 
     const data = filas.map((r) => ({
       Cliente: r.clienteNombre,
-      Deudor: r.deudorNombre,
+      Demandados: nombresDemandados(r),
       Tipificación: r.tipificacion || "—",
       Radicado: r.numeroRadicado,
       Juzgado: r.juzgado,
@@ -446,7 +447,7 @@ export default function ReporteDemandasPage() {
                 <TableHeader className="bg-gradient-to-r from-brand-primary/5 to-brand-secondary/5">
                   <TableRow className="border-brand-secondary/10 hover:bg-transparent">
                     <TableHead className="w-[22%] text-brand-secondary font-semibold">Cliente</TableHead>
-                    <TableHead className="w-[22%] text-brand-secondary font-semibold">Deudor</TableHead>
+                    <TableHead className="w-[22%] text-brand-secondary font-semibold">Demandados</TableHead>
                     <TableHead className="w-[16%] text-brand-secondary font-semibold">Radicado</TableHead>
                     <TableHead className="w-[18%] text-brand-secondary font-semibold">Juzgado</TableHead>
                     <TableHead className="w-[16%] text-brand-secondary font-semibold">Etiquetas</TableHead>
@@ -470,7 +471,12 @@ export default function ReporteDemandasPage() {
                       className={cn("border-brand-secondary/5 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40", index % 2 === 0 ? "bg-white" : "bg-brand-primary/[0.02]", "hover:bg-brand-primary/5")}
                     >
                       <TableCell className="text-gray-700 w-[22%] truncate">{r.clienteNombre}</TableCell>
-                      <TableCell className="font-medium text-gray-800 w-[22%] truncate">{r.deudorNombre || "—"}</TableCell>
+                      <TableCell
+                        className="font-medium text-gray-800 w-[22%] truncate"
+                        title={nombresDemandados(r)}
+                      >
+                        {nombresDemandados(r) || "—"}
+                      </TableCell>
                       <TableCell className="text-gray-700 font-mono text-xs w-[16%]">{r.numeroRadicado || "—"}</TableCell>
                       <TableCell className="text-gray-700 w-[18%] truncate">{r.juzgado || "—"}</TableCell>
                       <TableCell>
