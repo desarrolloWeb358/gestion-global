@@ -32,6 +32,19 @@ const acuerdoDoc = (clienteId: string, deudorId: string, acuerdoId: string) =>
 const cuotasCol = (clienteId: string, deudorId: string, acuerdoId: string) =>
   collection(db, `clientes/${clienteId}/deudores/${deudorId}/acuerdos/${acuerdoId}/cuotas`);
 
+const cuotaDocId = (numero: number) => String(numero).padStart(3, "0");
+
+/**
+ * Quita las marcas del recordatorio automático (`recordatorios.{dias}`, las
+ * escribe la Cloud Function sobre las cuotas EN FIRME). Una cuota copiada a un
+ * borrador nuevo puede cambiar de fecha, y con la marca heredada el job creería
+ * que ya avisó y no volvería a escribirle al deudor.
+ */
+function sinMarcasRecordatorio<T extends Record<string, any>>(c: T): T {
+  const { recordatorios: _omitido, ...resto } = c;
+  return resto as T;
+}
+
 function safeFileName(name: string) {
   return name
     .normalize("NFD")
@@ -119,12 +132,29 @@ export async function guardarBorrador(
 
   // escribir nuevas
   cuotas.forEach((c) => {
-    const cid = String(c.numero).padStart(3, "0");
-    batch.set(doc(cuotasRef, cid), c);
+    batch.set(doc(cuotasRef, cuotaDocId(c.numero)), sinMarcasRecordatorio(c));
   });
 
   await batch.commit();
   return { acuerdoId: id };
+}
+
+// ================= MARCAR CUOTA PAGADA (acuerdo EN FIRME) =================
+/**
+ * Lo único que se puede cambiar de un acuerdo EN FIRME. Solo el booleano, sin
+ * fecha ni valor pagado. Una cuota sin el campo cuenta como NO pagada, así que
+ * los acuerdos anteriores siguen recibiendo el recordatorio como hasta ahora.
+ */
+export async function marcarCuotaPagada(
+  clienteId: string,
+  deudorId: string,
+  acuerdoId: string,
+  numero: number,
+  pagado: boolean
+) {
+  await updateDoc(doc(cuotasCol(clienteId, deudorId, acuerdoId), cuotaDocId(numero)), {
+    pagado,
+  });
 }
 
 
@@ -438,11 +468,11 @@ export async function incumplirAcuerdoYCrearNuevoBorrador(params: {
     fechaActualizacion: serverTimestamp(),
   });
 
-  // 3.3) copiar cuotas al nuevo borrador (para que arranque igual y puedas ajustar)
+  // 3.3) copiar cuotas al nuevo borrador (para que arranque igual y puedas ajustar).
+  //      `pagado` se conserva; las marcas del recordatorio no (ver sinMarcasRecordatorio).
   const cuotasNuevaCol = cuotasCol(clienteId, deudorId, nuevoId);
   cuotasData.forEach((c: any) => {
-    const cid = String(c.numero).padStart(3, "0");
-    batch.set(doc(cuotasNuevaCol, cid), c);
+    batch.set(doc(cuotasNuevaCol, cuotaDocId(c.numero)), sinMarcasRecordatorio(c));
   });
 
   await batch.commit();

@@ -21,8 +21,10 @@ import {
   IconScale,
   IconUserSearch,
   IconCalendarEvent,
+  IconMapPin,
 } from "@tabler/icons-react";
 import { PERMS } from "@/shared/constants/acl";
+import { ROLES_MAPA_CONJUNTOS } from "@/modules/mapa/constants";
 
 export type NavItem = {
   to: string;
@@ -92,6 +94,13 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Clientes",
     icon: IconBriefcase,
     roles: ["admin", "ejecutivo", "ejecutivoAdmin", "supervisor", "dependiente", "abogado", "adminFranquicia"]
+  },
+  {
+    to: "/mapa-conjuntos",
+    label: "Mapa de conjuntos",
+    icon: IconMapPin,
+    roles: ROLES_MAPA_CONJUNTOS,
+    perm: PERMS.Clientes_Read,
   },
 
   // ========================================

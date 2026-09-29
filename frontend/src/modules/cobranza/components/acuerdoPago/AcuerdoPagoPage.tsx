@@ -60,7 +60,7 @@ import { ajustarUltimaCuotaHonorariosMinimo } from "@/modules/cobranza/lib/ajust
 
 import { ACUERDO_ESTADO } from "@/shared/constants/acuerdoEstado";
 
-import { activarAcuerdoEnFirme } from "@/modules/cobranza/services/acuerdoPagoService";
+import { activarAcuerdoEnFirme, marcarCuotaPagada } from "@/modules/cobranza/services/acuerdoPagoService";
 
 import { AlertTriangle, List } from "lucide-react";
 import { listarAcuerdos, incumplirAcuerdoYCrearNuevoBorrador, eliminarBorrador } from "@/modules/cobranza/services/acuerdoPagoService";
@@ -794,6 +794,40 @@ export default function AcuerdoPagoPage() {
 
 
     // ==============================
+    // Marcar cuota pagada (solo EN FIRME)
+    // ==============================
+    const [marcandoPago, setMarcandoPago] = useState(false);
+
+    const onTogglePagado = async (idx: number, pagado: boolean) => {
+        if (!clienteId || !deudorId || !currentAcuerdoId || !puedeEditar || !readOnly) return;
+        const cuota = cuotas[idx];
+        if (!cuota) return;
+
+        const ok = window.confirm(
+            pagado
+                ? `¿Marcar la cuota ${cuota.numero} como PAGADA?
+
+Ya no se le enviará recordatorio al deudor por esta cuota.`
+                : `¿Quitar la marca de pagada a la cuota ${cuota.numero}?
+
+Volverá a recibir recordatorio si su fecha aún no ha pasado.`
+        );
+        if (!ok) return;
+
+        try {
+            setMarcandoPago(true);
+            await marcarCuotaPagada(clienteId, deudorId, currentAcuerdoId, cuota.numero, pagado);
+            setCuotas((prev) => prev.map((c, i) => (i === idx ? { ...c, pagado } : c)));
+            toast.success(pagado ? `✓ Cuota ${cuota.numero} marcada como pagada` : `Cuota ${cuota.numero} sin marca de pago`);
+        } catch (e: any) {
+            console.error(e);
+            toast.error(e?.message || "Error actualizando la cuota");
+        } finally {
+            setMarcandoPago(false);
+        }
+    };
+
+    // ==============================
     // Guardar (solo BORRADOR)
     // ==============================
     const handleSave = async () => {
@@ -1343,7 +1377,9 @@ export default function AcuerdoPagoPage() {
                                     Tabla de amortización {readOnly ? "(solo lectura)" : "(editable)"}
                                 </Typography>
                                 <Typography variant="small">
-                                    Puedes ajustar cuotas/capital/honorarios. El sistema recalcula saldos.
+                                    {readOnly
+                                        ? "Marca las cuotas que el deudor ya pagó: a esas no se les envía recordatorio."
+                                        : "Puedes ajustar la fecha y el valor de cada cuota. El sistema recalcula capital, honorarios y saldos."}
                                 </Typography>
                             </div>
                             <div className="p-4 md:p-5">
@@ -1352,6 +1388,8 @@ export default function AcuerdoPagoPage() {
                                     cuotas={cuotas}
                                     onChange={onCuotasChange}
                                     readOnly={readOnly}
+                                    onTogglePagado={readOnly ? onTogglePagado : undefined}
+                                    pagadoDisabled={!puedeEditar || marcandoPago}
                                 />
                             </div>
                         </section>

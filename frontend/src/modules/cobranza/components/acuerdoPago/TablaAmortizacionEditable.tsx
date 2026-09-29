@@ -9,6 +9,7 @@ import {
 } from "@/shared/ui/table";
 import { Input } from "@/shared/ui/input";
 import { Button } from "@/shared/ui/button";
+import { Checkbox } from "@/shared/ui/checkbox";
 import { Calendar } from "@/shared/ui/calendar";
 import { Popover, PopoverTrigger, PopoverContent } from "@/shared/ui/popover";
 import { cn } from "@/shared/lib/cn";
@@ -20,6 +21,13 @@ type Props = {
   cuotas: CuotaAcuerdo[];
   readOnly?: boolean;
   onChange: (cuotas: CuotaAcuerdo[], meta?: { changedIndex?: number }) => void;
+  /**
+   * Si llega, se muestra la columna "Pagada" (solo en acuerdos EN FIRME).
+   * Sin el campo `pagado` la cuota cuenta como no pagada.
+   */
+  onTogglePagado?: (idx: number, pagado: boolean) => void;
+  /** Deshabilita la casilla (sin permiso, o mientras se guarda). */
+  pagadoDisabled?: boolean;
 };
 
 const toInt = (s: string) => {
@@ -32,6 +40,8 @@ export default function TablaAmortizacionEditable({
   cuotas,
   readOnly,
   onChange,
+  onTogglePagado,
+  pagadoDisabled,
 }: Props) {
   // 👇 draft por índice (string), para permitir borrar/editar sin recalcular
   const [draftCuota, setDraftCuota] = useState<Record<number, string>>({});
@@ -102,6 +112,7 @@ export default function TablaAmortizacionEditable({
             <TableHead>Deuda honorarios</TableHead>
             <TableHead>Cuota honorarios</TableHead>
             <TableHead>Cuota acuerdo</TableHead>
+            {onTogglePagado && <TableHead className="text-center">Pagada</TableHead>}
           </TableRow>
         </TableHeader>
 
@@ -202,16 +213,29 @@ export default function TablaAmortizacionEditable({
                     }}
                   />
                 </TableCell>
+
+                {onTogglePagado && (
+                  <TableCell className="text-center">
+                    <Checkbox
+                      checked={c.pagado === true}
+                      disabled={pagadoDisabled}
+                      onCheckedChange={(v) => onTogglePagado(idx, v === true)}
+                      aria-label={`Cuota ${c.numero} pagada`}
+                    />
+                  </TableCell>
+                )}
               </TableRow>
             );
           })}
         </TableBody>
       </Table>
 
-      <p className="mt-2 text-xs">
-        Selecciona la fecha de cada cuota desde el calendario. El recálculo de
-        valores se aplica al salir del campo (o Enter).
-      </p>
+      {!readOnly && (
+        <p className="mt-2 text-xs">
+          Selecciona la fecha de cada cuota desde el calendario. El recálculo de
+          valores se aplica al salir del campo (o Enter).
+        </p>
+      )}
     </div>
   );
 }

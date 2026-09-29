@@ -65,6 +65,7 @@ import ContratosPage from "./modules/contratos/components/ContratosPage";
 import SeguimientoMasivoPage from "./modules/cobranza/components/seguimiento/SeguimientoMasivoPage";
 import TareasBoardPage from "./modules/tareas/components/TareasBoardPage";
 import CalendarioPage from "./modules/eventos/components/CalendarioPage";
+import MapaConjuntosPage from "./modules/mapa/pages/MapaConjuntosPage";
 
 // Casos (clientes particulares: personas naturales/jurídicas con procesos)
 import ClientesParticularesTable from "./modules/casos/components/ClientesParticularesTable";
@@ -109,6 +110,7 @@ export default function App() {
             <Route path="/clientes/:clienteId" element={<ClientePage />} />
             <Route path="/clientes/:clienteId/estado-mensual" element={<EstadosMensualesInputMasivo />} />
             <Route path="/clientes-tables" element={<ClientesTable />} />
+            <Route path="/mapa-conjuntos" element={<MapaConjuntosPage />} />
             <Route path="/usuarios-tables" element={<UsuariosTable />} />
             <Route path="/registros-eliminados" element={<RegistrosEliminadosPage />} />
             <Route path="/deudores/:clienteId" element={<DeudoresTable />} />

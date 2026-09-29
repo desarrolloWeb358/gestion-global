@@ -1,6 +1,31 @@
 // models/cliente.model.ts
 import type { Timestamp } from "firebase/firestore";
 
+/**
+ * Ubicación del conjunto para el mapa. La calcula la Cloud Function
+ * `geocodificarCliente` a partir de `direccion` (y del nombre si la dirección
+ * no sirve); el navegador solo la escribe al corregir el pin a mano.
+ * `direccion` sigue siendo el texto que ve la gente: esto no la reemplaza.
+ */
+export interface GeoCliente {
+  estado: "ok" | "revisar" | "sin_resultado";
+  fuente: "direccion" | "nombre" | "manual" | null;
+  lat: number | null;
+  lng: number | null;
+  precision: "exacta" | "aproximada" | "baja" | null;
+  direccionFormateada: string | null;
+  placeId: string | null;
+  municipio: string | null;
+  localidad: string | null;
+  consulta: string | null;
+  /** `direccion` con la que se calculó; si cambia, la function recalcula. */
+  direccionOrigen: string;
+  motivoRevision: string | null;
+  actualizadoEn?: Timestamp;
+  /** Solo si se corrigió a mano. */
+  corregidoPor?: string;
+}
+
 export interface Cliente {
   id?: string;
 
@@ -25,6 +50,9 @@ export interface Cliente {
   franquiciaId?: string;
   // Ciudad del conjunto; debe pertenecer a franquicia.ciudades.
   ciudad?: string;
+
+  // Coordenadas para el mapa de conjuntos (ver GeoCliente).
+  geo?: GeoCliente;
 
   // Meses habilitados para que el rol cliente pueda ver el reporte (formato "YYYY-MM")
   reportesHabilitados?: Record<string, boolean>;

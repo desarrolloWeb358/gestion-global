@@ -408,6 +408,15 @@ export { agendaDiaria } from "./eventos/agendaDiaria";
 export { tareasDiarias } from "./tareas/tareasDiarias";
 
 // =====================================================
+// 🗺️ MAPA DE CONJUNTOS
+// =====================================================
+// geocodificarCliente: cuando cambia la direccion de un conjunto calcula sus
+//   coordenadas (Google Geocoding, y por nombre en Places si la direccion no
+//   sirve) y las deja en clientes/{id}.geo. El pin corregido a mano se respeta
+//   hasta que alguien cambie la direccion.
+export { geocodificarCliente } from "./mapa/geocodificarClienteTrigger";
+
+// =====================================================
 // ✉️ CORREO SUELTO DESDE LA APP
 // =====================================================
 // Sustituye a la `enviarNotificacion` de más abajo (comentada): misma idea,

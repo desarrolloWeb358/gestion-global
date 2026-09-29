@@ -25,7 +25,15 @@
 // notificar. Se guarda por hito (`recordatorios.5`, `recordatorios.1`) para que
 // el aviso de los 5 dias no tape el de 1 dia. Es seguro escribir sobre la cuota
 // porque un acuerdo EN FIRME es de solo lectura en la aplicacion: nadie
-// reescribe sus cuotas.
+// reescribe sus cuotas (lo unico que se toca desde la pantalla es `pagado`).
+//
+// CUOTA PAGADA: si la cuota tiene `pagado === true` no se avisa por ningun
+// canal. Sin el campo cuenta como NO pagada, que es como estan todas las cuotas
+// de los acuerdos anteriores a este ajuste.
+//
+// CONVERSACION: el WhatsApp enviado queda tambien en la conversacion del numero
+// (`numbers/{numberId}/conversations/{telefono}`), igual que el envio masivo,
+// para que se vea en la pestana WhatsApp del deudor y en la bandeja.
 
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
@@ -40,6 +48,7 @@ import {
   sendEmail,
 } from "../notificaciones/sendEmail";
 import { callMetaTemplateApi, normalizePhone, sanitizeParameterValue } from "../whatsapp/metaApi";
+import { appendMessage, getOrCreateConversation } from "../whatsapp/conversationService";
 import { coleccionSeguimiento } from "../shared/tipificaciones";
 
 const ZONA = "America/Bogota";
@@ -296,6 +305,9 @@ async function avisosDeAcuerdo(
   const porNotificar: { cuota: admin.firestore.QueryDocumentSnapshot; diasAntes: number }[] = [];
 
   for (const cuotaSnap of candidatasSnap.docs) {
+    // Ya pagada: no se le escribe. Sin el campo = no pagada.
+    if (cuotaSnap.data()?.pagado === true) continue;
+
     const fecha: Date | undefined = cuotaSnap.data()?.fechaPago?.toDate?.();
     if (!fecha) continue;
 
@@ -451,30 +463,107 @@ async function enviarCorreo(aviso: Aviso): Promise<ResultadoCanal> {
   }
 }
 
+/** Los valores de los parametros nombrados de la plantilla, en un solo lugar. */
+function parametrosPlantilla(aviso: Aviso): { parameterName: string; value: string }[] {
+  return [
+    { parameterName: "nombre", value: sanitizeParameterValue(aviso.deudorNombre) },
+    { parameterName: "cuota", value: String(aviso.numeroCuota) },
+    { parameterName: "valor", value: moneda(aviso.valorCuota) },
+    { parameterName: "fecha", value: fechaLarga(aviso.fechaPago) },
+  ];
+}
+
+/**
+ * El cuerpo de la plantilla tal como quedo registrado en WhatsApp > Plantillas
+ * (`numbers/{numberId}/templates`, buscado por el nombre en Meta). Es el texto
+ * que se guarda en la conversacion. null si la plantilla no esta registrada.
+ */
+async function cuerpoPlantillaRegistrada(
+  db: admin.firestore.Firestore,
+  numberId: string,
+  plantilla: string
+): Promise<string | null> {
+  const snap = await db
+    .collection(`numbers/${numberId}/templates`)
+    .where("providerTemplateName", "==", plantilla)
+    .limit(1)
+    .get();
+  const cuerpo = snap.empty ? "" : String(snap.docs[0].data()?.bodyText ?? "");
+  return cuerpo.trim() ? cuerpo : null;
+}
+
+/**
+ * El texto del mensaje para el hilo: el cuerpo registrado con sus {{variables}}
+ * reemplazadas, igual que `resolveMessage` del envio masivo. Si la plantilla no
+ * esta registrada, un resumen equivalente.
+ */
+function textoConversacion(aviso: Aviso, cuerpo: string | null): string {
+  if (!cuerpo) {
+    return (
+      `Recordatorio de pago: hola ${aviso.deudorNombre}, se aproxima el pago de la ` +
+      `cuota ${aviso.numeroCuota} de tu acuerdo de pago por ${moneda(aviso.valorCuota)}, ` +
+      `que vence el ${fechaLarga(aviso.fechaPago)}.`
+    );
+  }
+  return parametrosPlantilla(aviso).reduce(
+    // Reemplazo con funcion: el valor trae "$" ("$200.000") y como cadena se
+    // leeria como patron de reemplazo.
+    (texto, p) => texto.replace(new RegExp(`\\{\\{${p.parameterName}\\}\\}`, "g"), () => p.value),
+    cuerpo
+  );
+}
+
 async function enviarWhatsapp(
   aviso: Aviso,
-  linea: { phoneNumberId: string; metaToken: string },
-  plantilla: string
+  linea: { numberId: string; phoneNumberId: string; metaToken: string },
+  plantilla: string,
+  cuerpo: string | null
 ): Promise<ResultadoCanal> {
   if (!aviso.telefono) return { estado: "sin_dato" };
 
+  let wamid: string;
   try {
-    await callMetaTemplateApi(
+    wamid = await callMetaTemplateApi(
       linea.phoneNumberId,
       linea.metaToken,
       aviso.telefono,
       plantilla,
-      [
-        { parameterName: "nombre", value: sanitizeParameterValue(aviso.deudorNombre) },
-        { parameterName: "cuota", value: String(aviso.numeroCuota) },
-        { parameterName: "valor", value: moneda(aviso.valorCuota) },
-        { parameterName: "fecha", value: fechaLarga(aviso.fechaPago) },
-      ]
+      parametrosPlantilla(aviso)
     );
-    return { estado: "enviado", destino: aviso.telefono };
   } catch (err: any) {
     return { estado: "error", motivo: err?.message ?? String(err) };
   }
+
+  // El mensaje ya salio: si falla dejarlo en la conversacion se registra en el
+  // log, pero el envio sigue contando como enviado.
+  try {
+    const conv = await getOrCreateConversation(linea.numberId, aviso.telefono, {
+      clienteId: aviso.clienteId,
+      deudorId: aviso.deudorId,
+      deudorNombre: aviso.deudorNombre,
+    });
+    await appendMessage({
+      numberId: linea.numberId,
+      conversationId: conv.id,
+      message: {
+        role: "assistant",
+        text: textoConversacion(aviso, cuerpo),
+        source: "AGENT",
+        timestampMs: Date.now(),
+        providerMessageId: wamid || undefined,
+        deliveryStatus: "pending",
+      },
+    });
+  } catch (err: any) {
+    logger.error("[recordatorioCuotas] Enviado, pero no quedo en la conversacion", {
+      clienteId: aviso.clienteId,
+      deudorId: aviso.deudorId,
+      telefono: aviso.telefono,
+      error: err?.message ?? String(err),
+    });
+  }
+
+  return { estado: "enviado", destino: aviso.telefono };
 }
 
 // =====================================================
@@ -649,7 +738,8 @@ export const recordatorioCuotasAcuerdo = onSchedule(
     }
 
     // ── Canal WhatsApp: la linea se resuelve una sola vez para todo el lote ──
-    let linea: { phoneNumberId: string; metaToken: string } | null = null;
+    let linea: { numberId: string; phoneNumberId: string; metaToken: string } | null = null;
+    let cuerpo: string | null = null;
     const plantilla = config.plantillaCuota;
     let omitidoWa: string | undefined;
 
@@ -660,7 +750,17 @@ export const recordatorioCuotasAcuerdo = onSchedule(
     else {
       const numberSnap = await db.doc(`numbers/${config.numberId}`).get();
       if (!numberSnap.exists) omitidoWa = `numbers/${config.numberId} no existe`;
-      else linea = numberSnap.data() as { phoneNumberId: string; metaToken: string };
+      else {
+        const datos = numberSnap.data() as { phoneNumberId: string; metaToken: string };
+        linea = { numberId: config.numberId, ...datos };
+        cuerpo = await cuerpoPlantillaRegistrada(db, config.numberId, plantilla);
+        if (!cuerpo) {
+          logger.warn(
+            "[recordatorioCuotas] La plantilla no esta registrada en el numero: el hilo usara un texto de respaldo",
+            { numberId: config.numberId, plantilla }
+          );
+        }
+      }
     }
 
     if (omitidoWa) {
@@ -688,7 +788,7 @@ export const recordatorioCuotasAcuerdo = onSchedule(
       }
 
       if (linea && plantilla) {
-        const resultado = await enviarWhatsapp(aviso, linea, plantilla);
+        const resultado = await enviarWhatsapp(aviso, linea, plantilla, cuerpo);
         resultados.push({ canal: "whatsapp", resultado });
 
         if (resultado.estado === "enviado") whatsappEnviados++;

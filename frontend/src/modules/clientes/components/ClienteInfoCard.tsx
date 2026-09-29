@@ -8,6 +8,7 @@ import type { Contrato } from "@/modules/contratos/models/contrato.model";
 import { getUsuarioByUid } from "@/modules/usuarios/services/usuarioService";
 import { getFranquiciaById } from "@/modules/franquicias/services/franquiciaService";
 import { Typography } from "@/shared/design-system/components/Typography";
+import { urlComoLlegar } from "@/modules/mapa/services/mapaService";
 
 interface Props {
   cliente: Cliente;
@@ -203,6 +204,16 @@ export function ClienteInfoCard({ cliente, ejecutivos = [], usuarios = [], total
         <div>
           <div className="text-sm text-gray-600 mb-1">Dirección</div>
           <div className="text-base text-gray-900">{show(cliente.direccion)}</div>
+          {cliente.direccion && (
+            <a
+              href={urlComoLlegar(cliente)}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-brand-primary hover:underline"
+            >
+              <MapPin className="h-3.5 w-3.5" /> Cómo llegar
+            </a>
+          )}
         </div>
 
         <div>
