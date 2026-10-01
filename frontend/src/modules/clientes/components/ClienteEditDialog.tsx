@@ -158,7 +158,7 @@ export function ClienteEditDialog({ cliente, open, onClose, onSaved }: Props) {
               </div>
 
               <div>
-                <Label className="text-brand-secondary font-medium">Ciudad</Label>
+                <Label className="text-brand-secondary font-medium">Ciudad/Municipio</Label>
                 <Select
                   value={ciudadSel}
                   onValueChange={setCiudadSel}

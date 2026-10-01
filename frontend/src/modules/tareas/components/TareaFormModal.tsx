@@ -26,8 +26,10 @@ import {
 
 import type { UsuarioSistema } from "@/modules/usuarios/models/usuarioSistema.model";
 import type { Tarea, TareaPrioridad } from "../models/tarea.model";
+import type { TareaSeguimiento } from "../models/tareaSeguimiento.model";
 import { TAREA_PRIORIDAD_BADGE_CLASS, TAREA_PRIORIDAD_LABELS } from "../constants/tareaConstants";
 import { crearTarea, actualizarTarea, eliminarTarea } from "../services/tareaService";
+import { suscribirSeguimientosTarea, addSeguimientoTarea } from "../services/tareaSeguimientoService";
 
 interface TareaFormModalProps {
   tarea?: Tarea | null;
@@ -55,6 +57,39 @@ export function TareaFormModal({ tarea, canManage, canAssign, usuariosAsignables
   );
   const [saving, setSaving] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
+
+  const puedeAgregarSeguimiento = esEdicion && tarea?.asignadoA === actor.uid;
+  const [seguimientos, setSeguimientos] = React.useState<TareaSeguimiento[]>([]);
+  const [nuevoSeguimiento, setNuevoSeguimiento] = React.useState("");
+  const [guardandoSeguimiento, setGuardandoSeguimiento] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!esEdicion || !tarea?.id) return;
+    return suscribirSeguimientosTarea(
+      tarea.id,
+      setSeguimientos,
+      (err) => console.error("[TareaFormModal] Error cargando seguimientos:", err)
+    );
+  }, [esEdicion, tarea?.id]);
+
+  async function onAgregarSeguimiento() {
+    if (!tarea?.id || !nuevoSeguimiento.trim()) return;
+    setGuardandoSeguimiento(true);
+    try {
+      await addSeguimientoTarea(tarea.id, nuevoSeguimiento, { uid: actor.uid, nombre: actor.nombre });
+      setNuevoSeguimiento("");
+    } catch (err) {
+      console.error("[TareaFormModal] Error al agregar seguimiento:", err);
+      toast.error("No se pudo agregar el seguimiento.");
+    } finally {
+      setGuardandoSeguimiento(false);
+    }
+  }
+
+  function formatFechaSeguimiento(ts: any): string {
+    if (!ts || typeof ts.toDate !== "function") return "";
+    return ts.toDate().toLocaleString("es-CO", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
 
   async function onSubmit() {
     if (!titulo.trim()) {
@@ -255,6 +290,54 @@ export function TareaFormModal({ tarea, canManage, canAssign, usuariosAsignables
                 </Select>
               )}
             </div>
+
+            {esEdicion && tarea?.creadoPorNombre && (
+              <p className="text-xs text-muted-foreground">
+                Creado por <span className="font-medium">{tarea.creadoPorNombre}</span>
+              </p>
+            )}
+
+            {esEdicion && (
+              <div className="space-y-2 border-t pt-3">
+                <Label>Seguimiento</Label>
+                <div className="max-h-40 space-y-2 overflow-y-auto">
+                  {seguimientos.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Sin seguimientos aún.</p>
+                  ) : (
+                    seguimientos.map((s) => (
+                      <div key={s.id} className="rounded-md bg-muted/50 p-2 text-xs">
+                        <p className="whitespace-pre-wrap">{s.texto}</p>
+                        <p className="mt-1 text-muted-foreground">
+                          {formatFechaSeguimiento(s.fecha)}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+                {puedeAgregarSeguimiento && (
+                  <div className="flex gap-2">
+                    <Textarea
+                      value={nuevoSeguimiento}
+                      onChange={(e) => setNuevoSeguimiento(e.target.value)}
+                      disabled={guardandoSeguimiento}
+                      placeholder="Escribe en qué va la tarea..."
+                      className="min-h-[60px]"
+                    />
+                  </div>
+                )}
+                {puedeAgregarSeguimiento && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={guardandoSeguimiento || !nuevoSeguimiento.trim()}
+                    onClick={onAgregarSeguimiento}
+                  >
+                    Agregar seguimiento
+                  </Button>
+                )}
+              </div>
+            )}
 
             {soloLectura ? (
               <DialogFooter>

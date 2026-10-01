@@ -18,6 +18,7 @@ import {
 import {
   enviarAviso,
   eventoDesdeDoc,
+  externosDe,
   type CanalAviso,
   type OpcionesAviso,
   type ParticipanteAviso,
@@ -60,8 +61,14 @@ function recordatoriosDe(data: any): RecordatorioDoc[] {
   );
 }
 
+/** Todos a quienes se les avisa: el equipo y los externos. */
+function destinatariosDe(data: any): ParticipanteAviso[] {
+  return [...participantesDe(data), ...externosDe(data)];
+}
+
 /** Un canal sin el dato de contacto correspondiente nunca podria entregarse. */
 function canalEntregable(canal: CanalAviso, participante: ParticipanteAviso): boolean {
+  if (participante.externo) return canal === "whatsapp" && !!participante.telefono;
   if (canal === "email") return !!participante.email;
   if (canal === "whatsapp") return !!participante.telefono;
   return true;
@@ -96,7 +103,7 @@ async function generarCola(eventoId: string, data: any): Promise<number> {
   if (!inicio) return 0;
   if (data?.estado === "cancelado") return 0;
 
-  const participantes = participantesDe(data);
+  const participantes = destinatariosDe(data);
   const recordatorios = recordatoriosDe(data);
   const titulo: string = data?.titulo ?? "Evento";
   const ahora = Date.now();
@@ -168,7 +175,7 @@ async function avisarAhora(
 
   await Promise.all(
     destinatarios.flatMap((participante) =>
-      canales.map(async (canal) => {
+      canales.filter((canal) => canalEntregable(canal, participante)).map(async (canal) => {
         const resultado = await enviarAviso(canal, participante, evento, tipo, opciones);
         if (!resultado.ok && !resultado.omitido) {
           logger.warn("[sincronizarEvento] Aviso inmediato fallido", {
@@ -263,7 +270,9 @@ export const sincronizarEvento = onDocumentWritten(
       return;
     }
 
-    const participantesDespues = participantesDe(despues);
+    // Equipo + externos: a todos les llegan invitacion, cambios y cancelacion.
+    // La inasistencia, en cambio, es asunto interno (ver destinatariosDeInasistencia).
+    const participantesDespues = destinatariosDe(despues);
 
     // ── Creacion ───────────────────────────────────────────────
     if (!antes) {
@@ -283,12 +292,10 @@ export const sincronizarEvento = onDocumentWritten(
     const finAntes: Date | undefined = antes.fin?.toDate?.();
     const finDespues: Date | undefined = despues.fin?.toDate?.();
 
-    const uidsAntes = new Set<string>(
-      Array.isArray(antes.participantesUids) ? antes.participantesUids : []
-    );
-    const uidsDespues = new Set<string>(
-      Array.isArray(despues.participantesUids) ? despues.participantesUids : []
-    );
+    // Los externos entran con su `ext:{id}`: agregar o quitar uno cuenta como
+    // cambio de asistentes, igual que con el equipo.
+    const uidsAntes = new Set<string>(destinatariosDe(antes).map((p) => p.uid));
+    const uidsDespues = new Set<string>(participantesDespues.map((p) => p.uid));
 
     const cambioHorario = !mismosMs(inicioAntes, inicioDespues) || !mismosMs(finAntes, finDespues);
     const cambioRecordatorios =

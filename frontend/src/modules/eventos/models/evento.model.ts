@@ -37,6 +37,20 @@ export interface ParticipanteEvento {
 }
 
 /**
+ * Asistente que no es usuario de la plataforma (abogado, administrador del
+ * conjunto...). Vive aparte de `participantes` a propósito: no tiene cuenta, así
+ * que no entra al cruce de horarios, no responde asistencia ni recibe campanita
+ * o correo. Solo le llegan los avisos por WhatsApp.
+ */
+export interface ExternoEvento {
+  /** Id local estable: la cola de recordatorios lo referencia como `ext:{id}`. */
+  id: string;
+  nombre: string;
+  /** E.164. */
+  telefono: string;
+}
+
+/**
  * Una regla de recordatorio del evento. El trigger de backend la expande a un
  * documento por participante y por canal en `recordatoriosEventos`.
  */
@@ -81,6 +95,9 @@ export interface Evento {
   participantes: ParticipanteEvento[];
   /** Denormalizado: permite `array-contains` (no se puede consultar dentro de objetos). */
   participantesUids: string[];
+
+  /** Asistentes de fuera de la plataforma. Ausente = ninguno. */
+  externos: ExternoEvento[];
 
   /**
    * Canales del aviso inmediato: el que sale al agendar, al reprogramar y al

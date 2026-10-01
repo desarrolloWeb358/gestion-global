@@ -18,6 +18,7 @@ import {
 import {
   enviarAviso,
   eventoDesdeDoc,
+  externosDe,
   type CanalAviso,
   type ParticipanteAviso,
 } from "./avisos";
@@ -168,14 +169,17 @@ export const barrerRecordatoriosEventos = onSchedule(
           continue;
         }
 
-        const participante: ParticipanteAviso | undefined = (eventoData.participantes ?? [])
-          .filter((p: any) => p?.uid === datos.participanteUid)
-          .map((p: any) => ({
-            uid: p.uid,
-            nombre: p.nombre || "Companero",
-            email: p.email ?? null,
-            telefono: p.telefono ?? null,
-          }))[0];
+        const participante: ParticipanteAviso | undefined = [
+          ...(eventoData.participantes ?? [])
+            .filter((p: any) => !!p?.uid)
+            .map((p: any) => ({
+              uid: p.uid,
+              nombre: p.nombre || "Companero",
+              email: p.email ?? null,
+              telefono: p.telefono ?? null,
+            })),
+          ...externosDe(eventoData),
+        ].find((p) => p.uid === datos.participanteUid);
 
         if (!participante) {
           await docSnap.ref.update({ error: "Descartado: el participante ya no esta invitado" });

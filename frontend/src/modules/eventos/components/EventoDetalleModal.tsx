@@ -221,7 +221,7 @@ export function EventoDetalleModal({
           <div className="space-y-2">
             <div className="flex items-center gap-2 font-medium">
               <Users className="h-4 w-4 text-muted-foreground" />
-              Asistentes ({evento.participantes.length})
+              Asistentes ({evento.participantes.length + evento.externos.length})
               <span className="ml-auto text-xs font-normal text-muted-foreground">
                 {conteo.asiste} asisten
                 {conteo.rechazo > 0 && ` · ${conteo.rechazo} no podrá(n)`}
@@ -246,6 +246,17 @@ export function EventoDetalleModal({
                     className={cn("shrink-0 text-xs", RESPUESTA_BADGE_CLASS[p.respuesta])}
                   >
                     {RESPUESTA_LABELS[p.respuesta]}
+                  </Badge>
+                </li>
+              ))}
+              {evento.externos.map((e) => (
+                <li key={e.id} className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate">
+                    {e.nombre}
+                    <span className="block text-xs text-muted-foreground">{e.telefono}</span>
+                  </span>
+                  <Badge variant="outline" className="shrink-0 text-xs">
+                    Externo
                   </Badge>
                 </li>
               ))}

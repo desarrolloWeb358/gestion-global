@@ -32,6 +32,7 @@ import { BackButton } from "@/shared/design-system/components/BackButton";
 import { cn } from "@/shared/lib/cn";
 import RichTextEditor from "@/shared/components/RichTextEditor";
 import RichTextViewer from "@/shared/components/RichTextViewer";
+import { getClienteById } from "@/modules/clientes/services/clienteService";
 
 const MAX_FILE_MB = 15;
 
@@ -117,6 +118,7 @@ export default function ValorAgregadoDetailPage() {
   // ===== Detalle principal
   const [item, setItem] = React.useState<ValorAgregado | null>(null);
   const [loading, setLoading] = React.useState(true);
+  const [nombreConjunto, setNombreConjunto] = React.useState("");
 
   // ===== Conversación
   const [mensajes, setMensajes] = React.useState<MensajeValorAgregado[]>([]);
@@ -152,6 +154,18 @@ export default function ValorAgregadoDetailPage() {
       cancelled = true;
     };
   }, [clienteId, valorId]);
+
+  // ===== Nombre del conjunto (subtítulo)
+  React.useEffect(() => {
+    if (!clienteId) return;
+    let cancelled = false;
+    getClienteById(clienteId)
+      .then((c) => { if (!cancelled) setNombreConjunto(c?.nombre ?? ""); })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [clienteId]);
 
   // ===== Cargar conversación
   const fetchMensajes = React.useCallback(async () => {
@@ -351,7 +365,15 @@ export default function ValorAgregadoDetailPage() {
                   {item.titulo}
                 </Typography>
                 <Typography variant="small" className="text-gray-600 mt-0.5">
-                  Valor Agregado
+                  {nombreConjunto ? (
+                    <>
+                      <span className="font-medium text-gray-800">{nombreConjunto}</span>
+                      <span className="mx-1.5" aria-hidden>·</span>
+                      Valor Agregado
+                    </>
+                  ) : (
+                    "Valor Agregado"
+                  )}
                 </Typography>
               </div>
             </div>

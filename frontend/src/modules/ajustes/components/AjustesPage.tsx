@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Phone, Tag, Scale, UserCog, CalendarClock, ListChecks, BellRing } from "lucide-react";
+import { Phone, Tag, Scale, UserCog, CalendarClock, ListChecks, BellRing, MessageSquareText } from "lucide-react";
 import { Button } from "@/shared/ui/button";
 import { cn } from "@/shared/lib/cn";
 import { obtenerClientes } from "@/modules/clientes/services/clienteService";
@@ -10,6 +10,7 @@ import ReasignacionUsuariosPanel from "./ReasignacionUsuariosPanel";
 import AgendaDiariaPanel from "./AgendaDiariaPanel";
 import TareasDiariasPanel from "./TareasDiariasPanel";
 import RecordatorioCuotasPanel from "./RecordatorioCuotasPanel";
+import PlantillasWhatsappPanel from "./PlantillasWhatsappPanel";
 
 /* ── Utilidades de teléfonos (réplica de DeudoresTable) ─────────────────── */
 
@@ -88,7 +89,8 @@ type SeccionAjustes =
   | "reasignacion"
   | "agendaDiaria"
   | "tareasDiarias"
-  | "recordatorioCuotas";
+  | "recordatorioCuotas"
+  | "plantillasWhatsapp";
 
 export default function AjustesPage() {
   const [seccion, setSeccion] = useState<SeccionAjustes>("telefonos");
@@ -277,6 +279,18 @@ export default function AjustesPage() {
           Recordatorio de cuotas
         </button>
         <button
+          onClick={() => setSeccion("plantillasWhatsapp")}
+          className={cn(
+            "w-full text-left flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium",
+            seccion === "plantillasWhatsapp"
+              ? "bg-brand-primary/10 text-brand-primary"
+              : "text-muted-foreground hover:bg-muted/50"
+          )}
+        >
+          <MessageSquareText className="h-4 w-4 flex-shrink-0" />
+          Plantillas WhatsApp
+        </button>
+        <button
           onClick={() => setSeccion("reasignacion")}
           className={cn(
             "w-full text-left flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium",
@@ -302,6 +316,8 @@ export default function AjustesPage() {
           <TareasDiariasPanel />
         ) : seccion === "recordatorioCuotas" ? (
           <RecordatorioCuotasPanel />
+        ) : seccion === "plantillasWhatsapp" ? (
+          <PlantillasWhatsappPanel />
         ) : seccion === "reasignacion" ? (
           <ReasignacionUsuariosPanel />
         ) : (

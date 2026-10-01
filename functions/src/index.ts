@@ -415,6 +415,9 @@ export { tareasDiarias } from "./tareas/tareasDiarias";
 //   sirve) y las deja en clientes/{id}.geo. El pin corregido a mano se respeta
 //   hasta que alguien cambie la direccion.
 export { geocodificarCliente } from "./mapa/geocodificarClienteTrigger";
+// calcularRutaVisitas: mejor orden para visitar varios conjuntos saliendo de la
+//   oficina (o del celular) y terminando en el ultimo; tiempos con trafico.
+export { calcularRutaVisitas } from "./mapa/calcularRuta";
 
 // =====================================================
 // ✉️ CORREO SUELTO DESDE LA APP

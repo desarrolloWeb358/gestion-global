@@ -61,6 +61,7 @@ import type {
   Evento,
   EventoCategoria,
   EventoModalidad,
+  ExternoEvento,
   ParticipanteEvento,
   RecordatorioEvento,
 } from "../models/evento.model";
@@ -73,6 +74,7 @@ import {
   type GuardarEventoInput,
 } from "../services/eventoService";
 import { ClienteSelector, type ClienteAsociado } from "./ClienteSelector";
+import { ExternosEditor, telefonoExternoValido } from "./ExternosEditor";
 import { ParticipantesSelector } from "./ParticipantesSelector";
 import { RecordatoriosEditor } from "./RecordatoriosEditor";
 
@@ -142,6 +144,9 @@ export function EventoFormModal({
   const [participantes, setParticipantes] = React.useState<ParticipanteEvento[]>(
     evento?.participantes ?? []
   );
+  // Asistentes sin cuenta. Mientras se editan, `telefono` guarda lo que se
+  // escribió; se normaliza a E.164 al guardar.
+  const [externos, setExternos] = React.useState<ExternoEvento[]>(evento?.externos ?? []);
   const [canalesAviso, setCanalesAviso] = React.useState<CanalAviso[]>(
     evento?.canalesAviso ?? CANALES_AVISO_POR_DEFECTO
   );
@@ -161,7 +166,9 @@ export function EventoFormModal({
   const [conflictos, setConflictos] = React.useState<ConflictoAgenda[]>([]);
   const [buscandoConflictos, setBuscandoConflictos] = React.useState(false);
 
-  const hayTelefonos = participantes.some((p) => !!p.telefono);
+  const hayTelefonos =
+    participantes.some((p) => !!p.telefono) ||
+    externos.some((e) => !!telefonoExternoValido(e.telefono));
 
   /** Instante de inicio ya combinado, que usan la validación y el guardado. */
   const inicioCombinado = React.useMemo(
@@ -299,9 +306,19 @@ export function EventoFormModal({
     }
     // El enlace de la reunión virtual es opcional a propósito: muchas veces se
     // agenda antes de tener el link y se pega después editando el evento.
-    if (participantes.length === 0) {
+    if (participantes.length === 0 && externos.length === 0) {
       toast.error("Selecciona al menos un asistente.");
       return null;
+    }
+    const externosListos: ExternoEvento[] = [];
+    for (const externo of externos) {
+      const nombre = externo.nombre.trim();
+      const telefono = telefonoExternoValido(externo.telefono);
+      if (!nombre || !telefono) {
+        toast.error("Cada asistente externo necesita nombre y un WhatsApp válido.");
+        return null;
+      }
+      externosListos.push({ id: externo.id, nombre, telefono });
     }
     if (recordatorios.some((r) => r.canales.length === 0)) {
       toast.error("Cada recordatorio necesita al menos un canal.");
@@ -320,6 +337,7 @@ export function EventoFormModal({
       tieneHoraFin,
       todoElDia,
       participantes,
+      externos: externosListos,
       canalesAviso,
       recordatorios,
       clienteId: cliente?.id ?? null,
@@ -734,6 +752,20 @@ export function EventoFormModal({
             </div>
 
             <div className="space-y-1.5">
+              <Label>
+                Asistentes externos
+                <span className="ml-1 text-xs font-normal text-muted-foreground">
+                  (opcional)
+                </span>
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Personas que no usan la plataforma. Solo reciben los avisos y
+                recordatorios por WhatsApp.
+              </p>
+              <ExternosEditor externos={externos} onChange={setExternos} disabled={bloqueado} />
+            </div>
+
+            <div className="space-y-1.5">
               <Label>Avisar al guardar por</Label>
               <p className="text-xs text-muted-foreground">
                 Aviso inmediato de agendamiento. También se usa si después
@@ -768,6 +800,12 @@ export function EventoFormModal({
               {canalesAviso.length === 0 && (
                 <p className="text-xs text-muted-foreground">
                   Nadie será notificado al guardar. Marca un canal si quieres avisar.
+                </p>
+              )}
+              {canalesAviso.length > 0 && externos.length > 0 && !canalesAviso.includes("whatsapp") && (
+                <p className="text-xs text-amber-600">
+                  Los asistentes externos solo reciben WhatsApp: márcalo si quieres
+                  avisarles.
                 </p>
               )}
             </div>

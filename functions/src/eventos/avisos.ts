@@ -39,6 +39,28 @@ export interface ParticipanteAviso {
   nombre: string;
   email?: string | null;
   telefono?: string | null;
+  /** Asistente sin cuenta: solo se le puede escribir por WhatsApp. */
+  externo?: boolean;
+}
+
+/**
+ * Los externos no tienen uid. En la cola de recordatorios se referencian como
+ * `ext:{id}` para que convivan con los uid sin chocar.
+ */
+export const PREFIJO_EXTERNO = "ext:";
+
+/** Asistentes externos del evento (`eventos/{id}.externos`) como destinatarios. */
+export function externosDe(data: any): ParticipanteAviso[] {
+  const lista: any[] = Array.isArray(data?.externos) ? data.externos : [];
+  return lista
+    .filter((e) => !!e?.id && !!e?.telefono)
+    .map((e) => ({
+      uid: `${PREFIJO_EXTERNO}${e.id}`,
+      nombre: e.nombre || "Invitado",
+      email: null,
+      telefono: e.telefono,
+      externo: true,
+    }));
 }
 
 export interface EventoAviso {
@@ -200,6 +222,9 @@ export async function avisoApp(
   tipo: TipoAviso,
   opciones: OpcionesAviso = {}
 ): Promise<ResultadoAviso> {
+  if (participante.externo) {
+    return { ok: false, omitido: true, motivo: "Los asistentes externos no tienen campanita" };
+  }
   const db = admin.firestore();
   await db.collection(`usuarios/${participante.uid}/notificaciones`).add({
     descripcion: descripcionApp(tipo, evento, opciones),

@@ -69,6 +69,11 @@ export function TareaCard({ tarea, puedeArrastrar, onClick }: TareaCardProps) {
         <User className="h-3 w-3" />
         {tarea.asignadoNombre || "Sin asignar"}
       </div>
+      {tarea.creadoPorNombre && (
+        <p className="text-[11px] text-muted-foreground/80">
+          Creado por {tarea.creadoPorNombre}
+        </p>
+      )}
       {tarea.estado === "finalizada" && tarea.fechaFinalizacion && (
         <div className="flex items-center gap-1 text-xs text-emerald-700">
           <CalendarCheck className="h-3 w-3" />

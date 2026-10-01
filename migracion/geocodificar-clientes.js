@@ -12,6 +12,7 @@
  *     node geocodificar-clientes.js --limite 10     # ensayo con los primeros 10
  *     node geocodificar-clientes.js --commit        # escribe `geo`
  *     node geocodificar-clientes.js --commit --forzar   # recalcula aunque ya tengan `geo`
+ *     node geocodificar-clientes.js --ciudad Soacha      # solo esa ciudad, recalculando (tras corregir `ciudad`)
  *
  * Nunca pisa un pin corregido a mano (geo.fuente = "manual") salvo que la
  * direccion haya cambiado.
@@ -31,6 +32,8 @@ const COMMIT = process.argv.includes('--commit');
 const FORZAR = process.argv.includes('--forzar');
 const iLimite = process.argv.indexOf('--limite');
 const LIMITE = iLimite > 0 ? Number(process.argv[iLimite + 1]) : Infinity;
+const iCiudad = process.argv.indexOf("--ciudad");
+const CIUDAD = iCiudad > 0 ? process.argv[iCiudad + 1] : null;
 const CSV = path.join(__dirname, `geocodificar-clientes-${COMMIT ? 'commit' : 'ensayo'}.csv`);
 
 (async () => {
@@ -38,6 +41,7 @@ const CSV = path.join(__dirname, `geocodificar-clientes-${COMMIT ? 'commit' : 'e
   const pendientes = snap.docs.filter((d) => {
     const c = d.data();
     if (c.geo?.fuente === 'manual' && c.geo?.direccionOrigen === String(c.direccion ?? '').trim()) return false;
+    if (CIUDAD) return c.ciudad === CIUDAD && !!(c.direccion || c.nombre);
     return FORZAR ? !!(c.direccion || c.nombre) : necesitaGeocodificar(c);
   }).slice(0, LIMITE);
 

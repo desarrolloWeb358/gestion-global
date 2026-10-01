@@ -1,11 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
 import {
   IconBrandWhatsapp,
   IconPlus,
   IconEdit,
   IconTrash,
-  IconArrowLeft,
   IconVariable,
   IconPhoto,
 } from "@tabler/icons-react";
@@ -68,10 +66,8 @@ const EMPTY_FORM: FormState = {
   headerImage: false,
 };
 
-export default function TemplatesPage() {
-  const { numberId } = useParams<{ numberId: string }>();
-  const navigate = useNavigate();
-
+/** CRUD de las plantillas de un número. Vive en Ajustes > Plantillas WhatsApp. */
+export default function TemplatesManager({ numberId }: { numberId: string }) {
   const [templates, setTemplates] = useState<WaTemplate[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -149,29 +145,9 @@ export default function TemplatesPage() {
 
   const detectedVars = extractVariables(form.bodyText);
 
-  if (!numberId) return null;
-
   return (
-    <div className="max-w-3xl mx-auto py-8 space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate(`/whatsapp/${numberId}`)}
-          className="flex-shrink-0"
-        >
-          <IconArrowLeft className="w-5 h-5" />
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-xl font-semibold text-foreground flex items-center gap-2">
-            <IconBrandWhatsapp className="w-5 h-5 text-green-600" />
-            Plantillas de Mensajes
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Plantillas aprobadas en Meta Business Suite
-          </p>
-        </div>
+    <div className="space-y-6">
+      <div className="flex justify-end">
         <Button onClick={openCreate} className="gap-2">
           <IconPlus className="w-4 h-4" />
           Nueva plantilla

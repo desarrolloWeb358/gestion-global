@@ -16,7 +16,7 @@ import { UnsavedChangesGuard } from "@/shared/components/UnsavedChangesGuard";
  */
 function outletKey(pathname: string): string {
   const m = pathname.match(/^\/whatsapp\/([^/]+)/);
-  if (m && !/\/templates\/?$/.test(pathname)) return `whatsapp:${m[1]}`;
+  if (m) return `whatsapp:${m[1]}`;
   return pathname;
 }
 

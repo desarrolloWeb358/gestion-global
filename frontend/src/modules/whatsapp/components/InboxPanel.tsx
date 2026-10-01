@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { IconMessage, IconTemplate, IconEdit, IconSearch, IconX, IconChevronLeft } from "@tabler/icons-react";
+import { IconMessage, IconEdit, IconSearch, IconX, IconChevronLeft } from "@tabler/icons-react";
 import { useInboxConversations, type InboxScope } from "../hooks/useInboxConversations";
 import { useMiCartera } from "../hooks/useMiCartera";
 import { useConversationSearch, type SearchMode } from "../hooks/useConversationSearch";
@@ -284,13 +284,6 @@ export function InboxPanel({ numberId, activeConvId }: Props) {
               title="Nuevo mensaje"
             >
               <IconEdit className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => navigate(`/whatsapp/${numberId}/templates`)}
-              className="p-1.5 rounded-md hover:bg-muted/60 transition-colors text-muted-foreground hover:text-foreground"
-              title="Gestionar plantillas"
-            >
-              <IconTemplate className="w-4 h-4" />
             </button>
           </div>
         </div>

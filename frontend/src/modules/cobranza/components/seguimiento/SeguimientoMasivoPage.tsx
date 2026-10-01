@@ -72,6 +72,15 @@ function tipDe(d: Deudor): TipificacionDeuda {
   return (d.tipificacion as TipificacionDeuda) ?? TipificacionDeuda.GESTIONANDO;
 }
 
+// Al final de la lista: primero los terminados y de últimos los inactivos.
+// El resto conserva el orden que trae el servicio (sort estable).
+function rangoAlFinal(d: Deudor): number {
+  const t = tipDe(d);
+  if (t === TipificacionDeuda.INACTIVO) return 2;
+  if (t === TipificacionDeuda.TERMINADO) return 1;
+  return 0;
+}
+
 export default function SeguimientoMasivoPage() {
   const { clienteId } = useParams<{ clienteId: string }>();
   const navigate = useNavigate();
@@ -116,7 +125,7 @@ export default function SeguimientoMasivoPage() {
           getClienteById(clienteId),
         ]);
         if (!vivo) return;
-        setDeudores(lista);
+        setDeudores([...lista].sort((a, b) => rangoAlFinal(a) - rangoAlFinal(b)));
         setNombreCliente(cliente?.nombre ?? "Cliente");
         // Preselección: todos menos los cerrados.
         setSeleccionados(

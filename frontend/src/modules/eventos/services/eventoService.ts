@@ -22,6 +22,7 @@ import type {
   EventoEstado,
   EventoModalidad,
   EventoVisibilidad,
+  ExternoEvento,
   ParticipanteEvento,
   RecordatorioEvento,
   RespuestaParticipante,
@@ -48,6 +49,11 @@ function normalizarParticipantes(lista: any): ParticipanteEvento[] {
   }));
 }
 
+function normalizarExternos(lista: any): ExternoEvento[] {
+  if (!Array.isArray(lista)) return [];
+  return lista.filter((e: any) => !!e?.id && !!e?.telefono);
+}
+
 function mapDocToEvento(id: string, data: any): Evento {
   return {
     id,
@@ -68,6 +74,7 @@ function mapDocToEvento(id: string, data: any): Evento {
     organizadorNombre: data.organizadorNombre ?? "",
     participantes: normalizarParticipantes(data.participantes),
     participantesUids: Array.isArray(data.participantesUids) ? data.participantesUids : [],
+    externos: normalizarExternos(data.externos),
     canalesAviso: Array.isArray(data.canalesAviso)
       ? data.canalesAviso
       : (["app", "email"] as CanalAviso[]),
@@ -100,6 +107,7 @@ export type GuardarEventoInput = {
   tieneHoraFin: boolean;
   todoElDia: boolean;
   participantes: ParticipanteEvento[];
+  externos: ExternoEvento[];
   canalesAviso: CanalAviso[];
   recordatorios: RecordatorioEvento[];
   clienteId?: string | null;
@@ -136,6 +144,7 @@ export async function crearEvento(
     organizadorNombre: actor.nombre ?? "",
     participantes: data.participantes,
     participantesUids: data.participantes.map((p) => p.uid),
+    externos: data.externos,
     canalesAviso: data.canalesAviso,
     recordatorios: data.recordatorios,
     clienteId: data.clienteId ?? null,
@@ -168,6 +177,7 @@ export async function actualizarEvento(
     todoElDia: data.todoElDia,
     participantes: data.participantes,
     participantesUids: data.participantes.map((p) => p.uid),
+    externos: data.externos,
     canalesAviso: data.canalesAviso,
     recordatorios: data.recordatorios,
     clienteId: data.clienteId ?? null,

@@ -80,7 +80,7 @@ const DEPARTAMENTOS = /,?\s*(\b(cundinamarca|tolima|colombia)\b|\bd\.\s*c\.)/gi;
 
 // "Calle", "Cra", "Av. Cra", "Diagonal", "Tv"... seguido de un numero.
 const VIA_CON_NUMERO =
-  /\b(calle|cll?|carrera|cra|kra|kr|cr|avenida|av|ave|ak|ac|diagonal|dg|transversal|tv|autopista)\b\.?\s*\d/i;
+  /\b(calle|c|cll?|carrera|cra|kra|kr|cr|avenida|av|ave|ak|ac|diagonal|dg|transversal|tv|autopista)\b\.?\s*\d/i;
 
 export function detectarMunicipio(texto: string, ciudadCliente?: string | null): Municipio {
   const t = sinTildes(texto);
@@ -162,37 +162,59 @@ function palabrasClave(nombre: string): string[] {
  * Places devuelve SIEMPRE su mejor candidato, aunque sea otro conjunto
  * ("Torres Alto Horizonte" → "Torres del Chico Alto"). Solo se acepta si el
  * nombre de Google contiene todas las palabras que distinguen al nuestro.
- * Tambien pegadas, para "Santamaria" = "Santa Maria" y "SL" = "S.L.".
+ * Tambien pegadas, para "Santamaria" = "Santa Maria" y "SL" = "S.L.": una
+ * palabra nuestra puede ser la union EXACTA de hasta 3 palabras seguidas de
+ * Google (no un pedazo: "Milan" no es "Milano").
  */
 export function nombreCoincide(nuestro: string, deGoogle: string): boolean {
   const clave = palabrasClave(nuestro);
   // Solo numeros ("uno", "2") no identifica nada: casaria con "Diagonal 1".
   if (clave.length === 0 || clave.every((p) => /^\d+$/.test(p))) return false;
   const google = palabrasClave(deGoogle);
-  const set = new Set(google);
-  const pegado = google.join("");
-  return clave.every((p) => set.has(p) || pegado.includes(p));
+  const uniones = new Set<string>();
+  for (let i = 0; i < google.length; i++) {
+    let u = "";
+    for (let j = i; j < Math.min(i + 3, google.length); j++) uniones.add((u += google[j]));
+  }
+  return clave.every((p) => uniones.has(p));
 }
 
 /**
- * Numeros de la via y del cruce: "Cra 8A # 90A-67" → [8, 90]. Google a veces
- * antepone el nombre del edificio ("Condominio Plaza del Sol, Cl. 22b #58-60"),
- * asi que se toma el primer tramo que sea via + numero.
+ * Partes de la direccion: "Cra 8A # 90A-67 Sur" → via 8, cruce 90, placa 67, sur.
+ * Google a veces antepone el nombre del edificio ("Condominio Plaza del Sol,
+ * Cl. 22b #58-60"), asi que se toma el primer tramo que sea via + numero.
  */
-function viaYCruce(direccion: string): number[] {
-  const tramo = direccion.split(",").find((t) => VIA_CON_NUMERO.test(sinTildes(t))) ?? "";
-  return (tramo.match(/\d+/g) ?? []).slice(0, 2).map(Number);
+function partesDireccion(direccion: string) {
+  const tramo = sinTildes(direccion.split(",").find((t) => VIA_CON_NUMERO.test(sinTildes(t))) ?? "");
+  return {
+    numeros: (tramo.match(/\d+/g) ?? []).slice(0, 3).map(Number),
+    sur: /\bsur\b/i.test(tramo),
+    este: /\beste\b/i.test(tramo),
+  };
 }
 
 /**
- * Google a veces "corrige" la placa sin decir nada ("Cra 8A 90A-67" →
- * "Cra. 8a # 163B-90") y el pin cae a kilometros. Si la via o el cruce no
- * coinciden, el resultado no es nuestra direccion.
+ * Google a veces "corrige" la direccion sin decir nada y el pin cae a
+ * kilometros: cambia la placa ("Cra 8A 90A-67" → "Cra. 8a # 163B-90"), se
+ * queda solo con la via y el cruce ("Cra 95A 34-75 Sur" → "Cra. 95 #34").
+ * Via, cruce y placa tienen que coincidir.
  */
 export function mismaPlaca(nuestra: string, deGoogle: string): boolean {
-  const a = viaYCruce(nuestra);
-  const b = viaYCruce(deGoogle);
-  return a.length === 2 && b.length === 2 && a[0] === b[0] && a[1] === b[1];
+  const a = partesDireccion(nuestra);
+  const b = partesDireccion(deGoogle);
+  if (a.numeros.length < 2 || b.numeros.length < a.numeros.length) return false;
+  return a.numeros.every((n, i) => n === b.numeros[i]);
+}
+
+/**
+ * Sur/Este es solo un aviso, no un rechazo: Google a veces lo omite del texto
+ * aunque el punto este bien, o lo pone en otro tramo ("Cra. 88c #45a-66, sur,
+ * Bogotá"). Por eso se busca en TODA la respuesta.
+ */
+export function mismoSentido(nuestra: string, deGoogle: string): boolean {
+  const a = partesDireccion(nuestra);
+  const t = sinTildes(deGoogle);
+  return a.sur === /\bsur\b/i.test(t) && a.este === /\beste\b/i.test(t);
 }
 
 /**
@@ -236,7 +258,7 @@ const PRECISION: Record<string, PrecisionGeo> = {
   APPROXIMATE: "baja",
 };
 
-async function porDireccion(consulta: string, key: string) {
+export async function porDireccion(consulta: string, key: string) {
   const url =
     "https://maps.googleapis.com/maps/api/geocode/json" +
     `?address=${encodeURIComponent(consulta)}` +
@@ -263,7 +285,8 @@ async function porDireccion(consulta: string, key: string) {
   };
 }
 
-async function porNombre(consulta: string, key: string) {
+// Exportadas para el script de analisis (migracion/_tmp-analisis-ubicaciones.js).
+export async function porNombre(consulta: string, key: string) {
   const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
     headers: {
@@ -323,6 +346,9 @@ export async function geocodificarCliente(
       if (placaDistinta) motivos.push(`Google la cambio por "${r.direccionFormateada.split(",")[0]}"`);
       else if (r.precision === "baja") motivos.push("Google solo ubico la zona, no la placa");
       if (r.parcial && !placaDistinta) motivos.push("Google no reconocio toda la direccion");
+      if (!placaDistinta && !mismoSentido(limpia, r.direccionFormateada)) {
+        motivos.push("Google no confirmo el Sur/Este de la direccion");
+      }
       if (municipioGoogle && municipioGoogle !== municipio.nombre) {
         motivos.push(`Quedo en ${municipioGoogle}, se esperaba ${municipio.nombre}`);
       }

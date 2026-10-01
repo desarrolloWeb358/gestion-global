@@ -280,10 +280,9 @@ function aplicarFiltros(
       return true;
     })
     .sort((a, b) => {
-      // Lo más urgente arriba: primero lo vencido, luego lo más antiguo.
-      const av = a.diasVencido ?? -Infinity;
-      const bv = b.diasVencido ?? -Infinity;
-      if (av !== bv) return bv - av;
-      return (b.diasAbierto ?? 0) - (a.diasAbierto ?? 0);
+      // Radicado descendente: lo más reciente arriba; sin fecha, al final.
+      const ad = a.fechaSolicitud?.getTime() ?? 0;
+      const bd = b.fechaSolicitud?.getTime() ?? 0;
+      return bd - ad;
     });
 }

@@ -904,7 +904,7 @@ export default function UsuariosCrud() {
                 // Cliente de casos nuevo: franquicia + ciudad obligatorias
                 if (!usuarioEditando && esClienteCaso && (!franquiciaSel || !ciudadSel)) {
                   toast.error(
-                    "Para un cliente de casos debes seleccionar franquicia y ciudad."
+                    "Para un cliente de casos debes seleccionar franquicia y ciudad/municipio."
                   );
                   return;
                 }
@@ -1226,7 +1226,7 @@ export default function UsuariosCrud() {
                     </div>
 
                     <div>
-                      <Label className="text-brand-secondary font-medium">Ciudad</Label>
+                      <Label className="text-brand-secondary font-medium">Ciudad/Municipio</Label>
                       <Select
                         value={ciudadSel}
                         onValueChange={setCiudadSel}

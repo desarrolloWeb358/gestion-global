@@ -19,7 +19,7 @@ import {
   ZONA_HORARIA,
 } from "../constants/eventoConstants";
 import { aFecha, formatoFechaCorta, formatoHora } from "../lib/fechaEvento";
-import type { Evento, ParticipanteEvento } from "../models/evento.model";
+import type { Evento, ExternoEvento, ParticipanteEvento } from "../models/evento.model";
 
 interface DiaResumenModalProps {
   /** Día que se está mirando (cualquier hora de ese día). */
@@ -307,9 +307,10 @@ function FilaEvento({
             )}
           </div>
 
-          {evento.participantes.length > 0 && (
+          {evento.participantes.length + evento.externos.length > 0 && (
             <ListaAsistentes
               participantes={evento.participantes}
+              externos={evento.externos}
               organizadorId={evento.organizadorId}
             />
           )}
@@ -367,9 +368,11 @@ function ordenarPorOrganizador(
  */
 function ListaAsistentes({
   participantes,
+  externos,
   organizadorId,
 }: {
   participantes: ParticipanteEvento[];
+  externos: ExternoEvento[];
   organizadorId: string;
 }) {
   const ordenados = ordenarPorOrganizador(participantes, organizadorId);
@@ -392,6 +395,13 @@ function ListaAsistentes({
               {p.nombre}
             </span>
             {p.uid === organizadorId && <span className="text-muted-foreground"> (agendó)</span>}
+          </React.Fragment>
+        ))}
+        {externos.map((e, i) => (
+          <React.Fragment key={e.id}>
+            {(ordenados.length > 0 || i > 0) && <span className="text-muted-foreground/50">, </span>}
+            <span className="text-foreground/80">{e.nombre}</span>
+            <span className="text-muted-foreground"> (externo)</span>
           </React.Fragment>
         ))}
         {noAsisten > 0 && (

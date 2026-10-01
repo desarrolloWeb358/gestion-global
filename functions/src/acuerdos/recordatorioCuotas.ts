@@ -74,6 +74,14 @@ const CAMPO_MARCA = "recordatorios";
  */
 const MAX_ACUERDOS = 500;
 
+/**
+ * Solo se le recuerda al deudor cuya tipificacion dice que esta en acuerdo. Un
+ * acuerdo puede seguir EN FIRME y activo aunque el caso ya haya pasado a otra
+ * etapa (terminado, insolvencia...); la tipificacion manda sobre el acuerdo.
+ * Valores identicos al enum `TipificacionDeuda` del frontend.
+ */
+const TIPS_CON_RECORDATORIO = new Set<string>(["Acuerdo", "Demanda/Acuerdo"]);
+
 /** Ritmo defensivo entre envios, igual que el job de WhatsApp masivo. */
 const DELAY_ENVIO_MS = 300;
 
@@ -332,6 +340,16 @@ async function avisosDeAcuerdo(
 
   if (!deudorSnap.exists) return [];
   const deudor = deudorSnap.data();
+
+  // Sin tipificacion de acuerdo no se le escribe, ni queda constancia ni marca.
+  const tipificacion = String(deudor?.tipificacion ?? "").trim();
+  if (!TIPS_CON_RECORDATORIO.has(tipificacion)) {
+    logger.info("[recordatorioCuotas] Deudor omitido por tipificacion", {
+      path: deudorRef.path,
+      tipificacion: tipificacion || null,
+    });
+    return [];
+  }
 
   const contacto = {
     deudorNombre: nombreDeudor(deudor),

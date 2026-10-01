@@ -31,7 +31,6 @@ import ReporteValoresAgregadosPage from "./modules/valoresAgregados/components/R
 // WhatsApp
 import NumberSelectPage from "./modules/whatsapp/components/NumberSelectPage";
 import WhatsAppLayout from "./modules/whatsapp/components/WhatsAppLayout";
-import TemplatesPage from "./modules/whatsapp/components/TemplatesPage";
 import SendWhatsAppPage from "./modules/whatsapp/components/SendWhatsAppPage";
 import BulkWhatsAppPage from "./modules/whatsapp/components/BulkWhatsAppPage";
 import EmailComposePage from "./modules/correos/components/EmailComposePage";
@@ -155,7 +154,6 @@ export default function App() {
             <Route path="/whatsapp" element={<NumberSelectPage />} />
             <Route path="/whatsapp/:numberId" element={<WhatsAppLayout />} />
             <Route path="/whatsapp/:numberId/:convId" element={<WhatsAppLayout />} />
-            <Route path="/whatsapp/:numberId/templates" element={<TemplatesPage />} />
             <Route path="/clientes/:clienteId/deudores/:deudorId/enviar-whatsapp" element={<SendWhatsAppPage />} />
             <Route path="/clientes/:clienteId/enviar-whatsapp-masivo" element={<BulkWhatsAppPage />} />
 

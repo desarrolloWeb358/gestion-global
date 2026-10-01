@@ -51,6 +51,7 @@ import {
   cargarOpcionesFiltroDemandas,
   type DemandaReporteRow,
   type DemandaReporteFiltros,
+  type EstadoClienteFiltro,
 } from "../../services/reportes/demandaReporteGlobalService";
 import { getEtiquetasDemanda } from "../../services/etiquetaDemandaService";
 import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
@@ -71,6 +72,7 @@ type ConsultaGuardada = {
   fDependiente: string;
   fEtiqueta: string;
   fTipificaciones: TipificacionDeuda[];
+  fEstadoCliente: EstadoClienteFiltro;
   rows: DemandaReporteRow[];
   /** true si no cupieron los resultados: se conservan solo los filtros. */
   truncada?: boolean;
@@ -86,19 +88,20 @@ function guardarConsulta(
   fDependiente: string,
   fEtiqueta: string,
   fTipificaciones: TipificacionDeuda[],
+  fEstadoCliente: EstadoClienteFiltro,
   rows: DemandaReporteRow[]
 ) {
   try {
     sessionStorage.setItem(
       SESSION_KEY,
-      JSON.stringify({ fDependiente, fEtiqueta, fTipificaciones, rows })
+      JSON.stringify({ fDependiente, fEtiqueta, fTipificaciones, fEstadoCliente, rows })
     );
   } catch {
     // Cuota llena (resultados muy grandes): al menos conservamos los filtros.
     try {
       sessionStorage.setItem(
         SESSION_KEY,
-        JSON.stringify({ fDependiente, fEtiqueta, fTipificaciones, rows: [], truncada: true })
+        JSON.stringify({ fDependiente, fEtiqueta, fTipificaciones, fEstadoCliente, rows: [], truncada: true })
       );
     } catch {
       /* almacenamiento no disponible: la persistencia es opcional */
@@ -117,6 +120,7 @@ function leerConsultaGuardada(): ConsultaGuardada | null {
       fDependiente: p.fDependiente ?? "",
       fEtiqueta: p.fEtiqueta ?? "todas",
       fTipificaciones: Array.isArray(p.fTipificaciones) ? p.fTipificaciones : [],
+      fEstadoCliente: p.fEstadoCliente ?? "activos",
       truncada: !!p.truncada,
       rows: p.rows.map((r) => ({
         ...r,
@@ -162,6 +166,9 @@ export default function ReporteDemandasPage() {
   const [fEtiqueta, setFEtiqueta] = React.useState<string>(guardada?.fEtiqueta ?? "todas");
   const [fTipificaciones, setFTipificaciones] = React.useState<TipificacionDeuda[]>(
     guardada?.fTipificaciones ?? []
+  );
+  const [fEstadoCliente, setFEstadoCliente] = React.useState<EstadoClienteFiltro>(
+    guardada?.fEstadoCliente ?? "activos"
   );
 
   const alternarTipificacion = (t: TipificacionDeuda) => {
@@ -221,6 +228,7 @@ export default function ReporteDemandasPage() {
       etiquetaNombre: fEtiqueta !== "todas" ? fEtiqueta : undefined,
       tipificaciones: fTipificaciones.length > 0 ? fTipificaciones : undefined,
       soloSinCoteje: false,
+      estadoCliente: fEstadoCliente,
       campoFecha: "proximaAccionFecha",
       desde: undefined,
       hasta: undefined,
@@ -230,7 +238,7 @@ export default function ReporteDemandasPage() {
       const res = await buscarDemandas(filtros);
       setRows(res);
       setBuscado(true);
-      guardarConsulta(fDependiente, fEtiqueta, fTipificaciones, res);
+      guardarConsulta(fDependiente, fEtiqueta, fTipificaciones, fEstadoCliente, res);
     } catch {
       toast.error("⚠️ No se pudo cargar el reporte de demandas");
     } finally {
@@ -246,6 +254,7 @@ export default function ReporteDemandasPage() {
     }
     setFEtiqueta("todas");
     setFTipificaciones([]);
+    setFEstadoCliente("activos");
     setRows([]);
     setBuscado(false);
     try {
@@ -274,7 +283,7 @@ export default function ReporteDemandasPage() {
       filas = await completarTipificaciones(rows);
       if (filas !== rows) {
         setRows(filas);
-        guardarConsulta(fDependiente, fEtiqueta, fTipificaciones, filas);
+        guardarConsulta(fDependiente, fEtiqueta, fTipificaciones, fEstadoCliente, filas);
       }
     } catch {
       toast.error("⚠️ No se pudo leer la tipificación; se exporta sin esa columna.");
@@ -340,7 +349,7 @@ export default function ReporteDemandasPage() {
             </div>
             <Button variant="ghost" size="sm" onClick={resetFiltros}>Limpiar</Button>
           </div>
-          <div className="p-4 md:p-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="p-4 md:p-5 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Dependiente</Label>
               <Select value={fDependiente} onValueChange={setFDependiente} disabled={cargandoOpciones}>
@@ -349,6 +358,21 @@ export default function ReporteDemandasPage() {
                   {dependientesOpts.map((d) => (
                     <SelectItem key={d.id} value={d.id}>{d.nombre}</SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Clientes</Label>
+              <Select
+                value={fEstadoCliente}
+                onValueChange={(v) => setFEstadoCliente(v as EstadoClienteFiltro)}
+                disabled={cargandoOpciones}
+              >
+                <SelectTrigger className="border-brand-secondary/30"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="activos">Activos</SelectItem>
+                  <SelectItem value="inactivos">Inactivos</SelectItem>
+                  <SelectItem value="todos">Todos</SelectItem>
                 </SelectContent>
               </Select>
             </div>

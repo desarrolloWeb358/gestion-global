@@ -45,13 +45,17 @@ export interface DemandaReporteFiltros {
   /** Tipificaciones del DEUDOR dueño de la demanda; vacío o ausente = todas. */
   tipificaciones?: TipificacionDeuda[];
   soloSinCoteje?: boolean;
+  /** Estado del CLIENTE (`clientes/{id}.activo`; ausente = activo). Ausente = todos. */
+  estadoCliente?: EstadoClienteFiltro;
   // Rango sobre el campo elegido
   campoFecha?: "fechaUltimaRevision" | "fechaCreacion" | "proximaAccionFecha";
   desde?: Date;
   hasta?: Date;
 }
 
-type ClientesMap = Map<string, { nombre: string; depId: string | null }>;
+export type EstadoClienteFiltro = "activos" | "inactivos" | "todos";
+
+type ClientesMap = Map<string, { nombre: string; depId: string | null; activo: boolean }>;
 type UsuariosMap = Map<string, string>;
 
 /** Carga el mapa clienteId → { nombre, ejecutivoDependienteId } (clientes es pequeño). */
@@ -70,6 +74,7 @@ async function cargarMapasClientesYusuarios(): Promise<{
     clientes.set(d.id, {
       nombre: (data.nombre as string) ?? d.id,
       depId: (data.ejecutivoDependienteId as string | null) ?? null,
+      activo: data.activo !== false,
     });
   });
 
@@ -279,16 +284,24 @@ export async function buscarDemandas(
 ): Promise<DemandaReporteRow[]> {
   const { clientes, usuarios } = await cargarMapasClientesYusuarios();
 
-  // 1) Determinar clienteIds objetivo
+  const estadoCliente = filtros.estadoCliente ?? "todos";
+  const clienteEnEstado = (clienteId: string) => {
+    if (estadoCliente === "todos") return true;
+    const activo = clientes.get(clienteId)?.activo ?? true;
+    return estadoCliente === "activos" ? activo : !activo;
+  };
+
+  // 1) Determinar clienteIds objetivo (ya filtrados por estado del cliente,
+  //    así no se consultan demandas de clientes que luego se descartarían)
   let targetClienteIds: string[] | null = null;
   if (filtros.clienteId) {
-    targetClienteIds = [filtros.clienteId];
+    targetClienteIds = [filtros.clienteId].filter(clienteEnEstado);
   } else if (filtros.ejecutivoDependienteId) {
     targetClienteIds = [...clientes.entries()]
-      .filter(([, v]) => v.depId === filtros.ejecutivoDependienteId)
+      .filter(([id, v]) => v.depId === filtros.ejecutivoDependienteId && clienteEnEstado(id))
       .map(([id]) => id);
-    if (targetClienteIds.length === 0) return [];
   }
+  if (targetClienteIds && targetClienteIds.length === 0) return [];
 
   // 2) Ejecutar consultas acotadas
   let docs: QueryDocumentSnapshot[] = [];
@@ -311,7 +324,9 @@ export async function buscarDemandas(
     docs = snap.docs;
   }
 
-  let rows = docs.map((d) => docToRow(d, clientes, usuarios));
+  let rows = docs
+    .map((d) => docToRow(d, clientes, usuarios))
+    .filter((r) => clienteEnEstado(r.clienteId));
 
   // 3) Tipificación del deudor: solo si se pidió, y solo sobre los clientes en juego
   const tips = (filtros.tipificaciones ?? []).filter(Boolean);

@@ -97,7 +97,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     to: "/mapa-conjuntos",
-    label: "Mapa de conjuntos",
+    label: "Mapa de Impacto",
     icon: IconMapPin,
     roles: ROLES_MAPA_CONJUNTOS,
     perm: PERMS.Clientes_Read,

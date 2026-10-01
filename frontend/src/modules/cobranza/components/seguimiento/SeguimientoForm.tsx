@@ -32,7 +32,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover";
 import { Calendar } from "@/shared/ui/calendar";
 import { Separator } from "@/shared/ui/separator";
-import { Loader2, Calendar as CalendarIcon, Lock, Download } from "lucide-react";
+import { Loader2, Calendar as CalendarIcon, Lock, Download, MapPin } from "lucide-react";
 import { openStorageFile } from "@/shared/lib/openStorageFile";
 
 import { Seguimiento } from "../../models/seguimiento.model";
@@ -41,6 +41,10 @@ import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
 import { createPortal } from "react-dom";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { PERMS } from "@/shared/constants/acl";
+import { useParams } from "react-router-dom";
+import { getClienteById } from "@/modules/clientes/services/clienteService";
+import { getDeudorById } from "../../services/deudorService";
+import { escucharUltimoEstadoMensual } from "../../services/estadoMensualService";
 
 export type DestinoColeccion = "seguimiento" | "seguimientoJuridico";
 
@@ -72,6 +76,91 @@ function defaultDestinoFromTipificacion(t?: TipificacionDeuda): DestinoColeccion
     return "seguimientoJuridico";
   }
   return "seguimiento";
+}
+
+const money = (n: number) => `$${Math.round(n).toLocaleString("es-CO")}`;
+
+// === Resumen del cliente/deudor bajo el título ===
+type Resumen = {
+  conjunto: string;
+  deudor: string;
+  tipificacion: string;
+  ubicacion: string;
+  deuda: number;
+  honorarios: number;
+};
+
+function ResumenDeudor({ open }: { open: boolean }) {
+  const { clienteId, deudorId } = useParams();
+  const [info, setInfo] = React.useState<Omit<Resumen, "deuda" | "honorarios"> | null>(null);
+  const [montos, setMontos] = React.useState<{ deuda: number; honorarios: number } | null>(null);
+
+  React.useEffect(() => {
+    if (!open || !clienteId || !deudorId) return;
+    let vivo = true;
+    Promise.all([getClienteById(clienteId), getDeudorById(clienteId, deudorId)])
+      .then(([cliente, deudor]) => {
+        if (!vivo) return;
+        setInfo({
+          conjunto: cliente?.nombre ?? "—",
+          deudor: deudor?.nombre ?? "—",
+          tipificacion: String(deudor?.tipificacion ?? "—"),
+          ubicacion: deudor?.ubicacion?.trim() || "—",
+        });
+      })
+      .catch(() => {});
+    const unsub = escucharUltimoEstadoMensual(clienteId, deudorId, (last) => {
+      if (!vivo) return;
+      setMontos({
+        deuda: Number(last?.deuda ?? 0),
+        honorarios: Number(last?.honorariosDeuda ?? 0),
+      });
+    });
+    return () => {
+      vivo = false;
+      unsub?.();
+    };
+  }, [open, clienteId, deudorId]);
+
+  if (!clienteId || !deudorId) return null;
+  if (!info) {
+    return <p className="mt-1 text-sm text-muted-foreground">Cargando información del deudor…</p>;
+  }
+
+  const monto = (label: string, value?: number, strong = false) => (
+    <span className="whitespace-nowrap">
+      <span className="text-[11px] uppercase tracking-wide text-muted-foreground">{label} </span>
+      <span className={strong ? "font-semibold text-foreground" : "text-foreground"}>
+        {value === undefined ? "…" : money(value)}
+      </span>
+    </span>
+  );
+
+  return (
+    <div className="mt-1 space-y-1 text-left text-sm">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground">
+        <span className="font-medium text-foreground">{info.conjunto}</span>
+        <span aria-hidden>·</span>
+        <span className="text-foreground">{info.deudor}</span>
+        {info.ubicacion !== "—" && (
+          <span className="inline-flex items-center gap-0.5">
+            <MapPin className="h-3.5 w-3.5" aria-label="Ubicación" />
+            {info.ubicacion}
+          </span>
+        )}
+        {info.tipificacion !== "—" && (
+          <span className="rounded-full border px-2 py-0.5 text-xs leading-none text-foreground">
+            {info.tipificacion}
+          </span>
+        )}
+      </div>
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+        {monto("Deuda", montos?.deuda)}
+        {monto("Honorarios", montos?.honorarios)}
+        {monto("Total", montos ? montos.deuda + montos.honorarios : undefined, true)}
+      </div>
+    </div>
+  );
 }
 
 // === Overlay global bloqueante con portal ===
@@ -240,6 +329,7 @@ export default function SeguimientoForm({
               <DialogTitle className="text-lg md:text-xl">
                 {seguimiento ? "Editar seguimiento" : "Crear seguimiento"}
               </DialogTitle>
+              <ResumenDeudor open={open} />
               {extraHeader ? <div className="mt-2">{extraHeader}</div> : null}
             </DialogHeader>
 
