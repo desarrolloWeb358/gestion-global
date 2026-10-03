@@ -1,9 +1,13 @@
 import * as React from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, UserPlus } from "lucide-react";
 
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { normalizeToE164 } from "@/shared/phoneUtils";
+import {
+  obtenerAdministradorCliente,
+  type AdministradorCliente,
+} from "@/modules/clientes/services/clienteService";
 import type { ExternoEvento } from "../models/evento.model";
 
 const MAX_EXTERNOS = 10;
@@ -21,13 +25,60 @@ interface ExternosEditorProps {
   externos: ExternoEvento[];
   onChange: (externos: ExternoEvento[]) => void;
   disabled?: boolean;
+  /** Copropiedad del evento: si tiene administrador se ofrece agregarlo de un clic. */
+  clienteId?: string | null;
 }
 
 /**
  * Asistentes que no tienen cuenta en la plataforma. Solo piden nombre y
  * WhatsApp porque es el único canal por el que se les puede avisar.
  */
-export function ExternosEditor({ externos, onChange, disabled }: ExternosEditorProps) {
+export function ExternosEditor({ externos, onChange, disabled, clienteId }: ExternosEditorProps) {
+  const [administrador, setAdministrador] = React.useState<AdministradorCliente | null>(null);
+
+  React.useEffect(() => {
+    setAdministrador(null);
+    if (!clienteId || disabled) return;
+    let vigente = true;
+    obtenerAdministradorCliente(clienteId)
+      .then((admin) => vigente && setAdministrador(admin))
+      .catch((err) => console.error("[ExternosEditor] Error cargando administrador:", err));
+    return () => {
+      vigente = false;
+    };
+  }, [clienteId, disabled]);
+
+  // Ya agregado si coincide el teléfono o, cuando no lo tiene, el nombre.
+  const adminTelefono = administrador ? telefonoExternoValido(administrador.telefono) : undefined;
+  const adminYaAgregado =
+    !!administrador &&
+    externos.some((e) =>
+      adminTelefono
+        ? telefonoExternoValido(e.telefono) === adminTelefono
+        : !!administrador.nombre &&
+          e.nombre.trim().toLowerCase() === administrador.nombre.toLowerCase()
+    );
+
+  /**
+   * Trae lo que haya. Sin nombre queda "Administrador" (editable) para que el
+   * WhatsApp no salga sin saludo; sin teléfono se deja vacío y la validación
+   * del formulario pide escribirlo. Si hay un renglón en blanco se llena ese en
+   * vez de sumar otro.
+   */
+  function agregarAdministrador() {
+    if (!administrador) return;
+    const datos = {
+      nombre: administrador.nombre || "Administrador",
+      telefono: administrador.telefono,
+    };
+    const vacio = externos.find((e) => !e.nombre.trim() && !e.telefono.trim());
+    onChange(
+      vacio
+        ? externos.map((e) => (e.id === vacio.id ? { ...e, ...datos } : e))
+        : [...externos, { id: nuevoId(), ...datos }]
+    );
+  }
+
   function actualizar(id: string, patch: Partial<ExternoEvento>) {
     onChange(externos.map((e) => (e.id === id ? { ...e, ...patch } : e)));
   }
@@ -77,17 +128,31 @@ export function ExternosEditor({ externos, onChange, disabled }: ExternosEditorP
         );
       })}
 
-      {!disabled && externos.length < MAX_EXTERNOS && (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => onChange([...externos, { id: nuevoId(), nombre: "", telefono: "" }])}
-        >
-          <Plus className="mr-1 h-4 w-4" />
-          Agregar asistente externo
-        </Button>
-      )}
+      <div className="flex flex-wrap gap-2">
+        {!disabled && administrador && !adminYaAgregado && externos.length < MAX_EXTERNOS && (
+          <Button
+            type="button"
+            variant="brand"
+            size="sm"
+            onClick={agregarAdministrador}
+          >
+            <UserPlus className="mr-1 h-4 w-4" />
+            Agregar administrador
+          </Button>
+        )}
+
+        {!disabled && externos.length < MAX_EXTERNOS && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => onChange([...externos, { id: nuevoId(), nombre: "", telefono: "" }])}
+          >
+            <Plus className="mr-1 h-4 w-4" />
+            Agregar asistente externo
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

@@ -78,6 +78,14 @@ import { ExternosEditor, telefonoExternoValido } from "./ExternosEditor";
 import { ParticipantesSelector } from "./ParticipantesSelector";
 import { RecordatoriosEditor } from "./RecordatoriosEditor";
 
+type TipoLugar = "oficina" | "copropiedad" | "otro";
+
+const LUGARES: { id: TipoLugar; label: string }[] = [
+  { id: "oficina", label: "En la oficina" },
+  { id: "copropiedad", label: "En la copropiedad" },
+  { id: "otro", label: "Otro" },
+];
+
 export interface ActorEvento {
   uid: string;
   nombre?: string;
@@ -126,9 +134,14 @@ export function EventoFormModal({
   const [ubicacion, setUbicacion] = React.useState(evento?.ubicacion ?? "");
   const [enlaceReunion, setEnlaceReunion] = React.useState(evento?.enlaceReunion ?? "");
   const [todoElDia, setTodoElDia] = React.useState(evento?.todoElDia ?? false);
-  const [enOficina, setEnOficina] = React.useState(
-    (evento?.ubicacion ?? "") === UBICACION_OFICINA
-  );
+  // De dónde sale el lugar. No se guarda aparte: se deduce del texto, que es
+  // la sede, el nombre del conjunto o lo que se escribió a mano.
+  const [tipoLugar, setTipoLugar] = React.useState<TipoLugar>(() => {
+    const lugar = evento?.ubicacion ?? "";
+    if (lugar === UBICACION_OFICINA) return "oficina";
+    if (lugar && evento?.clienteId && lugar === evento.clienteNombre) return "copropiedad";
+    return "otro";
+  });
 
   const [fechaInicio, setFechaInicio] = React.useState<Date>(arranque);
   const [horaInicio, setHoraInicio] = React.useState(ajustarAMediaHora(aHoraInput(arranque)));
@@ -160,6 +173,25 @@ export function EventoFormModal({
       ? { id: evento.clienteId, nombre: evento.clienteNombre ?? evento.clienteId }
       : null
   );
+
+  function elegirTipoLugar(tipo: TipoLugar) {
+    setTipoLugar(tipo);
+    if (tipo === "oficina") setUbicacion(UBICACION_OFICINA);
+    else if (tipo === "copropiedad") setUbicacion(cliente?.nombre ?? "");
+    // Al pasar a "Otro" se limpia para no dejar la sede o el conjunto escrito.
+    else setUbicacion("");
+  }
+
+  function cambiarCliente(nuevo: ClienteAsociado | null) {
+    setCliente(nuevo);
+    if (tipoLugar !== "copropiedad") return;
+    if (nuevo) {
+      setUbicacion(nuevo.nombre);
+    } else {
+      setTipoLugar("otro");
+      setUbicacion("");
+    }
+  }
 
   const [guardando, setGuardando] = React.useState(false);
   const [confirmarBorrado, setConfirmarBorrado] = React.useState(false);
@@ -504,33 +536,61 @@ export function EventoFormModal({
               </div>
             </div>
 
+            <div className="space-y-1.5">
+              <Label>
+                <Building2 className="mr-1 inline h-3.5 w-3.5" />
+                Copropiedad relacionada
+                <span className="ml-1 text-xs font-normal text-muted-foreground">
+                  (opcional)
+                </span>
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Asócialo si el evento es de un conjunto en particular. Sirve para
+                saber después cuántas reuniones o jornadas se hicieron con cada uno.
+              </p>
+              <ClienteSelector valor={cliente} onChange={cambiarCliente} disabled={bloqueado} />
+            </div>
+
             {modalidad !== "virtual" && (
               <div className="space-y-1.5">
                 <Label htmlFor="evento-ubicacion">
                   <MapPin className="mr-1 inline h-3.5 w-3.5" />
                   Lugar *
                 </Label>
-                <label className="flex w-fit items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={enOficina}
-                    onCheckedChange={(v) => {
-                      const marcado = v === true;
-                      setEnOficina(marcado);
-                      // Al desmarcar se limpia para que no quede la sede escrita
-                      // en un evento que en realidad es en otro lado.
-                      setUbicacion(marcado ? UBICACION_OFICINA : "");
-                    }}
+                <div className="flex flex-wrap gap-2">
+                  {LUGARES.map((opcion) => {
+                    const sinConjunto = opcion.id === "copropiedad" && !cliente;
+                    return (
+                      <Button
+                        key={opcion.id}
+                        type="button"
+                        size="sm"
+                        variant={tipoLugar === opcion.id ? "brand" : "outline"}
+                        onClick={() => elegirTipoLugar(opcion.id)}
+                        disabled={bloqueado || sinConjunto}
+                        title={sinConjunto ? "Primero escoge la copropiedad" : undefined}
+                      >
+                        {opcion.label}
+                      </Button>
+                    );
+                  })}
+                </div>
+                {tipoLugar === "otro" ? (
+                  <Input
+                    id="evento-ubicacion"
+                    value={ubicacion}
+                    onChange={(e) => setUbicacion(e.target.value)}
+                    placeholder="Ej: Juzgado 12 civil, Cra 10 # 14-33"
                     disabled={bloqueado}
                   />
-                  En la oficina
-                </label>
-                <Input
-                  id="evento-ubicacion"
-                  value={ubicacion}
-                  onChange={(e) => setUbicacion(e.target.value)}
-                  placeholder="Ej: Conjunto Casa Blanca, torre 3"
-                  disabled={bloqueado || enOficina}
-                />
+                ) : (
+                  <p className="text-xs text-muted-foreground">{ubicacion}</p>
+                )}
+                {!cliente && (
+                  <p className="text-xs text-muted-foreground">
+                    Para escoger "En la copropiedad" primero selecciona el conjunto arriba.
+                  </p>
+                )}
               </div>
             )}
 
@@ -680,21 +740,6 @@ export function EventoFormModal({
             </div>
 
             <div className="space-y-1.5">
-              <Label>
-                <Building2 className="mr-1 inline h-3.5 w-3.5" />
-                Conjunto relacionado
-                <span className="ml-1 text-xs font-normal text-muted-foreground">
-                  (opcional)
-                </span>
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Asócialo si el evento es de un conjunto en particular. Sirve para
-                saber después cuántas reuniones o jornadas se hicieron con cada uno.
-              </p>
-              <ClienteSelector valor={cliente} onChange={setCliente} disabled={bloqueado} />
-            </div>
-
-            <div className="space-y-1.5">
               <Label htmlFor="evento-descripcion">Descripcion / agenda</Label>
               <Textarea
                 id="evento-descripcion"
@@ -762,7 +807,12 @@ export function EventoFormModal({
                 Personas que no usan la plataforma. Solo reciben los avisos y
                 recordatorios por WhatsApp.
               </p>
-              <ExternosEditor externos={externos} onChange={setExternos} disabled={bloqueado} />
+              <ExternosEditor
+                externos={externos}
+                onChange={setExternos}
+                disabled={bloqueado}
+                clienteId={cliente?.id ?? null}
+              />
             </div>
 
             <div className="space-y-1.5">

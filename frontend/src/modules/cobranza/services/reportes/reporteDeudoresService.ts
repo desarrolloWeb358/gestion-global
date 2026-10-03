@@ -118,7 +118,6 @@ export async function obtenerReporteDeudoresPorPeriodo(
         mes: mesId,
         deuda: data.deuda,
         recaudo: data.recaudo,
-        honorariosDeuda: data.honorariosDeuda,
       });
     });
 

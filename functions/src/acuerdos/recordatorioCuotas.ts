@@ -216,6 +216,8 @@ function primerTelefono(telefonos: unknown): string | null {
     const digitos = normalizePhone(String(bruto ?? ""));
     if (digitos.length === 10) return `57${digitos}`;
     if (digitos.length === 12 && digitos.startsWith("57")) return digitos;
+    // Mas de 10 digitos sin 57: numero de otro pais que ya trae su indicativo.
+    if (digitos.length >= 11 && digitos.length <= 15) return digitos;
   }
   return null;
 }

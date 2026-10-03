@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Unsubscribe } from "firebase/firestore";
-import { suscribirTareas, suscribirTareasPorAsignado } from "../services/tareaService";
+import { suscribirTareas, suscribirTareasPropias } from "../services/tareaService";
 import type { Tarea } from "../models/tarea.model";
 
 function ordenarPorFechaCreacionDesc(tareas: Tarea[]): Tarea[] {
@@ -13,7 +13,9 @@ function ordenarPorFechaCreacionDesc(tareas: Tarea[]): Tarea[] {
 
 /**
  * Admin/ejecutivoAdmin (verTodas=true) reciben todas las tareas.
- * Ejecutivo (verTodas=false) recibe solo las suyas.
+ * El resto (verTodas=false) recibe las suyas: las que tiene asignadas y
+ * también las que él mismo creó (para poder hacerles seguimiento aunque
+ * se las haya asignado a otra persona).
  */
 export function useTareas(uid: string | undefined, verTodas: boolean) {
   const [tareas, setTareas] = useState<Tarea[]>([]);
@@ -42,9 +44,8 @@ export function useTareas(uid: string | undefined, verTodas: boolean) {
         setLoading(false);
       }, onErr);
     } else {
-      unsub = suscribirTareasPorAsignado(uid, (arr) => {
-        const tareasAsignadas = arr.filter((tarea) => tarea.asignadoA === uid);
-        setTareas(ordenarPorFechaCreacionDesc(tareasAsignadas));
+      unsub = suscribirTareasPropias(uid, (arr) => {
+        setTareas(ordenarPorFechaCreacionDesc(arr));
         setLoading(false);
       }, onErr);
     }

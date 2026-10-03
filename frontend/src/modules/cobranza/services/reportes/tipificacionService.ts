@@ -240,7 +240,6 @@ export async function obtenerResumenPorTipificacion(
           mes: rawMes,
           deuda: data.deuda,
           recaudo: data.recaudo,
-          honorariosDeuda: data.honorariosDeuda,
         });
       });
 
@@ -345,7 +344,6 @@ export async function obtenerDetalleDeudoresPorTipificacion(
           mes: rawMes,
           deuda: data.deuda,
           recaudo: data.recaudo,
-          honorariosDeuda: data.honorariosDeuda,
         });
       });
 

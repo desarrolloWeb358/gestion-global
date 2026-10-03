@@ -5,11 +5,11 @@ export interface EstadoMensualPorRecuperar {
   mes: string; // "YYYY-MM"
   deuda?: number;
   recaudo?: number;
-  honorariosDeuda?: number;
 }
 
 /**
- * "Por recuperar" = saldo vigente del deudor.
+ * "Por recuperar" = saldo vigente del deudor, lo que le falta recuperar al
+ * conjunto. NO incluye honorarios: es la deuda menos el recaudo.
  *
  * La deuda NO es acumulativa y no se registra todos los meses: cuando no se
  * conoce, la fila queda con deuda = 0 (el input masivo guarda el campo vacío
@@ -24,7 +24,7 @@ export interface EstadoMensualPorRecuperar {
  */
 export function calcularPorRecuperar(estados: EstadoMensualPorRecuperar[]): number {
   let ultimoMesConDeuda: string | null = null;
-  let deudaConHonorarios = 0;
+  let ultimaDeuda = 0;
 
   for (const e of estados) {
     const d = Number(e.deuda ?? 0);
@@ -32,8 +32,7 @@ export function calcularPorRecuperar(estados: EstadoMensualPorRecuperar[]): numb
 
     if (!ultimoMesConDeuda || e.mes > ultimoMesConDeuda) {
       ultimoMesConDeuda = e.mes;
-      const honDeuda = Number(e.honorariosDeuda ?? 0);
-      deudaConHonorarios = d + (Number.isFinite(honDeuda) ? honDeuda : 0);
+      ultimaDeuda = d;
     }
   }
 
@@ -46,5 +45,5 @@ export function calcularPorRecuperar(estados: EstadoMensualPorRecuperar[]): numb
     if (Number.isFinite(r)) recaudoDesdeUltimaDeuda += r;
   }
 
-  return Math.max(0, deudaConHonorarios - recaudoDesdeUltimaDeuda);
+  return Math.max(0, ultimaDeuda - recaudoDesdeUltimaDeuda);
 }

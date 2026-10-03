@@ -30,6 +30,7 @@ import { getUsuarioByUid } from "@/modules/usuarios/services/usuarioService";
 import { useWaNumbers } from "../hooks/useWaNumbers";
 import { listenTemplates } from "../services/templatesService";
 import type { WaTemplate } from "../models/waTemplate.model";
+import { toWhatsAppNumber } from "@/shared/phoneUtils";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString("es-CO")}`;
 
@@ -218,8 +219,7 @@ export default function SendWhatsAppPage() {
     });
   }, [selectedPhone, deudor, estadoMes, asesor, copropiedad]);
 
-  const toIntl = (raw: string) =>
-    raw.startsWith("57") && raw.length >= 12 ? raw : `57${raw}`;
+  const toIntl = toWhatsAppNumber;
 
   const targetPhones = selectedPhone === "all"
     ? phones.map(toIntl)

@@ -56,3 +56,17 @@ export function toWhatsAppAddress(e164?: string): string | undefined {
   if (!e164) return undefined;
   return e164.startsWith("whatsapp:") ? e164 : `whatsapp:${e164}`;
 }
+
+/**
+ * Número tal como lo espera Meta/WhatsApp: solo dígitos, con indicativo y sin "+".
+ * - Hasta 10 dígitos: número colombiano local ⇒ se antepone 57.
+ * - Más de 10 dígitos: ya trae indicativo (57 u otro país) ⇒ se deja igual.
+ *   Ej: "35699996523" (Malta) NO se convierte en "5735699996523".
+ */
+export function toWhatsAppNumber(raw: string): string {
+  let digits = String(raw ?? "").replace(/\D/g, "");
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  else if (digits.length === 13 && digits.startsWith("057")) digits = digits.slice(1);
+  if (digits.length > 10) return digits;
+  return `57${digits}`;
+}

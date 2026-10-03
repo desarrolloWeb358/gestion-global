@@ -1,12 +1,20 @@
 import type { Rol } from "@/shared/constants/acl";
 
 /**
- * Quién ve el "Mapa de Impacto" (menú y página).
- * Por ahora solo adminFranquicia, mientras se prueba en producción.
- * Para abrirlo al equipo, agrega aquí los roles: el menú y la página leen esta lista.
- * Ej.: ["admin", "ejecutivo", "ejecutivoAdmin", "supervisor", "dependiente", "abogado", "adminFranquicia"]
+ * Quién ve el "Mapa de Impacto" (menú y página): todo el equipo interno.
+ * Quedan fuera los roles externos (cliente, clienteCaso y deudor): el mapa
+ * muestra la cartera de TODOS los conjuntos.
+ * Corregir un pin además pide PERMS.Clientes_Edit (abogado y adminFranquicia no lo tienen).
  */
-export const ROLES_MAPA_CONJUNTOS: Rol[] = ["adminFranquicia"];
+export const ROLES_MAPA_CONJUNTOS: Rol[] = [
+  "admin",
+  "supervisor",
+  "adminFranquicia",
+  "ejecutivo",
+  "ejecutivoAdmin",
+  "dependiente",
+  "abogado",
+];
 
 /**
  * El mapa solo muestra la franquicia Cundinamarca: Eje Cafetero es de prueba.

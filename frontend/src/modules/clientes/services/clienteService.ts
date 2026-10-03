@@ -66,7 +66,36 @@ export async function getClienteById(clienteId: string): Promise<Cliente | null>
 }
 
 
-export const setUsuarioClinte = async (clienteId: string, uid: string | null) => {
+export interface AdministradorCliente {
+  /** Puede venir vacío si el cliente solo tiene teléfono. */
+  nombre: string;
+  /** Tal como está en el usuario del conjunto; puede venir vacío. */
+  telefono: string;
+}
+
+/**
+ * Administrador del conjunto para invitarlo a un evento. El nombre vive en el
+ * cliente; el teléfono es el del usuario del conjunto (`usuarioUid ?? id`, la
+ * misma relación que usa la ficha del cliente). Basta con uno de los dos; null
+ * solo si no hay ni nombre ni teléfono.
+ */
+export async function obtenerAdministradorCliente(
+  clienteId: string
+): Promise<AdministradorCliente | null> {
+  const cliente = await getClienteById(clienteId);
+  if (!cliente) return null;
+  const nombre = cliente.administrador?.trim() ?? "";
+
+  const uid = (cliente as any).usuarioUid ?? clienteId;
+  const usuario = await getDoc(doc(db, "usuarios", uid));
+  const datos = usuario.exists() ? (usuario.data() as UsuarioSistema) : null;
+  const telefono = String(datos?.telefonoUsuario ?? (datos as any)?.telefono ?? "").trim();
+
+  if (!nombre && !telefono) return null;
+  return { nombre, telefono };
+}
+
+export const setUsuarioClinte =async (clienteId: string, uid: string | null) => {
   const ref = doc(db, "clientes", clienteId);
   await updateDoc(ref, { usuarioUid: uid });
 }

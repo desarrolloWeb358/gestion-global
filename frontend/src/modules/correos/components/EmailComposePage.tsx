@@ -15,7 +15,8 @@ import { getClienteById } from "@/modules/clientes/services/clienteService";
 import { getDeudorById, obtenerDeudorPorCliente } from "@/modules/cobranza/services/deudorService";
 import type { Deudor } from "@/modules/cobranza/models/deudores.model";
 import { TipificacionDeuda } from "@/shared/constants/tipificacionDeuda";
-import { EMAIL_TEMPLATES, EMAIL_VARIABLES } from "../emailTemplates";
+import { DEFAULT_EMAIL_TEMPLATES, EMAIL_VARIABLES, type EmailTemplate } from "../emailTemplates";
+import { listenEmailTemplates } from "../services/emailTemplatesService";
 import { useAcl } from "@/modules/auth/hooks/useAcl";
 import { PERMS } from "@/shared/constants/acl";
 import { getUsuarioByUid } from "@/modules/usuarios/services/usuarioService";
@@ -308,9 +309,14 @@ export default function EmailComposePage() {
   const [conjunto, setConjunto] = useState("");
   const [deudores, setDeudores] = useState<Deudor[]>([]);
   const [loading, setLoading] = useState(true);
-  const [templateId, setTemplateId] = useState(EMAIL_TEMPLATES[0].id);
-  const [subject, setSubject] = useState(EMAIL_TEMPLATES[0].subject);
-  const [body, setBody] = useState(EMAIL_TEMPLATES[0].body);
+  // Las plantillas vienen de Firestore (Ajustes > Plantillas de correo). Hasta
+  // que llegan, o si la colección está vacía, se usan las predeterminadas.
+  const [templates, setTemplates] = useState<EmailTemplate[]>(DEFAULT_EMAIL_TEMPLATES);
+  const [templateId, setTemplateId] = useState(DEFAULT_EMAIL_TEMPLATES[0].id);
+  const [subject, setSubject] = useState(DEFAULT_EMAIL_TEMPLATES[0].subject);
+  const [body, setBody] = useState(DEFAULT_EMAIL_TEMPLATES[0].body);
+  /** El usuario ya eligió plantilla o escribió: la carga de Firestore no debe pisarlo. */
+  const touchedRef = useRef(false);
   const [selectedTips, setSelectedTips] = useState<string[]>([]);
   const [selectedEmail, setSelectedEmail] = useState("");
   const [conjuntoEmail, setConjuntoEmail] = useState("");
@@ -338,6 +344,7 @@ export default function EmailComposePage() {
       setInlineImage(prepared);
       // Si el cuerpo aún no dice dónde va, se inserta el marcador al final para
       // que el usuario vea de inmediato que la imagen quedó en el correo.
+      touchedRef.current = true;
       setBody((current) => (current.includes(IMAGE_PLACEHOLDER) ? current : `${current}\n\n${IMAGE_PLACEHOLDER}`));
       toast.success("Imagen lista para incrustarse en el correo.");
     } catch (error) {
@@ -362,6 +369,7 @@ export default function EmailComposePage() {
   function insertarMarcador() {
     const textarea = bodyRef.current;
     const at = textarea ? textarea.selectionStart : body.length;
+    touchedRef.current = true;
     setBody((current) => `${current.slice(0, at)}${IMAGE_PLACEHOLDER}${current.slice(at)}`);
     // El cursor queda después del marcador recién insertado.
     requestAnimationFrame(() => {
@@ -372,6 +380,22 @@ export default function EmailComposePage() {
   }
 
   useEffect(() => () => unsubscribeRef.current?.(), []);
+
+  useEffect(
+    () =>
+      listenEmailTemplates(
+        (data) => {
+          const list = data.length > 0 ? data : DEFAULT_EMAIL_TEMPLATES;
+          setTemplates(list);
+          if (touchedRef.current) return;
+          setTemplateId(list[0].id);
+          setSubject(list[0].subject);
+          setBody(list[0].body);
+        },
+        () => toast.error("No se pudieron cargar las plantillas; se usan las predeterminadas.")
+      ),
+    []
+  );
 
   /** Historial de campañas de ESTE conjunto. Se recarga al terminar un envío. */
   const loadHistory = useCallback(() => {
@@ -420,15 +444,16 @@ export default function EmailComposePage() {
     0
   );
   const previewDebtor = targetDeudores[0] ?? deudores[0];
-  const selectedTemplate = EMAIL_TEMPLATES.find((item) => item.id === templateId);
+  const selectedTemplate = templates.find((item) => item.id === templateId);
   const conjuntoEmails = useMemo(() => parseEmailList(conjuntoEmail), [conjuntoEmail]);
   const excelDeudores = useMemo(() => deudoresParaExcel(deudores), [deudores]);
   const willAttachDeudoresExcel = isConjunto && !!selectedTemplate?.attachDeudoresExcel && excelDeudores.length > 0;
   const excelExcluidos = deudores.length - excelDeudores.length;
 
   function selectTemplate(id: string) {
-    const template = EMAIL_TEMPLATES.find((item) => item.id === id);
+    const template = templates.find((item) => item.id === id);
     if (!template) return;
+    touchedRef.current = true;
     setTemplateId(id);
     setSubject(template.subject);
     // Cambiar de plantilla reemplaza el cuerpo y con él el marcador. Si ya hay
@@ -596,7 +621,7 @@ export default function EmailComposePage() {
           <div className="space-y-2">
             <Label>Plantilla</Label>
             <select value={templateId} onChange={(event) => selectTemplate(event.target.value)} className="w-full h-10 rounded-md border px-3 text-sm">
-              {EMAIL_TEMPLATES.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
+              {templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
             </select>
           </div>
 
@@ -643,10 +668,10 @@ export default function EmailComposePage() {
             </div>
           )}
 
-          <div className="space-y-2"><Label>Asunto</Label><Input value={subject} onChange={(event) => setSubject(event.target.value)} /></div>
+          <div className="space-y-2"><Label>Asunto</Label><Input value={subject} onChange={(event) => { touchedRef.current = true; setSubject(event.target.value); }} /></div>
           <div className="space-y-2" onPaste={handlePasteImagen}>
             <Label>Contenido</Label>
-            <Textarea ref={bodyRef} value={body} onChange={(event) => setBody(event.target.value)} rows={12} />
+            <Textarea ref={bodyRef} value={body} onChange={(event) => { touchedRef.current = true; setBody(event.target.value); }} rows={12} />
           </div>
           <p className="text-xs text-gray-500">Variables disponibles: {EMAIL_VARIABLES.map((variable) => `{{${variable}}}`).join(", ")}</p>
           <p className="text-xs text-gray-500">

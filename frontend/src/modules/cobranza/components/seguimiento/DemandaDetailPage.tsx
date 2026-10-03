@@ -25,6 +25,8 @@ import {
   ShieldAlert,
   ChevronDown,
   MessageSquare,
+  User,
+  Home,
 } from "lucide-react";
 
 import { Button } from "@/shared/ui/button";
@@ -138,6 +140,7 @@ export default function DemandaDetailPage() {
   const [saving, setSaving] = React.useState(false);
   const [nombreCliente, setNombreCliente] = React.useState("Cliente");
   const [deudorNombre, setDeudorNombre] = React.useState("");
+  const [deudorInmueble, setDeudorInmueble] = React.useState("");
 
   // ── Datos de la demanda ────────────────────────────────────────
   const [form, setForm] = React.useState({
@@ -181,6 +184,7 @@ export default function DemandaDetailPage() {
       ]);
       if (cliente?.nombre) setNombreCliente(cliente.nombre);
       if (deudor?.nombre) setDeudorNombre(deudor.nombre);
+      setDeudorInmueble(deudor?.ubicacion?.trim() ?? "");
       setCatalogo(cat);
       setSegRows(segs);
 
@@ -499,10 +503,6 @@ export default function DemandaDetailPage() {
                 <Typography variant="h1" className="!text-brand-primary font-bold">
                   Demanda
                 </Typography>
-                <Typography variant="small">
-                  {deudorNombre}
-                  {form.numeroRadicado ? ` · ${form.numeroRadicado}` : ""}
-                </Typography>
               </div>
             </div>
             <Button variant="outline" onClick={() => navigate(-1)} className="gap-2 border-brand-secondary/30">
@@ -510,6 +510,31 @@ export default function DemandaDetailPage() {
               Volver
             </Button>
           </div>
+
+          {/* Contexto: de qué conjunto, deudor e inmueble es esta demanda */}
+          <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 rounded-xl border border-brand-secondary/20 bg-white shadow-sm divide-y sm:divide-y-0 lg:divide-x divide-brand-secondary/10">
+            {[
+              { icon: Building2, label: "Conjunto", value: nombreCliente !== "Cliente" ? nombreCliente : "" },
+              { icon: User, label: "Deudor", value: deudorNombre },
+              { icon: Home, label: "Inmueble", value: deudorInmueble },
+              { icon: Hash, label: "Radicado", value: form.numeroRadicado, mono: true },
+            ].map(({ icon: Icon, label, value, mono }) => (
+              <div key={label} className="flex items-start gap-3 px-4 py-3 min-w-0">
+                <div className="p-1.5 rounded-md bg-brand-primary/10 shrink-0">
+                  <Icon className="h-4 w-4 text-brand-primary" />
+                </div>
+                <div className="min-w-0">
+                  <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</dt>
+                  <dd
+                    className={`text-sm font-semibold text-gray-900 truncate ${mono ? "font-mono tabular-nums" : ""}`}
+                    title={value || undefined}
+                  >
+                    {value || <span className="font-normal text-muted-foreground">—</span>}
+                  </dd>
+                </div>
+              </div>
+            ))}
+          </dl>
         </header>
 
         {/* ── Datos principales ── */}

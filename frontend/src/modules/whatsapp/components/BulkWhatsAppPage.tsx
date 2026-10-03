@@ -28,6 +28,7 @@ import type { Deudor } from "@/modules/cobranza/models/deudores.model";
 import { obtenerEstadosMensuales } from "@/modules/cobranza/services/estadoMensualService";
 import { getClienteById } from "@/modules/clientes/services/clienteService";
 import { getUsuarioByUid } from "@/modules/usuarios/services/usuarioService";
+import { toWhatsAppNumber } from "@/shared/phoneUtils";
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -66,11 +67,7 @@ const HEADER_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function normalizePhone(raw: string): string {
-  const digits = raw.replace(/[^\d]/g, "");
-  if (digits.startsWith("57") && digits.length >= 12) return digits;
-  return `57${digits}`;
-}
+const normalizePhone = toWhatsAppNumber;
 
 interface ExtraContext {
   deuda?: string;

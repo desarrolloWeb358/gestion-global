@@ -58,10 +58,10 @@ export function TareaFormModal({ tarea, canManage, canAssign, usuariosAsignables
   const [saving, setSaving] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
 
-  const puedeAgregarSeguimiento = esEdicion && tarea?.asignadoA === actor.uid;
+  const puedeAgregarSeguimiento = esEdicion && (esPropia || tarea?.asignadoA === actor.uid);
+  const puedeGuardar = !soloLectura || puedeAgregarSeguimiento;
   const [seguimientos, setSeguimientos] = React.useState<TareaSeguimiento[]>([]);
   const [nuevoSeguimiento, setNuevoSeguimiento] = React.useState("");
-  const [guardandoSeguimiento, setGuardandoSeguimiento] = React.useState(false);
 
   React.useEffect(() => {
     if (!esEdicion || !tarea?.id) return;
@@ -72,26 +72,30 @@ export function TareaFormModal({ tarea, canManage, canAssign, usuariosAsignables
     );
   }, [esEdicion, tarea?.id]);
 
-  async function onAgregarSeguimiento() {
-    if (!tarea?.id || !nuevoSeguimiento.trim()) return;
-    setGuardandoSeguimiento(true);
-    try {
-      await addSeguimientoTarea(tarea.id, nuevoSeguimiento, { uid: actor.uid, nombre: actor.nombre });
-      setNuevoSeguimiento("");
-    } catch (err) {
-      console.error("[TareaFormModal] Error al agregar seguimiento:", err);
-      toast.error("No se pudo agregar el seguimiento.");
-    } finally {
-      setGuardandoSeguimiento(false);
-    }
-  }
-
   function formatFechaSeguimiento(ts: any): string {
     if (!ts || typeof ts.toDate !== "function") return "";
     return ts.toDate().toLocaleString("es-CO", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
   }
 
   async function onSubmit() {
+    if (esEdicion && tarea?.id && soloLectura) {
+      // Solo puede agregar seguimiento, los demás campos quedan intactos.
+      if (!nuevoSeguimiento.trim()) return;
+      setSaving(true);
+      try {
+        await addSeguimientoTarea(tarea.id, nuevoSeguimiento, { uid: actor.uid, nombre: actor.nombre });
+        setNuevoSeguimiento("");
+        toast.success("Seguimiento agregado.");
+        onSaved();
+      } catch (err) {
+        console.error("[TareaFormModal] Error al agregar seguimiento:", err);
+        toast.error("No se pudo agregar el seguimiento.");
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
     if (!titulo.trim()) {
       toast.error("El título es obligatorio.");
       return;
@@ -117,6 +121,10 @@ export function TareaFormModal({ tarea, canManage, canAssign, usuariosAsignables
             ? usuarioAsignado?.nombre ?? ""
             : actor.nombre ?? tarea.asignadoNombre ?? "",
         });
+        if (puedeAgregarSeguimiento && nuevoSeguimiento.trim()) {
+          await addSeguimientoTarea(tarea.id, nuevoSeguimiento, { uid: actor.uid, nombre: actor.nombre });
+          setNuevoSeguimiento("");
+        }
         toast.success("Tarea actualizada.");
       } else {
         await Promise.all(
@@ -315,31 +323,18 @@ export function TareaFormModal({ tarea, canManage, canAssign, usuariosAsignables
                   )}
                 </div>
                 {puedeAgregarSeguimiento && (
-                  <div className="flex gap-2">
-                    <Textarea
-                      value={nuevoSeguimiento}
-                      onChange={(e) => setNuevoSeguimiento(e.target.value)}
-                      disabled={guardandoSeguimiento}
-                      placeholder="Escribe en qué va la tarea..."
-                      className="min-h-[60px]"
-                    />
-                  </div>
-                )}
-                {puedeAgregarSeguimiento && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={guardandoSeguimiento || !nuevoSeguimiento.trim()}
-                    onClick={onAgregarSeguimiento}
-                  >
-                    Agregar seguimiento
-                  </Button>
+                  <Textarea
+                    value={nuevoSeguimiento}
+                    onChange={(e) => setNuevoSeguimiento(e.target.value)}
+                    disabled={saving}
+                    placeholder="Escribe en qué va la tarea..."
+                    className="min-h-[60px]"
+                  />
                 )}
               </div>
             )}
 
-            {soloLectura ? (
+            {!puedeGuardar ? (
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={onClose}>Cerrar</Button>
               </DialogFooter>
@@ -352,7 +347,10 @@ export function TareaFormModal({ tarea, canManage, canAssign, usuariosAsignables
                 ) : <span />}
                 <div className="flex gap-2">
                   <Button type="button" variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
-                  <Button type="submit" disabled={saving}>
+                  <Button
+                    type="submit"
+                    disabled={saving || (soloLectura && !nuevoSeguimiento.trim())}
+                  >
                     {esEdicion ? "Guardar cambios" : "Crear tarea"}
                   </Button>
                 </div>

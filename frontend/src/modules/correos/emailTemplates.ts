@@ -1,3 +1,9 @@
+import type { Timestamp } from "firebase/firestore";
+
+/**
+ * Plantilla de correo. Viven en Firestore (`emailTemplates/{id}`) y se
+ * administran en Ajustes > Plantillas de correo.
+ */
 export interface EmailTemplate {
   id: string;
   name: string;
@@ -5,9 +11,15 @@ export interface EmailTemplate {
   body: string;
   /** Cuando es true, el envío adjunta automáticamente el Excel de deudores del conjunto (solo aplica en modo "conjunto"). */
   attachDeudoresExcel?: boolean;
+  createdAt?: Timestamp;
 }
 
-export const EMAIL_TEMPLATES: EmailTemplate[] = [
+/**
+ * Plantillas de arranque. Ya no son la fuente: solo se usan para sembrar la
+ * colección desde Ajustes y, mientras la colección esté vacía, para que la
+ * pantalla de redacción no se quede sin plantillas.
+ */
+export const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
   {
     id: "recordatorio-cartera",
     name: "Recordatorio de cartera",
@@ -25,6 +37,14 @@ export const EMAIL_TEMPLATES: EmailTemplate[] = [
     name: "Comunicado general del conjunto",
     subject: "Comunicado de {{conjunto}}",
     body: "Cordial saludo {{nombre}},\n\n## Comunicado de {{conjunto}}\n\nPor medio del presente compartimos la siguiente comunicación relacionada con {{conjunto}} y el inmueble {{ubicacion}}:\n\n[Escriba aquí el comunicado]\n\nAtentamente,\nGestión Global ACG",
+  },
+  {
+    // {{fecha}} es la fecha del envío, no la de la jornada: por eso la fecha
+    // del evento va como texto a reemplazar antes de enviar.
+    id: "jornada-normalizacion",
+    name: "Jornada de normalización",
+    subject: "Jornada de normalización de cartera - {{conjunto}}",
+    body: "Cordial saludo {{nombre}}.\n\nNuestra firma **GESTIÓN GLOBAL ACG S.A.S.**, encargada de la recuperación de cartera del {{conjunto}}, tiene el gusto de invitarlos el día **[Escriba aquí la fecha de la jornada]** en el horario indicado a nuestra gran **jornada de normalización de cartera**.\n\nAtentamente,\nGestión Global ACG",
   },
   {
     id: "solicitud-estados-cuenta",
@@ -48,3 +68,15 @@ export const EMAIL_TEMPLATES: EmailTemplate[] = [
 ];
 
 export const EMAIL_VARIABLES = ["nombre", "cedula", "ubicacion", "direccion", "tipificacion", "conjunto", "fecha"] as const;
+
+/** Marcador de la imagen incrustada; no es variable pero sí es válido en el cuerpo. */
+export const EMAIL_IMAGE_PLACEHOLDER = "imagen";
+
+/** Variables escritas en el texto que el sistema no sabe llenar (saldrían vacías). */
+export function unknownVariables(text: string): string[] {
+  const known = new Set<string>([...EMAIL_VARIABLES, EMAIL_IMAGE_PLACEHOLDER]);
+  // Sin tolerar espacios: el render solo reemplaza `{{nombre}}` exacto, así
+  // que `{{ nombre }}` también saldría crudo y debe avisarse.
+  const found = (text.match(/\{\{[^}]*\}\}/g) ?? []).map((m) => m.slice(2, -2));
+  return [...new Set(found.filter((name) => !known.has(name)))];
+}

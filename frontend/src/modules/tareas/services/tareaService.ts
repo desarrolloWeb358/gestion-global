@@ -189,21 +189,53 @@ export function suscribirTareas(
   );
 }
 
-export function suscribirTareasPorAsignado(
+/**
+ * Tareas donde el usuario participa: las que tiene asignadas Y las que él
+ * mismo creó (aunque se las haya asignado a otra persona). Se combinan dos
+ * listeners porque Firestore no permite el OR entre campos distintos con
+ * onSnapshot de forma directa.
+ */
+export function suscribirTareasPropias(
   uid: string,
   callback: (tareas: Tarea[]) => void,
   onError?: (err: unknown) => void
 ): Unsubscribe {
-  const q = query(colRef(), where("asignadoA", "==", uid));
-  return onSnapshot(
-    q,
+  let asignadas: Tarea[] = [];
+  let creadas: Tarea[] = [];
+
+  function emitir() {
+    const porId = new Map<string, Tarea>();
+    for (const t of asignadas) porId.set(t.id!, t);
+    for (const t of creadas) porId.set(t.id!, t);
+    callback(Array.from(porId.values()));
+  }
+
+  const unsubAsignadas = onSnapshot(
+    query(colRef(), where("asignadoA", "==", uid)),
     (snap) => {
-      const arr = snap.docs.map((d) => mapDocToTarea(d.id, d.data()));
-      callback(arr);
+      asignadas = snap.docs.map((d) => mapDocToTarea(d.id, d.data()));
+      emitir();
     },
     (err) => {
-      console.error("[suscribirTareasPorAsignado] onSnapshot error:", err);
+      console.error("[suscribirTareasPropias] Error (asignadoA):", err);
       onError?.(err);
     }
   );
+
+  const unsubCreadas = onSnapshot(
+    query(colRef(), where("creadoPor", "==", uid)),
+    (snap) => {
+      creadas = snap.docs.map((d) => mapDocToTarea(d.id, d.data()));
+      emitir();
+    },
+    (err) => {
+      console.error("[suscribirTareasPropias] Error (creadoPor):", err);
+      onError?.(err);
+    }
+  );
+
+  return () => {
+    unsubAsignadas();
+    unsubCreadas();
+  };
 }
